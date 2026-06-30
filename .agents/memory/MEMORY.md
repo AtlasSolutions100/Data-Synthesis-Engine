@@ -1,0 +1,2 @@
+- [DB project-reference stale declarations](db-project-reference-rebuild.md) — after schema changes, rebuild `@workspace/db` declarations or consumers typecheck against stale `dist/*.d.ts`.
+- [Seed esbuild CJS](seed-esbuild-cjs.md) — bundle Node seed/scripts as CJS, not ESM; pg's dynamic require breaks under ESM output.

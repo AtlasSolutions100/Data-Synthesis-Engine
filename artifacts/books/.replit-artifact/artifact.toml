@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "Allied Power Services — Books"
+version = "1.0.0"
+id = "artifacts/books"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 18855
+
+[services.development]
+run = "pnpm --filter @workspace/books run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/books", "run", "build" ]
+publicDir = "artifacts/books/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "18855"
+BASE_PATH = "/"

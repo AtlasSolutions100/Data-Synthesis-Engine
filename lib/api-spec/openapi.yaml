@@ -10,6 +10,20 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: accounts
+    description: Chart of accounts
+  - name: customers
+    description: Customers
+  - name: vendors
+    description: Vendors
+  - name: employees
+    description: Employees
+  - name: jobs
+    description: Jobs
+  - name: transactions
+    description: Ledger transactions
+  - name: reports
+    description: Reporting and dashboards
 paths:
   /healthz:
     get:
@@ -24,7 +38,574 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /accounts:
+    get:
+      operationId: listAccounts
+      tags: [accounts]
+      summary: List chart of accounts
+      responses:
+        "200":
+          description: List of accounts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Account"
+    post:
+      operationId: createAccount
+      tags: [accounts]
+      summary: Create an account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AccountInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Account"
+        "400":
+          $ref: "#/components/responses/Error"
+  /accounts/{id}:
+    get:
+      operationId: getAccount
+      tags: [accounts]
+      summary: Get an account
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "200":
+          description: Account
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Account"
+        "404":
+          $ref: "#/components/responses/Error"
+    patch:
+      operationId: updateAccount
+      tags: [accounts]
+      summary: Update an account
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AccountUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Account"
+        "404":
+          $ref: "#/components/responses/Error"
+    delete:
+      operationId: deleteAccount
+      tags: [accounts]
+      summary: Delete an account
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          $ref: "#/components/responses/Error"
+
+  /customers:
+    get:
+      operationId: listCustomers
+      tags: [customers]
+      summary: List customers
+      responses:
+        "200":
+          description: List of customers
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Customer"
+    post:
+      operationId: createCustomer
+      tags: [customers]
+      summary: Create a customer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CustomerInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Customer"
+        "400":
+          $ref: "#/components/responses/Error"
+  /customers/{id}:
+    get:
+      operationId: getCustomer
+      tags: [customers]
+      summary: Get a customer
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "200":
+          description: Customer
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Customer"
+        "404":
+          $ref: "#/components/responses/Error"
+    patch:
+      operationId: updateCustomer
+      tags: [customers]
+      summary: Update a customer
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CustomerUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Customer"
+        "404":
+          $ref: "#/components/responses/Error"
+    delete:
+      operationId: deleteCustomer
+      tags: [customers]
+      summary: Delete a customer
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          $ref: "#/components/responses/Error"
+
+  /vendors:
+    get:
+      operationId: listVendors
+      tags: [vendors]
+      summary: List vendors
+      responses:
+        "200":
+          description: List of vendors
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Vendor"
+    post:
+      operationId: createVendor
+      tags: [vendors]
+      summary: Create a vendor
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VendorInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Vendor"
+        "400":
+          $ref: "#/components/responses/Error"
+  /vendors/{id}:
+    get:
+      operationId: getVendor
+      tags: [vendors]
+      summary: Get a vendor
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "200":
+          description: Vendor
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Vendor"
+        "404":
+          $ref: "#/components/responses/Error"
+    patch:
+      operationId: updateVendor
+      tags: [vendors]
+      summary: Update a vendor
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VendorUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Vendor"
+        "404":
+          $ref: "#/components/responses/Error"
+    delete:
+      operationId: deleteVendor
+      tags: [vendors]
+      summary: Delete a vendor
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          $ref: "#/components/responses/Error"
+
+  /employees:
+    get:
+      operationId: listEmployees
+      tags: [employees]
+      summary: List employees
+      responses:
+        "200":
+          description: List of employees
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Employee"
+    post:
+      operationId: createEmployee
+      tags: [employees]
+      summary: Create an employee
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EmployeeInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Employee"
+        "400":
+          $ref: "#/components/responses/Error"
+  /employees/{id}:
+    get:
+      operationId: getEmployee
+      tags: [employees]
+      summary: Get an employee
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "200":
+          description: Employee
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Employee"
+        "404":
+          $ref: "#/components/responses/Error"
+    patch:
+      operationId: updateEmployee
+      tags: [employees]
+      summary: Update an employee
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EmployeeUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Employee"
+        "404":
+          $ref: "#/components/responses/Error"
+    delete:
+      operationId: deleteEmployee
+      tags: [employees]
+      summary: Delete an employee
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          $ref: "#/components/responses/Error"
+
+  /jobs:
+    get:
+      operationId: listJobs
+      tags: [jobs]
+      summary: List jobs
+      responses:
+        "200":
+          description: List of jobs with rolled-up totals
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Job"
+    post:
+      operationId: createJob
+      tags: [jobs]
+      summary: Create a job
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JobInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Job"
+        "400":
+          $ref: "#/components/responses/Error"
+  /jobs/{id}:
+    get:
+      operationId: getJob
+      tags: [jobs]
+      summary: Get a job
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "200":
+          description: Job
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Job"
+        "404":
+          $ref: "#/components/responses/Error"
+    patch:
+      operationId: updateJob
+      tags: [jobs]
+      summary: Update a job
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JobUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Job"
+        "404":
+          $ref: "#/components/responses/Error"
+    delete:
+      operationId: deleteJob
+      tags: [jobs]
+      summary: Delete a job
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          $ref: "#/components/responses/Error"
+  /jobs/{id}/cost-summary:
+    get:
+      operationId: getJobCostSummary
+      tags: [jobs]
+      summary: Per-job cost summary
+      description: Income, cost, profit and per-account breakdown for one job, computed from stored line items.
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "200":
+          description: Job cost summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JobCostSummary"
+        "404":
+          $ref: "#/components/responses/Error"
+
+  /transactions:
+    get:
+      operationId: listTransactions
+      tags: [transactions]
+      summary: List transactions
+      parameters:
+        - name: jobId
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: accountId
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: type
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of transactions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Transaction"
+    post:
+      operationId: createTransaction
+      tags: [transactions]
+      summary: Create a transaction
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TransactionInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Transaction"
+        "400":
+          $ref: "#/components/responses/Error"
+  /transactions/{id}:
+    get:
+      operationId: getTransaction
+      tags: [transactions]
+      summary: Get a transaction
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "200":
+          description: Transaction
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Transaction"
+        "404":
+          $ref: "#/components/responses/Error"
+    patch:
+      operationId: updateTransaction
+      tags: [transactions]
+      summary: Update a transaction
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TransactionUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Transaction"
+        "404":
+          $ref: "#/components/responses/Error"
+    delete:
+      operationId: deleteTransaction
+      tags: [transactions]
+      summary: Delete a transaction
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          $ref: "#/components/responses/Error"
+
+  /reports/dashboard:
+    get:
+      operationId: getDashboardSummary
+      tags: [reports]
+      summary: Company-wide profit and loss summary
+      responses:
+        "200":
+          description: Dashboard summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardSummary"
+  /reports/cost-by-account:
+    get:
+      operationId: getCostByAccount
+      tags: [reports]
+      summary: Totals grouped by account
+      responses:
+        "200":
+          description: Account totals
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AccountTotal"
+
 components:
+  parameters:
+    IdParam:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+  responses:
+    Error:
+      description: Error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
   schemas:
     HealthStatus:
       type: object
@@ -33,4 +614,418 @@ components:
           type: string
       required:
         - status
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
 
+    Account:
+      type: object
+      required: [id, number, name, type]
+      properties:
+        id:
+          type: integer
+        number:
+          type: string
+        name:
+          type: string
+        type:
+          type: string
+          enum: [income, cogs, expense, other_income, other_expense]
+        parentNumber:
+          type: ["string", "null"]
+    AccountInput:
+      type: object
+      required: [number, name, type]
+      properties:
+        number:
+          type: string
+          minLength: 1
+        name:
+          type: string
+          minLength: 1
+        type:
+          type: string
+          enum: [income, cogs, expense, other_income, other_expense]
+        parentNumber:
+          type: ["string", "null"]
+    AccountUpdate:
+      type: object
+      properties:
+        number:
+          type: string
+          minLength: 1
+        name:
+          type: string
+          minLength: 1
+        type:
+          type: string
+          enum: [income, cogs, expense, other_income, other_expense]
+        parentNumber:
+          type: ["string", "null"]
+
+    Customer:
+      type: object
+      required: [id, name]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        email:
+          type: ["string", "null"]
+        phone:
+          type: ["string", "null"]
+        notes:
+          type: ["string", "null"]
+    CustomerInput:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 1
+        email:
+          type: ["string", "null"]
+        phone:
+          type: ["string", "null"]
+        notes:
+          type: ["string", "null"]
+    CustomerUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+        email:
+          type: ["string", "null"]
+        phone:
+          type: ["string", "null"]
+        notes:
+          type: ["string", "null"]
+
+    Vendor:
+      type: object
+      required: [id, name]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        email:
+          type: ["string", "null"]
+        phone:
+          type: ["string", "null"]
+        notes:
+          type: ["string", "null"]
+    VendorInput:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 1
+        email:
+          type: ["string", "null"]
+        phone:
+          type: ["string", "null"]
+        notes:
+          type: ["string", "null"]
+    VendorUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+        email:
+          type: ["string", "null"]
+        phone:
+          type: ["string", "null"]
+        notes:
+          type: ["string", "null"]
+
+    Employee:
+      type: object
+      required: [id, name]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        straightTimeRateCents:
+          type: ["integer", "null"]
+          description: Hourly straight-time pay rate in integer cents
+        overtimeRateCents:
+          type: ["integer", "null"]
+          description: Hourly overtime pay rate in integer cents
+        active:
+          type: boolean
+    EmployeeInput:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 1
+        straightTimeRateCents:
+          type: ["integer", "null"]
+        overtimeRateCents:
+          type: ["integer", "null"]
+        active:
+          type: boolean
+    EmployeeUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+        straightTimeRateCents:
+          type: ["integer", "null"]
+        overtimeRateCents:
+          type: ["integer", "null"]
+        active:
+          type: boolean
+
+    Job:
+      type: object
+      required: [id, jobNumber, name, status, contractAmountCents, incomeCents, costCents, profitCents]
+      properties:
+        id:
+          type: integer
+        jobNumber:
+          type: string
+        name:
+          type: string
+        customerId:
+          type: ["integer", "null"]
+        customerName:
+          type: ["string", "null"]
+        description:
+          type: ["string", "null"]
+        status:
+          type: string
+          enum: [active, completed, on_hold]
+        contractAmountCents:
+          type: integer
+          description: Contract value in integer cents
+        incomeCents:
+          type: integer
+          description: Billed income in cents (computed from line items)
+        costCents:
+          type: integer
+          description: Total cost in cents (computed from line items)
+        profitCents:
+          type: integer
+          description: incomeCents minus costCents
+    JobInput:
+      type: object
+      required: [jobNumber, name]
+      properties:
+        jobNumber:
+          type: string
+          minLength: 1
+        name:
+          type: string
+          minLength: 1
+        customerId:
+          type: ["integer", "null"]
+        description:
+          type: ["string", "null"]
+        status:
+          type: string
+          enum: [active, completed, on_hold]
+        contractAmountCents:
+          type: integer
+    JobUpdate:
+      type: object
+      properties:
+        jobNumber:
+          type: string
+          minLength: 1
+        name:
+          type: string
+          minLength: 1
+        customerId:
+          type: ["integer", "null"]
+        description:
+          type: ["string", "null"]
+        status:
+          type: string
+          enum: [active, completed, on_hold]
+        contractAmountCents:
+          type: integer
+
+    Transaction:
+      type: object
+      required: [id, date, type, amountCents, accountId]
+      properties:
+        id:
+          type: integer
+        date:
+          type: string
+          description: ISO date (YYYY-MM-DD)
+        type:
+          type: string
+          enum: [invoice, bill, expense, check, payment, journal]
+        num:
+          type: ["string", "null"]
+        partyName:
+          type: ["string", "null"]
+          description: Customer or vendor name as displayed
+        description:
+          type: ["string", "null"]
+        accountId:
+          type: integer
+        accountNumber:
+          type: ["string", "null"]
+        accountName:
+          type: ["string", "null"]
+        splitAccount:
+          type: ["string", "null"]
+          description: Offsetting account (e.g. Accounts Receivable, Checking)
+        jobId:
+          type: ["integer", "null"]
+        jobNumber:
+          type: ["string", "null"]
+        customerId:
+          type: ["integer", "null"]
+        vendorId:
+          type: ["integer", "null"]
+        amountCents:
+          type: integer
+          description: Signed amount in integer cents
+    TransactionInput:
+      type: object
+      required: [date, type, accountId, amountCents]
+      properties:
+        date:
+          type: string
+          minLength: 1
+        type:
+          type: string
+          enum: [invoice, bill, expense, check, payment, journal]
+        num:
+          type: ["string", "null"]
+        partyName:
+          type: ["string", "null"]
+        description:
+          type: ["string", "null"]
+        accountId:
+          type: integer
+        splitAccount:
+          type: ["string", "null"]
+        jobId:
+          type: ["integer", "null"]
+        customerId:
+          type: ["integer", "null"]
+        vendorId:
+          type: ["integer", "null"]
+        amountCents:
+          type: integer
+    TransactionUpdate:
+      type: object
+      properties:
+        date:
+          type: string
+          minLength: 1
+        type:
+          type: string
+          enum: [invoice, bill, expense, check, payment, journal]
+        num:
+          type: ["string", "null"]
+        partyName:
+          type: ["string", "null"]
+        description:
+          type: ["string", "null"]
+        accountId:
+          type: integer
+        splitAccount:
+          type: ["string", "null"]
+        jobId:
+          type: ["integer", "null"]
+        customerId:
+          type: ["integer", "null"]
+        vendorId:
+          type: ["integer", "null"]
+        amountCents:
+          type: integer
+
+    JobCostSummary:
+      type: object
+      required: [jobId, jobNumber, name, contractAmountCents, incomeCents, costCents, profitCents, lines]
+      properties:
+        jobId:
+          type: integer
+        jobNumber:
+          type: string
+        name:
+          type: string
+        customerName:
+          type: ["string", "null"]
+        contractAmountCents:
+          type: integer
+        incomeCents:
+          type: integer
+        costCents:
+          type: integer
+        profitCents:
+          type: integer
+        lines:
+          type: array
+          items:
+            $ref: "#/components/schemas/AccountTotal"
+
+    AccountTotal:
+      type: object
+      required: [accountId, accountNumber, accountName, type, amountCents]
+      properties:
+        accountId:
+          type: integer
+        accountNumber:
+          type: string
+        accountName:
+          type: string
+        type:
+          type: string
+          enum: [income, cogs, expense, other_income, other_expense]
+        amountCents:
+          type: integer
+
+    DashboardSummary:
+      type: object
+      required:
+        - totalIncomeCents
+        - totalCogsCents
+        - grossProfitCents
+        - totalExpensesCents
+        - netIncomeCents
+        - jobCount
+        - openJobCount
+        - transactionCount
+      properties:
+        totalIncomeCents:
+          type: integer
+        totalCogsCents:
+          type: integer
+        grossProfitCents:
+          type: integer
+        totalExpensesCents:
+          type: integer
+        netIncomeCents:
+          type: integer
+        jobCount:
+          type: integer
+        openJobCount:
+          type: integer
+        transactionCount:
+          type: integer
+        topJobs:
+          type: array
+          items:
+            $ref: "#/components/schemas/Job"
+        recentTransactions:
+          type: array
+          items:
+            $ref: "#/components/schemas/Transaction"

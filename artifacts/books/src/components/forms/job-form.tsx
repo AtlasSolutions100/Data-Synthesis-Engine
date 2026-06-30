@@ -1,0 +1,159 @@
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import * as z from "zod";
+import { Button } from "@/components/ui/button";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { parseDollars } from "@/lib/format";
+import { JobInput, JobUpdate, JobInputStatus } from "@workspace/api-client-react";
+
+const jobSchema = z.object({
+  jobNumber: z.string().min(1, "Job number is required"),
+  name: z.string().min(1, "Name is required"),
+  customerId: z.string().optional(),
+  description: z.string().optional(),
+  status: z.enum(["active", "completed", "on_hold"]),
+  contractAmount: z.string().optional(),
+});
+
+type JobFormValues = z.infer<typeof jobSchema>;
+
+interface JobFormProps {
+  defaultValues?: Partial<JobFormValues>;
+  onSubmit: (data: JobInput | JobUpdate) => void;
+  isLoading?: boolean;
+}
+
+export function JobForm({ defaultValues, onSubmit, isLoading }: JobFormProps) {
+  const form = useForm<JobFormValues>({
+    resolver: zodResolver(jobSchema),
+    defaultValues: {
+      jobNumber: defaultValues?.jobNumber || "",
+      name: defaultValues?.name || "",
+      customerId: defaultValues?.customerId || "",
+      description: defaultValues?.description || "",
+      status: defaultValues?.status || "active",
+      contractAmount: defaultValues?.contractAmount || "",
+    },
+  });
+
+  const handleSubmit = (values: JobFormValues) => {
+    onSubmit({
+      jobNumber: values.jobNumber,
+      name: values.name,
+      customerId: values.customerId ? parseInt(values.customerId, 10) : undefined,
+      description: values.description || null,
+      status: values.status as JobInputStatus,
+      contractAmountCents: values.contractAmount ? parseDollars(values.contractAmount) : 0,
+    });
+  };
+
+  return (
+    <Form {...form}>
+      <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
+        <div className="grid grid-cols-2 gap-4">
+          <FormField
+            control={form.control}
+            name="jobNumber"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Job Number</FormLabel>
+                <FormControl>
+                  <Input {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="name"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Name</FormLabel>
+                <FormControl>
+                  <Input {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <FormField
+            control={form.control}
+            name="customerId"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Customer ID (Optional)</FormLabel>
+                <FormControl>
+                  <Input type="number" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="status"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Status</FormLabel>
+                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select status" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    <SelectItem value="active">Active</SelectItem>
+                    <SelectItem value="completed">Completed</SelectItem>
+                    <SelectItem value="on_hold">On Hold</SelectItem>
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+        <FormField
+          control={form.control}
+          name="contractAmount"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Contract Amount ($)</FormLabel>
+              <FormControl>
+                <Input type="number" step="0.01" {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="description"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Description (Optional)</FormLabel>
+              <FormControl>
+                <Input {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <Button type="submit" disabled={isLoading} className="w-full">
+          {isLoading ? "Saving..." : "Save Job"}
+        </Button>
+      </form>
+    </Form>
+  );
+}

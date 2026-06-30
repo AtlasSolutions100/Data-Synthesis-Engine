@@ -1,0 +1,8 @@
+uploads = []
+outputs = []
+
+[[generated]]
+id = "P2Cq3DPcnr1LE7S2Fb6cc"
+uri = "file://artifacts/books/public/logo.png"
+type = "image"
+title = "Allied Power Services Logo"
