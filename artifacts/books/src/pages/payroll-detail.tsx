@@ -1,0 +1,283 @@
+import { useParams, Link } from "wouter";
+import {
+  useGetPayrollRun,
+  usePostPayrollRun,
+  useUnpostPayrollRun,
+  getGetPayrollRunQueryKey,
+  getListPayrollRunsQueryKey,
+  getGetCostByAccountQueryKey,
+  getGetPayrollByJobQueryKey,
+  getListTransactionsQueryKey,
+} from "@workspace/api-client-react";
+import { formatCents } from "@/lib/format";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { useQueryClient } from "@tanstack/react-query";
+import { ArrowLeft, CheckCircle2, Undo2 } from "lucide-react";
+
+export default function PayrollDetail() {
+  const { id } = useParams<{ id: string }>();
+  const runId = parseInt(id || "0", 10);
+  const queryClient = useQueryClient();
+
+  const { data: run, isLoading } = useGetPayrollRun(runId, {
+    query: { enabled: !!runId, queryKey: getGetPayrollRunQueryKey(runId) },
+  });
+
+  const invalidate = () => {
+    queryClient.invalidateQueries({ queryKey: getGetPayrollRunQueryKey(runId) });
+    queryClient.invalidateQueries({ queryKey: getListPayrollRunsQueryKey() });
+    queryClient.invalidateQueries({ queryKey: getGetCostByAccountQueryKey() });
+    queryClient.invalidateQueries({ queryKey: getGetPayrollByJobQueryKey() });
+    queryClient.invalidateQueries({ queryKey: getListTransactionsQueryKey() });
+  };
+
+  const postRun = usePostPayrollRun({ mutation: { onSuccess: invalidate } });
+  const unpostRun = useUnpostPayrollRun({ mutation: { onSuccess: invalidate } });
+
+  if (isLoading) {
+    return <div className="p-8 text-slate-500">Loading payroll run...</div>;
+  }
+  if (!run) {
+    return <div className="p-8 text-red-500">Payroll run not found.</div>;
+  }
+
+  const allocated = run.allocatedCents ?? 0;
+  const unallocated = run.totalCostCents - allocated;
+
+  return (
+    <div className="space-y-8">
+      <div>
+        <Link
+          href="/payroll"
+          className="mb-3 inline-flex items-center text-sm text-slate-500 hover:text-slate-900"
+        >
+          <ArrowLeft className="mr-1 h-4 w-4" /> Back to Payroll
+        </Link>
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="flex items-center gap-3">
+              <h1 className="text-3xl font-bold tracking-tight text-slate-900">
+                {run.payPeriodStart} – {run.payPeriodEnd}
+              </h1>
+              <Badge variant={run.posted ? "secondary" : "default"}>
+                {run.posted ? "Posted" : "Draft"}
+              </Badge>
+            </div>
+            <p className="mt-1 text-slate-500">
+              Pay date {run.payDate}
+              {run.laborAccountName ? ` · ${run.laborAccountName}` : ""}
+              {run.memo ? ` · ${run.memo}` : ""}
+            </p>
+          </div>
+          {run.posted ? (
+            <Button
+              variant="outline"
+              disabled={unpostRun.isPending}
+              onClick={() => {
+                if (
+                  confirm(
+                    "Unpost this run? This removes its ledger transactions.",
+                  )
+                ) {
+                  unpostRun.mutate({ id: runId });
+                }
+              }}
+            >
+              <Undo2 className="mr-2 h-4 w-4" />
+              {unpostRun.isPending ? "Unposting..." : "Unpost"}
+            </Button>
+          ) : (
+            <Button
+              className="bg-emerald-600 hover:bg-emerald-700"
+              disabled={postRun.isPending}
+              onClick={() => postRun.mutate({ id: runId })}
+            >
+              <CheckCircle2 className="mr-2 h-4 w-4" />
+              {postRun.isPending ? "Posting..." : "Post to Ledger"}
+            </Button>
+          )}
+        </div>
+      </div>
+
+      <div className="grid gap-6 md:grid-cols-4">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-slate-500">
+              Gross Wages
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-slate-900">
+              {formatCents(run.grossWagesCents)}
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-slate-500">
+              Employer Burden
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-slate-900">
+              {formatCents(run.burdenCents)}
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-slate-500">
+              Total Labor Cost
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-slate-900">
+              {formatCents(run.totalCostCents)}
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-slate-500">
+              Allocated / Unallocated
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-slate-900">
+              {formatCents(allocated)}
+            </div>
+            <div className="text-xs text-slate-500">
+              {formatCents(unallocated)} unallocated
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card>
+        <CardHeader className="border-b">
+          <CardTitle>Worker Lines</CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Worker</TableHead>
+                <TableHead>Type</TableHead>
+                <TableHead className="text-right">Reg Hrs</TableHead>
+                <TableHead className="text-right">OT Hrs</TableHead>
+                <TableHead className="text-right">Gross</TableHead>
+                <TableHead className="text-right">Burden</TableHead>
+                <TableHead className="text-right">Total Cost</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {run.lines.map((line) => (
+                <TableRow key={line.id}>
+                  <TableCell className="font-medium">
+                    {line.workerName}
+                  </TableCell>
+                  <TableCell className="capitalize">{line.lineType}</TableCell>
+                  <TableCell className="text-right">
+                    {line.lineType === "employee" ? line.regularHours : "-"}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {line.lineType === "employee" ? line.overtimeHours : "-"}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {formatCents(line.grossWagesCents)}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {formatCents(line.burdenCents)}
+                  </TableCell>
+                  <TableCell className="text-right font-medium">
+                    {formatCents(line.totalCostCents)}
+                  </TableCell>
+                </TableRow>
+              ))}
+              <TableRow className="bg-slate-50 hover:bg-slate-50">
+                <TableCell
+                  colSpan={4}
+                  className="text-right font-semibold text-slate-700"
+                >
+                  Totals
+                </TableCell>
+                <TableCell className="text-right font-bold text-slate-900">
+                  {formatCents(run.grossWagesCents)}
+                </TableCell>
+                <TableCell className="text-right font-bold text-slate-900">
+                  {formatCents(run.burdenCents)}
+                </TableCell>
+                <TableCell className="text-right font-bold text-slate-900">
+                  {formatCents(run.totalCostCents)}
+                </TableCell>
+              </TableRow>
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="border-b">
+          <CardTitle>Job Allocations</CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Worker</TableHead>
+                <TableHead>Job</TableHead>
+                <TableHead className="text-right">Burdened Cost</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {run.lines.flatMap((line) =>
+                line.allocations.map((a) => (
+                  <TableRow key={a.id}>
+                    <TableCell>{line.workerName}</TableCell>
+                    <TableCell>
+                      <Link
+                        href={`/jobs/${a.jobId}`}
+                        className="text-blue-600 hover:underline"
+                      >
+                        {a.jobNumber || `Job #${a.jobId}`}
+                        {a.jobName ? ` — ${a.jobName}` : ""}
+                      </Link>
+                    </TableCell>
+                    <TableCell className="text-right font-medium">
+                      {formatCents(a.amountCents)}
+                    </TableCell>
+                  </TableRow>
+                )),
+              )}
+              {run.lines.every((l) => l.allocations.length === 0) && (
+                <TableRow>
+                  <TableCell
+                    colSpan={3}
+                    className="py-8 text-center text-slate-500"
+                  >
+                    No job allocations — full cost is unallocated.
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}

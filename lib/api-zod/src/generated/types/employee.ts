@@ -19,5 +19,7 @@ export interface Employee {
      * @nullable
      */
   overtimeRateCents?: number | null;
+  /** When true, employer payroll taxes are not applied to this worker */
+  taxExempt?: boolean;
   active?: boolean;
 }

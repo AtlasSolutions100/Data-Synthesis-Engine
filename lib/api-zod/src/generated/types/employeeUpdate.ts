@@ -13,5 +13,6 @@ export interface EmployeeUpdate {
   straightTimeRateCents?: number | null;
   /** @nullable */
   overtimeRateCents?: number | null;
+  taxExempt?: boolean;
   active?: boolean;
 }

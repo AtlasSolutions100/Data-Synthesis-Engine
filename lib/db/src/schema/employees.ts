@@ -14,6 +14,7 @@ export const employeesTable = pgTable("employees", {
   name: text("name").notNull(),
   straightTimeRateCents: bigint("straight_time_rate_cents", { mode: "number" }),
   overtimeRateCents: bigint("overtime_rate_cents", { mode: "number" }),
+  taxExempt: boolean("tax_exempt").notNull().default(false),
   active: boolean("active").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()

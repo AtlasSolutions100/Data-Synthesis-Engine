@@ -288,6 +288,7 @@ export const ListEmployeesResponseItem = zod.object({
   "name": zod.string(),
   "straightTimeRateCents": zod.number().nullish().describe('Hourly straight-time pay rate in integer cents'),
   "overtimeRateCents": zod.number().nullish().describe('Hourly overtime pay rate in integer cents'),
+  "taxExempt": zod.boolean().optional().describe('When true, employer payroll taxes are not applied to this worker'),
   "active": zod.boolean().optional()
 })
 export const ListEmployeesResponse = zod.array(ListEmployeesResponseItem)
@@ -303,6 +304,7 @@ export const CreateEmployeeBody = zod.object({
   "name": zod.string().min(1),
   "straightTimeRateCents": zod.number().nullish(),
   "overtimeRateCents": zod.number().nullish(),
+  "taxExempt": zod.boolean().optional(),
   "active": zod.boolean().optional()
 })
 
@@ -311,6 +313,7 @@ export const CreateEmployeeResponse = zod.object({
   "name": zod.string(),
   "straightTimeRateCents": zod.number().nullish().describe('Hourly straight-time pay rate in integer cents'),
   "overtimeRateCents": zod.number().nullish().describe('Hourly overtime pay rate in integer cents'),
+  "taxExempt": zod.boolean().optional().describe('When true, employer payroll taxes are not applied to this worker'),
   "active": zod.boolean().optional()
 })
 
@@ -327,6 +330,7 @@ export const GetEmployeeResponse = zod.object({
   "name": zod.string(),
   "straightTimeRateCents": zod.number().nullish().describe('Hourly straight-time pay rate in integer cents'),
   "overtimeRateCents": zod.number().nullish().describe('Hourly overtime pay rate in integer cents'),
+  "taxExempt": zod.boolean().optional().describe('When true, employer payroll taxes are not applied to this worker'),
   "active": zod.boolean().optional()
 })
 
@@ -345,6 +349,7 @@ export const UpdateEmployeeBody = zod.object({
   "name": zod.string().min(1).optional(),
   "straightTimeRateCents": zod.number().nullish(),
   "overtimeRateCents": zod.number().nullish(),
+  "taxExempt": zod.boolean().optional(),
   "active": zod.boolean().optional()
 })
 
@@ -353,6 +358,7 @@ export const UpdateEmployeeResponse = zod.object({
   "name": zod.string(),
   "straightTimeRateCents": zod.number().nullish().describe('Hourly straight-time pay rate in integer cents'),
   "overtimeRateCents": zod.number().nullish().describe('Hourly overtime pay rate in integer cents'),
+  "taxExempt": zod.boolean().optional().describe('When true, employer payroll taxes are not applied to this worker'),
   "active": zod.boolean().optional()
 })
 
@@ -539,7 +545,7 @@ export const ListTransactionsQueryParams = zod.object({
 export const ListTransactionsResponseItem = zod.object({
   "id": zod.number(),
   "date": zod.string().describe('ISO date (YYYY-MM-DD)'),
-  "type": zod.enum(['invoice', 'bill', 'expense', 'check', 'payment', 'journal', 'vendor_credit', 'credit_card']),
+  "type": zod.enum(['invoice', 'bill', 'expense', 'check', 'payment', 'journal', 'vendor_credit', 'credit_card', 'payroll']),
   "num": zod.string().nullish(),
   "partyName": zod.string().nullish().describe('Customer or vendor name as displayed'),
   "description": zod.string().nullish(),
@@ -564,7 +570,7 @@ export const ListTransactionsResponse = zod.array(ListTransactionsResponseItem)
 
 export const CreateTransactionBody = zod.object({
   "date": zod.string().min(1),
-  "type": zod.enum(['invoice', 'bill', 'expense', 'check', 'payment', 'journal', 'vendor_credit', 'credit_card']),
+  "type": zod.enum(['invoice', 'bill', 'expense', 'check', 'payment', 'journal', 'vendor_credit', 'credit_card', 'payroll']),
   "num": zod.string().nullish(),
   "partyName": zod.string().nullish(),
   "description": zod.string().nullish(),
@@ -579,7 +585,7 @@ export const CreateTransactionBody = zod.object({
 export const CreateTransactionResponse = zod.object({
   "id": zod.number(),
   "date": zod.string().describe('ISO date (YYYY-MM-DD)'),
-  "type": zod.enum(['invoice', 'bill', 'expense', 'check', 'payment', 'journal', 'vendor_credit', 'credit_card']),
+  "type": zod.enum(['invoice', 'bill', 'expense', 'check', 'payment', 'journal', 'vendor_credit', 'credit_card', 'payroll']),
   "num": zod.string().nullish(),
   "partyName": zod.string().nullish().describe('Customer or vendor name as displayed'),
   "description": zod.string().nullish(),
@@ -605,7 +611,7 @@ export const GetTransactionParams = zod.object({
 export const GetTransactionResponse = zod.object({
   "id": zod.number(),
   "date": zod.string().describe('ISO date (YYYY-MM-DD)'),
-  "type": zod.enum(['invoice', 'bill', 'expense', 'check', 'payment', 'journal', 'vendor_credit', 'credit_card']),
+  "type": zod.enum(['invoice', 'bill', 'expense', 'check', 'payment', 'journal', 'vendor_credit', 'credit_card', 'payroll']),
   "num": zod.string().nullish(),
   "partyName": zod.string().nullish().describe('Customer or vendor name as displayed'),
   "description": zod.string().nullish(),
@@ -633,7 +639,7 @@ export const UpdateTransactionParams = zod.object({
 
 export const UpdateTransactionBody = zod.object({
   "date": zod.string().min(1).optional(),
-  "type": zod.enum(['invoice', 'bill', 'expense', 'check', 'payment', 'journal', 'vendor_credit', 'credit_card']).optional(),
+  "type": zod.enum(['invoice', 'bill', 'expense', 'check', 'payment', 'journal', 'vendor_credit', 'credit_card', 'payroll']).optional(),
   "num": zod.string().nullish(),
   "partyName": zod.string().nullish(),
   "description": zod.string().nullish(),
@@ -648,7 +654,7 @@ export const UpdateTransactionBody = zod.object({
 export const UpdateTransactionResponse = zod.object({
   "id": zod.number(),
   "date": zod.string().describe('ISO date (YYYY-MM-DD)'),
-  "type": zod.enum(['invoice', 'bill', 'expense', 'check', 'payment', 'journal', 'vendor_credit', 'credit_card']),
+  "type": zod.enum(['invoice', 'bill', 'expense', 'check', 'payment', 'journal', 'vendor_credit', 'credit_card', 'payroll']),
   "num": zod.string().nullish(),
   "partyName": zod.string().nullish().describe('Customer or vendor name as displayed'),
   "description": zod.string().nullish(),
@@ -706,7 +712,7 @@ export const GetDashboardSummaryResponse = zod.object({
   "recentTransactions": zod.array(zod.object({
   "id": zod.number(),
   "date": zod.string().describe('ISO date (YYYY-MM-DD)'),
-  "type": zod.enum(['invoice', 'bill', 'expense', 'check', 'payment', 'journal', 'vendor_credit', 'credit_card']),
+  "type": zod.enum(['invoice', 'bill', 'expense', 'check', 'payment', 'journal', 'vendor_credit', 'credit_card', 'payroll']),
   "num": zod.string().nullish(),
   "partyName": zod.string().nullish().describe('Customer or vendor name as displayed'),
   "description": zod.string().nullish(),
@@ -1420,6 +1426,488 @@ export const CreateVendorCreditResponse = zod.object({
   "amountCents": zod.number(),
   "memo": zod.string().nullish()
 })).optional()
+})
+
+
+/**
+ * Burdened labor allocated to each job across posted payroll runs, reconciling to ledger payroll entries.
+ * @summary Payroll cost summary by job
+ */
+export const GetPayrollByJobResponse = zod.object({
+  "rows": zod.array(zod.object({
+  "jobId": zod.number(),
+  "jobNumber": zod.string(),
+  "jobName": zod.string(),
+  "regularWagesCents": zod.number(),
+  "overtimeWagesCents": zod.number(),
+  "grossWagesCents": zod.number(),
+  "burdenCents": zod.number(),
+  "totalCostCents": zod.number()
+})),
+  "totals": zod.object({
+  "regularWagesCents": zod.number(),
+  "overtimeWagesCents": zod.number(),
+  "grossWagesCents": zod.number(),
+  "burdenCents": zod.number(),
+  "totalCostCents": zod.number()
+})
+})
+
+
+/**
+ * @summary List payroll runs with computed totals
+ */
+export const ListPayrollRunsResponseItem = zod.object({
+  "id": zod.number(),
+  "payPeriodStart": zod.string(),
+  "payPeriodEnd": zod.string(),
+  "payDate": zod.string(),
+  "memo": zod.string().nullish(),
+  "laborAccountId": zod.number(),
+  "laborAccountName": zod.string().nullish(),
+  "ssRateBps": zod.number(),
+  "medicareRateBps": zod.number(),
+  "futaRateBps": zod.number(),
+  "coSuiRateBps": zod.number(),
+  "coSurchargeRateBps": zod.number(),
+  "posted": zod.boolean(),
+  "postedAt": zod.string().nullish(),
+  "grossWagesCents": zod.number(),
+  "burdenCents": zod.number(),
+  "totalCostCents": zod.number(),
+  "allocatedCents": zod.number().optional().describe('Sum of all allocations across lines'),
+  "lines": zod.array(zod.object({
+  "id": zod.number(),
+  "runId": zod.number(),
+  "lineType": zod.enum(['employee', 'subcontractor']),
+  "employeeId": zod.number().nullish(),
+  "vendorId": zod.number().nullish(),
+  "workerName": zod.string(),
+  "regularHours": zod.number(),
+  "overtimeHours": zod.number(),
+  "straightRateCents": zod.number().nullish(),
+  "overtimeRateCents": zod.number().nullish(),
+  "regularWagesCents": zod.number(),
+  "overtimeWagesCents": zod.number(),
+  "grossWagesCents": zod.number(),
+  "socialSecurityCents": zod.number(),
+  "medicareCents": zod.number(),
+  "futaCents": zod.number(),
+  "coSuiCents": zod.number(),
+  "coSurchargeCents": zod.number(),
+  "burdenCents": zod.number(),
+  "totalCostCents": zod.number(),
+  "allocations": zod.array(zod.object({
+  "id": zod.number(),
+  "lineId": zod.number(),
+  "jobId": zod.number(),
+  "jobNumber": zod.string().nullish(),
+  "jobName": zod.string().nullish(),
+  "amountCents": zod.number().describe('Burdened labor cost allocated to this job, in integer cents')
+}))
+}))
+})
+export const ListPayrollRunsResponse = zod.array(ListPayrollRunsResponseItem)
+
+
+/**
+ * @summary Create a payroll run for a pay period
+ */
+export const createPayrollRunBodySsRateBpsMin = 0;
+
+export const createPayrollRunBodyMedicareRateBpsMin = 0;
+
+export const createPayrollRunBodyFutaRateBpsMin = 0;
+
+export const createPayrollRunBodyCoSuiRateBpsMin = 0;
+
+export const createPayrollRunBodyCoSurchargeRateBpsMin = 0;
+
+
+export const createPayrollRunBodyLinesItemRegularHoursDefault = 0;
+export const createPayrollRunBodyLinesItemRegularHoursMin = 0;
+
+export const createPayrollRunBodyLinesItemOvertimeHoursDefault = 0;
+export const createPayrollRunBodyLinesItemOvertimeHoursMin = 0;
+
+export const createPayrollRunBodyLinesItemTaxExemptDefault = false;
+
+
+export const CreatePayrollRunBody = zod.object({
+  "payPeriodStart": zod.string(),
+  "payPeriodEnd": zod.string(),
+  "payDate": zod.string(),
+  "memo": zod.string().nullish(),
+  "laborAccountId": zod.number(),
+  "ssRateBps": zod.number().min(createPayrollRunBodySsRateBpsMin).optional(),
+  "medicareRateBps": zod.number().min(createPayrollRunBodyMedicareRateBpsMin).optional(),
+  "futaRateBps": zod.number().min(createPayrollRunBodyFutaRateBpsMin).optional(),
+  "coSuiRateBps": zod.number().min(createPayrollRunBodyCoSuiRateBpsMin).optional(),
+  "coSurchargeRateBps": zod.number().min(createPayrollRunBodyCoSurchargeRateBpsMin).optional(),
+  "lines": zod.array(zod.object({
+  "lineType": zod.enum(['employee', 'subcontractor']),
+  "employeeId": zod.number().nullish(),
+  "vendorId": zod.number().nullish(),
+  "workerName": zod.string().min(1),
+  "regularHours": zod.number().min(createPayrollRunBodyLinesItemRegularHoursMin).default(createPayrollRunBodyLinesItemRegularHoursDefault),
+  "overtimeHours": zod.number().min(createPayrollRunBodyLinesItemOvertimeHoursMin).default(createPayrollRunBodyLinesItemOvertimeHoursDefault),
+  "straightRateCents": zod.number().nullish(),
+  "overtimeRateCents": zod.number().nullish(),
+  "taxExempt": zod.boolean().default(createPayrollRunBodyLinesItemTaxExemptDefault).describe('When true, employer payroll taxes are skipped for this line'),
+  "subcontractorAmountCents": zod.number().nullish().describe('For subcontractor lines, the flat labor cost in cents (no burden applied)'),
+  "allocations": zod.array(zod.object({
+  "jobId": zod.number(),
+  "amountCents": zod.number().min(1)
+})).optional()
+})).optional()
+})
+
+export const CreatePayrollRunResponse = zod.object({
+  "id": zod.number(),
+  "payPeriodStart": zod.string(),
+  "payPeriodEnd": zod.string(),
+  "payDate": zod.string(),
+  "memo": zod.string().nullish(),
+  "laborAccountId": zod.number(),
+  "laborAccountName": zod.string().nullish(),
+  "ssRateBps": zod.number(),
+  "medicareRateBps": zod.number(),
+  "futaRateBps": zod.number(),
+  "coSuiRateBps": zod.number(),
+  "coSurchargeRateBps": zod.number(),
+  "posted": zod.boolean(),
+  "postedAt": zod.string().nullish(),
+  "grossWagesCents": zod.number(),
+  "burdenCents": zod.number(),
+  "totalCostCents": zod.number(),
+  "allocatedCents": zod.number().optional().describe('Sum of all allocations across lines'),
+  "lines": zod.array(zod.object({
+  "id": zod.number(),
+  "runId": zod.number(),
+  "lineType": zod.enum(['employee', 'subcontractor']),
+  "employeeId": zod.number().nullish(),
+  "vendorId": zod.number().nullish(),
+  "workerName": zod.string(),
+  "regularHours": zod.number(),
+  "overtimeHours": zod.number(),
+  "straightRateCents": zod.number().nullish(),
+  "overtimeRateCents": zod.number().nullish(),
+  "regularWagesCents": zod.number(),
+  "overtimeWagesCents": zod.number(),
+  "grossWagesCents": zod.number(),
+  "socialSecurityCents": zod.number(),
+  "medicareCents": zod.number(),
+  "futaCents": zod.number(),
+  "coSuiCents": zod.number(),
+  "coSurchargeCents": zod.number(),
+  "burdenCents": zod.number(),
+  "totalCostCents": zod.number(),
+  "allocations": zod.array(zod.object({
+  "id": zod.number(),
+  "lineId": zod.number(),
+  "jobId": zod.number(),
+  "jobNumber": zod.string().nullish(),
+  "jobName": zod.string().nullish(),
+  "amountCents": zod.number().describe('Burdened labor cost allocated to this job, in integer cents')
+}))
+}))
+})
+
+
+/**
+ * @summary Get a payroll run with lines and allocations
+ */
+export const GetPayrollRunParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetPayrollRunResponse = zod.object({
+  "id": zod.number(),
+  "payPeriodStart": zod.string(),
+  "payPeriodEnd": zod.string(),
+  "payDate": zod.string(),
+  "memo": zod.string().nullish(),
+  "laborAccountId": zod.number(),
+  "laborAccountName": zod.string().nullish(),
+  "ssRateBps": zod.number(),
+  "medicareRateBps": zod.number(),
+  "futaRateBps": zod.number(),
+  "coSuiRateBps": zod.number(),
+  "coSurchargeRateBps": zod.number(),
+  "posted": zod.boolean(),
+  "postedAt": zod.string().nullish(),
+  "grossWagesCents": zod.number(),
+  "burdenCents": zod.number(),
+  "totalCostCents": zod.number(),
+  "allocatedCents": zod.number().optional().describe('Sum of all allocations across lines'),
+  "lines": zod.array(zod.object({
+  "id": zod.number(),
+  "runId": zod.number(),
+  "lineType": zod.enum(['employee', 'subcontractor']),
+  "employeeId": zod.number().nullish(),
+  "vendorId": zod.number().nullish(),
+  "workerName": zod.string(),
+  "regularHours": zod.number(),
+  "overtimeHours": zod.number(),
+  "straightRateCents": zod.number().nullish(),
+  "overtimeRateCents": zod.number().nullish(),
+  "regularWagesCents": zod.number(),
+  "overtimeWagesCents": zod.number(),
+  "grossWagesCents": zod.number(),
+  "socialSecurityCents": zod.number(),
+  "medicareCents": zod.number(),
+  "futaCents": zod.number(),
+  "coSuiCents": zod.number(),
+  "coSurchargeCents": zod.number(),
+  "burdenCents": zod.number(),
+  "totalCostCents": zod.number(),
+  "allocations": zod.array(zod.object({
+  "id": zod.number(),
+  "lineId": zod.number(),
+  "jobId": zod.number(),
+  "jobNumber": zod.string().nullish(),
+  "jobName": zod.string().nullish(),
+  "amountCents": zod.number().describe('Burdened labor cost allocated to this job, in integer cents')
+}))
+}))
+})
+
+
+/**
+ * @summary Update a draft payroll run (replaces lines and allocations)
+ */
+export const UpdatePayrollRunParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const updatePayrollRunBodySsRateBpsMin = 0;
+
+export const updatePayrollRunBodyMedicareRateBpsMin = 0;
+
+export const updatePayrollRunBodyFutaRateBpsMin = 0;
+
+export const updatePayrollRunBodyCoSuiRateBpsMin = 0;
+
+export const updatePayrollRunBodyCoSurchargeRateBpsMin = 0;
+
+
+export const updatePayrollRunBodyLinesItemRegularHoursDefault = 0;
+export const updatePayrollRunBodyLinesItemRegularHoursMin = 0;
+
+export const updatePayrollRunBodyLinesItemOvertimeHoursDefault = 0;
+export const updatePayrollRunBodyLinesItemOvertimeHoursMin = 0;
+
+export const updatePayrollRunBodyLinesItemTaxExemptDefault = false;
+
+
+export const UpdatePayrollRunBody = zod.object({
+  "payPeriodStart": zod.string().optional(),
+  "payPeriodEnd": zod.string().optional(),
+  "payDate": zod.string().optional(),
+  "memo": zod.string().nullish(),
+  "laborAccountId": zod.number().optional(),
+  "ssRateBps": zod.number().min(updatePayrollRunBodySsRateBpsMin).optional(),
+  "medicareRateBps": zod.number().min(updatePayrollRunBodyMedicareRateBpsMin).optional(),
+  "futaRateBps": zod.number().min(updatePayrollRunBodyFutaRateBpsMin).optional(),
+  "coSuiRateBps": zod.number().min(updatePayrollRunBodyCoSuiRateBpsMin).optional(),
+  "coSurchargeRateBps": zod.number().min(updatePayrollRunBodyCoSurchargeRateBpsMin).optional(),
+  "lines": zod.array(zod.object({
+  "lineType": zod.enum(['employee', 'subcontractor']),
+  "employeeId": zod.number().nullish(),
+  "vendorId": zod.number().nullish(),
+  "workerName": zod.string().min(1),
+  "regularHours": zod.number().min(updatePayrollRunBodyLinesItemRegularHoursMin).default(updatePayrollRunBodyLinesItemRegularHoursDefault),
+  "overtimeHours": zod.number().min(updatePayrollRunBodyLinesItemOvertimeHoursMin).default(updatePayrollRunBodyLinesItemOvertimeHoursDefault),
+  "straightRateCents": zod.number().nullish(),
+  "overtimeRateCents": zod.number().nullish(),
+  "taxExempt": zod.boolean().default(updatePayrollRunBodyLinesItemTaxExemptDefault).describe('When true, employer payroll taxes are skipped for this line'),
+  "subcontractorAmountCents": zod.number().nullish().describe('For subcontractor lines, the flat labor cost in cents (no burden applied)'),
+  "allocations": zod.array(zod.object({
+  "jobId": zod.number(),
+  "amountCents": zod.number().min(1)
+})).optional()
+})).optional()
+})
+
+export const UpdatePayrollRunResponse = zod.object({
+  "id": zod.number(),
+  "payPeriodStart": zod.string(),
+  "payPeriodEnd": zod.string(),
+  "payDate": zod.string(),
+  "memo": zod.string().nullish(),
+  "laborAccountId": zod.number(),
+  "laborAccountName": zod.string().nullish(),
+  "ssRateBps": zod.number(),
+  "medicareRateBps": zod.number(),
+  "futaRateBps": zod.number(),
+  "coSuiRateBps": zod.number(),
+  "coSurchargeRateBps": zod.number(),
+  "posted": zod.boolean(),
+  "postedAt": zod.string().nullish(),
+  "grossWagesCents": zod.number(),
+  "burdenCents": zod.number(),
+  "totalCostCents": zod.number(),
+  "allocatedCents": zod.number().optional().describe('Sum of all allocations across lines'),
+  "lines": zod.array(zod.object({
+  "id": zod.number(),
+  "runId": zod.number(),
+  "lineType": zod.enum(['employee', 'subcontractor']),
+  "employeeId": zod.number().nullish(),
+  "vendorId": zod.number().nullish(),
+  "workerName": zod.string(),
+  "regularHours": zod.number(),
+  "overtimeHours": zod.number(),
+  "straightRateCents": zod.number().nullish(),
+  "overtimeRateCents": zod.number().nullish(),
+  "regularWagesCents": zod.number(),
+  "overtimeWagesCents": zod.number(),
+  "grossWagesCents": zod.number(),
+  "socialSecurityCents": zod.number(),
+  "medicareCents": zod.number(),
+  "futaCents": zod.number(),
+  "coSuiCents": zod.number(),
+  "coSurchargeCents": zod.number(),
+  "burdenCents": zod.number(),
+  "totalCostCents": zod.number(),
+  "allocations": zod.array(zod.object({
+  "id": zod.number(),
+  "lineId": zod.number(),
+  "jobId": zod.number(),
+  "jobNumber": zod.string().nullish(),
+  "jobName": zod.string().nullish(),
+  "amountCents": zod.number().describe('Burdened labor cost allocated to this job, in integer cents')
+}))
+}))
+})
+
+
+/**
+ * @summary Delete a payroll run (removes its ledger entries)
+ */
+export const DeletePayrollRunParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeletePayrollRunResponse = zod.void()
+
+
+/**
+ * Creates burdened labor cost entries in the ledger, allocated to jobs.
+ * @summary Post a payroll run to the ledger
+ */
+export const PostPayrollRunParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const PostPayrollRunResponse = zod.object({
+  "id": zod.number(),
+  "payPeriodStart": zod.string(),
+  "payPeriodEnd": zod.string(),
+  "payDate": zod.string(),
+  "memo": zod.string().nullish(),
+  "laborAccountId": zod.number(),
+  "laborAccountName": zod.string().nullish(),
+  "ssRateBps": zod.number(),
+  "medicareRateBps": zod.number(),
+  "futaRateBps": zod.number(),
+  "coSuiRateBps": zod.number(),
+  "coSurchargeRateBps": zod.number(),
+  "posted": zod.boolean(),
+  "postedAt": zod.string().nullish(),
+  "grossWagesCents": zod.number(),
+  "burdenCents": zod.number(),
+  "totalCostCents": zod.number(),
+  "allocatedCents": zod.number().optional().describe('Sum of all allocations across lines'),
+  "lines": zod.array(zod.object({
+  "id": zod.number(),
+  "runId": zod.number(),
+  "lineType": zod.enum(['employee', 'subcontractor']),
+  "employeeId": zod.number().nullish(),
+  "vendorId": zod.number().nullish(),
+  "workerName": zod.string(),
+  "regularHours": zod.number(),
+  "overtimeHours": zod.number(),
+  "straightRateCents": zod.number().nullish(),
+  "overtimeRateCents": zod.number().nullish(),
+  "regularWagesCents": zod.number(),
+  "overtimeWagesCents": zod.number(),
+  "grossWagesCents": zod.number(),
+  "socialSecurityCents": zod.number(),
+  "medicareCents": zod.number(),
+  "futaCents": zod.number(),
+  "coSuiCents": zod.number(),
+  "coSurchargeCents": zod.number(),
+  "burdenCents": zod.number(),
+  "totalCostCents": zod.number(),
+  "allocations": zod.array(zod.object({
+  "id": zod.number(),
+  "lineId": zod.number(),
+  "jobId": zod.number(),
+  "jobNumber": zod.string().nullish(),
+  "jobName": zod.string().nullish(),
+  "amountCents": zod.number().describe('Burdened labor cost allocated to this job, in integer cents')
+}))
+}))
+})
+
+
+/**
+ * Removes the run's ledger entries and returns it to draft.
+ * @summary Reverse a posted payroll run
+ */
+export const UnpostPayrollRunParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UnpostPayrollRunResponse = zod.object({
+  "id": zod.number(),
+  "payPeriodStart": zod.string(),
+  "payPeriodEnd": zod.string(),
+  "payDate": zod.string(),
+  "memo": zod.string().nullish(),
+  "laborAccountId": zod.number(),
+  "laborAccountName": zod.string().nullish(),
+  "ssRateBps": zod.number(),
+  "medicareRateBps": zod.number(),
+  "futaRateBps": zod.number(),
+  "coSuiRateBps": zod.number(),
+  "coSurchargeRateBps": zod.number(),
+  "posted": zod.boolean(),
+  "postedAt": zod.string().nullish(),
+  "grossWagesCents": zod.number(),
+  "burdenCents": zod.number(),
+  "totalCostCents": zod.number(),
+  "allocatedCents": zod.number().optional().describe('Sum of all allocations across lines'),
+  "lines": zod.array(zod.object({
+  "id": zod.number(),
+  "runId": zod.number(),
+  "lineType": zod.enum(['employee', 'subcontractor']),
+  "employeeId": zod.number().nullish(),
+  "vendorId": zod.number().nullish(),
+  "workerName": zod.string(),
+  "regularHours": zod.number(),
+  "overtimeHours": zod.number(),
+  "straightRateCents": zod.number().nullish(),
+  "overtimeRateCents": zod.number().nullish(),
+  "regularWagesCents": zod.number(),
+  "overtimeWagesCents": zod.number(),
+  "grossWagesCents": zod.number(),
+  "socialSecurityCents": zod.number(),
+  "medicareCents": zod.number(),
+  "futaCents": zod.number(),
+  "coSuiCents": zod.number(),
+  "coSurchargeCents": zod.number(),
+  "burdenCents": zod.number(),
+  "totalCostCents": zod.number(),
+  "allocations": zod.array(zod.object({
+  "id": zod.number(),
+  "lineId": zod.number(),
+  "jobId": zod.number(),
+  "jobNumber": zod.string().nullish(),
+  "jobName": zod.string().nullish(),
+  "amountCents": zod.number().describe('Burdened labor cost allocated to this job, in integer cents')
+}))
+}))
 })
 
 

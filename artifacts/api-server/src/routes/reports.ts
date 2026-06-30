@@ -14,12 +14,16 @@ import {
   billLinesTable,
   billPaymentsTable,
   vendorCreditsTable,
+  payrollRunsTable,
+  payrollLinesTable,
+  payrollAllocationsTable,
 } from "@workspace/db";
 import {
   GetDashboardSummaryResponse,
   GetCostByAccountResponse,
   GetArAgingResponse,
   GetApAgingResponse,
+  GetPayrollByJobResponse,
 } from "@workspace/api-zod";
 import {
   getJobTotalsMap,
@@ -425,6 +429,105 @@ router.get("/reports/ap-aging", async (_req, res): Promise<void> => {
   );
 
   res.json(GetApAgingResponse.parse({ asOf, totals, vendors }));
+});
+
+router.get("/reports/payroll-by-job", async (_req, res): Promise<void> => {
+  // Burdened labor allocated to each job across POSTED payroll runs. Totals
+  // reconcile to the ledger payroll entries (sum of allocation amounts); the
+  // wage/burden breakdown is pro-rated from each line by allocation share.
+  const rows = await db
+    .select({
+      jobId: payrollAllocationsTable.jobId,
+      jobNumber: jobsTable.jobNumber,
+      jobName: jobsTable.name,
+      amountCents: payrollAllocationsTable.amountCents,
+      lineType: payrollLinesTable.lineType,
+      regularWagesCents: payrollLinesTable.regularWagesCents,
+      overtimeWagesCents: payrollLinesTable.overtimeWagesCents,
+      grossWagesCents: payrollLinesTable.grossWagesCents,
+      burdenCents: payrollLinesTable.burdenCents,
+      totalCostCents: payrollLinesTable.totalCostCents,
+    })
+    .from(payrollAllocationsTable)
+    .innerJoin(
+      payrollLinesTable,
+      eq(payrollLinesTable.id, payrollAllocationsTable.lineId),
+    )
+    .innerJoin(
+      payrollRunsTable,
+      eq(payrollRunsTable.id, payrollLinesTable.runId),
+    )
+    .innerJoin(jobsTable, eq(jobsTable.id, payrollAllocationsTable.jobId))
+    .where(eq(payrollRunsTable.posted, true));
+
+  interface Row {
+    jobId: number;
+    jobNumber: string;
+    jobName: string;
+    regularWagesCents: number;
+    overtimeWagesCents: number;
+    grossWagesCents: number;
+    burdenCents: number;
+    totalCostCents: number;
+  }
+  const byJob = new Map<number, Row>();
+
+  for (const r of rows) {
+    const amount = Number(r.amountCents);
+    const lineTotal = Number(r.totalCostCents);
+    const fraction = lineTotal > 0 ? amount / lineTotal : 0;
+    const row =
+      byJob.get(r.jobId) ??
+      ({
+        jobId: r.jobId,
+        jobNumber: r.jobNumber,
+        jobName: r.jobName,
+        regularWagesCents: 0,
+        overtimeWagesCents: 0,
+        grossWagesCents: 0,
+        burdenCents: 0,
+        totalCostCents: 0,
+      } satisfies Row);
+    // Employee lines: pro-rate wages by allocation share, derive gross from
+    // its parts and burden as the remainder so each allocation reconciles
+    // exactly (regular + overtime = gross, gross + burden = amount). Subcontractor
+    // lines are a flat pass-through with no wages/burden — the allocated amount
+    // appears only in total cost.
+    if (r.lineType === "employee") {
+      const regular = Math.round(Number(r.regularWagesCents) * fraction);
+      const overtime = Math.round(Number(r.overtimeWagesCents) * fraction);
+      const gross = regular + overtime;
+      const burden = amount - gross;
+      row.regularWagesCents += regular;
+      row.overtimeWagesCents += overtime;
+      row.grossWagesCents += gross;
+      row.burdenCents += burden;
+    }
+    row.totalCostCents += amount;
+    byJob.set(r.jobId, row);
+  }
+
+  const resultRows = [...byJob.values()].sort(
+    (a, b) => b.totalCostCents - a.totalCostCents,
+  );
+  const totals = resultRows.reduce(
+    (acc, r) => ({
+      regularWagesCents: acc.regularWagesCents + r.regularWagesCents,
+      overtimeWagesCents: acc.overtimeWagesCents + r.overtimeWagesCents,
+      grossWagesCents: acc.grossWagesCents + r.grossWagesCents,
+      burdenCents: acc.burdenCents + r.burdenCents,
+      totalCostCents: acc.totalCostCents + r.totalCostCents,
+    }),
+    {
+      regularWagesCents: 0,
+      overtimeWagesCents: 0,
+      grossWagesCents: 0,
+      burdenCents: 0,
+      totalCostCents: 0,
+    },
+  );
+
+  res.json(GetPayrollByJobResponse.parse({ rows: resultRows, totals }));
 });
 
 export default router;

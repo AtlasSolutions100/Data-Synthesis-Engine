@@ -19,6 +19,7 @@ const employeeSchema = z.object({
   name: z.string().min(1, "Name is required"),
   straightTimeRate: z.string().optional(),
   overtimeRate: z.string().optional(),
+  taxExempt: z.boolean().default(false),
   active: z.boolean().default(true),
 });
 
@@ -37,6 +38,7 @@ export function EmployeeForm({ defaultValues, onSubmit, isLoading }: EmployeeFor
       name: defaultValues?.name || "",
       straightTimeRate: defaultValues?.straightTimeRate || "",
       overtimeRate: defaultValues?.overtimeRate || "",
+      taxExempt: defaultValues?.taxExempt ?? false,
       active: defaultValues?.active ?? true,
     },
   });
@@ -46,6 +48,7 @@ export function EmployeeForm({ defaultValues, onSubmit, isLoading }: EmployeeFor
       name: values.name,
       straightTimeRateCents: values.straightTimeRate ? parseDollars(values.straightTimeRate) : null,
       overtimeRateCents: values.overtimeRate ? parseDollars(values.overtimeRate) : null,
+      taxExempt: values.taxExempt,
       active: values.active,
     });
   };
@@ -94,6 +97,27 @@ export function EmployeeForm({ defaultValues, onSubmit, isLoading }: EmployeeFor
             )}
           />
         </div>
+        <FormField
+          control={form.control}
+          name="taxExempt"
+          render={({ field }) => (
+            <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
+              <FormControl>
+                <Checkbox
+                  checked={field.value}
+                  onCheckedChange={field.onChange}
+                />
+              </FormControl>
+              <div className="space-y-1 leading-none">
+                <FormLabel>Tax exempt</FormLabel>
+                <p className="text-xs text-slate-500">
+                  Skip employer payroll taxes (SS, Medicare, FUTA, SUI) for this
+                  worker.
+                </p>
+              </div>
+            </FormItem>
+          )}
+        />
         <FormField
           control={form.control}
           name="active"

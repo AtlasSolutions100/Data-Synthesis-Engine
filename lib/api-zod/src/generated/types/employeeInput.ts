@@ -13,5 +13,6 @@ export interface EmployeeInput {
   straightTimeRateCents?: number | null;
   /** @nullable */
   overtimeRateCents?: number | null;
+  taxExempt?: boolean;
   active?: boolean;
 }

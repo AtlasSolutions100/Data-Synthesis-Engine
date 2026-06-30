@@ -28,6 +28,8 @@ tags:
     description: Customer invoices (accounts receivable)
   - name: bills
     description: Vendor bills (accounts payable)
+  - name: payroll
+    description: Payroll runs and labor costing
 paths:
   /healthz:
     get:
@@ -916,6 +918,142 @@ paths:
         "404":
           $ref: "#/components/responses/Error"
 
+  /reports/payroll-by-job:
+    get:
+      operationId: getPayrollByJob
+      tags: [reports]
+      summary: Payroll cost summary by job
+      description: Burdened labor allocated to each job across posted payroll runs, reconciling to ledger payroll entries.
+      responses:
+        "200":
+          description: Payroll by job
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PayrollByJob"
+
+  /payroll-runs:
+    get:
+      operationId: listPayrollRuns
+      tags: [payroll]
+      summary: List payroll runs with computed totals
+      responses:
+        "200":
+          description: List of payroll runs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PayrollRun"
+    post:
+      operationId: createPayrollRun
+      tags: [payroll]
+      summary: Create a payroll run for a pay period
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PayrollRunInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PayrollRun"
+        "400":
+          $ref: "#/components/responses/Error"
+  /payroll-runs/{id}:
+    get:
+      operationId: getPayrollRun
+      tags: [payroll]
+      summary: Get a payroll run with lines and allocations
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "200":
+          description: Payroll run
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PayrollRun"
+        "404":
+          $ref: "#/components/responses/Error"
+    patch:
+      operationId: updatePayrollRun
+      tags: [payroll]
+      summary: Update a draft payroll run (replaces lines and allocations)
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PayrollRunUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PayrollRun"
+        "400":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+    delete:
+      operationId: deletePayrollRun
+      tags: [payroll]
+      summary: Delete a payroll run (removes its ledger entries)
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          $ref: "#/components/responses/Error"
+  /payroll-runs/{id}/post:
+    post:
+      operationId: postPayrollRun
+      tags: [payroll]
+      summary: Post a payroll run to the ledger
+      description: Creates burdened labor cost entries in the ledger, allocated to jobs.
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "200":
+          description: Posted payroll run
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PayrollRun"
+        "400":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+  /payroll-runs/{id}/unpost:
+    post:
+      operationId: unpostPayrollRun
+      tags: [payroll]
+      summary: Reverse a posted payroll run
+      description: Removes the run's ledger entries and returns it to draft.
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "200":
+          description: Unposted payroll run
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PayrollRun"
+        "400":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+
   /users/me:
     get:
       operationId: getCurrentUser
@@ -1178,6 +1316,9 @@ components:
         overtimeRateCents:
           type: ["integer", "null"]
           description: Hourly overtime pay rate in integer cents
+        taxExempt:
+          type: boolean
+          description: When true, employer payroll taxes are not applied to this worker
         active:
           type: boolean
     EmployeeInput:
@@ -1191,6 +1332,8 @@ components:
           type: ["integer", "null"]
         overtimeRateCents:
           type: ["integer", "null"]
+        taxExempt:
+          type: boolean
         active:
           type: boolean
     EmployeeUpdate:
@@ -1203,6 +1346,8 @@ components:
           type: ["integer", "null"]
         overtimeRateCents:
           type: ["integer", "null"]
+        taxExempt:
+          type: boolean
         active:
           type: boolean
 
@@ -1298,7 +1443,7 @@ components:
           description: ISO date (YYYY-MM-DD)
         type:
           type: string
-          enum: [invoice, bill, expense, check, payment, journal, vendor_credit, credit_card]
+          enum: [invoice, bill, expense, check, payment, journal, vendor_credit, credit_card, payroll]
         num:
           type: ["string", "null"]
         partyName:
@@ -1335,7 +1480,7 @@ components:
           minLength: 1
         type:
           type: string
-          enum: [invoice, bill, expense, check, payment, journal, vendor_credit, credit_card]
+          enum: [invoice, bill, expense, check, payment, journal, vendor_credit, credit_card, payroll]
         num:
           type: ["string", "null"]
         partyName:
@@ -1362,7 +1507,7 @@ components:
           minLength: 1
         type:
           type: string
-          enum: [invoice, bill, expense, check, payment, journal, vendor_credit, credit_card]
+          enum: [invoice, bill, expense, check, payment, journal, vendor_credit, credit_card, payroll]
         num:
           type: ["string", "null"]
         partyName:
@@ -1893,3 +2038,314 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ApAgingVendor"
+
+    PayrollAllocation:
+      type: object
+      required: [id, lineId, jobId, amountCents]
+      properties:
+        id:
+          type: integer
+        lineId:
+          type: integer
+        jobId:
+          type: integer
+        jobNumber:
+          type: ["string", "null"]
+        jobName:
+          type: ["string", "null"]
+        amountCents:
+          type: integer
+          description: Burdened labor cost allocated to this job, in integer cents
+    PayrollAllocationInput:
+      type: object
+      required: [jobId, amountCents]
+      properties:
+        jobId:
+          type: integer
+        amountCents:
+          type: integer
+          minimum: 1
+    PayrollLine:
+      type: object
+      required:
+        [
+          id,
+          runId,
+          lineType,
+          workerName,
+          regularHours,
+          overtimeHours,
+          regularWagesCents,
+          overtimeWagesCents,
+          grossWagesCents,
+          socialSecurityCents,
+          medicareCents,
+          futaCents,
+          coSuiCents,
+          coSurchargeCents,
+          burdenCents,
+          totalCostCents,
+          allocations,
+        ]
+      properties:
+        id:
+          type: integer
+        runId:
+          type: integer
+        lineType:
+          type: string
+          enum: [employee, subcontractor]
+        employeeId:
+          type: ["integer", "null"]
+        vendorId:
+          type: ["integer", "null"]
+        workerName:
+          type: string
+        regularHours:
+          type: number
+        overtimeHours:
+          type: number
+        straightRateCents:
+          type: ["integer", "null"]
+        overtimeRateCents:
+          type: ["integer", "null"]
+        regularWagesCents:
+          type: integer
+        overtimeWagesCents:
+          type: integer
+        grossWagesCents:
+          type: integer
+        socialSecurityCents:
+          type: integer
+        medicareCents:
+          type: integer
+        futaCents:
+          type: integer
+        coSuiCents:
+          type: integer
+        coSurchargeCents:
+          type: integer
+        burdenCents:
+          type: integer
+        totalCostCents:
+          type: integer
+        allocations:
+          type: array
+          items:
+            $ref: "#/components/schemas/PayrollAllocation"
+    PayrollLineInput:
+      type: object
+      required: [lineType, workerName]
+      properties:
+        lineType:
+          type: string
+          enum: [employee, subcontractor]
+        employeeId:
+          type: ["integer", "null"]
+        vendorId:
+          type: ["integer", "null"]
+        workerName:
+          type: string
+          minLength: 1
+        regularHours:
+          type: number
+          minimum: 0
+          default: 0
+        overtimeHours:
+          type: number
+          minimum: 0
+          default: 0
+        straightRateCents:
+          type: ["integer", "null"]
+        overtimeRateCents:
+          type: ["integer", "null"]
+        taxExempt:
+          type: boolean
+          description: When true, employer payroll taxes are skipped for this line
+          default: false
+        subcontractorAmountCents:
+          type: ["integer", "null"]
+          description: For subcontractor lines, the flat labor cost in cents (no burden applied)
+        allocations:
+          type: array
+          items:
+            $ref: "#/components/schemas/PayrollAllocationInput"
+    PayrollRun:
+      type: object
+      required:
+        [
+          id,
+          payPeriodStart,
+          payPeriodEnd,
+          payDate,
+          laborAccountId,
+          ssRateBps,
+          medicareRateBps,
+          futaRateBps,
+          coSuiRateBps,
+          coSurchargeRateBps,
+          posted,
+          lines,
+          grossWagesCents,
+          burdenCents,
+          totalCostCents,
+        ]
+      properties:
+        id:
+          type: integer
+        payPeriodStart:
+          type: string
+        payPeriodEnd:
+          type: string
+        payDate:
+          type: string
+        memo:
+          type: ["string", "null"]
+        laborAccountId:
+          type: integer
+        laborAccountName:
+          type: ["string", "null"]
+        ssRateBps:
+          type: integer
+        medicareRateBps:
+          type: integer
+        futaRateBps:
+          type: integer
+        coSuiRateBps:
+          type: integer
+        coSurchargeRateBps:
+          type: integer
+        posted:
+          type: boolean
+        postedAt:
+          type: ["string", "null"]
+        grossWagesCents:
+          type: integer
+        burdenCents:
+          type: integer
+        totalCostCents:
+          type: integer
+        allocatedCents:
+          type: integer
+          description: Sum of all allocations across lines
+        lines:
+          type: array
+          items:
+            $ref: "#/components/schemas/PayrollLine"
+    PayrollRunInput:
+      type: object
+      required: [payPeriodStart, payPeriodEnd, payDate, laborAccountId]
+      properties:
+        payPeriodStart:
+          type: string
+        payPeriodEnd:
+          type: string
+        payDate:
+          type: string
+        memo:
+          type: ["string", "null"]
+        laborAccountId:
+          type: integer
+        ssRateBps:
+          type: integer
+          minimum: 0
+        medicareRateBps:
+          type: integer
+          minimum: 0
+        futaRateBps:
+          type: integer
+          minimum: 0
+        coSuiRateBps:
+          type: integer
+          minimum: 0
+        coSurchargeRateBps:
+          type: integer
+          minimum: 0
+        lines:
+          type: array
+          items:
+            $ref: "#/components/schemas/PayrollLineInput"
+    PayrollRunUpdate:
+      type: object
+      properties:
+        payPeriodStart:
+          type: string
+        payPeriodEnd:
+          type: string
+        payDate:
+          type: string
+        memo:
+          type: ["string", "null"]
+        laborAccountId:
+          type: integer
+        ssRateBps:
+          type: integer
+          minimum: 0
+        medicareRateBps:
+          type: integer
+          minimum: 0
+        futaRateBps:
+          type: integer
+          minimum: 0
+        coSuiRateBps:
+          type: integer
+          minimum: 0
+        coSurchargeRateBps:
+          type: integer
+          minimum: 0
+        lines:
+          type: array
+          items:
+            $ref: "#/components/schemas/PayrollLineInput"
+    PayrollByJobRow:
+      type: object
+      required:
+        [
+          jobId,
+          jobNumber,
+          jobName,
+          regularWagesCents,
+          overtimeWagesCents,
+          grossWagesCents,
+          burdenCents,
+          totalCostCents,
+        ]
+      properties:
+        jobId:
+          type: integer
+        jobNumber:
+          type: string
+        jobName:
+          type: string
+        regularWagesCents:
+          type: integer
+        overtimeWagesCents:
+          type: integer
+        grossWagesCents:
+          type: integer
+        burdenCents:
+          type: integer
+        totalCostCents:
+          type: integer
+    PayrollByJob:
+      type: object
+      required: [rows, totals]
+      properties:
+        rows:
+          type: array
+          items:
+            $ref: "#/components/schemas/PayrollByJobRow"
+        totals:
+          type: object
+          required: [regularWagesCents, overtimeWagesCents, grossWagesCents, burdenCents, totalCostCents]
+          properties:
+            regularWagesCents:
+              type: integer
+            overtimeWagesCents:
+              type: integer
+            grossWagesCents:
+              type: integer
+            burdenCents:
+              type: integer
+            totalCostCents:
+              type: integer

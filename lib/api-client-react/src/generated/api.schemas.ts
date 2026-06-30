@@ -184,6 +184,8 @@ export interface Employee {
      * @nullable
      */
   overtimeRateCents?: number | null;
+  /** When true, employer payroll taxes are not applied to this worker */
+  taxExempt?: boolean;
   active?: boolean;
 }
 
@@ -194,6 +196,7 @@ export interface EmployeeInput {
   straightTimeRateCents?: number | null;
   /** @nullable */
   overtimeRateCents?: number | null;
+  taxExempt?: boolean;
   active?: boolean;
 }
 
@@ -204,6 +207,7 @@ export interface EmployeeUpdate {
   straightTimeRateCents?: number | null;
   /** @nullable */
   overtimeRateCents?: number | null;
+  taxExempt?: boolean;
   active?: boolean;
 }
 
@@ -301,6 +305,7 @@ export const TransactionType = {
   journal: 'journal',
   vendor_credit: 'vendor_credit',
   credit_card: 'credit_card',
+  payroll: 'payroll',
 } as const;
 
 export interface Transaction {
@@ -351,6 +356,7 @@ export const TransactionInputType = {
   journal: 'journal',
   vendor_credit: 'vendor_credit',
   credit_card: 'credit_card',
+  payroll: 'payroll',
 } as const;
 
 export interface TransactionInput {
@@ -387,6 +393,7 @@ export const TransactionUpdateType = {
   journal: 'journal',
   vendor_credit: 'vendor_credit',
   credit_card: 'credit_card',
+  payroll: 'payroll',
 } as const;
 
 export interface TransactionUpdate {
@@ -836,6 +843,184 @@ export interface ApAging {
   asOf: string;
   totals: AgingBuckets;
   vendors: ApAgingVendor[];
+}
+
+export interface PayrollAllocation {
+  id: number;
+  lineId: number;
+  jobId: number;
+  /** @nullable */
+  jobNumber?: string | null;
+  /** @nullable */
+  jobName?: string | null;
+  /** Burdened labor cost allocated to this job, in integer cents */
+  amountCents: number;
+}
+
+export interface PayrollAllocationInput {
+  jobId: number;
+  /** @minimum 1 */
+  amountCents: number;
+}
+
+export type PayrollLineLineType = typeof PayrollLineLineType[keyof typeof PayrollLineLineType];
+
+
+export const PayrollLineLineType = {
+  employee: 'employee',
+  subcontractor: 'subcontractor',
+} as const;
+
+export interface PayrollLine {
+  id: number;
+  runId: number;
+  lineType: PayrollLineLineType;
+  /** @nullable */
+  employeeId?: number | null;
+  /** @nullable */
+  vendorId?: number | null;
+  workerName: string;
+  regularHours: number;
+  overtimeHours: number;
+  /** @nullable */
+  straightRateCents?: number | null;
+  /** @nullable */
+  overtimeRateCents?: number | null;
+  regularWagesCents: number;
+  overtimeWagesCents: number;
+  grossWagesCents: number;
+  socialSecurityCents: number;
+  medicareCents: number;
+  futaCents: number;
+  coSuiCents: number;
+  coSurchargeCents: number;
+  burdenCents: number;
+  totalCostCents: number;
+  allocations: PayrollAllocation[];
+}
+
+export type PayrollLineInputLineType = typeof PayrollLineInputLineType[keyof typeof PayrollLineInputLineType];
+
+
+export const PayrollLineInputLineType = {
+  employee: 'employee',
+  subcontractor: 'subcontractor',
+} as const;
+
+export interface PayrollLineInput {
+  lineType: PayrollLineInputLineType;
+  /** @nullable */
+  employeeId?: number | null;
+  /** @nullable */
+  vendorId?: number | null;
+  /** @minLength 1 */
+  workerName: string;
+  /** @minimum 0 */
+  regularHours?: number;
+  /** @minimum 0 */
+  overtimeHours?: number;
+  /** @nullable */
+  straightRateCents?: number | null;
+  /** @nullable */
+  overtimeRateCents?: number | null;
+  /** When true, employer payroll taxes are skipped for this line */
+  taxExempt?: boolean;
+  /**
+     * For subcontractor lines, the flat labor cost in cents (no burden applied)
+     * @nullable
+     */
+  subcontractorAmountCents?: number | null;
+  allocations?: PayrollAllocationInput[];
+}
+
+export interface PayrollRun {
+  id: number;
+  payPeriodStart: string;
+  payPeriodEnd: string;
+  payDate: string;
+  /** @nullable */
+  memo?: string | null;
+  laborAccountId: number;
+  /** @nullable */
+  laborAccountName?: string | null;
+  ssRateBps: number;
+  medicareRateBps: number;
+  futaRateBps: number;
+  coSuiRateBps: number;
+  coSurchargeRateBps: number;
+  posted: boolean;
+  /** @nullable */
+  postedAt?: string | null;
+  grossWagesCents: number;
+  burdenCents: number;
+  totalCostCents: number;
+  /** Sum of all allocations across lines */
+  allocatedCents?: number;
+  lines: PayrollLine[];
+}
+
+export interface PayrollRunInput {
+  payPeriodStart: string;
+  payPeriodEnd: string;
+  payDate: string;
+  /** @nullable */
+  memo?: string | null;
+  laborAccountId: number;
+  /** @minimum 0 */
+  ssRateBps?: number;
+  /** @minimum 0 */
+  medicareRateBps?: number;
+  /** @minimum 0 */
+  futaRateBps?: number;
+  /** @minimum 0 */
+  coSuiRateBps?: number;
+  /** @minimum 0 */
+  coSurchargeRateBps?: number;
+  lines?: PayrollLineInput[];
+}
+
+export interface PayrollRunUpdate {
+  payPeriodStart?: string;
+  payPeriodEnd?: string;
+  payDate?: string;
+  /** @nullable */
+  memo?: string | null;
+  laborAccountId?: number;
+  /** @minimum 0 */
+  ssRateBps?: number;
+  /** @minimum 0 */
+  medicareRateBps?: number;
+  /** @minimum 0 */
+  futaRateBps?: number;
+  /** @minimum 0 */
+  coSuiRateBps?: number;
+  /** @minimum 0 */
+  coSurchargeRateBps?: number;
+  lines?: PayrollLineInput[];
+}
+
+export interface PayrollByJobRow {
+  jobId: number;
+  jobNumber: string;
+  jobName: string;
+  regularWagesCents: number;
+  overtimeWagesCents: number;
+  grossWagesCents: number;
+  burdenCents: number;
+  totalCostCents: number;
+}
+
+export type PayrollByJobTotals = {
+  regularWagesCents: number;
+  overtimeWagesCents: number;
+  grossWagesCents: number;
+  burdenCents: number;
+  totalCostCents: number;
+};
+
+export interface PayrollByJob {
+  rows: PayrollByJobRow[];
+  totals: PayrollByJobTotals;
 }
 
 /**

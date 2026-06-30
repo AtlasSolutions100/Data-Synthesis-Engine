@@ -18,4 +18,5 @@ export const TransactionType = {
   journal: 'journal',
   vendor_credit: 'vendor_credit',
   credit_card: 'credit_card',
+  payroll: 'payroll',
 } as const;

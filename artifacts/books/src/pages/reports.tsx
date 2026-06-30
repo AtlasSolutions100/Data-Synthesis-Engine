@@ -5,6 +5,8 @@ import {
   getGetArAgingQueryKey,
   useGetApAging,
   getGetApAgingQueryKey,
+  useGetPayrollByJob,
+  getGetPayrollByJobQueryKey,
 } from "@workspace/api-client-react";
 import type { AgingBuckets } from "@workspace/api-client-react";
 import { formatCents } from "@/lib/format";
@@ -64,6 +66,9 @@ export default function Reports() {
   });
   const { data: apAging, isLoading: apLoading } = useGetApAging({
     query: { queryKey: getGetApAgingQueryKey() },
+  });
+  const { data: payrollByJob, isLoading: payrollLoading } = useGetPayrollByJob({
+    query: { queryKey: getGetPayrollByJobQueryKey() },
   });
 
   return (
@@ -125,6 +130,95 @@ export default function Reports() {
                     </TableCell>
                   </TableRow>
                 ))
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Burdened Labor by Job</CardTitle>
+          <p className="text-sm text-slate-500">
+            Posted payroll allocated to jobs (totals reconcile to ledger)
+          </p>
+        </CardHeader>
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Job</TableHead>
+                <TableHead className="text-right">Regular</TableHead>
+                <TableHead className="text-right">Overtime</TableHead>
+                <TableHead className="text-right">Gross</TableHead>
+                <TableHead className="text-right">Burden</TableHead>
+                <TableHead className="text-right">Total Cost</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {payrollLoading ? (
+                <TableRow>
+                  <TableCell
+                    colSpan={6}
+                    className="text-center py-8 text-slate-500"
+                  >
+                    Loading payroll by job...
+                  </TableCell>
+                </TableRow>
+              ) : !payrollByJob || payrollByJob.rows.length === 0 ? (
+                <TableRow>
+                  <TableCell
+                    colSpan={6}
+                    className="text-center py-8 text-slate-500"
+                  >
+                    No posted payroll allocated to jobs.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                <>
+                  {payrollByJob.rows.map((row) => (
+                    <TableRow key={row.jobId}>
+                      <TableCell className="font-medium">
+                        {row.jobNumber} - {row.jobName}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {formatCents(row.regularWagesCents)}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {formatCents(row.overtimeWagesCents)}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {formatCents(row.grossWagesCents)}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {formatCents(row.burdenCents)}
+                      </TableCell>
+                      <TableCell className="text-right font-medium">
+                        {formatCents(row.totalCostCents)}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  <TableRow className="bg-slate-50 hover:bg-slate-50">
+                    <TableCell className="font-semibold text-slate-700">
+                      Total
+                    </TableCell>
+                    <TableCell className="text-right font-semibold">
+                      {formatCents(payrollByJob.totals.regularWagesCents)}
+                    </TableCell>
+                    <TableCell className="text-right font-semibold">
+                      {formatCents(payrollByJob.totals.overtimeWagesCents)}
+                    </TableCell>
+                    <TableCell className="text-right font-semibold">
+                      {formatCents(payrollByJob.totals.grossWagesCents)}
+                    </TableCell>
+                    <TableCell className="text-right font-semibold">
+                      {formatCents(payrollByJob.totals.burdenCents)}
+                    </TableCell>
+                    <TableCell className="text-right font-bold text-slate-900">
+                      {formatCents(payrollByJob.totals.totalCostCents)}
+                    </TableCell>
+                  </TableRow>
+                </>
               )}
             </TableBody>
           </Table>

@@ -13,6 +13,7 @@ import { accountsTable } from "./accounts";
 import { jobsTable } from "./jobs";
 import { customersTable } from "./customers";
 import { vendorsTable } from "./vendors";
+import { payrollRunsTable } from "./payroll";
 
 export const transactionsTable = pgTable("transactions", {
   id: serial("id").primaryKey(),
@@ -33,6 +34,9 @@ export const transactionsTable = pgTable("transactions", {
   }),
   vendorId: integer("vendor_id").references(() => vendorsTable.id, {
     onDelete: "set null",
+  }),
+  payrollRunId: integer("payroll_run_id").references(() => payrollRunsTable.id, {
+    onDelete: "cascade",
   }),
   amountCents: bigint("amount_cents", { mode: "number" }).notNull(),
   createdAt: timestamp("created_at", { withTimezone: true })

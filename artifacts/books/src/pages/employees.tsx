@@ -119,6 +119,7 @@ export default function Employees() {
                                 name: employee.name,
                                 straightTimeRate: employee.straightTimeRateCents ? (employee.straightTimeRateCents / 100).toString() : "",
                                 overtimeRate: employee.overtimeRateCents ? (employee.overtimeRateCents / 100).toString() : "",
+                                taxExempt: employee.taxExempt ?? false,
                                 active: employee.active !== false,
                               }}
                               onSubmit={(data) => updateEmployee.mutate({ id: employee.id, data: data as any })} 
