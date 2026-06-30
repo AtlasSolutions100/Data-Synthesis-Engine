@@ -14,6 +14,7 @@ import {
   DeleteJobDocumentParams,
 } from "@workspace/api-zod";
 import { ObjectStorageService } from "../lib/objectStorage";
+import { validateUpload } from "../lib/uploadValidation";
 
 const router: IRouter = Router();
 const objectStorageService = new ObjectStorageService();
@@ -80,6 +81,16 @@ router.post("/jobs/:id/documents", async (req, res): Promise<void> => {
     .where(eq(jobsTable.id, params.data.id));
   if (!job) {
     res.status(404).json({ error: "Job not found" });
+    return;
+  }
+
+  const validation = validateUpload({
+    fileName: parsed.data.fileName,
+    contentType: parsed.data.contentType,
+    sizeBytes: parsed.data.sizeBytes,
+  });
+  if (!validation.ok) {
+    res.status(400).json({ error: validation.error });
     return;
   }
 

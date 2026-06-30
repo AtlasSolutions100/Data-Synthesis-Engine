@@ -57,6 +57,51 @@ type Category = (typeof CATEGORIES)[number]["value"];
 const ACCEPT =
   ".pdf,.png,.jpg,.jpeg,.gif,.webp,.xls,.xlsx,.csv,image/*,application/pdf";
 
+const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
+const MAX_UPLOAD_LABEL = "25 MB";
+
+const ALLOWED_MIME_TYPES = new Set<string>([
+  "application/pdf",
+  "image/png",
+  "image/jpeg",
+  "image/gif",
+  "image/webp",
+  "application/vnd.ms-excel",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "text/csv",
+  "application/csv",
+]);
+
+const ALLOWED_EXTENSIONS = new Set<string>([
+  "pdf",
+  "png",
+  "jpg",
+  "jpeg",
+  "gif",
+  "webp",
+  "xls",
+  "xlsx",
+  "csv",
+]);
+
+function validateFile(file: File): string | null {
+  if (file.size > MAX_UPLOAD_BYTES) {
+    return `"${file.name}" is too large. The maximum allowed size is ${MAX_UPLOAD_LABEL}.`;
+  }
+  const dot = file.name.lastIndexOf(".");
+  const ext =
+    dot >= 0 && dot < file.name.length - 1
+      ? file.name.slice(dot + 1).toLowerCase()
+      : "";
+  const allowedByExt = ext !== "" && ALLOWED_EXTENSIONS.has(ext);
+  const allowedByMime =
+    !!file.type && ALLOWED_MIME_TYPES.has(file.type.toLowerCase());
+  if (!allowedByExt && !allowedByMime) {
+    return "Unsupported file type. Allowed types are PDF, images (PNG, JPEG, GIF, WebP), and spreadsheets (Excel, CSV).";
+  }
+  return null;
+}
+
 function categoryLabel(value: string): string {
   return CATEGORIES.find((c) => c.value === value)?.label ?? value;
 }
@@ -143,8 +188,12 @@ export function JobDocuments({ jobId }: { jobId: number }) {
   });
 
   const { uploadFile, isUploading } = useUpload({
-    onError: () =>
-      toast({ title: "Upload failed", variant: "destructive" }),
+    onError: (err) =>
+      toast({
+        title: "Upload failed",
+        description: err.message,
+        variant: "destructive",
+      }),
   });
 
   const handleFileSelected = async (
@@ -153,6 +202,16 @@ export function JobDocuments({ jobId }: { jobId: number }) {
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;
+
+    const validationError = validateFile(file);
+    if (validationError) {
+      toast({
+        title: "File rejected",
+        description: validationError,
+        variant: "destructive",
+      });
+      return;
+    }
 
     const result = await uploadFile(file);
     if (!result) return;
