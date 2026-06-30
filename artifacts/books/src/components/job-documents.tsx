@@ -25,8 +25,23 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Upload, Download, Trash2, FileText, Loader2 } from "lucide-react";
+import {
+  Upload,
+  Download,
+  Trash2,
+  FileText,
+  FileSpreadsheet,
+  Image as ImageIcon,
+  Eye,
+  Loader2,
+} from "lucide-react";
 
 const CATEGORIES = [
   { value: "contract", label: "Contract" },
@@ -62,11 +77,33 @@ function formatDate(iso: string): string {
   });
 }
 
+type FileKind = "image" | "pdf" | "other";
+
+function fileKind(
+  fileName: string,
+  contentType: string | null | undefined,
+): FileKind {
+  const ct = (contentType ?? "").toLowerCase();
+  if (ct.startsWith("image/")) return "image";
+  if (ct === "application/pdf") return "pdf";
+
+  const ext = fileName.split(".").pop()?.toLowerCase() ?? "";
+  if (["png", "jpg", "jpeg", "gif", "webp", "bmp", "svg"].includes(ext))
+    return "image";
+  if (ext === "pdf") return "pdf";
+  return "other";
+}
+
 export function JobDocuments({ jobId }: { jobId: number }) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [category, setCategory] = useState<Category>("other");
+  const [preview, setPreview] = useState<{
+    href: string;
+    fileName: string;
+    kind: FileKind;
+  } | null>(null);
 
   const { data: documents, isLoading } = useListJobDocuments(jobId, {
     query: {
@@ -216,15 +253,56 @@ export function JobDocuments({ jobId }: { jobId: number }) {
             ) : (
               docs.map((doc) => {
                 const href = `/api/storage${doc.objectPath}`;
+                const kind = fileKind(doc.fileName, doc.contentType);
+                const canPreview = kind === "image" || kind === "pdf";
+                const openPreview = () =>
+                  setPreview({ href, fileName: doc.fileName, kind });
                 return (
                   <TableRow key={doc.id}>
                     <TableCell>
-                      <div className="flex items-center gap-2">
-                        <FileText className="h-4 w-4 text-slate-400 shrink-0" />
+                      <div className="flex items-center gap-3">
+                        {kind === "image" ? (
+                          <button
+                            type="button"
+                            onClick={openPreview}
+                            className="shrink-0 rounded border border-slate-200 overflow-hidden h-10 w-10 bg-slate-50 hover:ring-2 hover:ring-blue-400 transition"
+                            title="Preview"
+                          >
+                            <img
+                              src={href}
+                              alt={doc.fileName}
+                              loading="lazy"
+                              className="h-full w-full object-cover"
+                            />
+                          </button>
+                        ) : kind === "pdf" ? (
+                          <button
+                            type="button"
+                            onClick={openPreview}
+                            className="shrink-0 flex items-center justify-center h-10 w-10 rounded border border-slate-200 bg-red-50 text-red-500 hover:ring-2 hover:ring-blue-400 transition"
+                            title="Preview"
+                          >
+                            <FileText className="h-5 w-5" />
+                          </button>
+                        ) : (
+                          <span className="shrink-0 flex items-center justify-center h-10 w-10 rounded border border-slate-200 bg-slate-50 text-slate-400">
+                            <FileSpreadsheet className="h-5 w-5" />
+                          </span>
+                        )}
                         <div>
-                          <div className="font-medium text-slate-900">
-                            {doc.fileName}
-                          </div>
+                          {canPreview ? (
+                            <button
+                              type="button"
+                              onClick={openPreview}
+                              className="font-medium text-slate-900 hover:text-blue-600 text-left"
+                            >
+                              {doc.fileName}
+                            </button>
+                          ) : (
+                            <div className="font-medium text-slate-900">
+                              {doc.fileName}
+                            </div>
+                          )}
                           {doc.uploadedByName && (
                             <div className="text-xs text-slate-500">
                               by {doc.uploadedByName}
@@ -246,6 +324,17 @@ export function JobDocuments({ jobId }: { jobId: number }) {
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-1 justify-end">
+                        {canPreview && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            title="Preview"
+                            onClick={openPreview}
+                          >
+                            <Eye className="h-4 w-4 text-slate-500" />
+                          </Button>
+                        )}
                         <Button
                           asChild
                           variant="ghost"
@@ -256,7 +345,7 @@ export function JobDocuments({ jobId }: { jobId: number }) {
                             href={href}
                             target="_blank"
                             rel="noopener noreferrer"
-                            title="Download / preview"
+                            title="Download"
                           >
                             <Download className="h-4 w-4 text-slate-500" />
                           </a>
@@ -286,6 +375,55 @@ export function JobDocuments({ jobId }: { jobId: number }) {
           </TableBody>
         </Table>
       </CardContent>
+
+      <Dialog
+        open={!!preview}
+        onOpenChange={(open) => {
+          if (!open) setPreview(null);
+        }}
+      >
+        <DialogContent className="max-w-4xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 pr-8">
+              {preview?.kind === "image" ? (
+                <ImageIcon className="h-4 w-4 text-slate-400 shrink-0" />
+              ) : (
+                <FileText className="h-4 w-4 text-slate-400 shrink-0" />
+              )}
+              <span className="truncate">{preview?.fileName}</span>
+            </DialogTitle>
+          </DialogHeader>
+          {preview?.kind === "image" ? (
+            <div className="flex justify-center bg-slate-50 rounded-md max-h-[75vh] overflow-auto">
+              <img
+                src={preview.href}
+                alt={preview.fileName}
+                className="max-w-full h-auto object-contain"
+              />
+            </div>
+          ) : preview?.kind === "pdf" ? (
+            <iframe
+              src={preview.href}
+              title={preview.fileName}
+              className="w-full h-[75vh] rounded-md border border-slate-200"
+            />
+          ) : null}
+          {preview && (
+            <div className="flex justify-end">
+              <Button asChild variant="outline" size="sm">
+                <a
+                  href={preview.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <Download className="mr-2 h-4 w-4" />
+                  Download
+                </a>
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }
