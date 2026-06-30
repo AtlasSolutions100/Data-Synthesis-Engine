@@ -1,0 +1,33 @@
+I need you to create a comprehensive, hierarchical process map and detailed breakdown for **managing projects in my company**. This will become the foundation for our SOPs and operational playbook. We want to visualize the entire system clearly so we can improve it, train the team, and potentially build supporting tools around it.
+
+Please follow this exact structure:
+
+**PART 1: Core High-Level Project Phases**
+- First, identify all the major, high-level phases (core steps or functions) that make up a typical project lifecycle in my business.
+- List them in the logical, typical order they occur from the beginning of a project to the end.
+- Present each phase as a **bold, clear, numbered heading** (example: **1. Contract Negotiations & Front-End Documentation**). Keep the top-level list concise but complete.
+- Make sure to include (and expand beyond) the key areas we discussed: contract negotiations, gathering all front-end paperwork and documents, insurance, business licenses/permits, FAB (fabrication), install, and any other critical functions such as client onboarding, scheduling & resource allocation, material procurement, quality control & inspections, project closeout, invoicing & collections, warranty/handover, etc.
+- Think through the full end-to-end flow as it actually happens in my company.
+
+**PART 2: Deep-Dive Breakdown for Each Phase**
+- For EVERY main phase you listed in Part 1, go extremely deep.
+- Break each phase into all the granular sub-steps, tasks, decisions, required documents, stakeholders involved, typical timelines, communications and notifications that should happen, decision points, potential problems or risks that commonly arise, what can go wrong, mitigation strategies, and best practices.
+- Use a clear nested bullet-point structure (with sub-bullets and further indentation as needed) so it is easy to read, turn into checklists, or build workflows from.
+- Be exhaustive and detailed — cover every "little itty bitty detail." For contract negotiations in particular, map out all the different pieces and aspects, what can happen, problems that arise, and what notifications should occur at each point.
+- Highlight any important interdependencies between phases.
+
+**Output Formatting Requirements:**
+- Use clean, professional Markdown so the document is highly readable and ready to copy into Google Docs, Notion, or a company wiki.
+- Start with a short Executive Overview (2–4 paragraphs) explaining the purpose of this project management framework and how it can be used.
+- Use **bold headings** for the main phases and clear hierarchy throughout.
+- At the very end, add a "Next Steps & Recommendations" section that includes:
+  - Which 2–3 phases we should prioritize fleshing out first with full SOPs and team training.
+  - Suggestions for automation opportunities or tool-building (where software could remove manual work or reduce errors).
+  - Any obvious bottlenecks or recurring issues you see across the map.
+  - How this hierarchical map can be used to rapidly build operational systems or AI-assisted workflows.
+
+Additional Guidance:
+- Draw on everything you already know about my company from our previous SOP work together.
+- If something feels specific to certain project types or sizes, note the variations.
+- Keep the tone practical, direct, and actionable — as if this is an internal operations document we will actually use every day.
+- Do not make it generic; tailor it to the real flow of work in my business.
