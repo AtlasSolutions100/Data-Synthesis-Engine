@@ -188,6 +188,40 @@ export default function JobDetail() {
         </Card>
       </div>
 
+      <div className="grid gap-6 md:grid-cols-3">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-slate-500">Billed to Date</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-slate-900">{formatCents(job.billedToDateCents)}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-slate-500">Unbilled Contract</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className={`text-2xl font-bold ${job.remainingContractCents >= 0 ? "text-slate-900" : "text-red-600"}`}>
+              {formatCents(job.remainingContractCents)}
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-slate-500">Over / Under Billing</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className={`text-2xl font-bold ${job.overUnderBillingCents >= 0 ? "text-emerald-600" : "text-amber-600"}`}>
+              {formatCents(job.overUnderBillingCents)}
+            </div>
+            <div className="text-xs text-slate-500 mt-1">
+              {job.overUnderBillingCents >= 0 ? "Billed ahead of cost" : "Costs exceed billings"}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
       <Card>
         <CardHeader className="flex flex-row items-center justify-between pb-4 border-b">
           <div>

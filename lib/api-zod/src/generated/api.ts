@@ -382,7 +382,10 @@ export const ListJobsResponseItem = zod.object({
   "incomeCents": zod.number().describe('Billed income in cents (computed from line items)'),
   "costCents": zod.number().describe('Total cost in cents (computed from line items)'),
   "profitCents": zod.number().describe('incomeCents minus costCents'),
-  "remainingCents": zod.number().describe('contractAmountCents minus costCents (contract budget remaining)')
+  "remainingCents": zod.number().describe('contractAmountCents minus costCents (contract budget remaining)'),
+  "billedToDateCents": zod.number().describe('Sum of invoice line items billed against this job, in cents'),
+  "remainingContractCents": zod.number().describe('contractAmountCents minus billedToDateCents (left to bill)'),
+  "overUnderBillingCents": zod.number().describe('billedToDateCents minus costCents (positive = overbilled, negative = underbilled)')
 })
 export const ListJobsResponse = zod.array(ListJobsResponseItem)
 
@@ -415,7 +418,10 @@ export const CreateJobResponse = zod.object({
   "incomeCents": zod.number().describe('Billed income in cents (computed from line items)'),
   "costCents": zod.number().describe('Total cost in cents (computed from line items)'),
   "profitCents": zod.number().describe('incomeCents minus costCents'),
-  "remainingCents": zod.number().describe('contractAmountCents minus costCents (contract budget remaining)')
+  "remainingCents": zod.number().describe('contractAmountCents minus costCents (contract budget remaining)'),
+  "billedToDateCents": zod.number().describe('Sum of invoice line items billed against this job, in cents'),
+  "remainingContractCents": zod.number().describe('contractAmountCents minus billedToDateCents (left to bill)'),
+  "overUnderBillingCents": zod.number().describe('billedToDateCents minus costCents (positive = overbilled, negative = underbilled)')
 })
 
 
@@ -438,7 +444,10 @@ export const GetJobResponse = zod.object({
   "incomeCents": zod.number().describe('Billed income in cents (computed from line items)'),
   "costCents": zod.number().describe('Total cost in cents (computed from line items)'),
   "profitCents": zod.number().describe('incomeCents minus costCents'),
-  "remainingCents": zod.number().describe('contractAmountCents minus costCents (contract budget remaining)')
+  "remainingCents": zod.number().describe('contractAmountCents minus costCents (contract budget remaining)'),
+  "billedToDateCents": zod.number().describe('Sum of invoice line items billed against this job, in cents'),
+  "remainingContractCents": zod.number().describe('contractAmountCents minus billedToDateCents (left to bill)'),
+  "overUnderBillingCents": zod.number().describe('billedToDateCents minus costCents (positive = overbilled, negative = underbilled)')
 })
 
 
@@ -474,7 +483,10 @@ export const UpdateJobResponse = zod.object({
   "incomeCents": zod.number().describe('Billed income in cents (computed from line items)'),
   "costCents": zod.number().describe('Total cost in cents (computed from line items)'),
   "profitCents": zod.number().describe('incomeCents minus costCents'),
-  "remainingCents": zod.number().describe('contractAmountCents minus costCents (contract budget remaining)')
+  "remainingCents": zod.number().describe('contractAmountCents minus costCents (contract budget remaining)'),
+  "billedToDateCents": zod.number().describe('Sum of invoice line items billed against this job, in cents'),
+  "remainingContractCents": zod.number().describe('contractAmountCents minus billedToDateCents (left to bill)'),
+  "overUnderBillingCents": zod.number().describe('billedToDateCents minus costCents (positive = overbilled, negative = underbilled)')
 })
 
 
@@ -686,7 +698,10 @@ export const GetDashboardSummaryResponse = zod.object({
   "incomeCents": zod.number().describe('Billed income in cents (computed from line items)'),
   "costCents": zod.number().describe('Total cost in cents (computed from line items)'),
   "profitCents": zod.number().describe('incomeCents minus costCents'),
-  "remainingCents": zod.number().describe('contractAmountCents minus costCents (contract budget remaining)')
+  "remainingCents": zod.number().describe('contractAmountCents minus costCents (contract budget remaining)'),
+  "billedToDateCents": zod.number().describe('Sum of invoice line items billed against this job, in cents'),
+  "remainingContractCents": zod.number().describe('contractAmountCents minus billedToDateCents (left to bill)'),
+  "overUnderBillingCents": zod.number().describe('billedToDateCents minus costCents (positive = overbilled, negative = underbilled)')
 })).optional(),
   "recentTransactions": zod.array(zod.object({
   "id": zod.number(),
@@ -719,6 +734,693 @@ export const GetCostByAccountResponseItem = zod.object({
   "amountCents": zod.number()
 })
 export const GetCostByAccountResponse = zod.array(GetCostByAccountResponseItem)
+
+
+/**
+ * Outstanding customer invoice balances grouped by customer and age bucket.
+ * @summary Accounts receivable aging
+ */
+export const GetArAgingResponse = zod.object({
+  "asOf": zod.string(),
+  "totals": zod.object({
+  "currentCents": zod.number(),
+  "days1to30Cents": zod.number(),
+  "days31to60Cents": zod.number(),
+  "days61to90Cents": zod.number(),
+  "days90plusCents": zod.number(),
+  "totalCents": zod.number()
+}),
+  "customers": zod.array(zod.object({
+  "customerId": zod.number().nullable(),
+  "customerName": zod.string().nullable(),
+  "buckets": zod.object({
+  "currentCents": zod.number(),
+  "days1to30Cents": zod.number(),
+  "days31to60Cents": zod.number(),
+  "days61to90Cents": zod.number(),
+  "days90plusCents": zod.number(),
+  "totalCents": zod.number()
+}),
+  "invoices": zod.array(zod.object({
+  "id": zod.number(),
+  "invoiceNumber": zod.string(),
+  "jobId": zod.number().nullish(),
+  "jobNumber": zod.string().nullish(),
+  "date": zod.string(),
+  "dueDate": zod.string().nullish(),
+  "balanceCents": zod.number(),
+  "daysOverdue": zod.number(),
+  "bucket": zod.enum(['current', 'days1to30', 'days31to60', 'days61to90', 'days90plus'])
+}))
+}))
+})
+
+
+/**
+ * Outstanding vendor bill balances grouped by vendor and age bucket.
+ * @summary Accounts payable aging
+ */
+export const GetApAgingResponse = zod.object({
+  "asOf": zod.string(),
+  "totals": zod.object({
+  "currentCents": zod.number(),
+  "days1to30Cents": zod.number(),
+  "days31to60Cents": zod.number(),
+  "days61to90Cents": zod.number(),
+  "days90plusCents": zod.number(),
+  "totalCents": zod.number()
+}),
+  "vendors": zod.array(zod.object({
+  "vendorId": zod.number().nullable(),
+  "vendorName": zod.string().nullable(),
+  "buckets": zod.object({
+  "currentCents": zod.number(),
+  "days1to30Cents": zod.number(),
+  "days31to60Cents": zod.number(),
+  "days61to90Cents": zod.number(),
+  "days90plusCents": zod.number(),
+  "totalCents": zod.number()
+}),
+  "bills": zod.array(zod.object({
+  "id": zod.number(),
+  "billNumber": zod.string().nullish(),
+  "jobId": zod.number().nullish(),
+  "jobNumber": zod.string().nullish(),
+  "date": zod.string(),
+  "dueDate": zod.string().nullish(),
+  "balanceCents": zod.number(),
+  "daysOverdue": zod.number(),
+  "bucket": zod.enum(['current', 'days1to30', 'days31to60', 'days61to90', 'days90plus'])
+}))
+}))
+})
+
+
+/**
+ * @summary List invoices with computed totals
+ */
+export const ListInvoicesQueryParams = zod.object({
+  "jobId": zod.coerce.number().optional(),
+  "customerId": zod.coerce.number().optional(),
+  "status": zod.enum(['open', 'partial', 'paid']).optional()
+})
+
+export const ListInvoicesResponseItem = zod.object({
+  "id": zod.number(),
+  "invoiceNumber": zod.string(),
+  "jobId": zod.number(),
+  "jobNumber": zod.string().nullish(),
+  "customerId": zod.number(),
+  "customerName": zod.string().nullish(),
+  "date": zod.string(),
+  "dueDate": zod.string().nullish(),
+  "memo": zod.string().nullish(),
+  "totalCents": zod.number().describe('Sum of line items in cents'),
+  "paidCents": zod.number().describe('Sum of recorded payments in cents'),
+  "balanceCents": zod.number().describe('totalCents minus paidCents'),
+  "status": zod.enum(['open', 'partial', 'paid']),
+  "contractAmountCents": zod.number().nullish().describe('Contract value of the job this invoice bills against'),
+  "billedToDateCents": zod.number().nullish().describe('Total billed against the job across all invoices, in cents'),
+  "remainingContractCents": zod.number().nullish().describe('contractAmountCents minus billedToDateCents'),
+  "lines": zod.array(zod.object({
+  "id": zod.number(),
+  "description": zod.string().nullish(),
+  "amountCents": zod.number()
+})),
+  "payments": zod.array(zod.object({
+  "id": zod.number(),
+  "date": zod.string(),
+  "method": zod.enum(['check', 'cash', 'ach', 'credit_card', 'other']),
+  "referenceNum": zod.string().nullish(),
+  "amountCents": zod.number(),
+  "memo": zod.string().nullish()
+})).optional()
+})
+export const ListInvoicesResponse = zod.array(ListInvoicesResponseItem)
+
+
+/**
+ * @summary Create a progress invoice
+ */
+
+
+
+
+
+export const CreateInvoiceBody = zod.object({
+  "invoiceNumber": zod.string().min(1),
+  "jobId": zod.number(),
+  "customerId": zod.number().nullish().describe('Defaults to the job\'s customer when omitted'),
+  "date": zod.string().min(1),
+  "dueDate": zod.string().nullish(),
+  "memo": zod.string().nullish(),
+  "lines": zod.array(zod.object({
+  "description": zod.string().nullish(),
+  "amountCents": zod.number()
+})).min(1)
+})
+
+export const CreateInvoiceResponse = zod.object({
+  "id": zod.number(),
+  "invoiceNumber": zod.string(),
+  "jobId": zod.number(),
+  "jobNumber": zod.string().nullish(),
+  "customerId": zod.number(),
+  "customerName": zod.string().nullish(),
+  "date": zod.string(),
+  "dueDate": zod.string().nullish(),
+  "memo": zod.string().nullish(),
+  "totalCents": zod.number().describe('Sum of line items in cents'),
+  "paidCents": zod.number().describe('Sum of recorded payments in cents'),
+  "balanceCents": zod.number().describe('totalCents minus paidCents'),
+  "status": zod.enum(['open', 'partial', 'paid']),
+  "contractAmountCents": zod.number().nullish().describe('Contract value of the job this invoice bills against'),
+  "billedToDateCents": zod.number().nullish().describe('Total billed against the job across all invoices, in cents'),
+  "remainingContractCents": zod.number().nullish().describe('contractAmountCents minus billedToDateCents'),
+  "lines": zod.array(zod.object({
+  "id": zod.number(),
+  "description": zod.string().nullish(),
+  "amountCents": zod.number()
+})),
+  "payments": zod.array(zod.object({
+  "id": zod.number(),
+  "date": zod.string(),
+  "method": zod.enum(['check', 'cash', 'ach', 'credit_card', 'other']),
+  "referenceNum": zod.string().nullish(),
+  "amountCents": zod.number(),
+  "memo": zod.string().nullish()
+})).optional()
+})
+
+
+/**
+ * @summary Get an invoice with lines and payments
+ */
+export const GetInvoiceParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetInvoiceResponse = zod.object({
+  "id": zod.number(),
+  "invoiceNumber": zod.string(),
+  "jobId": zod.number(),
+  "jobNumber": zod.string().nullish(),
+  "customerId": zod.number(),
+  "customerName": zod.string().nullish(),
+  "date": zod.string(),
+  "dueDate": zod.string().nullish(),
+  "memo": zod.string().nullish(),
+  "totalCents": zod.number().describe('Sum of line items in cents'),
+  "paidCents": zod.number().describe('Sum of recorded payments in cents'),
+  "balanceCents": zod.number().describe('totalCents minus paidCents'),
+  "status": zod.enum(['open', 'partial', 'paid']),
+  "contractAmountCents": zod.number().nullish().describe('Contract value of the job this invoice bills against'),
+  "billedToDateCents": zod.number().nullish().describe('Total billed against the job across all invoices, in cents'),
+  "remainingContractCents": zod.number().nullish().describe('contractAmountCents minus billedToDateCents'),
+  "lines": zod.array(zod.object({
+  "id": zod.number(),
+  "description": zod.string().nullish(),
+  "amountCents": zod.number()
+})),
+  "payments": zod.array(zod.object({
+  "id": zod.number(),
+  "date": zod.string(),
+  "method": zod.enum(['check', 'cash', 'ach', 'credit_card', 'other']),
+  "referenceNum": zod.string().nullish(),
+  "amountCents": zod.number(),
+  "memo": zod.string().nullish()
+})).optional()
+})
+
+
+/**
+ * @summary Update an invoice (replaces line items)
+ */
+export const UpdateInvoiceParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+
+
+
+
+export const UpdateInvoiceBody = zod.object({
+  "invoiceNumber": zod.string().min(1).optional(),
+  "date": zod.string().min(1).optional(),
+  "dueDate": zod.string().nullish(),
+  "memo": zod.string().nullish(),
+  "lines": zod.array(zod.object({
+  "description": zod.string().nullish(),
+  "amountCents": zod.number()
+})).min(1).optional()
+})
+
+export const UpdateInvoiceResponse = zod.object({
+  "id": zod.number(),
+  "invoiceNumber": zod.string(),
+  "jobId": zod.number(),
+  "jobNumber": zod.string().nullish(),
+  "customerId": zod.number(),
+  "customerName": zod.string().nullish(),
+  "date": zod.string(),
+  "dueDate": zod.string().nullish(),
+  "memo": zod.string().nullish(),
+  "totalCents": zod.number().describe('Sum of line items in cents'),
+  "paidCents": zod.number().describe('Sum of recorded payments in cents'),
+  "balanceCents": zod.number().describe('totalCents minus paidCents'),
+  "status": zod.enum(['open', 'partial', 'paid']),
+  "contractAmountCents": zod.number().nullish().describe('Contract value of the job this invoice bills against'),
+  "billedToDateCents": zod.number().nullish().describe('Total billed against the job across all invoices, in cents'),
+  "remainingContractCents": zod.number().nullish().describe('contractAmountCents minus billedToDateCents'),
+  "lines": zod.array(zod.object({
+  "id": zod.number(),
+  "description": zod.string().nullish(),
+  "amountCents": zod.number()
+})),
+  "payments": zod.array(zod.object({
+  "id": zod.number(),
+  "date": zod.string(),
+  "method": zod.enum(['check', 'cash', 'ach', 'credit_card', 'other']),
+  "referenceNum": zod.string().nullish(),
+  "amountCents": zod.number(),
+  "memo": zod.string().nullish()
+})).optional()
+})
+
+
+/**
+ * @summary Delete an invoice
+ */
+export const DeleteInvoiceParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeleteInvoiceResponse = zod.void()
+
+
+/**
+ * @summary Record a customer payment against an invoice
+ */
+export const CreateInvoicePaymentParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+
+
+export const CreateInvoicePaymentBody = zod.object({
+  "date": zod.string().min(1),
+  "method": zod.enum(['check', 'cash', 'ach', 'credit_card', 'other']).optional(),
+  "referenceNum": zod.string().nullish(),
+  "amountCents": zod.number(),
+  "memo": zod.string().nullish()
+})
+
+export const CreateInvoicePaymentResponse = zod.object({
+  "id": zod.number(),
+  "invoiceNumber": zod.string(),
+  "jobId": zod.number(),
+  "jobNumber": zod.string().nullish(),
+  "customerId": zod.number(),
+  "customerName": zod.string().nullish(),
+  "date": zod.string(),
+  "dueDate": zod.string().nullish(),
+  "memo": zod.string().nullish(),
+  "totalCents": zod.number().describe('Sum of line items in cents'),
+  "paidCents": zod.number().describe('Sum of recorded payments in cents'),
+  "balanceCents": zod.number().describe('totalCents minus paidCents'),
+  "status": zod.enum(['open', 'partial', 'paid']),
+  "contractAmountCents": zod.number().nullish().describe('Contract value of the job this invoice bills against'),
+  "billedToDateCents": zod.number().nullish().describe('Total billed against the job across all invoices, in cents'),
+  "remainingContractCents": zod.number().nullish().describe('contractAmountCents minus billedToDateCents'),
+  "lines": zod.array(zod.object({
+  "id": zod.number(),
+  "description": zod.string().nullish(),
+  "amountCents": zod.number()
+})),
+  "payments": zod.array(zod.object({
+  "id": zod.number(),
+  "date": zod.string(),
+  "method": zod.enum(['check', 'cash', 'ach', 'credit_card', 'other']),
+  "referenceNum": zod.string().nullish(),
+  "amountCents": zod.number(),
+  "memo": zod.string().nullish()
+})).optional()
+})
+
+
+/**
+ * @summary Remove a recorded customer payment
+ */
+export const DeleteInvoicePaymentParams = zod.object({
+  "invoiceId": zod.coerce.number(),
+  "paymentId": zod.coerce.number()
+})
+
+export const DeleteInvoicePaymentResponse = zod.void()
+
+
+/**
+ * @summary List vendor bills with computed totals
+ */
+export const ListBillsQueryParams = zod.object({
+  "vendorId": zod.coerce.number().optional(),
+  "jobId": zod.coerce.number().optional(),
+  "status": zod.enum(['open', 'partial', 'paid']).optional()
+})
+
+export const ListBillsResponseItem = zod.object({
+  "id": zod.number(),
+  "billNumber": zod.string().nullish(),
+  "vendorId": zod.number(),
+  "vendorName": zod.string().nullish(),
+  "jobId": zod.number().nullish(),
+  "jobNumber": zod.string().nullish(),
+  "date": zod.string(),
+  "dueDate": zod.string().nullish(),
+  "memo": zod.string().nullish(),
+  "totalCents": zod.number().describe('Sum of line items in cents'),
+  "paidCents": zod.number().describe('Payments plus applied vendor credits in cents'),
+  "balanceCents": zod.number().describe('totalCents minus paidCents'),
+  "status": zod.enum(['open', 'partial', 'paid']),
+  "lines": zod.array(zod.object({
+  "id": zod.number(),
+  "accountId": zod.number().nullish(),
+  "accountName": zod.string().nullish(),
+  "description": zod.string().nullish(),
+  "amountCents": zod.number()
+})),
+  "payments": zod.array(zod.object({
+  "id": zod.number(),
+  "date": zod.string(),
+  "method": zod.enum(['check', 'credit_card', 'ach', 'cash', 'other']),
+  "referenceNum": zod.string().nullish(),
+  "amountCents": zod.number(),
+  "memo": zod.string().nullish()
+})).optional(),
+  "credits": zod.array(zod.object({
+  "id": zod.number(),
+  "date": zod.string(),
+  "referenceNum": zod.string().nullish(),
+  "amountCents": zod.number(),
+  "memo": zod.string().nullish()
+})).optional()
+})
+export const ListBillsResponse = zod.array(ListBillsResponseItem)
+
+
+/**
+ * @summary Enter a vendor bill
+ */
+
+
+
+
+export const CreateBillBody = zod.object({
+  "billNumber": zod.string().nullish(),
+  "vendorId": zod.number(),
+  "jobId": zod.number().nullish(),
+  "date": zod.string().min(1),
+  "dueDate": zod.string().nullish(),
+  "memo": zod.string().nullish(),
+  "lines": zod.array(zod.object({
+  "accountId": zod.number().nullish(),
+  "description": zod.string().nullish(),
+  "amountCents": zod.number()
+})).min(1)
+})
+
+export const CreateBillResponse = zod.object({
+  "id": zod.number(),
+  "billNumber": zod.string().nullish(),
+  "vendorId": zod.number(),
+  "vendorName": zod.string().nullish(),
+  "jobId": zod.number().nullish(),
+  "jobNumber": zod.string().nullish(),
+  "date": zod.string(),
+  "dueDate": zod.string().nullish(),
+  "memo": zod.string().nullish(),
+  "totalCents": zod.number().describe('Sum of line items in cents'),
+  "paidCents": zod.number().describe('Payments plus applied vendor credits in cents'),
+  "balanceCents": zod.number().describe('totalCents minus paidCents'),
+  "status": zod.enum(['open', 'partial', 'paid']),
+  "lines": zod.array(zod.object({
+  "id": zod.number(),
+  "accountId": zod.number().nullish(),
+  "accountName": zod.string().nullish(),
+  "description": zod.string().nullish(),
+  "amountCents": zod.number()
+})),
+  "payments": zod.array(zod.object({
+  "id": zod.number(),
+  "date": zod.string(),
+  "method": zod.enum(['check', 'credit_card', 'ach', 'cash', 'other']),
+  "referenceNum": zod.string().nullish(),
+  "amountCents": zod.number(),
+  "memo": zod.string().nullish()
+})).optional(),
+  "credits": zod.array(zod.object({
+  "id": zod.number(),
+  "date": zod.string(),
+  "referenceNum": zod.string().nullish(),
+  "amountCents": zod.number(),
+  "memo": zod.string().nullish()
+})).optional()
+})
+
+
+/**
+ * @summary Get a bill with lines, payments and credits
+ */
+export const GetBillParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetBillResponse = zod.object({
+  "id": zod.number(),
+  "billNumber": zod.string().nullish(),
+  "vendorId": zod.number(),
+  "vendorName": zod.string().nullish(),
+  "jobId": zod.number().nullish(),
+  "jobNumber": zod.string().nullish(),
+  "date": zod.string(),
+  "dueDate": zod.string().nullish(),
+  "memo": zod.string().nullish(),
+  "totalCents": zod.number().describe('Sum of line items in cents'),
+  "paidCents": zod.number().describe('Payments plus applied vendor credits in cents'),
+  "balanceCents": zod.number().describe('totalCents minus paidCents'),
+  "status": zod.enum(['open', 'partial', 'paid']),
+  "lines": zod.array(zod.object({
+  "id": zod.number(),
+  "accountId": zod.number().nullish(),
+  "accountName": zod.string().nullish(),
+  "description": zod.string().nullish(),
+  "amountCents": zod.number()
+})),
+  "payments": zod.array(zod.object({
+  "id": zod.number(),
+  "date": zod.string(),
+  "method": zod.enum(['check', 'credit_card', 'ach', 'cash', 'other']),
+  "referenceNum": zod.string().nullish(),
+  "amountCents": zod.number(),
+  "memo": zod.string().nullish()
+})).optional(),
+  "credits": zod.array(zod.object({
+  "id": zod.number(),
+  "date": zod.string(),
+  "referenceNum": zod.string().nullish(),
+  "amountCents": zod.number(),
+  "memo": zod.string().nullish()
+})).optional()
+})
+
+
+/**
+ * @summary Update a bill (replaces line items)
+ */
+export const UpdateBillParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+
+
+
+export const UpdateBillBody = zod.object({
+  "billNumber": zod.string().nullish(),
+  "vendorId": zod.number().optional(),
+  "jobId": zod.number().nullish(),
+  "date": zod.string().min(1).optional(),
+  "dueDate": zod.string().nullish(),
+  "memo": zod.string().nullish(),
+  "lines": zod.array(zod.object({
+  "accountId": zod.number().nullish(),
+  "description": zod.string().nullish(),
+  "amountCents": zod.number()
+})).min(1).optional()
+})
+
+export const UpdateBillResponse = zod.object({
+  "id": zod.number(),
+  "billNumber": zod.string().nullish(),
+  "vendorId": zod.number(),
+  "vendorName": zod.string().nullish(),
+  "jobId": zod.number().nullish(),
+  "jobNumber": zod.string().nullish(),
+  "date": zod.string(),
+  "dueDate": zod.string().nullish(),
+  "memo": zod.string().nullish(),
+  "totalCents": zod.number().describe('Sum of line items in cents'),
+  "paidCents": zod.number().describe('Payments plus applied vendor credits in cents'),
+  "balanceCents": zod.number().describe('totalCents minus paidCents'),
+  "status": zod.enum(['open', 'partial', 'paid']),
+  "lines": zod.array(zod.object({
+  "id": zod.number(),
+  "accountId": zod.number().nullish(),
+  "accountName": zod.string().nullish(),
+  "description": zod.string().nullish(),
+  "amountCents": zod.number()
+})),
+  "payments": zod.array(zod.object({
+  "id": zod.number(),
+  "date": zod.string(),
+  "method": zod.enum(['check', 'credit_card', 'ach', 'cash', 'other']),
+  "referenceNum": zod.string().nullish(),
+  "amountCents": zod.number(),
+  "memo": zod.string().nullish()
+})).optional(),
+  "credits": zod.array(zod.object({
+  "id": zod.number(),
+  "date": zod.string(),
+  "referenceNum": zod.string().nullish(),
+  "amountCents": zod.number(),
+  "memo": zod.string().nullish()
+})).optional()
+})
+
+
+/**
+ * @summary Delete a bill
+ */
+export const DeleteBillParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeleteBillResponse = zod.void()
+
+
+/**
+ * @summary Pay a vendor bill (check or credit card)
+ */
+export const CreateBillPaymentParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+
+
+export const CreateBillPaymentBody = zod.object({
+  "date": zod.string().min(1),
+  "method": zod.enum(['check', 'credit_card', 'ach', 'cash', 'other']).optional(),
+  "referenceNum": zod.string().nullish(),
+  "amountCents": zod.number(),
+  "memo": zod.string().nullish()
+})
+
+export const CreateBillPaymentResponse = zod.object({
+  "id": zod.number(),
+  "billNumber": zod.string().nullish(),
+  "vendorId": zod.number(),
+  "vendorName": zod.string().nullish(),
+  "jobId": zod.number().nullish(),
+  "jobNumber": zod.string().nullish(),
+  "date": zod.string(),
+  "dueDate": zod.string().nullish(),
+  "memo": zod.string().nullish(),
+  "totalCents": zod.number().describe('Sum of line items in cents'),
+  "paidCents": zod.number().describe('Payments plus applied vendor credits in cents'),
+  "balanceCents": zod.number().describe('totalCents minus paidCents'),
+  "status": zod.enum(['open', 'partial', 'paid']),
+  "lines": zod.array(zod.object({
+  "id": zod.number(),
+  "accountId": zod.number().nullish(),
+  "accountName": zod.string().nullish(),
+  "description": zod.string().nullish(),
+  "amountCents": zod.number()
+})),
+  "payments": zod.array(zod.object({
+  "id": zod.number(),
+  "date": zod.string(),
+  "method": zod.enum(['check', 'credit_card', 'ach', 'cash', 'other']),
+  "referenceNum": zod.string().nullish(),
+  "amountCents": zod.number(),
+  "memo": zod.string().nullish()
+})).optional(),
+  "credits": zod.array(zod.object({
+  "id": zod.number(),
+  "date": zod.string(),
+  "referenceNum": zod.string().nullish(),
+  "amountCents": zod.number(),
+  "memo": zod.string().nullish()
+})).optional()
+})
+
+
+/**
+ * @summary Apply a vendor credit against a bill
+ */
+export const CreateVendorCreditParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+
+
+export const CreateVendorCreditBody = zod.object({
+  "date": zod.string().min(1),
+  "referenceNum": zod.string().nullish(),
+  "amountCents": zod.number(),
+  "memo": zod.string().nullish()
+})
+
+export const CreateVendorCreditResponse = zod.object({
+  "id": zod.number(),
+  "billNumber": zod.string().nullish(),
+  "vendorId": zod.number(),
+  "vendorName": zod.string().nullish(),
+  "jobId": zod.number().nullish(),
+  "jobNumber": zod.string().nullish(),
+  "date": zod.string(),
+  "dueDate": zod.string().nullish(),
+  "memo": zod.string().nullish(),
+  "totalCents": zod.number().describe('Sum of line items in cents'),
+  "paidCents": zod.number().describe('Payments plus applied vendor credits in cents'),
+  "balanceCents": zod.number().describe('totalCents minus paidCents'),
+  "status": zod.enum(['open', 'partial', 'paid']),
+  "lines": zod.array(zod.object({
+  "id": zod.number(),
+  "accountId": zod.number().nullish(),
+  "accountName": zod.string().nullish(),
+  "description": zod.string().nullish(),
+  "amountCents": zod.number()
+})),
+  "payments": zod.array(zod.object({
+  "id": zod.number(),
+  "date": zod.string(),
+  "method": zod.enum(['check', 'credit_card', 'ach', 'cash', 'other']),
+  "referenceNum": zod.string().nullish(),
+  "amountCents": zod.number(),
+  "memo": zod.string().nullish()
+})).optional(),
+  "credits": zod.array(zod.object({
+  "id": zod.number(),
+  "date": zod.string(),
+  "referenceNum": zod.string().nullish(),
+  "amountCents": zod.number(),
+  "memo": zod.string().nullish()
+})).optional()
+})
 
 
 /**

@@ -24,6 +24,10 @@ tags:
     description: Ledger transactions
   - name: reports
     description: Reporting and dashboards
+  - name: invoices
+    description: Customer invoices (accounts receivable)
+  - name: bills
+    description: Vendor bills (accounts payable)
 paths:
   /healthz:
     get:
@@ -590,6 +594,327 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/AccountTotal"
+  /reports/ar-aging:
+    get:
+      operationId: getArAging
+      tags: [reports]
+      summary: Accounts receivable aging
+      description: Outstanding customer invoice balances grouped by customer and age bucket.
+      responses:
+        "200":
+          description: AR aging report
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ArAging"
+  /reports/ap-aging:
+    get:
+      operationId: getApAging
+      tags: [reports]
+      summary: Accounts payable aging
+      description: Outstanding vendor bill balances grouped by vendor and age bucket.
+      responses:
+        "200":
+          description: AP aging report
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApAging"
+
+  /invoices:
+    get:
+      operationId: listInvoices
+      tags: [invoices]
+      summary: List invoices with computed totals
+      parameters:
+        - name: jobId
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: customerId
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [open, partial, paid]
+      responses:
+        "200":
+          description: List of invoices
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Invoice"
+    post:
+      operationId: createInvoice
+      tags: [invoices]
+      summary: Create a progress invoice
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InvoiceInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Invoice"
+        "400":
+          $ref: "#/components/responses/Error"
+  /invoices/{id}:
+    get:
+      operationId: getInvoice
+      tags: [invoices]
+      summary: Get an invoice with lines and payments
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "200":
+          description: Invoice
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Invoice"
+        "404":
+          $ref: "#/components/responses/Error"
+    patch:
+      operationId: updateInvoice
+      tags: [invoices]
+      summary: Update an invoice (replaces line items)
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InvoiceUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Invoice"
+        "400":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+    delete:
+      operationId: deleteInvoice
+      tags: [invoices]
+      summary: Delete an invoice
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          $ref: "#/components/responses/Error"
+  /invoices/{id}/payments:
+    post:
+      operationId: createInvoicePayment
+      tags: [invoices]
+      summary: Record a customer payment against an invoice
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InvoicePaymentInput"
+      responses:
+        "201":
+          description: Updated invoice with the new payment applied
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Invoice"
+        "400":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+  /invoices/{invoiceId}/payments/{paymentId}:
+    delete:
+      operationId: deleteInvoicePayment
+      tags: [invoices]
+      summary: Remove a recorded customer payment
+      parameters:
+        - name: invoiceId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: paymentId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          $ref: "#/components/responses/Error"
+
+  /bills:
+    get:
+      operationId: listBills
+      tags: [bills]
+      summary: List vendor bills with computed totals
+      parameters:
+        - name: vendorId
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: jobId
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [open, partial, paid]
+      responses:
+        "200":
+          description: List of bills
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Bill"
+    post:
+      operationId: createBill
+      tags: [bills]
+      summary: Enter a vendor bill
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BillInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Bill"
+        "400":
+          $ref: "#/components/responses/Error"
+  /bills/{id}:
+    get:
+      operationId: getBill
+      tags: [bills]
+      summary: Get a bill with lines, payments and credits
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "200":
+          description: Bill
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Bill"
+        "404":
+          $ref: "#/components/responses/Error"
+    patch:
+      operationId: updateBill
+      tags: [bills]
+      summary: Update a bill (replaces line items)
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BillUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Bill"
+        "400":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+    delete:
+      operationId: deleteBill
+      tags: [bills]
+      summary: Delete a bill
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          $ref: "#/components/responses/Error"
+  /bills/{id}/payments:
+    post:
+      operationId: createBillPayment
+      tags: [bills]
+      summary: Pay a vendor bill (check or credit card)
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BillPaymentInput"
+      responses:
+        "201":
+          description: Updated bill with the new payment applied
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Bill"
+        "400":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+  /bills/{id}/credits:
+    post:
+      operationId: createVendorCredit
+      tags: [bills]
+      summary: Apply a vendor credit against a bill
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VendorCreditInput"
+      responses:
+        "201":
+          description: Updated bill with the credit applied
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Bill"
+        "400":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
 
   /users/me:
     get:
@@ -883,7 +1208,7 @@ components:
 
     Job:
       type: object
-      required: [id, jobNumber, name, status, contractAmountCents, incomeCents, costCents, profitCents, remainingCents]
+      required: [id, jobNumber, name, status, contractAmountCents, incomeCents, costCents, profitCents, remainingCents, billedToDateCents, remainingContractCents, overUnderBillingCents]
       properties:
         id:
           type: integer
@@ -915,6 +1240,15 @@ components:
         remainingCents:
           type: integer
           description: contractAmountCents minus costCents (contract budget remaining)
+        billedToDateCents:
+          type: integer
+          description: Sum of invoice line items billed against this job, in cents
+        remainingContractCents:
+          type: integer
+          description: contractAmountCents minus billedToDateCents (left to bill)
+        overUnderBillingCents:
+          type: integer
+          description: billedToDateCents minus costCents (positive = overbilled, negative = underbilled)
     JobInput:
       type: object
       required: [jobNumber, name]
@@ -1125,3 +1459,437 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Transaction"
+
+    InvoiceLine:
+      type: object
+      required: [id, amountCents]
+      properties:
+        id:
+          type: integer
+        description:
+          type: ["string", "null"]
+        amountCents:
+          type: integer
+    InvoiceLineInput:
+      type: object
+      required: [amountCents]
+      properties:
+        description:
+          type: ["string", "null"]
+        amountCents:
+          type: integer
+    InvoicePayment:
+      type: object
+      required: [id, date, method, amountCents]
+      properties:
+        id:
+          type: integer
+        date:
+          type: string
+        method:
+          type: string
+          enum: [check, cash, ach, credit_card, other]
+        referenceNum:
+          type: ["string", "null"]
+        amountCents:
+          type: integer
+        memo:
+          type: ["string", "null"]
+    InvoicePaymentInput:
+      type: object
+      required: [date, amountCents]
+      properties:
+        date:
+          type: string
+          minLength: 1
+        method:
+          type: string
+          enum: [check, cash, ach, credit_card, other]
+        referenceNum:
+          type: ["string", "null"]
+        amountCents:
+          type: integer
+        memo:
+          type: ["string", "null"]
+    Invoice:
+      type: object
+      required: [id, invoiceNumber, jobId, customerId, date, totalCents, paidCents, balanceCents, status, lines]
+      properties:
+        id:
+          type: integer
+        invoiceNumber:
+          type: string
+        jobId:
+          type: integer
+        jobNumber:
+          type: ["string", "null"]
+        customerId:
+          type: integer
+        customerName:
+          type: ["string", "null"]
+        date:
+          type: string
+        dueDate:
+          type: ["string", "null"]
+        memo:
+          type: ["string", "null"]
+        totalCents:
+          type: integer
+          description: Sum of line items in cents
+        paidCents:
+          type: integer
+          description: Sum of recorded payments in cents
+        balanceCents:
+          type: integer
+          description: totalCents minus paidCents
+        status:
+          type: string
+          enum: [open, partial, paid]
+        contractAmountCents:
+          type: ["integer", "null"]
+          description: Contract value of the job this invoice bills against
+        billedToDateCents:
+          type: ["integer", "null"]
+          description: Total billed against the job across all invoices, in cents
+        remainingContractCents:
+          type: ["integer", "null"]
+          description: contractAmountCents minus billedToDateCents
+        lines:
+          type: array
+          items:
+            $ref: "#/components/schemas/InvoiceLine"
+        payments:
+          type: array
+          items:
+            $ref: "#/components/schemas/InvoicePayment"
+    InvoiceInput:
+      type: object
+      required: [invoiceNumber, jobId, date, lines]
+      properties:
+        invoiceNumber:
+          type: string
+          minLength: 1
+        jobId:
+          type: integer
+        customerId:
+          type: ["integer", "null"]
+          description: Defaults to the job's customer when omitted
+        date:
+          type: string
+          minLength: 1
+        dueDate:
+          type: ["string", "null"]
+        memo:
+          type: ["string", "null"]
+        lines:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/InvoiceLineInput"
+    InvoiceUpdate:
+      type: object
+      properties:
+        invoiceNumber:
+          type: string
+          minLength: 1
+        date:
+          type: string
+          minLength: 1
+        dueDate:
+          type: ["string", "null"]
+        memo:
+          type: ["string", "null"]
+        lines:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/InvoiceLineInput"
+
+    BillLine:
+      type: object
+      required: [id, amountCents]
+      properties:
+        id:
+          type: integer
+        accountId:
+          type: ["integer", "null"]
+        accountName:
+          type: ["string", "null"]
+        description:
+          type: ["string", "null"]
+        amountCents:
+          type: integer
+    BillLineInput:
+      type: object
+      required: [amountCents]
+      properties:
+        accountId:
+          type: ["integer", "null"]
+        description:
+          type: ["string", "null"]
+        amountCents:
+          type: integer
+    BillPayment:
+      type: object
+      required: [id, date, method, amountCents]
+      properties:
+        id:
+          type: integer
+        date:
+          type: string
+        method:
+          type: string
+          enum: [check, credit_card, ach, cash, other]
+        referenceNum:
+          type: ["string", "null"]
+        amountCents:
+          type: integer
+        memo:
+          type: ["string", "null"]
+    BillPaymentInput:
+      type: object
+      required: [date, amountCents]
+      properties:
+        date:
+          type: string
+          minLength: 1
+        method:
+          type: string
+          enum: [check, credit_card, ach, cash, other]
+        referenceNum:
+          type: ["string", "null"]
+        amountCents:
+          type: integer
+        memo:
+          type: ["string", "null"]
+    VendorCredit:
+      type: object
+      required: [id, date, amountCents]
+      properties:
+        id:
+          type: integer
+        date:
+          type: string
+        referenceNum:
+          type: ["string", "null"]
+        amountCents:
+          type: integer
+        memo:
+          type: ["string", "null"]
+    VendorCreditInput:
+      type: object
+      required: [date, amountCents]
+      properties:
+        date:
+          type: string
+          minLength: 1
+        referenceNum:
+          type: ["string", "null"]
+        amountCents:
+          type: integer
+        memo:
+          type: ["string", "null"]
+    Bill:
+      type: object
+      required: [id, vendorId, date, totalCents, paidCents, balanceCents, status, lines]
+      properties:
+        id:
+          type: integer
+        billNumber:
+          type: ["string", "null"]
+        vendorId:
+          type: integer
+        vendorName:
+          type: ["string", "null"]
+        jobId:
+          type: ["integer", "null"]
+        jobNumber:
+          type: ["string", "null"]
+        date:
+          type: string
+        dueDate:
+          type: ["string", "null"]
+        memo:
+          type: ["string", "null"]
+        totalCents:
+          type: integer
+          description: Sum of line items in cents
+        paidCents:
+          type: integer
+          description: Payments plus applied vendor credits in cents
+        balanceCents:
+          type: integer
+          description: totalCents minus paidCents
+        status:
+          type: string
+          enum: [open, partial, paid]
+        lines:
+          type: array
+          items:
+            $ref: "#/components/schemas/BillLine"
+        payments:
+          type: array
+          items:
+            $ref: "#/components/schemas/BillPayment"
+        credits:
+          type: array
+          items:
+            $ref: "#/components/schemas/VendorCredit"
+    BillInput:
+      type: object
+      required: [vendorId, date, lines]
+      properties:
+        billNumber:
+          type: ["string", "null"]
+        vendorId:
+          type: integer
+        jobId:
+          type: ["integer", "null"]
+        date:
+          type: string
+          minLength: 1
+        dueDate:
+          type: ["string", "null"]
+        memo:
+          type: ["string", "null"]
+        lines:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/BillLineInput"
+    BillUpdate:
+      type: object
+      properties:
+        billNumber:
+          type: ["string", "null"]
+        vendorId:
+          type: integer
+        jobId:
+          type: ["integer", "null"]
+        date:
+          type: string
+          minLength: 1
+        dueDate:
+          type: ["string", "null"]
+        memo:
+          type: ["string", "null"]
+        lines:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/BillLineInput"
+
+    AgingInvoice:
+      type: object
+      required: [id, invoiceNumber, date, balanceCents, daysOverdue, bucket]
+      properties:
+        id:
+          type: integer
+        invoiceNumber:
+          type: string
+        jobId:
+          type: ["integer", "null"]
+        jobNumber:
+          type: ["string", "null"]
+        date:
+          type: string
+        dueDate:
+          type: ["string", "null"]
+        balanceCents:
+          type: integer
+        daysOverdue:
+          type: integer
+        bucket:
+          type: string
+          enum: [current, days1to30, days31to60, days61to90, days90plus]
+    AgingBill:
+      type: object
+      required: [id, date, balanceCents, daysOverdue, bucket]
+      properties:
+        id:
+          type: integer
+        billNumber:
+          type: ["string", "null"]
+        jobId:
+          type: ["integer", "null"]
+        jobNumber:
+          type: ["string", "null"]
+        date:
+          type: string
+        dueDate:
+          type: ["string", "null"]
+        balanceCents:
+          type: integer
+        daysOverdue:
+          type: integer
+        bucket:
+          type: string
+          enum: [current, days1to30, days31to60, days61to90, days90plus]
+    AgingBuckets:
+      type: object
+      required: [currentCents, days1to30Cents, days31to60Cents, days61to90Cents, days90plusCents, totalCents]
+      properties:
+        currentCents:
+          type: integer
+        days1to30Cents:
+          type: integer
+        days31to60Cents:
+          type: integer
+        days61to90Cents:
+          type: integer
+        days90plusCents:
+          type: integer
+        totalCents:
+          type: integer
+    ArAgingCustomer:
+      type: object
+      required: [customerId, customerName, buckets, invoices]
+      properties:
+        customerId:
+          type: ["integer", "null"]
+        customerName:
+          type: ["string", "null"]
+        buckets:
+          $ref: "#/components/schemas/AgingBuckets"
+        invoices:
+          type: array
+          items:
+            $ref: "#/components/schemas/AgingInvoice"
+    ArAging:
+      type: object
+      required: [asOf, totals, customers]
+      properties:
+        asOf:
+          type: string
+        totals:
+          $ref: "#/components/schemas/AgingBuckets"
+        customers:
+          type: array
+          items:
+            $ref: "#/components/schemas/ArAgingCustomer"
+    ApAgingVendor:
+      type: object
+      required: [vendorId, vendorName, buckets, bills]
+      properties:
+        vendorId:
+          type: ["integer", "null"]
+        vendorName:
+          type: ["string", "null"]
+        buckets:
+          $ref: "#/components/schemas/AgingBuckets"
+        bills:
+          type: array
+          items:
+            $ref: "#/components/schemas/AgingBill"
+    ApAging:
+      type: object
+      required: [asOf, totals, vendors]
+      properties:
+        asOf:
+          type: string
+        totals:
+          $ref: "#/components/schemas/AgingBuckets"
+        vendors:
+          type: array
+          items:
+            $ref: "#/components/schemas/ApAgingVendor"

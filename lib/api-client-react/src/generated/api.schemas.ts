@@ -237,6 +237,12 @@ export interface Job {
   profitCents: number;
   /** contractAmountCents minus costCents (contract budget remaining) */
   remainingCents: number;
+  /** Sum of invoice line items billed against this job, in cents */
+  billedToDateCents: number;
+  /** contractAmountCents minus billedToDateCents (left to bill) */
+  remainingContractCents: number;
+  /** billedToDateCents minus costCents (positive = overbilled, negative = underbilled) */
+  overUnderBillingCents: number;
 }
 
 export type JobInputStatus = typeof JobInputStatus[keyof typeof JobInputStatus];
@@ -450,6 +456,388 @@ export interface DashboardSummary {
   recentTransactions?: Transaction[];
 }
 
+export interface InvoiceLine {
+  id: number;
+  /** @nullable */
+  description?: string | null;
+  amountCents: number;
+}
+
+export interface InvoiceLineInput {
+  /** @nullable */
+  description?: string | null;
+  amountCents: number;
+}
+
+export type InvoicePaymentMethod = typeof InvoicePaymentMethod[keyof typeof InvoicePaymentMethod];
+
+
+export const InvoicePaymentMethod = {
+  check: 'check',
+  cash: 'cash',
+  ach: 'ach',
+  credit_card: 'credit_card',
+  other: 'other',
+} as const;
+
+export interface InvoicePayment {
+  id: number;
+  date: string;
+  method: InvoicePaymentMethod;
+  /** @nullable */
+  referenceNum?: string | null;
+  amountCents: number;
+  /** @nullable */
+  memo?: string | null;
+}
+
+export type InvoicePaymentInputMethod = typeof InvoicePaymentInputMethod[keyof typeof InvoicePaymentInputMethod];
+
+
+export const InvoicePaymentInputMethod = {
+  check: 'check',
+  cash: 'cash',
+  ach: 'ach',
+  credit_card: 'credit_card',
+  other: 'other',
+} as const;
+
+export interface InvoicePaymentInput {
+  /** @minLength 1 */
+  date: string;
+  method?: InvoicePaymentInputMethod;
+  /** @nullable */
+  referenceNum?: string | null;
+  amountCents: number;
+  /** @nullable */
+  memo?: string | null;
+}
+
+export type InvoiceStatus = typeof InvoiceStatus[keyof typeof InvoiceStatus];
+
+
+export const InvoiceStatus = {
+  open: 'open',
+  partial: 'partial',
+  paid: 'paid',
+} as const;
+
+export interface Invoice {
+  id: number;
+  invoiceNumber: string;
+  jobId: number;
+  /** @nullable */
+  jobNumber?: string | null;
+  customerId: number;
+  /** @nullable */
+  customerName?: string | null;
+  date: string;
+  /** @nullable */
+  dueDate?: string | null;
+  /** @nullable */
+  memo?: string | null;
+  /** Sum of line items in cents */
+  totalCents: number;
+  /** Sum of recorded payments in cents */
+  paidCents: number;
+  /** totalCents minus paidCents */
+  balanceCents: number;
+  status: InvoiceStatus;
+  /**
+     * Contract value of the job this invoice bills against
+     * @nullable
+     */
+  contractAmountCents?: number | null;
+  /**
+     * Total billed against the job across all invoices, in cents
+     * @nullable
+     */
+  billedToDateCents?: number | null;
+  /**
+     * contractAmountCents minus billedToDateCents
+     * @nullable
+     */
+  remainingContractCents?: number | null;
+  lines: InvoiceLine[];
+  payments?: InvoicePayment[];
+}
+
+export interface InvoiceInput {
+  /** @minLength 1 */
+  invoiceNumber: string;
+  jobId: number;
+  /**
+     * Defaults to the job's customer when omitted
+     * @nullable
+     */
+  customerId?: number | null;
+  /** @minLength 1 */
+  date: string;
+  /** @nullable */
+  dueDate?: string | null;
+  /** @nullable */
+  memo?: string | null;
+  /** @minItems 1 */
+  lines: InvoiceLineInput[];
+}
+
+export interface InvoiceUpdate {
+  /** @minLength 1 */
+  invoiceNumber?: string;
+  /** @minLength 1 */
+  date?: string;
+  /** @nullable */
+  dueDate?: string | null;
+  /** @nullable */
+  memo?: string | null;
+  /** @minItems 1 */
+  lines?: InvoiceLineInput[];
+}
+
+export interface BillLine {
+  id: number;
+  /** @nullable */
+  accountId?: number | null;
+  /** @nullable */
+  accountName?: string | null;
+  /** @nullable */
+  description?: string | null;
+  amountCents: number;
+}
+
+export interface BillLineInput {
+  /** @nullable */
+  accountId?: number | null;
+  /** @nullable */
+  description?: string | null;
+  amountCents: number;
+}
+
+export type BillPaymentMethod = typeof BillPaymentMethod[keyof typeof BillPaymentMethod];
+
+
+export const BillPaymentMethod = {
+  check: 'check',
+  credit_card: 'credit_card',
+  ach: 'ach',
+  cash: 'cash',
+  other: 'other',
+} as const;
+
+export interface BillPayment {
+  id: number;
+  date: string;
+  method: BillPaymentMethod;
+  /** @nullable */
+  referenceNum?: string | null;
+  amountCents: number;
+  /** @nullable */
+  memo?: string | null;
+}
+
+export type BillPaymentInputMethod = typeof BillPaymentInputMethod[keyof typeof BillPaymentInputMethod];
+
+
+export const BillPaymentInputMethod = {
+  check: 'check',
+  credit_card: 'credit_card',
+  ach: 'ach',
+  cash: 'cash',
+  other: 'other',
+} as const;
+
+export interface BillPaymentInput {
+  /** @minLength 1 */
+  date: string;
+  method?: BillPaymentInputMethod;
+  /** @nullable */
+  referenceNum?: string | null;
+  amountCents: number;
+  /** @nullable */
+  memo?: string | null;
+}
+
+export interface VendorCredit {
+  id: number;
+  date: string;
+  /** @nullable */
+  referenceNum?: string | null;
+  amountCents: number;
+  /** @nullable */
+  memo?: string | null;
+}
+
+export interface VendorCreditInput {
+  /** @minLength 1 */
+  date: string;
+  /** @nullable */
+  referenceNum?: string | null;
+  amountCents: number;
+  /** @nullable */
+  memo?: string | null;
+}
+
+export type BillStatus = typeof BillStatus[keyof typeof BillStatus];
+
+
+export const BillStatus = {
+  open: 'open',
+  partial: 'partial',
+  paid: 'paid',
+} as const;
+
+export interface Bill {
+  id: number;
+  /** @nullable */
+  billNumber?: string | null;
+  vendorId: number;
+  /** @nullable */
+  vendorName?: string | null;
+  /** @nullable */
+  jobId?: number | null;
+  /** @nullable */
+  jobNumber?: string | null;
+  date: string;
+  /** @nullable */
+  dueDate?: string | null;
+  /** @nullable */
+  memo?: string | null;
+  /** Sum of line items in cents */
+  totalCents: number;
+  /** Payments plus applied vendor credits in cents */
+  paidCents: number;
+  /** totalCents minus paidCents */
+  balanceCents: number;
+  status: BillStatus;
+  lines: BillLine[];
+  payments?: BillPayment[];
+  credits?: VendorCredit[];
+}
+
+export interface BillInput {
+  /** @nullable */
+  billNumber?: string | null;
+  vendorId: number;
+  /** @nullable */
+  jobId?: number | null;
+  /** @minLength 1 */
+  date: string;
+  /** @nullable */
+  dueDate?: string | null;
+  /** @nullable */
+  memo?: string | null;
+  /** @minItems 1 */
+  lines: BillLineInput[];
+}
+
+export interface BillUpdate {
+  /** @nullable */
+  billNumber?: string | null;
+  vendorId?: number;
+  /** @nullable */
+  jobId?: number | null;
+  /** @minLength 1 */
+  date?: string;
+  /** @nullable */
+  dueDate?: string | null;
+  /** @nullable */
+  memo?: string | null;
+  /** @minItems 1 */
+  lines?: BillLineInput[];
+}
+
+export type AgingInvoiceBucket = typeof AgingInvoiceBucket[keyof typeof AgingInvoiceBucket];
+
+
+export const AgingInvoiceBucket = {
+  current: 'current',
+  days1to30: 'days1to30',
+  days31to60: 'days31to60',
+  days61to90: 'days61to90',
+  days90plus: 'days90plus',
+} as const;
+
+export interface AgingInvoice {
+  id: number;
+  invoiceNumber: string;
+  /** @nullable */
+  jobId?: number | null;
+  /** @nullable */
+  jobNumber?: string | null;
+  date: string;
+  /** @nullable */
+  dueDate?: string | null;
+  balanceCents: number;
+  daysOverdue: number;
+  bucket: AgingInvoiceBucket;
+}
+
+export type AgingBillBucket = typeof AgingBillBucket[keyof typeof AgingBillBucket];
+
+
+export const AgingBillBucket = {
+  current: 'current',
+  days1to30: 'days1to30',
+  days31to60: 'days31to60',
+  days61to90: 'days61to90',
+  days90plus: 'days90plus',
+} as const;
+
+export interface AgingBill {
+  id: number;
+  /** @nullable */
+  billNumber?: string | null;
+  /** @nullable */
+  jobId?: number | null;
+  /** @nullable */
+  jobNumber?: string | null;
+  date: string;
+  /** @nullable */
+  dueDate?: string | null;
+  balanceCents: number;
+  daysOverdue: number;
+  bucket: AgingBillBucket;
+}
+
+export interface AgingBuckets {
+  currentCents: number;
+  days1to30Cents: number;
+  days31to60Cents: number;
+  days61to90Cents: number;
+  days90plusCents: number;
+  totalCents: number;
+}
+
+export interface ArAgingCustomer {
+  /** @nullable */
+  customerId: number | null;
+  /** @nullable */
+  customerName: string | null;
+  buckets: AgingBuckets;
+  invoices: AgingInvoice[];
+}
+
+export interface ArAging {
+  asOf: string;
+  totals: AgingBuckets;
+  customers: ArAgingCustomer[];
+}
+
+export interface ApAgingVendor {
+  /** @nullable */
+  vendorId: number | null;
+  /** @nullable */
+  vendorName: string | null;
+  buckets: AgingBuckets;
+  bills: AgingBill[];
+}
+
+export interface ApAging {
+  asOf: string;
+  totals: AgingBuckets;
+  vendors: ApAgingVendor[];
+}
+
 /**
  * Error
  */
@@ -460,4 +848,34 @@ jobId?: number;
 accountId?: number;
 type?: string;
 };
+
+export type ListInvoicesParams = {
+jobId?: number;
+customerId?: number;
+status?: ListInvoicesStatus;
+};
+
+export type ListInvoicesStatus = typeof ListInvoicesStatus[keyof typeof ListInvoicesStatus];
+
+
+export const ListInvoicesStatus = {
+  open: 'open',
+  partial: 'partial',
+  paid: 'paid',
+} as const;
+
+export type ListBillsParams = {
+vendorId?: number;
+jobId?: number;
+status?: ListBillsStatus;
+};
+
+export type ListBillsStatus = typeof ListBillsStatus[keyof typeof ListBillsStatus];
+
+
+export const ListBillsStatus = {
+  open: 'open',
+  partial: 'partial',
+  paid: 'paid',
+} as const;
 

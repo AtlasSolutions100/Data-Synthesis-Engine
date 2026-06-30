@@ -5,3 +5,5 @@ export * from "./vendors";
 export * from "./employees";
 export * from "./jobs";
 export * from "./transactions";
+export * from "./invoices";
+export * from "./bills";

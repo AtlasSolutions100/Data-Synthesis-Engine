@@ -15,6 +15,8 @@ import {
   LogOut,
   Wallet,
   ShieldCheck,
+  FileText,
+  FileInput,
 } from "lucide-react";
 
 export function Layout({ children }: { children: React.ReactNode }) {
@@ -28,6 +30,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const navItems = [
     { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
     { href: "/jobs", label: "Jobs", icon: Briefcase },
+    { href: "/invoices", label: "Invoices", icon: FileText },
+    { href: "/bills", label: "Bills", icon: FileInput },
     { href: "/transactions", label: "Transactions", icon: ReceiptText },
     { href: "/accounts", label: "Accounts", icon: Wallet },
     { href: "/customers", label: "Customers", icon: Building2 },

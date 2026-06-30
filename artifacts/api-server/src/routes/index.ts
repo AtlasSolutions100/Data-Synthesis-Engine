@@ -6,6 +6,8 @@ import vendorsRouter from "./vendors";
 import employeesRouter from "./employees";
 import jobsRouter from "./jobs";
 import transactionsRouter from "./transactions";
+import invoicesRouter from "./invoices";
+import billsRouter from "./bills";
 import reportsRouter from "./reports";
 
 const router: IRouter = Router();
@@ -17,6 +19,8 @@ router.use(vendorsRouter);
 router.use(employeesRouter);
 router.use(jobsRouter);
 router.use(transactionsRouter);
+router.use(invoicesRouter);
+router.use(billsRouter);
 router.use(reportsRouter);
 
 export default router;

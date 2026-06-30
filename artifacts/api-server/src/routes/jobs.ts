@@ -20,6 +20,7 @@ import {
 } from "@workspace/api-zod";
 import {
   getJobTotalsMap,
+  getJobBillingMap,
   INCOME_TYPES,
   COST_TYPES,
   type JobTotals,
@@ -33,6 +34,7 @@ function serializeJob(
   job: JobRow,
   customerName: string | null,
   totals: JobTotals | undefined,
+  billedToDateCents: number,
 ) {
   const incomeCents = totals?.incomeCents ?? 0;
   const costCents = totals?.costCents ?? 0;
@@ -49,6 +51,9 @@ function serializeJob(
     costCents,
     profitCents: incomeCents - costCents,
     remainingCents: job.contractAmountCents - costCents,
+    billedToDateCents,
+    remainingContractCents: job.contractAmountCents - billedToDateCents,
+    overUnderBillingCents: billedToDateCents - costCents,
   };
 }
 
@@ -69,10 +74,20 @@ router.get("/jobs", async (_req, res): Promise<void> => {
     .from(jobsTable)
     .leftJoin(customersTable, eq(customersTable.id, jobsTable.customerId))
     .orderBy(jobsTable.jobNumber);
-  const totals = await getJobTotalsMap();
+  const [totals, billing] = await Promise.all([
+    getJobTotalsMap(),
+    getJobBillingMap(),
+  ]);
   res.json(
     ListJobsResponse.parse(
-      rows.map((r) => serializeJob(r.job, r.customerName, totals.get(r.job.id))),
+      rows.map((r) =>
+        serializeJob(
+          r.job,
+          r.customerName,
+          totals.get(r.job.id),
+          billing.get(r.job.id) ?? 0,
+        ),
+      ),
     ),
   );
 });
@@ -87,7 +102,7 @@ router.post("/jobs", async (req, res): Promise<void> => {
   const customerName = await fetchCustomerName(job.customerId);
   res
     .status(201)
-    .json(GetJobResponse.parse(serializeJob(job, customerName, undefined)));
+    .json(GetJobResponse.parse(serializeJob(job, customerName, undefined, 0)));
 });
 
 router.get("/jobs/:id", async (req, res): Promise<void> => {
@@ -105,8 +120,20 @@ router.get("/jobs/:id", async (req, res): Promise<void> => {
     return;
   }
   const customerName = await fetchCustomerName(job.customerId);
-  const totals = (await getJobTotalsMap()).get(job.id);
-  res.json(GetJobResponse.parse(serializeJob(job, customerName, totals)));
+  const [totalsMap, billing] = await Promise.all([
+    getJobTotalsMap(),
+    getJobBillingMap(),
+  ]);
+  res.json(
+    GetJobResponse.parse(
+      serializeJob(
+        job,
+        customerName,
+        totalsMap.get(job.id),
+        billing.get(job.id) ?? 0,
+      ),
+    ),
+  );
 });
 
 router.get("/jobs/:id/cost-summary", async (req, res): Promise<void> => {
@@ -198,8 +225,20 @@ router.patch("/jobs/:id", async (req, res): Promise<void> => {
     return;
   }
   const customerName = await fetchCustomerName(job.customerId);
-  const totals = (await getJobTotalsMap()).get(job.id);
-  res.json(GetJobResponse.parse(serializeJob(job, customerName, totals)));
+  const [totalsMap, billing] = await Promise.all([
+    getJobTotalsMap(),
+    getJobBillingMap(),
+  ]);
+  res.json(
+    GetJobResponse.parse(
+      serializeJob(
+        job,
+        customerName,
+        totalsMap.get(job.id),
+        billing.get(job.id) ?? 0,
+      ),
+    ),
+  );
 });
 
 router.delete("/jobs/:id", async (req, res): Promise<void> => {

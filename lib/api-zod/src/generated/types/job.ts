@@ -28,4 +28,10 @@ export interface Job {
   profitCents: number;
   /** contractAmountCents minus costCents (contract budget remaining) */
   remainingCents: number;
+  /** Sum of invoice line items billed against this job, in cents */
+  billedToDateCents: number;
+  /** contractAmountCents minus billedToDateCents (left to bill) */
+  remainingContractCents: number;
+  /** billedToDateCents minus costCents (positive = overbilled, negative = underbilled) */
+  overUnderBillingCents: number;
 }

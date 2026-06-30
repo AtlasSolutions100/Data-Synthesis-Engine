@@ -1,5 +1,11 @@
 import { eq, inArray, sql } from "drizzle-orm";
-import { db, transactionsTable, accountsTable } from "@workspace/db";
+import {
+  db,
+  transactionsTable,
+  accountsTable,
+  invoicesTable,
+  invoiceLinesTable,
+} from "@workspace/db";
 
 export const INCOME_TYPES = ["income"] as const;
 export const COST_TYPES = ["cogs", "expense", "other_expense"] as const;
@@ -35,6 +41,33 @@ export async function getJobTotalsMap(): Promise<Map<number, JobTotals>> {
       entry.costCents += total;
     }
     map.set(r.jobId, entry);
+  }
+  return map;
+}
+
+/**
+ * Compute total billed-to-date (in integer cents) per job, summed from invoice
+ * line items. Jobs with no invoices are absent from the map (callers default to
+ * 0). This is the source of truth for progress-billing rollups and is
+ * independent of the historical ledger.
+ */
+export async function getJobBillingMap(): Promise<Map<number, number>> {
+  const rows = await db
+    .select({
+      jobId: invoicesTable.jobId,
+      total: sql<number>`coalesce(sum(${invoiceLinesTable.amountCents}), 0)::bigint`,
+    })
+    .from(invoicesTable)
+    .innerJoin(
+      invoiceLinesTable,
+      eq(invoiceLinesTable.invoiceId, invoicesTable.id),
+    )
+    .groupBy(invoicesTable.jobId);
+
+  const map = new Map<number, number>();
+  for (const r of rows) {
+    if (r.jobId == null) continue;
+    map.set(r.jobId, Number(r.total));
   }
   return map;
 }
