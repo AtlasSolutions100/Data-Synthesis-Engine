@@ -18,6 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { TransactionForm } from "@/components/forms/transaction-form";
+import { JobDocuments } from "@/components/job-documents";
 import { useQueryClient } from "@tanstack/react-query";
 import { Plus, Edit2, Trash2 } from "lucide-react";
 
@@ -373,6 +374,8 @@ export default function JobDetail() {
           </Table>
         </CardContent>
       </Card>
+
+      <JobDocuments jobId={jobId} />
     </div>
   );
 }

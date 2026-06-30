@@ -30,6 +30,10 @@ tags:
     description: Vendor bills (accounts payable)
   - name: payroll
     description: Payroll runs and labor costing
+  - name: documents
+    description: Per-job document management
+  - name: Storage
+    description: Object storage upload and serving endpoints.
 paths:
   /healthz:
     get:
@@ -469,6 +473,60 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/JobCostSummary"
+        "404":
+          $ref: "#/components/responses/Error"
+  /jobs/{id}/documents:
+    get:
+      operationId: listJobDocuments
+      tags: [documents]
+      summary: List documents attached to a job
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "200":
+          description: List of job documents
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/JobDocument"
+        "404":
+          $ref: "#/components/responses/Error"
+    post:
+      operationId: createJobDocument
+      tags: [documents]
+      summary: Attach an uploaded document to a job
+      description: Stores metadata for a file already uploaded to object storage.
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JobDocumentInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JobDocument"
+        "400":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+  /documents/{id}:
+    delete:
+      operationId: deleteJobDocument
+      tags: [documents]
+      summary: Delete a job document
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "204":
+          description: Deleted
         "404":
           $ref: "#/components/responses/Error"
 
@@ -1122,6 +1180,86 @@ paths:
         "403":
           $ref: "#/components/responses/Error"
         "404":
+          $ref: "#/components/responses/Error"
+
+  /storage/uploads/request-url:
+    post:
+      tags: [Storage]
+      operationId: requestUploadUrl
+      summary: Request a presigned URL for file upload
+      description: |
+        Returns a presigned GCS URL for direct upload. The client sends JSON
+        metadata here, then uploads the file directly to the returned URL.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UploadUrlRequest"
+      responses:
+        "200":
+          description: Presigned upload URL generated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UploadUrlResponse"
+        "400":
+          $ref: "#/components/responses/Error"
+        "500":
+          $ref: "#/components/responses/Error"
+  /storage/public-objects/{filePath}:
+    get:
+      tags: [Storage]
+      operationId: getPublicObject
+      summary: Serve a public asset from PUBLIC_OBJECT_SEARCH_PATHS
+      description: |
+        Unconditionally public — no authentication or ACL checks.
+        Searches PUBLIC_OBJECT_SEARCH_PATHS for the given file path.
+      parameters:
+        - name: filePath
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Relative file path within the public search paths.
+      responses:
+        "200":
+          description: Object content streamed with correct Content-Type.
+          content:
+            "*/*":
+              schema:
+                type: string
+                format: binary
+        "404":
+          $ref: "#/components/responses/Error"
+        "500":
+          $ref: "#/components/responses/Error"
+  /storage/objects/{objectPath}:
+    get:
+      tags: [Storage]
+      operationId: getStorageObject
+      summary: Serve an object entity from PRIVATE_OBJECT_DIR
+      description: |
+        Serves object entities uploaded via presigned URLs. These can optionally
+        be protected with authentication or ACL checks based on the use case.
+      parameters:
+        - name: objectPath
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Object path within the private object dir (e.g. `uploads/some-uuid`).
+      responses:
+        "200":
+          description: Object content streamed with correct Content-Type.
+          content:
+            "*/*":
+              schema:
+                type: string
+                format: binary
+        "404":
+          $ref: "#/components/responses/Error"
+        "500":
           $ref: "#/components/responses/Error"
 
 components:
@@ -2349,3 +2487,89 @@ components:
               type: integer
             totalCostCents:
               type: integer
+
+    JobDocument:
+      type: object
+      required: [id, jobId, category, fileName, objectPath, createdAt]
+      properties:
+        id:
+          type: integer
+        jobId:
+          type: integer
+        category:
+          type: string
+          enum: [contract, certified_payroll, timesheet, invoice_backup, permit_insurance, other]
+        fileName:
+          type: string
+        objectPath:
+          type: string
+        contentType:
+          type: string
+          nullable: true
+        sizeBytes:
+          type: integer
+          nullable: true
+        description:
+          type: string
+          nullable: true
+        uploadedByUserId:
+          type: integer
+          nullable: true
+        uploadedByName:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+    JobDocumentInput:
+      type: object
+      required: [category, fileName, objectPath]
+      properties:
+        category:
+          type: string
+          enum: [contract, certified_payroll, timesheet, invoice_backup, permit_insurance, other]
+        fileName:
+          type: string
+          minLength: 1
+        objectPath:
+          type: string
+          minLength: 1
+        contentType:
+          type: string
+          nullable: true
+        sizeBytes:
+          type: integer
+          nullable: true
+        description:
+          type: string
+          nullable: true
+
+    UploadUrlRequest:
+      type: object
+      required: [name, size, contentType]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          description: Original file name.
+        size:
+          type: integer
+          minimum: 1
+          description: File size in bytes.
+        contentType:
+          type: string
+          minLength: 1
+          description: MIME type of the file (e.g. `image/jpeg`).
+    UploadUrlResponse:
+      type: object
+      required: [uploadURL, objectPath]
+      properties:
+        uploadURL:
+          type: string
+          format: uri
+          description: Presigned GCS URL for PUT upload.
+        objectPath:
+          type: string
+          description: Normalized object path (e.g. `/objects/uploads/uuid`). Store this in your database.
+        metadata:
+          $ref: "#/components/schemas/UploadUrlRequest"

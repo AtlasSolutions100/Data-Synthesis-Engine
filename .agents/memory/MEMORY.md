@@ -1,2 +1,3 @@
 - [Transaction type enum coupling](transaction-type-enum.md) — adding a new ledger transaction `type` requires updating openapi enums + frontend form enum/dropdown in lockstep or GET /transactions 500s on parse.
 - [Money reconciliation](money-reconciliation.md) — Books app: money in integer cents; when pro-rating split a stored total across allocations, derive the last component as a remainder so parts sum to the whole exactly.
+- [Object storage paths](object-storage-paths.md) — uploaded objectPath stored as `/objects/...`; serve/download via `/api/storage${objectPath}`; referenced web lib needs `composite:true`.

@@ -1023,6 +1023,81 @@ export interface PayrollByJob {
   totals: PayrollByJobTotals;
 }
 
+export type JobDocumentCategory = typeof JobDocumentCategory[keyof typeof JobDocumentCategory];
+
+
+export const JobDocumentCategory = {
+  contract: 'contract',
+  certified_payroll: 'certified_payroll',
+  timesheet: 'timesheet',
+  invoice_backup: 'invoice_backup',
+  permit_insurance: 'permit_insurance',
+  other: 'other',
+} as const;
+
+export interface JobDocument {
+  id: number;
+  jobId: number;
+  category: JobDocumentCategory;
+  fileName: string;
+  objectPath: string;
+  contentType?: string | null;
+  sizeBytes?: number | null;
+  description?: string | null;
+  uploadedByUserId?: number | null;
+  uploadedByName?: string | null;
+  createdAt: string;
+}
+
+export type JobDocumentInputCategory = typeof JobDocumentInputCategory[keyof typeof JobDocumentInputCategory];
+
+
+export const JobDocumentInputCategory = {
+  contract: 'contract',
+  certified_payroll: 'certified_payroll',
+  timesheet: 'timesheet',
+  invoice_backup: 'invoice_backup',
+  permit_insurance: 'permit_insurance',
+  other: 'other',
+} as const;
+
+export interface JobDocumentInput {
+  category: JobDocumentInputCategory;
+  /** @minLength 1 */
+  fileName: string;
+  /** @minLength 1 */
+  objectPath: string;
+  contentType?: string | null;
+  sizeBytes?: number | null;
+  description?: string | null;
+}
+
+export interface UploadUrlRequest {
+  /**
+     * Original file name.
+     * @minLength 1
+     */
+  name: string;
+  /**
+     * File size in bytes.
+     * @minimum 1
+     */
+  size: number;
+  /**
+     * MIME type of the file (e.g. `image/jpeg`).
+     * @minLength 1
+     */
+  contentType: string;
+}
+
+export interface UploadUrlResponse {
+  /** Presigned GCS URL for PUT upload. */
+  uploadURL: string;
+  /** Normalized object path (e.g. `/objects/uploads/uuid`). Store this in your database. */
+  objectPath: string;
+  metadata?: UploadUrlRequest;
+}
+
 /**
  * Error
  */
