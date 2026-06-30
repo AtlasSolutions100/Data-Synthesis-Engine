@@ -108,10 +108,26 @@ export default function JobDetail() {
     );
   }, [transactions]);
 
-  const grandTotalCents = (transactions ?? []).reduce(
-    (sum, t) => sum + t.amountCents,
-    0,
-  );
+  const COST_ACCOUNT_TYPES = ["cogs", "expense", "other_expense"];
+
+  const accountTypeById = useMemo(() => {
+    const m = new Map<number, string>();
+    for (const l of summary?.lines ?? []) m.set(l.accountId, l.type);
+    return m;
+  }, [summary]);
+
+  const isCostAccount = (accountId: number) =>
+    COST_ACCOUNT_TYPES.includes(accountTypeById.get(accountId) ?? "");
+  const isIncomeAccount = (accountId: number) =>
+    accountTypeById.get(accountId) === "income";
+
+  const costToDateCents = groups
+    .filter((g) => isCostAccount(g.accountId))
+    .reduce((sum, g) => sum + g.subtotalCents, 0);
+
+  const incomeToDateCents = groups
+    .filter((g) => isIncomeAccount(g.accountId))
+    .reduce((sum, g) => sum + g.subtotalCents, 0);
 
   const formatType = (t: string) => t.replace(/_/g, " ");
 
@@ -225,6 +241,13 @@ export default function JobDetail() {
                       <TableRow className="bg-slate-100 hover:bg-slate-100">
                         <TableCell colSpan={5} className="font-semibold text-slate-700 py-2">
                           {group.accountNumber} - {group.accountName}
+                          <span className="ml-2 text-xs font-normal text-slate-400">
+                            {isCostAccount(group.accountId)
+                              ? "Cost"
+                              : isIncomeAccount(group.accountId)
+                                ? "Income"
+                                : "Other"}
+                          </span>
                         </TableCell>
                       </TableRow>
                       {group.txns.map((txn) => (
@@ -296,11 +319,18 @@ export default function JobDetail() {
                       </TableRow>
                     </Fragment>
                   ))}
+                  <TableRow className="bg-slate-50 hover:bg-slate-50">
+                    <TableCell colSpan={3} className="text-right font-semibold text-slate-700">
+                      Total Income to Date
+                    </TableCell>
+                    <TableCell className="text-right font-semibold text-slate-900">{formatCents(incomeToDateCents)}</TableCell>
+                    <TableCell></TableCell>
+                  </TableRow>
                   <TableRow className="bg-slate-900 hover:bg-slate-900">
                     <TableCell colSpan={3} className="text-right font-bold text-white">
                       Total Cost to Date
                     </TableCell>
-                    <TableCell className="text-right font-bold text-white">{formatCents(grandTotalCents)}</TableCell>
+                    <TableCell className="text-right font-bold text-white">{formatCents(costToDateCents)}</TableCell>
                     <TableCell className="bg-slate-900"></TableCell>
                   </TableRow>
                 </>

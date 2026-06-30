@@ -9,6 +9,7 @@ import {
   getClerkProxyHost,
 } from "./middlewares/clerkProxyMiddleware";
 import router from "./routes";
+import healthRouter from "./routes/health";
 import { withCurrentUser } from "./middlewares/currentUser";
 import { logger } from "./lib/logger";
 
@@ -68,6 +69,9 @@ app.use(
     ),
   })),
 );
+
+// Public health probe — must stay outside the auth gate.
+app.use("/api", healthRouter);
 
 app.use("/api", requireAuth(), withCurrentUser, router);
 

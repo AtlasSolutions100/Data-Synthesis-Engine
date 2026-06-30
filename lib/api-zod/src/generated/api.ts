@@ -381,7 +381,8 @@ export const ListJobsResponseItem = zod.object({
   "contractAmountCents": zod.number().describe('Contract value in integer cents'),
   "incomeCents": zod.number().describe('Billed income in cents (computed from line items)'),
   "costCents": zod.number().describe('Total cost in cents (computed from line items)'),
-  "profitCents": zod.number().describe('incomeCents minus costCents')
+  "profitCents": zod.number().describe('incomeCents minus costCents'),
+  "remainingCents": zod.number().describe('contractAmountCents minus costCents (contract budget remaining)')
 })
 export const ListJobsResponse = zod.array(ListJobsResponseItem)
 
@@ -413,7 +414,8 @@ export const CreateJobResponse = zod.object({
   "contractAmountCents": zod.number().describe('Contract value in integer cents'),
   "incomeCents": zod.number().describe('Billed income in cents (computed from line items)'),
   "costCents": zod.number().describe('Total cost in cents (computed from line items)'),
-  "profitCents": zod.number().describe('incomeCents minus costCents')
+  "profitCents": zod.number().describe('incomeCents minus costCents'),
+  "remainingCents": zod.number().describe('contractAmountCents minus costCents (contract budget remaining)')
 })
 
 
@@ -435,7 +437,8 @@ export const GetJobResponse = zod.object({
   "contractAmountCents": zod.number().describe('Contract value in integer cents'),
   "incomeCents": zod.number().describe('Billed income in cents (computed from line items)'),
   "costCents": zod.number().describe('Total cost in cents (computed from line items)'),
-  "profitCents": zod.number().describe('incomeCents minus costCents')
+  "profitCents": zod.number().describe('incomeCents minus costCents'),
+  "remainingCents": zod.number().describe('contractAmountCents minus costCents (contract budget remaining)')
 })
 
 
@@ -470,7 +473,8 @@ export const UpdateJobResponse = zod.object({
   "contractAmountCents": zod.number().describe('Contract value in integer cents'),
   "incomeCents": zod.number().describe('Billed income in cents (computed from line items)'),
   "costCents": zod.number().describe('Total cost in cents (computed from line items)'),
-  "profitCents": zod.number().describe('incomeCents minus costCents')
+  "profitCents": zod.number().describe('incomeCents minus costCents'),
+  "remainingCents": zod.number().describe('contractAmountCents minus costCents (contract budget remaining)')
 })
 
 
@@ -681,7 +685,8 @@ export const GetDashboardSummaryResponse = zod.object({
   "contractAmountCents": zod.number().describe('Contract value in integer cents'),
   "incomeCents": zod.number().describe('Billed income in cents (computed from line items)'),
   "costCents": zod.number().describe('Total cost in cents (computed from line items)'),
-  "profitCents": zod.number().describe('incomeCents minus costCents')
+  "profitCents": zod.number().describe('incomeCents minus costCents'),
+  "remainingCents": zod.number().describe('contractAmountCents minus costCents (contract budget remaining)')
 })).optional(),
   "recentTransactions": zod.array(zod.object({
   "id": zod.number(),

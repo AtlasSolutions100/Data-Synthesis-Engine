@@ -82,7 +82,8 @@ export default function Jobs() {
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Contract</TableHead>
                 <TableHead className="text-right">Income</TableHead>
-                <TableHead className="text-right">Cost</TableHead>
+                <TableHead className="text-right">Cost to Date</TableHead>
+                <TableHead className="text-right">Remaining</TableHead>
                 <TableHead className="text-right">Profit</TableHead>
                 <TableHead className="w-[100px]"></TableHead>
               </TableRow>
@@ -90,11 +91,11 @@ export default function Jobs() {
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={9} className="text-center py-8 text-slate-500">Loading jobs...</TableCell>
+                  <TableCell colSpan={10} className="text-center py-8 text-slate-500">Loading jobs...</TableCell>
                 </TableRow>
               ) : jobs?.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={9} className="text-center py-8 text-slate-500">No jobs found.</TableCell>
+                  <TableCell colSpan={10} className="text-center py-8 text-slate-500">No jobs found.</TableCell>
                 </TableRow>
               ) : (
                 jobs?.map((job) => (
@@ -114,6 +115,9 @@ export default function Jobs() {
                     <TableCell className="text-right">{formatCents(job.contractAmountCents)}</TableCell>
                     <TableCell className="text-right">{formatCents(job.incomeCents)}</TableCell>
                     <TableCell className="text-right">{formatCents(job.costCents)}</TableCell>
+                    <TableCell className={`text-right ${job.remainingCents >= 0 ? "text-slate-900" : "text-red-600"}`}>
+                      {formatCents(job.remainingCents)}
+                    </TableCell>
                     <TableCell className={`text-right font-medium ${job.profitCents >= 0 ? "text-emerald-600" : "text-red-600"}`}>
                       {formatCents(job.profitCents)}
                     </TableCell>

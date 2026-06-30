@@ -48,6 +48,7 @@ function serializeJob(
     incomeCents,
     costCents,
     profitCents: incomeCents - costCents,
+    remainingCents: job.contractAmountCents - costCents,
   };
 }
 

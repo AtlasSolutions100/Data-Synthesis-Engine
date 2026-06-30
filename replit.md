@@ -23,6 +23,13 @@ QB_XLSX=/home/runner/workspace/attached_assets/Allied_Power_Services_Profit_and_
 
 Parses the QuickBooks workbook (at the **repo-root** `attached_assets/`, not under `artifacts/api-server/`) and loads accounts, customers, vendors, employees, the PSL job, and the transaction ledger. The seed resolves its source relative to CWD, so pass `QB_XLSX` as an absolute path (or run from the workspace root). Reconciles to the cent (Income 86498.00, COGS 41497.31, Gross Profit 45000.69, Expenses 16533.82, Net Income 28466.87).
 
+## Job costing accuracy
+
+- Money is stored as integer **cents**; all totals are summed from stored line items, never from floats.
+- Account-type buckets drive finance: income = `income`; cost-to-date = `cogs` + `expense` + `other_expense` (see `artifacts/api-server/src/lib/finance.ts`). Transaction *type* (invoice/bill/etc.) never affects rollups.
+- Job list/detail expose `incomeCents`, `costCents`, `profitCents` (income − cost) and `remainingCents` (contract − cost). The job-detail ledger groups transactions by account with per-account subtotals; the "Total Cost to Date" footer sums **cost-type accounts only**, income shown separately.
+- `GET /api/healthz` is public (mounted before the auth gate); every other `/api/*` route requires Clerk auth.
+
 ## Users & roles
 
 - Two roles: `owner` (admin) and `bookkeeper`. Both have full financial access; only owners manage users.

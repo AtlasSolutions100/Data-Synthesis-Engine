@@ -883,7 +883,7 @@ components:
 
     Job:
       type: object
-      required: [id, jobNumber, name, status, contractAmountCents, incomeCents, costCents, profitCents]
+      required: [id, jobNumber, name, status, contractAmountCents, incomeCents, costCents, profitCents, remainingCents]
       properties:
         id:
           type: integer
@@ -912,6 +912,9 @@ components:
         profitCents:
           type: integer
           description: incomeCents minus costCents
+        remainingCents:
+          type: integer
+          description: contractAmountCents minus costCents (contract budget remaining)
     JobInput:
       type: object
       required: [jobNumber, name]

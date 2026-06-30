@@ -235,6 +235,8 @@ export interface Job {
   costCents: number;
   /** incomeCents minus costCents */
   profitCents: number;
+  /** contractAmountCents minus costCents (contract budget remaining) */
+  remainingCents: number;
 }
 
 export type JobInputStatus = typeof JobInputStatus[keyof typeof JobInputStatus];
