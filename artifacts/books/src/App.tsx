@@ -17,7 +17,12 @@ import Customers from "./pages/customers";
 import Vendors from "./pages/vendors";
 import Employees from "./pages/employees";
 import Reports from "./pages/reports";
+import UsersPage from "./pages/users";
 import { Layout } from "./components/layout";
+import {
+  useGetCurrentUser,
+  getGetCurrentUserQueryKey,
+} from "@workspace/api-client-react";
 
 const queryClient = new QueryClient();
 
@@ -154,6 +159,32 @@ function ProtectedRoute({ component: Component }: { component: any }) {
   );
 }
 
+function OwnerRoute({ component: Component }: { component: any }) {
+  const { data: me, isLoading } = useGetCurrentUser({
+    query: { queryKey: getGetCurrentUserQueryKey() },
+  });
+  return (
+    <>
+      <Show when="signed-in">
+        {isLoading ? (
+          <Layout>
+            <div className="p-8 text-slate-500">Loading...</div>
+          </Layout>
+        ) : me?.role === "owner" ? (
+          <Layout>
+            <Component />
+          </Layout>
+        ) : (
+          <Redirect to="/dashboard" />
+        )}
+      </Show>
+      <Show when="signed-out">
+        <Redirect to="/" />
+      </Show>
+    </>
+  );
+}
+
 function ClerkProviderWithRoutes() {
   const [, setLocation] = useLocation();
 
@@ -196,6 +227,7 @@ function ClerkProviderWithRoutes() {
           <Route path="/vendors"><ProtectedRoute component={Vendors} /></Route>
           <Route path="/employees"><ProtectedRoute component={Employees} /></Route>
           <Route path="/reports"><ProtectedRoute component={Reports} /></Route>
+          <Route path="/users"><OwnerRoute component={UsersPage} /></Route>
           <Route component={NotFound} />
         </Switch>
       </QueryClientProvider>

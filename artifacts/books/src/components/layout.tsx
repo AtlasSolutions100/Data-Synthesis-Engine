@@ -1,6 +1,10 @@
 import { Link, useLocation } from "wouter";
 import { useClerk, useUser } from "@clerk/react";
 import {
+  useGetCurrentUser,
+  getGetCurrentUserQueryKey,
+} from "@workspace/api-client-react";
+import {
   LayoutDashboard,
   Briefcase,
   ReceiptText,
@@ -9,13 +13,17 @@ import {
   HardHat,
   FileBarChart,
   LogOut,
-  Wallet
+  Wallet,
+  ShieldCheck,
 } from "lucide-react";
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
   const { signOut } = useClerk();
   const { user } = useUser();
+  const { data: me } = useGetCurrentUser({
+    query: { queryKey: getGetCurrentUserQueryKey() },
+  });
 
   const navItems = [
     { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -26,6 +34,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { href: "/vendors", label: "Vendors", icon: HardHat },
     { href: "/employees", label: "Employees", icon: Users },
     { href: "/reports", label: "Reports", icon: FileBarChart },
+    ...(me?.role === "owner"
+      ? [{ href: "/users", label: "Users", icon: ShieldCheck }]
+      : []),
   ];
 
   return (

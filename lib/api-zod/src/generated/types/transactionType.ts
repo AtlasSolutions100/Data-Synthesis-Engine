@@ -16,4 +16,6 @@ export const TransactionType = {
   check: 'check',
   payment: 'payment',
   journal: 'journal',
+  vendor_credit: 'vendor_credit',
+  credit_card: 'credit_card',
 } as const;

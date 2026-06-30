@@ -123,15 +123,18 @@ function mapTxnType(qbType: string | null): string {
     case "Invoice":
       return "invoice";
     case "Bill":
-    case "Vendor Credit":
       return "bill";
+    case "Vendor Credit":
+      return "vendor_credit";
     case "Check":
       return "check";
     case "Payment":
       return "payment";
-    case "Expense":
+    case "Credit Card Charge":
     case "Credit Card Credit":
     case "Credit Card Expense":
+      return "credit_card";
+    case "Expense":
       return "expense";
     default:
       return "journal";

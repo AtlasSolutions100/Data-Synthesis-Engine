@@ -591,6 +591,76 @@ paths:
                 items:
                   $ref: "#/components/schemas/AccountTotal"
 
+  /users/me:
+    get:
+      operationId: getCurrentUser
+      tags: [users]
+      summary: Get the currently signed-in user (with role)
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+  /users:
+    get:
+      operationId: listUsers
+      tags: [users]
+      summary: List all users (owner only)
+      responses:
+        "200":
+          description: List of users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/User"
+        "403":
+          $ref: "#/components/responses/Error"
+  /users/{id}:
+    patch:
+      operationId: updateUserRole
+      tags: [users]
+      summary: Update a user's role (owner only)
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserRoleUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "400":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+    delete:
+      operationId: deleteUser
+      tags: [users]
+      summary: Remove a user (owner only)
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "204":
+          description: Deleted
+        "400":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+
 components:
   parameters:
     IdParam:
@@ -665,6 +735,29 @@ components:
           enum: [income, cogs, expense, other_income, other_expense]
         parentNumber:
           type: ["string", "null"]
+
+    User:
+      type: object
+      required: [id, clerkUserId, role]
+      properties:
+        id:
+          type: integer
+        clerkUserId:
+          type: string
+        email:
+          type: ["string", "null"]
+        name:
+          type: ["string", "null"]
+        role:
+          type: string
+          enum: [owner, bookkeeper]
+    UserRoleUpdate:
+      type: object
+      required: [role]
+      properties:
+        role:
+          type: string
+          enum: [owner, bookkeeper]
 
     Customer:
       type: object
@@ -868,7 +961,7 @@ components:
           description: ISO date (YYYY-MM-DD)
         type:
           type: string
-          enum: [invoice, bill, expense, check, payment, journal]
+          enum: [invoice, bill, expense, check, payment, journal, vendor_credit, credit_card]
         num:
           type: ["string", "null"]
         partyName:
@@ -905,7 +998,7 @@ components:
           minLength: 1
         type:
           type: string
-          enum: [invoice, bill, expense, check, payment, journal]
+          enum: [invoice, bill, expense, check, payment, journal, vendor_credit, credit_card]
         num:
           type: ["string", "null"]
         partyName:
@@ -932,7 +1025,7 @@ components:
           minLength: 1
         type:
           type: string
-          enum: [invoice, bill, expense, check, payment, journal]
+          enum: [invoice, bill, expense, check, payment, journal, vendor_credit, credit_card]
         num:
           type: ["string", "null"]
         partyName:

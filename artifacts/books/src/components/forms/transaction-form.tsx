@@ -17,7 +17,16 @@ import { TransactionInput, TransactionUpdate, TransactionInputType } from "@work
 
 const transactionSchema = z.object({
   date: z.string().min(1, "Date is required"),
-  type: z.enum(["invoice", "bill", "expense", "check", "payment", "journal"]),
+  type: z.enum([
+    "invoice",
+    "bill",
+    "expense",
+    "check",
+    "payment",
+    "journal",
+    "vendor_credit",
+    "credit_card",
+  ]),
   num: z.string().optional(),
   partyName: z.string().optional(),
   description: z.string().optional(),
@@ -103,7 +112,9 @@ export function TransactionForm({ defaultValues, onSubmit, isLoading }: Transact
                   <SelectContent>
                     <SelectItem value="invoice">Invoice</SelectItem>
                     <SelectItem value="bill">Bill</SelectItem>
+                    <SelectItem value="vendor_credit">Vendor Credit</SelectItem>
                     <SelectItem value="expense">Expense</SelectItem>
+                    <SelectItem value="credit_card">Credit Card Charge</SelectItem>
                     <SelectItem value="check">Check</SelectItem>
                     <SelectItem value="payment">Payment</SelectItem>
                     <SelectItem value="journal">Journal</SelectItem>

@@ -523,7 +523,7 @@ export const ListTransactionsQueryParams = zod.object({
 export const ListTransactionsResponseItem = zod.object({
   "id": zod.number(),
   "date": zod.string().describe('ISO date (YYYY-MM-DD)'),
-  "type": zod.enum(['invoice', 'bill', 'expense', 'check', 'payment', 'journal']),
+  "type": zod.enum(['invoice', 'bill', 'expense', 'check', 'payment', 'journal', 'vendor_credit', 'credit_card']),
   "num": zod.string().nullish(),
   "partyName": zod.string().nullish().describe('Customer or vendor name as displayed'),
   "description": zod.string().nullish(),
@@ -548,7 +548,7 @@ export const ListTransactionsResponse = zod.array(ListTransactionsResponseItem)
 
 export const CreateTransactionBody = zod.object({
   "date": zod.string().min(1),
-  "type": zod.enum(['invoice', 'bill', 'expense', 'check', 'payment', 'journal']),
+  "type": zod.enum(['invoice', 'bill', 'expense', 'check', 'payment', 'journal', 'vendor_credit', 'credit_card']),
   "num": zod.string().nullish(),
   "partyName": zod.string().nullish(),
   "description": zod.string().nullish(),
@@ -563,7 +563,7 @@ export const CreateTransactionBody = zod.object({
 export const CreateTransactionResponse = zod.object({
   "id": zod.number(),
   "date": zod.string().describe('ISO date (YYYY-MM-DD)'),
-  "type": zod.enum(['invoice', 'bill', 'expense', 'check', 'payment', 'journal']),
+  "type": zod.enum(['invoice', 'bill', 'expense', 'check', 'payment', 'journal', 'vendor_credit', 'credit_card']),
   "num": zod.string().nullish(),
   "partyName": zod.string().nullish().describe('Customer or vendor name as displayed'),
   "description": zod.string().nullish(),
@@ -589,7 +589,7 @@ export const GetTransactionParams = zod.object({
 export const GetTransactionResponse = zod.object({
   "id": zod.number(),
   "date": zod.string().describe('ISO date (YYYY-MM-DD)'),
-  "type": zod.enum(['invoice', 'bill', 'expense', 'check', 'payment', 'journal']),
+  "type": zod.enum(['invoice', 'bill', 'expense', 'check', 'payment', 'journal', 'vendor_credit', 'credit_card']),
   "num": zod.string().nullish(),
   "partyName": zod.string().nullish().describe('Customer or vendor name as displayed'),
   "description": zod.string().nullish(),
@@ -617,7 +617,7 @@ export const UpdateTransactionParams = zod.object({
 
 export const UpdateTransactionBody = zod.object({
   "date": zod.string().min(1).optional(),
-  "type": zod.enum(['invoice', 'bill', 'expense', 'check', 'payment', 'journal']).optional(),
+  "type": zod.enum(['invoice', 'bill', 'expense', 'check', 'payment', 'journal', 'vendor_credit', 'credit_card']).optional(),
   "num": zod.string().nullish(),
   "partyName": zod.string().nullish(),
   "description": zod.string().nullish(),
@@ -632,7 +632,7 @@ export const UpdateTransactionBody = zod.object({
 export const UpdateTransactionResponse = zod.object({
   "id": zod.number(),
   "date": zod.string().describe('ISO date (YYYY-MM-DD)'),
-  "type": zod.enum(['invoice', 'bill', 'expense', 'check', 'payment', 'journal']),
+  "type": zod.enum(['invoice', 'bill', 'expense', 'check', 'payment', 'journal', 'vendor_credit', 'credit_card']),
   "num": zod.string().nullish(),
   "partyName": zod.string().nullish().describe('Customer or vendor name as displayed'),
   "description": zod.string().nullish(),
@@ -686,7 +686,7 @@ export const GetDashboardSummaryResponse = zod.object({
   "recentTransactions": zod.array(zod.object({
   "id": zod.number(),
   "date": zod.string().describe('ISO date (YYYY-MM-DD)'),
-  "type": zod.enum(['invoice', 'bill', 'expense', 'check', 'payment', 'journal']),
+  "type": zod.enum(['invoice', 'bill', 'expense', 'check', 'payment', 'journal', 'vendor_credit', 'credit_card']),
   "num": zod.string().nullish(),
   "partyName": zod.string().nullish().describe('Customer or vendor name as displayed'),
   "description": zod.string().nullish(),
@@ -714,5 +714,60 @@ export const GetCostByAccountResponseItem = zod.object({
   "amountCents": zod.number()
 })
 export const GetCostByAccountResponse = zod.array(GetCostByAccountResponseItem)
+
+
+/**
+ * @summary Get the currently signed-in user (with role)
+ */
+export const GetCurrentUserResponse = zod.object({
+  "id": zod.number(),
+  "clerkUserId": zod.string(),
+  "email": zod.string().nullish(),
+  "name": zod.string().nullish(),
+  "role": zod.enum(['owner', 'bookkeeper'])
+})
+
+
+/**
+ * @summary List all users (owner only)
+ */
+export const ListUsersResponseItem = zod.object({
+  "id": zod.number(),
+  "clerkUserId": zod.string(),
+  "email": zod.string().nullish(),
+  "name": zod.string().nullish(),
+  "role": zod.enum(['owner', 'bookkeeper'])
+})
+export const ListUsersResponse = zod.array(ListUsersResponseItem)
+
+
+/**
+ * @summary Update a user's role (owner only)
+ */
+export const UpdateUserRoleParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateUserRoleBody = zod.object({
+  "role": zod.enum(['owner', 'bookkeeper'])
+})
+
+export const UpdateUserRoleResponse = zod.object({
+  "id": zod.number(),
+  "clerkUserId": zod.string(),
+  "email": zod.string().nullish(),
+  "name": zod.string().nullish(),
+  "role": zod.enum(['owner', 'bookkeeper'])
+})
+
+
+/**
+ * @summary Remove a user (owner only)
+ */
+export const DeleteUserParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeleteUserResponse = zod.void()
 
 

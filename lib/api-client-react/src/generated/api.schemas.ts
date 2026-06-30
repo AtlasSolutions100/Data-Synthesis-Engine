@@ -75,6 +75,36 @@ export interface AccountUpdate {
   parentNumber?: string | null;
 }
 
+export type UserRole = typeof UserRole[keyof typeof UserRole];
+
+
+export const UserRole = {
+  owner: 'owner',
+  bookkeeper: 'bookkeeper',
+} as const;
+
+export interface User {
+  id: number;
+  clerkUserId: string;
+  /** @nullable */
+  email?: string | null;
+  /** @nullable */
+  name?: string | null;
+  role: UserRole;
+}
+
+export type UserRoleUpdateRole = typeof UserRoleUpdateRole[keyof typeof UserRoleUpdateRole];
+
+
+export const UserRoleUpdateRole = {
+  owner: 'owner',
+  bookkeeper: 'bookkeeper',
+} as const;
+
+export interface UserRoleUpdate {
+  role: UserRoleUpdateRole;
+}
+
 export interface Customer {
   id: number;
   name: string;
@@ -261,6 +291,8 @@ export const TransactionType = {
   check: 'check',
   payment: 'payment',
   journal: 'journal',
+  vendor_credit: 'vendor_credit',
+  credit_card: 'credit_card',
 } as const;
 
 export interface Transaction {
@@ -309,6 +341,8 @@ export const TransactionInputType = {
   check: 'check',
   payment: 'payment',
   journal: 'journal',
+  vendor_credit: 'vendor_credit',
+  credit_card: 'credit_card',
 } as const;
 
 export interface TransactionInput {
@@ -343,6 +377,8 @@ export const TransactionUpdateType = {
   check: 'check',
   payment: 'payment',
   journal: 'journal',
+  vendor_credit: 'vendor_credit',
+  credit_card: 'credit_card',
 } as const;
 
 export interface TransactionUpdate {

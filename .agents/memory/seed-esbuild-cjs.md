@@ -11,4 +11,5 @@ To run a TS script that imports `@workspace/db` (TS source, resolved via the `wo
 
 **How to apply (e.g. the books seed):**
 `pnpm --filter @workspace/api-server exec esbuild scripts/seed.ts --bundle --platform=node --format=cjs --outfile=/tmp/seed.cjs && node /tmp/seed.cjs`
-Run from the workspace root so relative paths (e.g. `attached_assets/...`) resolve.
+
+**XLSX source path gotcha:** the books seed resolves its source workbook with `path.resolve(process.env.QB_XLSX ?? "attached_assets/...")`, i.e. relative to CWD. The QuickBooks workbook lives at the **repo-root** `attached_assets/`, NOT under `artifacts/api-server/`. So either run `node /tmp/seed.cjs` from the workspace root, or pass an absolute path: `QB_XLSX=/home/runner/workspace/attached_assets/<file>.xlsx node /tmp/seed.cjs`. Re-seeding is idempotent and reconciles to Net Income 28466.87 (Income 86498.00 / COGS 41497.31 / Expenses 16533.82); finance buckets are by ACCOUNT type, so changing txn-type mappings does not move these totals.

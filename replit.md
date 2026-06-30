@@ -17,10 +17,17 @@ A desktop-first, browser-based job-costing and construction-accounting app that 
 ```
 pnpm --filter @workspace/api-server exec esbuild scripts/seed.ts \
   --bundle --platform=node --format=cjs --outfile=/tmp/seed.cjs
-node /tmp/seed.cjs
+QB_XLSX=/home/runner/workspace/attached_assets/Allied_Power_Services_Profit_and_Loss_Detail_1782845742607.xlsx \
+  node /tmp/seed.cjs
 ```
 
-Parses `attached_assets/Allied_Power_Services_Profit_and_Loss_Detail_*.xlsx` and loads accounts, customers, vendors, employees, the PSL job, and the transaction ledger. Reconciles to the cent (Income 86498.00, COGS 41497.31, Gross Profit 45000.69, Expenses 16533.82, Net Income 28466.87).
+Parses the QuickBooks workbook (at the **repo-root** `attached_assets/`, not under `artifacts/api-server/`) and loads accounts, customers, vendors, employees, the PSL job, and the transaction ledger. The seed resolves its source relative to CWD, so pass `QB_XLSX` as an absolute path (or run from the workspace root). Reconciles to the cent (Income 86498.00, COGS 41497.31, Gross Profit 45000.69, Expenses 16533.82, Net Income 28466.87).
+
+## Users & roles
+
+- Two roles: `owner` (admin) and `bookkeeper`. Both have full financial access; only owners manage users.
+- Users are upserted from Clerk on first authenticated request; the **first** user to sign in becomes `owner`, everyone after is `bookkeeper`.
+- Owner-only user management lives at `/users` (frontend) backed by `/api/users` (list/update-role/delete, guarded by `requireOwner`). Owners cannot demote or delete themselves.
 
 ## Stack
 

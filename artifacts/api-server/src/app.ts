@@ -9,6 +9,7 @@ import {
   getClerkProxyHost,
 } from "./middlewares/clerkProxyMiddleware";
 import router from "./routes";
+import { withCurrentUser } from "./middlewares/currentUser";
 import { logger } from "./lib/logger";
 
 const app: Express = express();
@@ -68,6 +69,6 @@ app.use(
   })),
 );
 
-app.use("/api", requireAuth(), router);
+app.use("/api", requireAuth(), withCurrentUser, router);
 
 export default app;
