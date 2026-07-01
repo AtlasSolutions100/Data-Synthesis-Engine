@@ -1,11 +1,12 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { Readable } from "stream";
+import { eq } from "drizzle-orm";
+import { db, jobDocumentsTable } from "@workspace/db";
 import {
   RequestUploadUrlBody,
   RequestUploadUrlResponse,
 } from "@workspace/api-zod";
 import { ObjectStorageService, ObjectNotFoundError } from "../lib/objectStorage";
-import { ObjectPermission } from "../lib/objectAcl";
 import { validateUpload } from "../lib/uploadValidation";
 
 const router: IRouter = Router();
@@ -92,30 +93,44 @@ router.get("/storage/public-objects/*filePath", async (req: Request, res: Respon
  * GET /storage/objects/*
  *
  * Serve object entities from PRIVATE_OBJECT_DIR.
- * These are served from a separate path from /public-objects and can optionally
- * be protected with authentication or ACL checks based on the use case.
+ * Access requires a valid app user (req.currentUser) AND the requested object
+ * must correspond to a tracked job document — see the authorization note below.
  */
 router.get("/storage/objects/*path", async (req: Request, res: Response) => {
   try {
+    // Defense in depth: the parent router already runs requireAuth() +
+    // withCurrentUser, but enforce an explicit valid-app-user check here so this
+    // sensitive route fails closed even if it is ever remounted outside the
+    // auth gate.
+    if (!req.currentUser) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+
     const raw = req.params.path;
     const wildcardPath = Array.isArray(raw) ? raw.join("/") : raw;
     const objectPath = `/objects/${wildcardPath}`;
-    const objectFile = await objectStorageService.getObjectEntityFile(objectPath);
 
-    // --- Protected route example (uncomment when using replit-auth) ---
-    // if (!req.isAuthenticated()) {
-    //   res.status(401).json({ error: "Unauthorized" });
-    //   return;
-    // }
-    // const canAccess = await objectStorageService.canAccessObjectEntity({
-    //   userId: req.user.id,
-    //   objectFile,
-    //   requestedPermission: ObjectPermission.READ,
-    // });
-    // if (!canAccess) {
-    //   res.status(403).json({ error: "Forbidden" });
-    //   return;
-    // }
+    // Authorization model: only objects that are tracked as a job document may
+    // be served. This ties object access to the app's data model and prevents a
+    // signed-in user from guessing/iterating raw object paths (e.g. freshly
+    // uploaded but unattached objects) to read arbitrary storage contents.
+    //
+    // Per-document ACLs are intentionally NOT used: every app user (owner or
+    // bookkeeper) shares full access to all financial data — the role only gates
+    // user management — so app-level auth plus "is this a known document" is the
+    // correct and sufficient access check for this single-tenant financials app.
+    const [doc] = await db
+      .select({ id: jobDocumentsTable.id })
+      .from(jobDocumentsTable)
+      .where(eq(jobDocumentsTable.objectPath, objectPath))
+      .limit(1);
+    if (!doc) {
+      res.status(404).json({ error: "Object not found" });
+      return;
+    }
+
+    const objectFile = await objectStorageService.getObjectEntityFile(objectPath);
 
     const response = await objectStorageService.downloadObject(objectFile);
 
