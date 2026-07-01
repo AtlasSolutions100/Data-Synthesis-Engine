@@ -144,6 +144,9 @@ export function JobDocuments({ jobId }: { jobId: number }) {
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [category, setCategory] = useState<Category>("other");
+  const [failedThumbnails, setFailedThumbnails] = useState<Set<number>>(
+    () => new Set(),
+  );
   const [preview, setPreview] = useState<{
     href: string;
     fileName: string;
@@ -320,7 +323,7 @@ export function JobDocuments({ jobId }: { jobId: number }) {
                   <TableRow key={doc.id}>
                     <TableCell>
                       <div className="flex items-center gap-3">
-                        {kind === "image" ? (
+                        {kind === "image" && !failedThumbnails.has(doc.id) ? (
                           <button
                             type="button"
                             onClick={openPreview}
@@ -332,7 +335,23 @@ export function JobDocuments({ jobId }: { jobId: number }) {
                               alt={doc.fileName}
                               loading="lazy"
                               className="h-full w-full object-cover"
+                              onError={() =>
+                                setFailedThumbnails((prev) => {
+                                  const next = new Set(prev);
+                                  next.add(doc.id);
+                                  return next;
+                                })
+                              }
                             />
+                          </button>
+                        ) : kind === "image" ? (
+                          <button
+                            type="button"
+                            onClick={openPreview}
+                            className="shrink-0 flex items-center justify-center h-10 w-10 rounded border border-slate-200 bg-slate-50 text-slate-400 hover:ring-2 hover:ring-blue-400 transition"
+                            title="Preview"
+                          >
+                            <ImageIcon className="h-5 w-5" />
                           </button>
                         ) : kind === "pdf" ? (
                           <button
