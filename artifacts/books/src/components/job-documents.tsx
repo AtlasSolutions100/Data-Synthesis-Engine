@@ -202,6 +202,10 @@ type SpreadsheetState =
   | { status: "error" }
   | { status: "ready"; rows: string[][]; truncated: boolean };
 
+function toStringRows(rows: unknown[][]): string[][] {
+  return rows.map((r) => r.map((cell) => (cell == null ? "" : String(cell))));
+}
+
 function SpreadsheetPreview({
   href,
   kind,
@@ -212,10 +216,18 @@ function SpreadsheetPreview({
   sizeBytes: number | null | undefined;
 }) {
   const [state, setState] = useState<SpreadsheetState>({ status: "loading" });
+  const [sheets, setSheets] = useState<string[]>([]);
+  const [activeSheet, setActiveSheet] = useState<string | null>(null);
+  // Cache the downloaded workbook so switching sheets doesn't re-fetch.
+  const blobRef = useRef<Blob | null>(null);
 
+  // Load the file, discover sheet names (xlsx), and render the first sheet.
   useEffect(() => {
     let cancelled = false;
     setState({ status: "loading" });
+    setSheets([]);
+    setActiveSheet(null);
+    blobRef.current = null;
 
     async function load() {
       if (sizeBytes != null && sizeBytes > MAX_PREVIEW_BYTES) {
@@ -232,11 +244,21 @@ function SpreadsheetPreview({
           rows = parseCsv(text, MAX_PREVIEW_ROWS + 1);
         } else {
           const blob = await res.blob();
-          const readXlsxFile = (await import("read-excel-file")).default;
-          const parsed = await readXlsxFile(blob);
-          rows = parsed.map((r) =>
-            r.map((cell) => (cell == null ? "" : String(cell))),
+          if (cancelled) return;
+          blobRef.current = blob;
+          const mod = await import("read-excel-file");
+          const readXlsxFile = mod.default;
+          const names = await mod.readSheetNames(blob);
+          if (cancelled) return;
+          if (names.length > 1) {
+            setSheets(names);
+            setActiveSheet(names[0]);
+          }
+          const parsed = await readXlsxFile(
+            blob,
+            names.length > 1 ? { sheet: names[0] } : undefined,
           );
+          rows = toStringRows(parsed);
         }
 
         const truncated = rows.length > MAX_PREVIEW_ROWS;
@@ -257,33 +279,83 @@ function SpreadsheetPreview({
     };
   }, [href, kind, sizeBytes]);
 
+  const handleSheetChange = async (name: string) => {
+    if (name === activeSheet) return;
+    const blob = blobRef.current;
+    if (!blob) return;
+    setActiveSheet(name);
+    setState({ status: "loading" });
+    try {
+      const readXlsxFile = (await import("read-excel-file")).default;
+      const parsed = await readXlsxFile(blob, { sheet: name });
+      const rows = toStringRows(parsed);
+      const truncated = rows.length > MAX_PREVIEW_ROWS;
+      setState({
+        status: "ready",
+        rows: rows.slice(0, MAX_PREVIEW_ROWS),
+        truncated,
+      });
+    } catch {
+      setState({ status: "error" });
+    }
+  };
+
+  const sheetSelector =
+    sheets.length > 1 && activeSheet ? (
+      <div className="mb-3 flex flex-wrap items-center gap-1.5">
+        {sheets.map((name) => (
+          <button
+            key={name}
+            type="button"
+            onClick={() => handleSheetChange(name)}
+            className={
+              name === activeSheet
+                ? "rounded-md border border-emerald-500 bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700"
+                : "rounded-md border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-600 hover:border-slate-300 hover:bg-slate-50"
+            }
+          >
+            {name}
+          </button>
+        ))}
+      </div>
+    ) : null;
+
   if (state.status === "loading") {
     return (
-      <div className="flex items-center justify-center gap-2 py-16 text-slate-500">
-        <Loader2 className="h-4 w-4 animate-spin" />
-        Loading preview…
+      <div>
+        {sheetSelector}
+        <div className="flex items-center justify-center gap-2 py-16 text-slate-500">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Loading preview…
+        </div>
       </div>
     );
   }
 
   if (state.status === "too-large" || state.status === "error") {
     return (
-      <div className="flex flex-col items-center justify-center gap-2 py-16 text-center text-slate-500">
-        <FileSpreadsheet className="h-8 w-8 text-slate-300" />
-        <p className="text-sm">
-          {state.status === "too-large"
-            ? "This spreadsheet is too large to preview here."
-            : "This spreadsheet couldn't be previewed."}
-        </p>
-        <p className="text-xs">Download the file to view its contents.</p>
+      <div>
+        {sheetSelector}
+        <div className="flex flex-col items-center justify-center gap-2 py-16 text-center text-slate-500">
+          <FileSpreadsheet className="h-8 w-8 text-slate-300" />
+          <p className="text-sm">
+            {state.status === "too-large"
+              ? "This spreadsheet is too large to preview here."
+              : "This spreadsheet couldn't be previewed."}
+          </p>
+          <p className="text-xs">Download the file to view its contents.</p>
+        </div>
       </div>
     );
   }
 
   if (state.rows.length === 0) {
     return (
-      <div className="flex items-center justify-center py-16 text-sm text-slate-500">
-        This spreadsheet is empty.
+      <div>
+        {sheetSelector}
+        <div className="flex items-center justify-center py-16 text-sm text-slate-500">
+          This sheet is empty.
+        </div>
       </div>
     );
   }
@@ -292,41 +364,44 @@ function SpreadsheetPreview({
   const columnCount = state.rows.reduce((max, r) => Math.max(max, r.length), 0);
 
   return (
-    <div className="max-h-[75vh] overflow-auto rounded-md border border-slate-200">
-      <table className="w-full border-collapse text-sm">
-        <thead className="sticky top-0 z-10 bg-slate-100">
-          <tr>
-            {Array.from({ length: columnCount }).map((_, c) => (
-              <th
-                key={c}
-                className="border-b border-r border-slate-200 px-3 py-2 text-left font-medium text-slate-700 whitespace-nowrap"
-              >
-                {headerRow[c] ?? ""}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {bodyRows.map((r, ri) => (
-            <tr key={ri} className="even:bg-slate-50">
+    <div>
+      {sheetSelector}
+      <div className="max-h-[75vh] overflow-auto rounded-md border border-slate-200">
+        <table className="w-full border-collapse text-sm">
+          <thead className="sticky top-0 z-10 bg-slate-100">
+            <tr>
               {Array.from({ length: columnCount }).map((_, c) => (
-                <td
+                <th
                   key={c}
-                  className="border-b border-r border-slate-100 px-3 py-1.5 text-slate-700 whitespace-nowrap"
+                  className="border-b border-r border-slate-200 px-3 py-2 text-left font-medium text-slate-700 whitespace-nowrap"
                 >
-                  {r[c] ?? ""}
-                </td>
+                  {headerRow[c] ?? ""}
+                </th>
               ))}
             </tr>
-          ))}
-        </tbody>
-      </table>
-      {state.truncated && (
-        <div className="bg-slate-50 px-3 py-2 text-xs text-slate-500">
-          Showing the first {MAX_PREVIEW_ROWS} rows. Download the file to see
-          everything.
-        </div>
-      )}
+          </thead>
+          <tbody>
+            {bodyRows.map((r, ri) => (
+              <tr key={ri} className="even:bg-slate-50">
+                {Array.from({ length: columnCount }).map((_, c) => (
+                  <td
+                    key={c}
+                    className="border-b border-r border-slate-100 px-3 py-1.5 text-slate-700 whitespace-nowrap"
+                  >
+                    {r[c] ?? ""}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {state.truncated && (
+          <div className="bg-slate-50 px-3 py-2 text-xs text-slate-500">
+            Showing the first {MAX_PREVIEW_ROWS} rows. Download the file to see
+            everything.
+          </div>
+        )}
+      </div>
     </div>
   );
 }
