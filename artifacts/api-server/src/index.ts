@@ -1,5 +1,6 @@
 import app from "./app";
 import { logger } from "./lib/logger";
+import { startOrphanCleanupScheduler } from "./lib/storageCleanup";
 
 const rawPort = process.env["PORT"];
 
@@ -22,4 +23,10 @@ app.listen(port, (err) => {
   }
 
   logger.info({ port }, "Server listening");
+
+  // Periodically reclaim orphaned uploads (objects with no document row).
+  // Only meaningful when object storage is configured.
+  if (process.env.PRIVATE_OBJECT_DIR) {
+    startOrphanCleanupScheduler();
+  }
 });

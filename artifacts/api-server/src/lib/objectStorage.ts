@@ -37,6 +37,18 @@ export class ObjectNotFoundError extends Error {
   }
 }
 
+/** A single stored object living under the private `uploads/` prefix. */
+export interface UploadObjectInfo {
+  /** The underlying GCS file handle (use `.delete()` to remove it). */
+  file: File;
+  /** Path in the same "/objects/..." scheme stored in job_documents. */
+  objectPath: string;
+  /** Actual byte size reported by storage, or null if unknown. */
+  sizeBytes: number | null;
+  /** When the object was created in storage, or null if unknown. */
+  createdAt: Date | null;
+}
+
 export class ObjectStorageService {
   constructor() {}
 
@@ -152,6 +164,37 @@ export class ObjectStorageService {
       throw new ObjectNotFoundError();
     }
     return objectFile;
+  }
+
+  /**
+   * List every object currently stored under the private `uploads/` prefix.
+   *
+   * Returned `objectPath` values use the same "/objects/..." scheme stored in
+   * `job_documents.object_path`, so callers can match listed objects against
+   * the database to find orphans (uploads with no document row).
+   */
+  async listUploadObjects(): Promise<Array<UploadObjectInfo>> {
+    let entityDir = this.getPrivateObjectDir();
+    if (!entityDir.endsWith("/")) {
+      entityDir = `${entityDir}/`;
+    }
+    const { bucketName, objectName: dirPrefix } = parseObjectPath(entityDir);
+    const prefix = `${dirPrefix}uploads/`;
+    const bucket = objectStorageClient.bucket(bucketName);
+    const [files] = await bucket.getFiles({ prefix });
+
+    return files
+      .filter((file) => file.name.length > dirPrefix.length)
+      .map((file) => {
+        const entityId = file.name.slice(dirPrefix.length);
+        const { size, timeCreated } = file.metadata;
+        return {
+          file,
+          objectPath: `/objects/${entityId}`,
+          sizeBytes: size != null ? Number(size) : null,
+          createdAt: timeCreated ? new Date(timeCreated) : null,
+        };
+      });
   }
 
   normalizeObjectEntityPath(rawPath: string): string {

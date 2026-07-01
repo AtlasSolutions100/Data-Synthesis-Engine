@@ -8,6 +8,7 @@
     "build": "node ./build.mjs",
     "start": "node --enable-source-maps ./dist/index.mjs",
     "backfill-documents": "tsx ./scripts/backfill-documents.ts",
+    "cleanup-orphaned-uploads": "tsx ./scripts/cleanup-orphaned-uploads.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {

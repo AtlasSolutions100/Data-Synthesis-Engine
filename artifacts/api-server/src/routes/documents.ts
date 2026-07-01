@@ -13,7 +13,7 @@ import {
   CreateJobDocumentBody,
   DeleteJobDocumentParams,
 } from "@workspace/api-zod";
-import { ObjectStorageService } from "../lib/objectStorage";
+import { ObjectStorageService, ObjectNotFoundError } from "../lib/objectStorage";
 import { validateUpload } from "../lib/uploadValidation";
 
 const router: IRouter = Router();
@@ -100,6 +100,47 @@ router.post("/jobs/:id/documents", async (req, res): Promise<void> => {
     parsed.data.objectPath,
   );
 
+  // The checks above only trust the client-supplied metadata. A client could
+  // request an upload URL with truthful metadata, pass validation, then PUT a
+  // different / oversized file directly to the presigned URL. Verify the
+  // *actual* stored object against the limits before accepting it — and delete
+  // a rejected object so it can't silently waste storage.
+  let objectFile;
+  try {
+    objectFile = await objectStorageService.getObjectEntityFile(objectPath);
+  } catch (err) {
+    if (err instanceof ObjectNotFoundError) {
+      res.status(400).json({ error: "Uploaded file was not found in storage." });
+      return;
+    }
+    throw err;
+  }
+
+  const [metadata] = await objectFile.getMetadata();
+  const actualSizeBytes = metadata.size != null ? Number(metadata.size) : null;
+  const actualContentType =
+    (metadata.contentType as string | undefined) ??
+    parsed.data.contentType ??
+    null;
+
+  const actualValidation = validateUpload({
+    fileName: parsed.data.fileName,
+    contentType: actualContentType,
+    sizeBytes: actualSizeBytes,
+  });
+  if (!actualValidation.ok) {
+    try {
+      await objectFile.delete();
+    } catch (delErr) {
+      req.log.warn(
+        { err: delErr, objectPath },
+        "Failed to delete rejected upload object",
+      );
+    }
+    res.status(400).json({ error: actualValidation.error });
+    return;
+  }
+
   const [doc] = await db
     .insert(jobDocumentsTable)
     .values({
@@ -108,7 +149,7 @@ router.post("/jobs/:id/documents", async (req, res): Promise<void> => {
       fileName: parsed.data.fileName,
       objectPath,
       contentType: parsed.data.contentType ?? null,
-      sizeBytes: parsed.data.sizeBytes ?? null,
+      sizeBytes: actualSizeBytes ?? parsed.data.sizeBytes ?? null,
       description: parsed.data.description ?? null,
       uploadedByUserId: req.currentUser?.id ?? null,
     })
