@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   useListJobDocuments,
   getListJobDocumentsQueryKey,
@@ -122,7 +122,7 @@ function formatDate(iso: string): string {
   });
 }
 
-type FileKind = "image" | "pdf" | "other";
+type FileKind = "image" | "pdf" | "csv" | "xlsx" | "other";
 
 function fileKind(
   fileName: string,
@@ -131,12 +131,204 @@ function fileKind(
   const ct = (contentType ?? "").toLowerCase();
   if (ct.startsWith("image/")) return "image";
   if (ct === "application/pdf") return "pdf";
+  if (ct === "text/csv" || ct === "application/csv") return "csv";
+  if (
+    ct === "application/vnd.ms-excel" ||
+    ct === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+  )
+    return "xlsx";
 
   const ext = fileName.split(".").pop()?.toLowerCase() ?? "";
   if (["png", "jpg", "jpeg", "gif", "webp", "bmp", "svg"].includes(ext))
     return "image";
   if (ext === "pdf") return "pdf";
+  if (ext === "csv") return "csv";
+  if (ext === "xls" || ext === "xlsx") return "xlsx";
   return "other";
+}
+
+const MAX_PREVIEW_BYTES = 5 * 1024 * 1024;
+const MAX_PREVIEW_ROWS = 100;
+
+// Minimal RFC-4180-ish CSV parser: handles quoted fields, escaped quotes ("")
+// and both \n and \r\n line endings. Stops once `maxRows` rows are collected.
+function parseCsv(text: string, maxRows: number): string[][] {
+  const rows: string[][] = [];
+  let field = "";
+  let row: string[] = [];
+  let inQuotes = false;
+
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (inQuotes) {
+      if (ch === '"') {
+        if (text[i + 1] === '"') {
+          field += '"';
+          i++;
+        } else {
+          inQuotes = false;
+        }
+      } else {
+        field += ch;
+      }
+    } else if (ch === '"') {
+      inQuotes = true;
+    } else if (ch === ",") {
+      row.push(field);
+      field = "";
+    } else if (ch === "\r") {
+      // ignore — handled by the following \n
+    } else if (ch === "\n") {
+      row.push(field);
+      field = "";
+      rows.push(row);
+      row = [];
+      if (rows.length >= maxRows) return rows;
+    } else {
+      field += ch;
+    }
+  }
+
+  if (field !== "" || row.length > 0) {
+    row.push(field);
+    rows.push(row);
+  }
+  return rows;
+}
+
+type SpreadsheetState =
+  | { status: "loading" }
+  | { status: "too-large" }
+  | { status: "error" }
+  | { status: "ready"; rows: string[][]; truncated: boolean };
+
+function SpreadsheetPreview({
+  href,
+  kind,
+  sizeBytes,
+}: {
+  href: string;
+  kind: "csv" | "xlsx";
+  sizeBytes: number | null | undefined;
+}) {
+  const [state, setState] = useState<SpreadsheetState>({ status: "loading" });
+
+  useEffect(() => {
+    let cancelled = false;
+    setState({ status: "loading" });
+
+    async function load() {
+      if (sizeBytes != null && sizeBytes > MAX_PREVIEW_BYTES) {
+        if (!cancelled) setState({ status: "too-large" });
+        return;
+      }
+      try {
+        const res = await fetch(href);
+        if (!res.ok) throw new Error(`Request failed (${res.status})`);
+
+        let rows: string[][];
+        if (kind === "csv") {
+          const text = await res.text();
+          rows = parseCsv(text, MAX_PREVIEW_ROWS + 1);
+        } else {
+          const blob = await res.blob();
+          const readXlsxFile = (await import("read-excel-file")).default;
+          const parsed = await readXlsxFile(blob);
+          rows = parsed.map((r) =>
+            r.map((cell) => (cell == null ? "" : String(cell))),
+          );
+        }
+
+        const truncated = rows.length > MAX_PREVIEW_ROWS;
+        if (!cancelled)
+          setState({
+            status: "ready",
+            rows: rows.slice(0, MAX_PREVIEW_ROWS),
+            truncated,
+          });
+      } catch {
+        if (!cancelled) setState({ status: "error" });
+      }
+    }
+
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [href, kind, sizeBytes]);
+
+  if (state.status === "loading") {
+    return (
+      <div className="flex items-center justify-center gap-2 py-16 text-slate-500">
+        <Loader2 className="h-4 w-4 animate-spin" />
+        Loading preview…
+      </div>
+    );
+  }
+
+  if (state.status === "too-large" || state.status === "error") {
+    return (
+      <div className="flex flex-col items-center justify-center gap-2 py-16 text-center text-slate-500">
+        <FileSpreadsheet className="h-8 w-8 text-slate-300" />
+        <p className="text-sm">
+          {state.status === "too-large"
+            ? "This spreadsheet is too large to preview here."
+            : "This spreadsheet couldn't be previewed."}
+        </p>
+        <p className="text-xs">Download the file to view its contents.</p>
+      </div>
+    );
+  }
+
+  if (state.rows.length === 0) {
+    return (
+      <div className="flex items-center justify-center py-16 text-sm text-slate-500">
+        This spreadsheet is empty.
+      </div>
+    );
+  }
+
+  const [headerRow, ...bodyRows] = state.rows;
+  const columnCount = state.rows.reduce((max, r) => Math.max(max, r.length), 0);
+
+  return (
+    <div className="max-h-[75vh] overflow-auto rounded-md border border-slate-200">
+      <table className="w-full border-collapse text-sm">
+        <thead className="sticky top-0 z-10 bg-slate-100">
+          <tr>
+            {Array.from({ length: columnCount }).map((_, c) => (
+              <th
+                key={c}
+                className="border-b border-r border-slate-200 px-3 py-2 text-left font-medium text-slate-700 whitespace-nowrap"
+              >
+                {headerRow[c] ?? ""}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {bodyRows.map((r, ri) => (
+            <tr key={ri} className="even:bg-slate-50">
+              {Array.from({ length: columnCount }).map((_, c) => (
+                <td
+                  key={c}
+                  className="border-b border-r border-slate-100 px-3 py-1.5 text-slate-700 whitespace-nowrap"
+                >
+                  {r[c] ?? ""}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {state.truncated && (
+        <div className="bg-slate-50 px-3 py-2 text-xs text-slate-500">
+          Showing the first {MAX_PREVIEW_ROWS} rows. Download the file to see
+          everything.
+        </div>
+      )}
+    </div>
+  );
 }
 
 export function JobDocuments({ jobId }: { jobId: number }) {
@@ -151,6 +343,7 @@ export function JobDocuments({ jobId }: { jobId: number }) {
     href: string;
     fileName: string;
     kind: FileKind;
+    sizeBytes: number | null | undefined;
   } | null>(null);
 
   const { data: documents, isLoading } = useListJobDocuments(jobId, {
@@ -316,9 +509,18 @@ export function JobDocuments({ jobId }: { jobId: number }) {
               docs.map((doc) => {
                 const href = `/api/storage${doc.objectPath}?token=${encodeURIComponent(doc.downloadToken)}`;
                 const kind = fileKind(doc.fileName, doc.contentType);
-                const canPreview = kind === "image" || kind === "pdf";
+                const canPreview =
+                  kind === "image" ||
+                  kind === "pdf" ||
+                  kind === "csv" ||
+                  kind === "xlsx";
                 const openPreview = () =>
-                  setPreview({ href, fileName: doc.fileName, kind });
+                  setPreview({
+                    href,
+                    fileName: doc.fileName,
+                    kind,
+                    sizeBytes: doc.sizeBytes,
+                  });
                 return (
                   <TableRow key={doc.id}>
                     <TableCell>
@@ -361,6 +563,15 @@ export function JobDocuments({ jobId }: { jobId: number }) {
                             title="Preview"
                           >
                             <FileText className="h-5 w-5" />
+                          </button>
+                        ) : kind === "csv" || kind === "xlsx" ? (
+                          <button
+                            type="button"
+                            onClick={openPreview}
+                            className="shrink-0 flex items-center justify-center h-10 w-10 rounded border border-slate-200 bg-emerald-50 text-emerald-600 hover:ring-2 hover:ring-blue-400 transition"
+                            title="Preview"
+                          >
+                            <FileSpreadsheet className="h-5 w-5" />
                           </button>
                         ) : (
                           <span className="shrink-0 flex items-center justify-center h-10 w-10 rounded border border-slate-200 bg-slate-50 text-slate-400">
@@ -465,6 +676,8 @@ export function JobDocuments({ jobId }: { jobId: number }) {
             <DialogTitle className="flex items-center gap-2 pr-8">
               {preview?.kind === "image" ? (
                 <ImageIcon className="h-4 w-4 text-slate-400 shrink-0" />
+              ) : preview?.kind === "csv" || preview?.kind === "xlsx" ? (
+                <FileSpreadsheet className="h-4 w-4 text-slate-400 shrink-0" />
               ) : (
                 <FileText className="h-4 w-4 text-slate-400 shrink-0" />
               )}
@@ -484,6 +697,12 @@ export function JobDocuments({ jobId }: { jobId: number }) {
               src={preview.href}
               title={preview.fileName}
               className="w-full h-[75vh] rounded-md border border-slate-200"
+            />
+          ) : preview?.kind === "csv" || preview?.kind === "xlsx" ? (
+            <SpreadsheetPreview
+              href={preview.href}
+              kind={preview.kind}
+              sizeBytes={preview.sizeBytes}
             />
           ) : null}
           {preview && (
