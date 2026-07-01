@@ -15,6 +15,7 @@ import {
 } from "@workspace/api-zod";
 import { ObjectStorageService, ObjectNotFoundError } from "../lib/objectStorage";
 import { validateUpload } from "../lib/uploadValidation";
+import { createDownloadToken } from "../lib/downloadToken";
 
 const router: IRouter = Router();
 const objectStorageService = new ObjectStorageService();
@@ -28,6 +29,7 @@ function serializeDocument(doc: DocRow, uploadedByName: string | null) {
     category: doc.category,
     fileName: doc.fileName,
     objectPath: doc.objectPath,
+    downloadToken: createDownloadToken(doc.objectPath),
     contentType: doc.contentType,
     sizeBytes: doc.sizeBytes,
     description: doc.description,

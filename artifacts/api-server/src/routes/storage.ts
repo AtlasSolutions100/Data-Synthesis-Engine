@@ -8,6 +8,7 @@ import {
 } from "@workspace/api-zod";
 import { ObjectStorageService, ObjectNotFoundError } from "../lib/objectStorage";
 import { validateUpload } from "../lib/uploadValidation";
+import { verifyDownloadToken } from "../lib/downloadToken";
 
 const router: IRouter = Router();
 const objectStorageService = new ObjectStorageService();
@@ -110,6 +111,17 @@ router.get("/storage/objects/*path", async (req: Request, res: Response) => {
     const raw = req.params.path;
     const wildcardPath = Array.isArray(raw) ? raw.join("/") : raw;
     const objectPath = `/objects/${wildcardPath}`;
+
+    // Time-limited access: the download URL carries a short-lived signed token.
+    // Once it expires (or if it is missing/tampered), the link stops working —
+    // so a URL copied out of the app can't be shared and reused indefinitely.
+    // Tokens are minted per document when the documents list is served.
+    const token =
+      typeof req.query.token === "string" ? req.query.token : undefined;
+    if (!verifyDownloadToken(objectPath, token)) {
+      res.status(403).json({ error: "This document link has expired." });
+      return;
+    }
 
     // Authorization model: only objects that are tracked as a job document may
     // be served. This ties object access to the app's data model and prevents a

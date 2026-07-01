@@ -311,7 +311,7 @@ export function JobDocuments({ jobId }: { jobId: number }) {
               </TableRow>
             ) : (
               docs.map((doc) => {
-                const href = `/api/storage${doc.objectPath}`;
+                const href = `/api/storage${doc.objectPath}?token=${encodeURIComponent(doc.downloadToken)}`;
                 const kind = fileKind(doc.fileName, doc.contentType);
                 const canPreview = kind === "image" || kind === "pdf";
                 const openPreview = () =>

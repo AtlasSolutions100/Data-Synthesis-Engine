@@ -2490,7 +2490,7 @@ components:
 
     JobDocument:
       type: object
-      required: [id, jobId, category, fileName, objectPath, createdAt]
+      required: [id, jobId, category, fileName, objectPath, downloadToken, createdAt]
       properties:
         id:
           type: integer
@@ -2503,6 +2503,12 @@ components:
           type: string
         objectPath:
           type: string
+        downloadToken:
+          type: string
+          description: >-
+            Short-lived signed token that must be supplied as the `token` query
+            param when fetching the document via GET /storage/objects/*. Expires
+            after a fixed TTL so a copied link stops working.
         contentType:
           type: string
           nullable: true

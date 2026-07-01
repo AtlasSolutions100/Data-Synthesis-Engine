@@ -1041,6 +1041,8 @@ export interface JobDocument {
   category: JobDocumentCategory;
   fileName: string;
   objectPath: string;
+  /** Short-lived signed token that must be supplied as the `token` query param when fetching the document via GET /storage/objects/*. Expires after a fixed TTL so a copied link stops working. */
+  downloadToken: string;
   contentType?: string | null;
   sizeBytes?: number | null;
   description?: string | null;
