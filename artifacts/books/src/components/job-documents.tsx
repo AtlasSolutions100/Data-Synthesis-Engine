@@ -124,7 +124,7 @@ function formatDate(iso: string): string {
 
 type FileKind = "image" | "pdf" | "csv" | "xlsx" | "other";
 
-function fileKind(
+export function fileKind(
   fileName: string,
   contentType: string | null | undefined,
 ): FileKind {
@@ -152,7 +152,7 @@ const MAX_PREVIEW_ROWS = 100;
 
 // Minimal RFC-4180-ish CSV parser: handles quoted fields, escaped quotes ("")
 // and both \n and \r\n line endings. Stops once `maxRows` rows are collected.
-function parseCsv(text: string, maxRows: number): string[][] {
+export function parseCsv(text: string, maxRows: number): string[][] {
   const rows: string[][] = [];
   let field = "";
   let row: string[] = [];
@@ -206,7 +206,7 @@ function toStringRows(rows: unknown[][]): string[][] {
   return rows.map((r) => r.map((cell) => (cell == null ? "" : String(cell))));
 }
 
-function SpreadsheetPreview({
+export function SpreadsheetPreview({
   href,
   kind,
   sizeBytes,
