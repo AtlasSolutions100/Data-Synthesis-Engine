@@ -1,8 +1,39 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, waitFor, cleanup } from "@testing-library/react";
+import {
+  render,
+  screen,
+  waitFor,
+  cleanup,
+  fireEvent,
+  within,
+} from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import path from "path";
 import readXlsxFileNode from "read-excel-file/node";
-import { parseCsv, fileKind, SpreadsheetPreview } from "./job-documents";
+import {
+  parseCsv,
+  fileKind,
+  SpreadsheetPreview,
+  JobDocuments,
+} from "./job-documents";
+
+// JobDocuments pulls in generated react-query hooks and the upload hook; mock
+// them so render tests can control the document list without a live API.
+const mockUseListJobDocuments = vi.fn();
+vi.mock("@workspace/api-client-react", () => ({
+  useListJobDocuments: (...args: unknown[]) => mockUseListJobDocuments(...args),
+  getListJobDocumentsQueryKey: (id: number) => ["jobDocuments", id],
+  useCreateJobDocument: () => ({ mutate: vi.fn(), isPending: false }),
+  useDeleteJobDocument: () => ({ mutate: vi.fn(), isPending: false }),
+}));
+
+vi.mock("@workspace/object-storage-web", () => ({
+  useUpload: () => ({ uploadFile: vi.fn(), isUploading: false }),
+}));
+
+vi.mock("@/hooks/use-toast", () => ({
+  useToast: () => ({ toast: vi.fn() }),
+}));
 
 // The dynamic `import("read-excel-file")` inside SpreadsheetPreview is replaced
 // with a controllable spy so the component's xlsx branch can be exercised
@@ -231,6 +262,156 @@ describe("SpreadsheetPreview (xlsx)", () => {
     await waitFor(() =>
       expect(screen.getByText(/couldn't be previewed/i)).toBeTruthy(),
     );
+  });
+});
+
+type Doc = {
+  id: number;
+  fileName: string;
+  objectPath: string;
+  downloadToken: string;
+  contentType: string | null;
+  sizeBytes: number | null;
+  category: string;
+  createdAt: string;
+  uploadedByName: string | null;
+};
+
+function makeDoc(overrides: Partial<Doc> = {}): Doc {
+  return {
+    id: 1,
+    fileName: "photo.png",
+    objectPath: "/objects/uploads/photo.png",
+    downloadToken: "tok123",
+    contentType: "image/png",
+    sizeBytes: 1024,
+    category: "other",
+    createdAt: "2026-06-01T12:00:00.000Z",
+    uploadedByName: "Test User",
+    ...overrides,
+  };
+}
+
+function renderJobDocuments(docs: Doc[]) {
+  mockUseListJobDocuments.mockReturnValue({ data: docs, isLoading: false });
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <JobDocuments jobId={7} />
+    </QueryClientProvider>,
+  );
+}
+
+describe("JobDocuments preview affordances", () => {
+  it("renders an image row with a thumbnail pointing at the tokenized href", () => {
+    renderJobDocuments([makeDoc()]);
+
+    const img = screen.getByAltText("photo.png") as HTMLImageElement;
+    expect(img.getAttribute("src")).toBe(
+      "/api/storage/objects/uploads/photo.png?token=tok123",
+    );
+  });
+
+  it("falls back to the icon button when the thumbnail fails to load", async () => {
+    renderJobDocuments([makeDoc()]);
+
+    const img = screen.getByAltText("photo.png");
+    fireEvent.error(img);
+
+    // The <img> is gone, replaced with an icon button that still opens the preview.
+    await waitFor(() => expect(screen.queryByAltText("photo.png")).toBeNull());
+    // Scope to the file cell: the fallback is the left-side icon button (an
+    // ImageIcon svg inside a Preview-titled button), not the right-side eye action.
+    const row = screen.getByText("photo.png").closest("tr")!;
+    const fallbackButton = within(row)
+      .getAllByTitle("Preview")
+      .find((b) => b.querySelector("svg.lucide-image"));
+    expect(fallbackButton).toBeTruthy();
+
+    // The fallback still opens the lightbox with the full image.
+    fireEvent.click(fallbackButton!);
+    const dialog = await screen.findByRole("dialog");
+    const fullImg = within(dialog).getByAltText("photo.png") as HTMLImageElement;
+    expect(fullImg.getAttribute("src")).toBe(
+      "/api/storage/objects/uploads/photo.png?token=tok123",
+    );
+  });
+
+  it("opens the image lightbox with the full-size image when clicking the file name", async () => {
+    renderJobDocuments([makeDoc()]);
+
+    // Both the thumbnail button and the file-name button share the accessible
+    // name; pick the one whose text content is the file name.
+    const nameButton = screen
+      .getAllByRole("button", { name: /photo\.png/ })
+      .find((b) => b.textContent === "photo.png");
+    expect(nameButton).toBeTruthy();
+    fireEvent.click(nameButton!);
+
+    const dialog = await screen.findByRole("dialog");
+    const fullImg = within(dialog).getByAltText("photo.png") as HTMLImageElement;
+    expect(fullImg.getAttribute("src")).toBe(
+      "/api/storage/objects/uploads/photo.png?token=tok123",
+    );
+    // No iframe for images.
+    expect(dialog.querySelector("iframe")).toBeNull();
+  });
+
+  it("opens a PDF in the iframe preview", async () => {
+    renderJobDocuments([
+      makeDoc({
+        id: 2,
+        fileName: "contract.pdf",
+        objectPath: "/objects/uploads/contract.pdf",
+        downloadToken: "pdftok",
+        contentType: "application/pdf",
+      }),
+    ]);
+
+    fireEvent.click(screen.getByRole("button", { name: /contract\.pdf/ }));
+
+    const dialog = await screen.findByRole("dialog");
+    const iframe = dialog.querySelector("iframe");
+    expect(iframe).toBeTruthy();
+    expect(iframe!.getAttribute("src")).toBe(
+      "/api/storage/objects/uploads/contract.pdf?token=pdftok",
+    );
+    expect(iframe!.getAttribute("title")).toBe("contract.pdf");
+    // No <img> preview for PDFs.
+    expect(within(dialog).queryByAltText("contract.pdf")).toBeNull();
+  });
+
+  it("shows no preview affordance for non-previewable files, only download/delete", () => {
+    renderJobDocuments([
+      makeDoc({
+        id: 3,
+        fileName: "notes.txt",
+        objectPath: "/objects/uploads/notes.txt",
+        downloadToken: "txttok",
+        contentType: "text/plain",
+      }),
+    ]);
+
+    // No preview buttons anywhere (no thumbnail, no eye button, no clickable name).
+    expect(screen.queryByTitle("Preview")).toBeNull();
+    expect(screen.queryByRole("button", { name: /notes\.txt/ })).toBeNull();
+    // The file name renders as plain text.
+    expect(screen.getByText("notes.txt")).toBeTruthy();
+    // Download link exists with the tokenized href, and a delete button is present.
+    const download = screen.getByTitle("Download");
+    expect(download.getAttribute("href")).toBe(
+      "/api/storage/objects/uploads/notes.txt?token=txttok",
+    );
+    expect(
+      screen
+        .getAllByRole("button")
+        .some((b) => b.querySelector("svg.lucide-trash-2, svg.lucide-trash2")),
+    ).toBe(true);
+    // Clicking the plain-text name does not open a dialog.
+    fireEvent.click(screen.getByText("notes.txt"));
+    expect(screen.queryByRole("dialog")).toBeNull();
   });
 });
 
