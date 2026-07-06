@@ -6,14 +6,22 @@ import request from "supertest";
  * Access-control regression tests for GET /api/storage/objects/*.
  *
  * These lock in the security guarantee that private financial documents are
- * only served when (a) there is a valid app user on the request and (b) the
- * requested object is tracked as a job document. A future refactor of the
- * storage route or of how the router is mounted must not silently re-open the
- * hole of serving arbitrary/unattached objects.
+ * only served when (a) there is a valid app user on the request, (b) the
+ * request carries a valid, unexpired signed download token for the object, and
+ * (c) the requested object is tracked as a job document. A future refactor of
+ * the storage route or of how the router is mounted must not silently re-open
+ * the hole of serving arbitrary/unattached objects.
  *
  * The database and object-storage layers are mocked so the test exercises the
- * route's own authorization logic in isolation (no real Postgres / GCS).
+ * route's own authorization logic in isolation (no real Postgres / GCS). The
+ * download-token layer is NOT mocked — real HMAC tokens are minted so the token
+ * check is exercised end to end; that requires CLERK_SECRET_KEY to be set.
  */
+
+// The download-token signing key is derived from CLERK_SECRET_KEY. Set it
+// before importing anything that reaches the token module so both the route and
+// the test's token minting use the same key.
+process.env.CLERK_SECRET_KEY = process.env.CLERK_SECRET_KEY ?? "test-clerk-secret-key";
 
 // Shared, per-test mutable state. Declared via vi.hoisted so the vi.mock
 // factories (which are hoisted above imports) can reference it safely.
@@ -66,6 +74,8 @@ vi.mock("../lib/objectStorage", () => {
 
 // Import after mocks are registered.
 const { default: storageRouter } = await import("./storage");
+// Real token minting — deliberately not mocked so the route's token check runs.
+const { createDownloadToken } = await import("../lib/downloadToken");
 
 type FakeUser = { id: string; role: string } | undefined;
 
@@ -105,11 +115,27 @@ describe("GET /api/storage/objects/*", () => {
     expect(mocks.downloadObject).not.toHaveBeenCalled();
   });
 
+  it("returns 403 when the signed download token is missing", async () => {
+    mocks.docRows = [{ id: "doc-1" }]; // even a tracked path needs a valid token
+    const app = buildApp({ id: "user-1", role: "owner" });
+
+    const res = await request(app).get("/api/storage/objects/uploads/tracked-1");
+
+    expect(res.status).toBe(403);
+    // Must fail closed before touching the database or storage.
+    expect(mocks.getObjectEntityFile).not.toHaveBeenCalled();
+    expect(mocks.downloadObject).not.toHaveBeenCalled();
+  });
+
   it("returns 404 for a guessed/unattached object path (no jobDocuments row)", async () => {
     mocks.docRows = []; // no tracked document maps to this path
     const app = buildApp({ id: "user-1", role: "owner" });
 
-    const res = await request(app).get("/api/storage/objects/uploads/guessed-xyz");
+    // A valid token gets past the token gate so we exercise the tracking check.
+    const token = createDownloadToken("/objects/uploads/guessed-xyz");
+    const res = await request(app).get(
+      `/api/storage/objects/uploads/guessed-xyz?token=${encodeURIComponent(token)}`,
+    );
 
     expect(res.status).toBe(404);
     // Untracked objects must never be fetched from storage.
@@ -128,8 +154,9 @@ describe("GET /api/storage/objects/*", () => {
     );
     const app = buildApp({ id: "user-1", role: "owner" });
 
+    const token = createDownloadToken("/objects/uploads/tracked-1");
     const res = await request(app)
-      .get("/api/storage/objects/uploads/tracked-1")
+      .get(`/api/storage/objects/uploads/tracked-1?token=${encodeURIComponent(token)}`)
       .responseType("blob");
 
     expect(res.status).toBe(200);
