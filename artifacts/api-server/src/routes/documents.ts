@@ -14,7 +14,11 @@ import {
   DeleteJobDocumentParams,
 } from "@workspace/api-zod";
 import { ObjectStorageService, ObjectNotFoundError } from "../lib/objectStorage";
-import { validateUpload } from "../lib/uploadValidation";
+import {
+  validateUpload,
+  validateActualFileType,
+  SNIFF_BYTE_LENGTH,
+} from "../lib/uploadValidation";
 import { createDownloadToken } from "../lib/downloadToken";
 
 const router: IRouter = Router();
@@ -37,6 +41,26 @@ function serializeDocument(doc: DocRow, uploadedByName: string | null) {
     uploadedByName,
     createdAt: doc.createdAt.toISOString(),
   };
+}
+
+/**
+ * Best-effort deletion of a stored object we've decided to reject, so a
+ * spoofed / oversized / unverifiable upload can't silently waste storage.
+ * Failures are logged but not surfaced — the caller still rejects the request.
+ */
+async function deleteRejectedObject(
+  req: { log: { warn: (obj: unknown, msg: string) => void } },
+  objectFile: { delete: () => Promise<unknown> },
+  objectPath: string,
+): Promise<void> {
+  try {
+    await objectFile.delete();
+  } catch (delErr) {
+    req.log.warn(
+      { err: delErr, objectPath },
+      "Failed to delete rejected upload object",
+    );
+  }
 }
 
 router.get("/jobs/:id/documents", async (req, res): Promise<void> => {
@@ -131,15 +155,42 @@ router.post("/jobs/:id/documents", async (req, res): Promise<void> => {
     sizeBytes: actualSizeBytes,
   });
   if (!actualValidation.ok) {
-    try {
-      await objectFile.delete();
-    } catch (delErr) {
-      req.log.warn(
-        { err: delErr, objectPath },
-        "Failed to delete rejected upload object",
-      );
-    }
+    await deleteRejectedObject(req, objectFile, objectPath);
     res.status(400).json({ error: actualValidation.error });
+    return;
+  }
+
+  // Name and MIME type are both attacker-controlled: a determined user could
+  // request an upload URL for a truthful ".pdf", pass the checks above, then
+  // PUT an executable (or any other file) to the presigned URL. Sniff the
+  // *actual* leading bytes (magic numbers) so the Documents list only ever
+  // contains genuine PDFs / images / spreadsheets — and delete anything that
+  // doesn't match so it can't linger in storage.
+  let headBytes: Buffer;
+  try {
+    headBytes = await objectStorageService.readObjectHead(
+      objectFile,
+      SNIFF_BYTE_LENGTH,
+    );
+  } catch (err) {
+    req.log.warn(
+      { err, objectPath },
+      "Failed to read uploaded object bytes for type sniffing",
+    );
+    await deleteRejectedObject(req, objectFile, objectPath);
+    res
+      .status(400)
+      .json({ error: "Could not verify the uploaded file's contents." });
+    return;
+  }
+
+  const typeValidation = validateActualFileType({
+    fileName: parsed.data.fileName,
+    bytes: headBytes,
+  });
+  if (!typeValidation.ok) {
+    await deleteRejectedObject(req, objectFile, objectPath);
+    res.status(400).json({ error: typeValidation.error });
     return;
   }
 

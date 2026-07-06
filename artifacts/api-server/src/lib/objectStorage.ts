@@ -140,6 +140,21 @@ export class ObjectStorageService {
     });
   }
 
+  /**
+   * Read the first `length` bytes of a stored object, for magic-number type
+   * sniffing. Reads a bounded byte range so we never pull a full (potentially
+   * 25 MB) file into memory just to inspect its header.
+   */
+  async readObjectHead(file: File, length: number): Promise<Buffer> {
+    return new Promise<Buffer>((resolve, reject) => {
+      const chunks: Array<Buffer> = [];
+      const stream = file.createReadStream({ start: 0, end: length - 1 });
+      stream.on("data", (chunk: Buffer) => chunks.push(chunk));
+      stream.on("end", () => resolve(Buffer.concat(chunks)));
+      stream.on("error", reject);
+    });
+  }
+
   async getObjectEntityFile(objectPath: string): Promise<File> {
     if (!objectPath.startsWith("/objects/")) {
       throw new ObjectNotFoundError();
