@@ -650,6 +650,9 @@ paths:
       operationId: getCostByAccount
       tags: [reports]
       summary: Totals grouped by account
+      parameters:
+        - $ref: "#/components/parameters/StartDateParam"
+        - $ref: "#/components/parameters/EndDateParam"
       responses:
         "200":
           description: Account totals
@@ -989,6 +992,9 @@ paths:
       tags: [reports]
       summary: Payroll cost summary by job
       description: Burdened labor allocated to each job across posted payroll runs, reconciling to ledger payroll entries.
+      parameters:
+        - $ref: "#/components/parameters/StartDateParam"
+        - $ref: "#/components/parameters/EndDateParam"
       responses:
         "200":
           description: Payroll by job

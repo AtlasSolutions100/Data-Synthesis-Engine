@@ -1144,6 +1144,19 @@ startDate?: StartDateParamParameter;
 endDate?: EndDateParamParameter;
 };
 
+export type GetCostByAccountParams = {
+/**
+ * Inclusive start of the date range (YYYY-MM-DD). Omit for no lower bound.
+ * @pattern ^\d{4}-\d{2}-\d{2}$
+ */
+startDate?: StartDateParamParameter;
+/**
+ * Inclusive end of the date range (YYYY-MM-DD). Omit for no upper bound.
+ * @pattern ^\d{4}-\d{2}-\d{2}$
+ */
+endDate?: EndDateParamParameter;
+};
+
 export type ListInvoicesParams = {
 jobId?: number;
 customerId?: number;
@@ -1183,6 +1196,19 @@ export const ListBillsStatus = {
   partial: 'partial',
   paid: 'paid',
 } as const;
+
+export type GetPayrollByJobParams = {
+/**
+ * Inclusive start of the date range (YYYY-MM-DD). Omit for no lower bound.
+ * @pattern ^\d{4}-\d{2}-\d{2}$
+ */
+startDate?: StartDateParamParameter;
+/**
+ * Inclusive end of the date range (YYYY-MM-DD). Omit for no upper bound.
+ * @pattern ^\d{4}-\d{2}-\d{2}$
+ */
+endDate?: EndDateParamParameter;
+};
 
 export type ListPayrollRunsParams = {
 /**

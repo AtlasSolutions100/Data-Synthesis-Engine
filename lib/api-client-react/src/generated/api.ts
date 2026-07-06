@@ -38,7 +38,9 @@ import type {
   EmployeeInput,
   EmployeeUpdate,
   ErrorResponse,
+  GetCostByAccountParams,
   GetDashboardSummaryParams,
+  GetPayrollByJobParams,
   HealthStatus,
   Invoice,
   InvoiceInput,
@@ -2754,20 +2756,27 @@ export function useGetDashboardSummary<TData = Awaited<ReturnType<typeof getDash
 
 
 
-export const getGetCostByAccountUrl = () => {
+export const getGetCostByAccountUrl = (params?: GetCostByAccountParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
 
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
 
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/api/reports/cost-by-account`
+  return stringifiedParams.length > 0 ? `/api/reports/cost-by-account?${stringifiedParams}` : `/api/reports/cost-by-account`
 }
 
 /**
  * @summary Totals grouped by account
  */
-export const getCostByAccount = async ( options?: RequestInit): Promise<AccountTotal[]> => {
+export const getCostByAccount = async (params?: GetCostByAccountParams, options?: RequestInit): Promise<AccountTotal[]> => {
 
-  return customFetch<AccountTotal[]>(getGetCostByAccountUrl(),
+  return customFetch<AccountTotal[]>(getGetCostByAccountUrl(params),
   {
     ...options,
     method: 'GET'
@@ -2780,23 +2789,23 @@ export const getCostByAccount = async ( options?: RequestInit): Promise<AccountT
 
 
 
-export const getGetCostByAccountQueryKey = () => {
+export const getGetCostByAccountQueryKey = (params?: GetCostByAccountParams,) => {
     return [
-    `/api/reports/cost-by-account`
+    `/api/reports/cost-by-account`, ...(params ? [params] : [])
     ] as const;
     }
 
 
-export const getGetCostByAccountQueryOptions = <TData = Awaited<ReturnType<typeof getCostByAccount>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCostByAccount>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getGetCostByAccountQueryOptions = <TData = Awaited<ReturnType<typeof getCostByAccount>>, TError = ErrorType<unknown>>(params?: GetCostByAccountParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCostByAccount>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetCostByAccountQueryKey();
+  const queryKey =  queryOptions?.queryKey ?? getGetCostByAccountQueryKey(params);
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCostByAccount>>> = ({ signal }) => getCostByAccount({ signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCostByAccount>>> = ({ signal }) => getCostByAccount(params, { signal, ...requestOptions });
 
 
 
@@ -2814,11 +2823,11 @@ export type GetCostByAccountQueryError = ErrorType<unknown>
  */
 
 export function useGetCostByAccount<TData = Awaited<ReturnType<typeof getCostByAccount>>, TError = ErrorType<unknown>>(
-  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCostByAccount>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+ params?: GetCostByAccountParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCostByAccount>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
-  const queryOptions = getGetCostByAccountQueryOptions(options)
+  const queryOptions = getGetCostByAccountQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 
@@ -4016,21 +4025,28 @@ export const useCreateVendorCredit = <TError = ErrorType<ErrorResponse>,
       return useMutation(getCreateVendorCreditMutationOptions(options));
     }
 
-export const getGetPayrollByJobUrl = () => {
+export const getGetPayrollByJobUrl = (params?: GetPayrollByJobParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
 
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
 
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/api/reports/payroll-by-job`
+  return stringifiedParams.length > 0 ? `/api/reports/payroll-by-job?${stringifiedParams}` : `/api/reports/payroll-by-job`
 }
 
 /**
  * Burdened labor allocated to each job across posted payroll runs, reconciling to ledger payroll entries.
  * @summary Payroll cost summary by job
  */
-export const getPayrollByJob = async ( options?: RequestInit): Promise<PayrollByJob> => {
+export const getPayrollByJob = async (params?: GetPayrollByJobParams, options?: RequestInit): Promise<PayrollByJob> => {
 
-  return customFetch<PayrollByJob>(getGetPayrollByJobUrl(),
+  return customFetch<PayrollByJob>(getGetPayrollByJobUrl(params),
   {
     ...options,
     method: 'GET'
@@ -4043,23 +4059,23 @@ export const getPayrollByJob = async ( options?: RequestInit): Promise<PayrollBy
 
 
 
-export const getGetPayrollByJobQueryKey = () => {
+export const getGetPayrollByJobQueryKey = (params?: GetPayrollByJobParams,) => {
     return [
-    `/api/reports/payroll-by-job`
+    `/api/reports/payroll-by-job`, ...(params ? [params] : [])
     ] as const;
     }
 
 
-export const getGetPayrollByJobQueryOptions = <TData = Awaited<ReturnType<typeof getPayrollByJob>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPayrollByJob>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getGetPayrollByJobQueryOptions = <TData = Awaited<ReturnType<typeof getPayrollByJob>>, TError = ErrorType<unknown>>(params?: GetPayrollByJobParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPayrollByJob>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetPayrollByJobQueryKey();
+  const queryKey =  queryOptions?.queryKey ?? getGetPayrollByJobQueryKey(params);
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPayrollByJob>>> = ({ signal }) => getPayrollByJob({ signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPayrollByJob>>> = ({ signal }) => getPayrollByJob(params, { signal, ...requestOptions });
 
 
 
@@ -4077,11 +4093,11 @@ export type GetPayrollByJobQueryError = ErrorType<unknown>
  */
 
 export function useGetPayrollByJob<TData = Awaited<ReturnType<typeof getPayrollByJob>>, TError = ErrorType<unknown>>(
-  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPayrollByJob>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+ params?: GetPayrollByJobParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPayrollByJob>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
-  const queryOptions = getGetPayrollByJobQueryOptions(options)
+  const queryOptions = getGetPayrollByJobQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

@@ -58,7 +58,7 @@ const agingHeaders = (
 );
 
 export default function Reports() {
-  const { data: report, isLoading } = useGetCostByAccount({
+  const { data: report, isLoading } = useGetCostByAccount(undefined, {
     query: { queryKey: getGetCostByAccountQueryKey() },
   });
   const { data: arAging, isLoading: arLoading } = useGetArAging({
@@ -67,9 +67,12 @@ export default function Reports() {
   const { data: apAging, isLoading: apLoading } = useGetApAging({
     query: { queryKey: getGetApAgingQueryKey() },
   });
-  const { data: payrollByJob, isLoading: payrollLoading } = useGetPayrollByJob({
-    query: { queryKey: getGetPayrollByJobQueryKey() },
-  });
+  const { data: payrollByJob, isLoading: payrollLoading } = useGetPayrollByJob(
+    undefined,
+    {
+      query: { queryKey: getGetPayrollByJobQueryKey() },
+    },
+  );
 
   return (
     <div className="space-y-8">

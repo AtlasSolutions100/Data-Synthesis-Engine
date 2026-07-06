@@ -24,6 +24,8 @@ import {
   invoicesTable,
   invoiceLinesTable,
   payrollRunsTable,
+  payrollLinesTable,
+  payrollAllocationsTable,
 } from "@workspace/db";
 
 /**
@@ -50,6 +52,8 @@ const TX = mkWindow("2099-06");
 const DASH = mkWindow("2099-07");
 const INV = mkWindow("2099-08");
 const PR = mkWindow("2099-09");
+const CBA = mkWindow("2099-10");
+const PBJ = mkWindow("2099-11");
 
 /** Build the four boundary dates for a given YYYY-MM prefix. */
 function mkWindow(ym: string) {
@@ -81,7 +85,9 @@ let cogsAcctId: number;
 let expenseAcctId: number;
 let laborAcctId: number;
 let txAcctId: number;
+let cbaAcctId: number;
 const runIds: number[] = [];
+const pbjRunIds: number[] = [];
 const invoiceIds: number[] = [];
 
 let transactionsApp: Express;
@@ -125,6 +131,7 @@ beforeAll(async () => {
       { number: "TEST-DR-6000", name: "Test Expense", type: "expense" },
       { number: "TEST-DR-6100", name: "Test Labor", type: "expense" },
       { number: "TEST-DR-4001", name: "Test Tx Income", type: "income" },
+      { number: "TEST-DR-6200", name: "Test CBA Expense", type: "expense" },
     ])
     .returning();
   incomeAcctId = accts[0].id;
@@ -132,6 +139,7 @@ beforeAll(async () => {
   expenseAcctId = accts[2].id;
   laborAcctId = accts[3].id;
   txAcctId = accts[4].id;
+  cbaAcctId = accts[5].id;
 
   // --- Transactions list fixtures (June): four rows spanning the window, posted
   // to a dedicated account so they are isolated from the Dashboard fixtures.
@@ -187,22 +195,77 @@ beforeAll(async () => {
       .returning();
     runIds.push(run.id);
   }
+
+  // --- Cost-by-account report fixtures (October): four transactions spanning the
+  // window, posted to a dedicated expense account so its total is deterministic.
+  await db.insert(transactionsTable).values(
+    [CBA.before, CBA.start, CBA.end, CBA.after].map((date, i) => ({
+      date,
+      type: "journal",
+      accountId: cbaAcctId,
+      jobId,
+      amountCents: (i + 1) * 1000,
+    })),
+  );
+
+  // --- Payroll-by-job report fixtures (November): four POSTED runs spanning the
+  // window (payDate), each with a single employee line fully allocated to our
+  // job. Each line's total cost is 10000 (regular 6000 + overtime 2000 = gross
+  // 8000, burden 2000); allocating the full amount makes the report's pro-ration
+  // reconcile exactly, so an in-window run contributes 10000 total cost.
+  for (const date of [PBJ.before, PBJ.start, PBJ.end, PBJ.after]) {
+    const [run] = await db
+      .insert(payrollRunsTable)
+      .values({
+        payPeriodStart: date,
+        payPeriodEnd: date,
+        payDate: date,
+        laborAccountId: laborAcctId,
+        posted: true,
+      })
+      .returning();
+    pbjRunIds.push(run.id);
+    const [line] = await db
+      .insert(payrollLinesTable)
+      .values({
+        runId: run.id,
+        lineType: "employee",
+        workerName: "TEST-DR Worker",
+        regularWagesCents: 6000,
+        overtimeWagesCents: 2000,
+        grossWagesCents: 8000,
+        burdenCents: 2000,
+        totalCostCents: 10000,
+      })
+      .returning();
+    await db
+      .insert(payrollAllocationsTable)
+      .values({ lineId: line.id, jobId, amountCents: 10000 });
+  }
 });
 
 afterAll(async () => {
-  const acctIds = [incomeAcctId, cogsAcctId, expenseAcctId, laborAcctId, txAcctId].filter(
-    (x) => x != null,
-  );
+  const acctIds = [
+    incomeAcctId,
+    cogsAcctId,
+    expenseAcctId,
+    laborAcctId,
+    txAcctId,
+    cbaAcctId,
+  ].filter((x) => x != null);
   // Order matters: clear children/referencing rows before their parents.
   if (acctIds.length) {
     await db
       .delete(transactionsTable)
       .where(inArray(transactionsTable.accountId, acctIds));
   }
-  if (runIds.length) {
+  // Deleting posted runs cascades their lines and allocations, releasing the
+  // job's restrict reference before the job is removed below.
+  const allRunIds = [...runIds, ...pbjRunIds];
+  if (allRunIds.length) {
     await db
       .delete(payrollRunsTable)
-      .where(inArray(payrollRunsTable.id, runIds));
+      .where(inArray(payrollRunsTable.id, allRunIds));
   }
   if (invoiceIds.length) {
     await db
@@ -341,6 +404,102 @@ describe("GET /api/payroll-runs date filtering (payDate)", () => {
     const res = await request(payrollApp).get("/api/payroll-runs");
 
     expect(mine(res.body)).toEqual([PR.before, PR.start, PR.end, PR.after]);
+  });
+});
+
+describe("GET /api/reports/cost-by-account date filtering", () => {
+  // The report groups by account across all data, so scope assertions to our
+  // dedicated fixture account.
+  const mine = (body: Array<{ accountNumber: string; amountCents: number }>) =>
+    body.find((r) => r.accountNumber === "TEST-DR-6200")?.amountCents;
+
+  it("includes records exactly on startDate and endDate, excludes one day outside", async () => {
+    const res = await request(reportsApp)
+      .get("/api/reports/cost-by-account")
+      .query({ startDate: CBA.start, endDate: CBA.end });
+
+    expect(res.status).toBe(200);
+    // start 2000 + end 3000; before/after excluded.
+    expect(mine(res.body)).toBe(5000);
+  });
+
+  it("treats startDate as an inclusive lower bound only", async () => {
+    const res = await request(reportsApp)
+      .get("/api/reports/cost-by-account")
+      .query({ startDate: CBA.start });
+
+    // start 2000 + end 3000 + after 4000.
+    expect(mine(res.body)).toBe(9000);
+  });
+
+  it("treats endDate as an inclusive upper bound only", async () => {
+    const res = await request(reportsApp)
+      .get("/api/reports/cost-by-account")
+      .query({ endDate: CBA.end });
+
+    // before 1000 + start 2000 + end 3000.
+    expect(mine(res.body)).toBe(6000);
+  });
+
+  it("returns all-time results when both bounds are omitted (unbounded range)", async () => {
+    const [allTime, fullRange] = await Promise.all([
+      request(reportsApp).get("/api/reports/cost-by-account"),
+      request(reportsApp)
+        .get("/api/reports/cost-by-account")
+        .query({ startDate: "0001-01-01", endDate: "9999-12-31" }),
+    ]);
+
+    // before + start + end + after = 1000 + 2000 + 3000 + 4000.
+    expect(mine(allTime.body)).toBe(10000);
+    expect(mine(allTime.body)).toBe(mine(fullRange.body));
+  });
+});
+
+describe("GET /api/reports/payroll-by-job date filtering (payDate)", () => {
+  // The report rolls up all posted runs, so scope assertions to our fixture job.
+  const mine = (
+    body: { rows: Array<{ jobNumber: string; totalCostCents: number }> },
+  ) => body.rows.find((r) => r.jobNumber === "TEST-DR-JOB")?.totalCostCents;
+
+  it("includes runs exactly on startDate and endDate, excludes one day outside", async () => {
+    const res = await request(reportsApp)
+      .get("/api/reports/payroll-by-job")
+      .query({ startDate: PBJ.start, endDate: PBJ.end });
+
+    expect(res.status).toBe(200);
+    // Two in-window runs at 10000 each; before/after excluded.
+    expect(mine(res.body)).toBe(20000);
+  });
+
+  it("treats startDate as an inclusive lower bound only", async () => {
+    const res = await request(reportsApp)
+      .get("/api/reports/payroll-by-job")
+      .query({ startDate: PBJ.start });
+
+    // start + end + after = three runs at 10000.
+    expect(mine(res.body)).toBe(30000);
+  });
+
+  it("treats endDate as an inclusive upper bound only", async () => {
+    const res = await request(reportsApp)
+      .get("/api/reports/payroll-by-job")
+      .query({ endDate: PBJ.end });
+
+    // before + start + end = three runs at 10000.
+    expect(mine(res.body)).toBe(30000);
+  });
+
+  it("returns all-time results when both bounds are omitted (unbounded range)", async () => {
+    const [allTime, fullRange] = await Promise.all([
+      request(reportsApp).get("/api/reports/payroll-by-job"),
+      request(reportsApp)
+        .get("/api/reports/payroll-by-job")
+        .query({ startDate: "0001-01-01", endDate: "9999-12-31" }),
+    ]);
+
+    // All four runs at 10000 each.
+    expect(mine(allTime.body)).toBe(40000);
+    expect(mine(allTime.body)).toBe(mine(fullRange.body));
   });
 });
 

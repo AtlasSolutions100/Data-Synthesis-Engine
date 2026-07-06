@@ -818,6 +818,15 @@ export const GetDashboardSummaryResponse = zod.object({
 /**
  * @summary Totals grouped by account
  */
+export const getCostByAccountQueryStartDateRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+export const getCostByAccountQueryEndDateRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+
+
+export const GetCostByAccountQueryParams = zod.object({
+  "startDate": zod.coerce.string().regex(getCostByAccountQueryStartDateRegExp).optional().describe('Inclusive start of the date range (YYYY-MM-DD). Omit for no lower bound.'),
+  "endDate": zod.coerce.string().regex(getCostByAccountQueryEndDateRegExp).optional().describe('Inclusive end of the date range (YYYY-MM-DD). Omit for no upper bound.')
+})
+
 export const GetCostByAccountResponseItem = zod.object({
   "accountId": zod.number(),
   "accountNumber": zod.string(),
@@ -1525,6 +1534,15 @@ export const CreateVendorCreditResponse = zod.object({
  * Burdened labor allocated to each job across posted payroll runs, reconciling to ledger payroll entries.
  * @summary Payroll cost summary by job
  */
+export const getPayrollByJobQueryStartDateRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+export const getPayrollByJobQueryEndDateRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+
+
+export const GetPayrollByJobQueryParams = zod.object({
+  "startDate": zod.coerce.string().regex(getPayrollByJobQueryStartDateRegExp).optional().describe('Inclusive start of the date range (YYYY-MM-DD). Omit for no lower bound.'),
+  "endDate": zod.coerce.string().regex(getPayrollByJobQueryEndDateRegExp).optional().describe('Inclusive end of the date range (YYYY-MM-DD). Omit for no upper bound.')
+})
+
 export const GetPayrollByJobResponse = zod.object({
   "rows": zod.array(zod.object({
   "jobId": zod.number(),

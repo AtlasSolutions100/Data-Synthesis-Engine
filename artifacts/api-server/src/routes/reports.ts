@@ -22,9 +22,11 @@ import {
   GetDashboardSummaryResponse,
   GetDashboardSummaryQueryParams,
   GetCostByAccountResponse,
+  GetCostByAccountQueryParams,
   GetArAgingResponse,
   GetApAgingResponse,
   GetPayrollByJobResponse,
+  GetPayrollByJobQueryParams,
 } from "@workspace/api-zod";
 import {
   getJobTotalsMap,
@@ -211,7 +213,18 @@ router.get("/reports/dashboard", async (req, res): Promise<void> => {
   );
 });
 
-router.get("/reports/cost-by-account", async (_req, res): Promise<void> => {
+router.get("/reports/cost-by-account", async (req, res): Promise<void> => {
+  const query = GetCostByAccountQueryParams.safeParse(req.query);
+  if (!query.success) {
+    res.status(400).json({ error: query.error.message });
+    return;
+  }
+  const range: DateRange = {
+    startDate: query.data.startDate,
+    endDate: query.data.endDate,
+  };
+  const dateConds = dateRangeConds(transactionsTable.date, range);
+
   const rows = await db
     .select({
       accountId: accountsTable.id,
@@ -225,6 +238,7 @@ router.get("/reports/cost-by-account", async (_req, res): Promise<void> => {
       transactionsTable,
       eq(transactionsTable.accountId, accountsTable.id),
     )
+    .where(dateConds.length ? and(...dateConds) : undefined)
     .groupBy(
       accountsTable.id,
       accountsTable.number,
@@ -447,7 +461,17 @@ router.get("/reports/ap-aging", async (_req, res): Promise<void> => {
   res.json(GetApAgingResponse.parse({ asOf, totals, vendors }));
 });
 
-router.get("/reports/payroll-by-job", async (_req, res): Promise<void> => {
+router.get("/reports/payroll-by-job", async (req, res): Promise<void> => {
+  const query = GetPayrollByJobQueryParams.safeParse(req.query);
+  if (!query.success) {
+    res.status(400).json({ error: query.error.message });
+    return;
+  }
+  const range: DateRange = {
+    startDate: query.data.startDate,
+    endDate: query.data.endDate,
+  };
+
   // Burdened labor allocated to each job across POSTED payroll runs. Totals
   // reconcile to the ledger payroll entries (sum of allocation amounts); the
   // wage/burden breakdown is pro-rated from each line by allocation share.
@@ -474,7 +498,12 @@ router.get("/reports/payroll-by-job", async (_req, res): Promise<void> => {
       eq(payrollRunsTable.id, payrollLinesTable.runId),
     )
     .innerJoin(jobsTable, eq(jobsTable.id, payrollAllocationsTable.jobId))
-    .where(eq(payrollRunsTable.posted, true));
+    .where(
+      and(
+        eq(payrollRunsTable.posted, true),
+        ...dateRangeConds(payrollRunsTable.payDate, range),
+      ),
+    );
 
   interface Row {
     jobId: number;
