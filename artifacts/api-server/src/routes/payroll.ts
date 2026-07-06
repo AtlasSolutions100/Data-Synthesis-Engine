@@ -342,14 +342,18 @@ router.get("/payroll-runs", async (req, res): Promise<void> => {
     .where(conds.length ? and(...conds) : undefined)
     .orderBy(desc(payrollRunsTable.payDate), desc(payrollRunsTable.id));
 
-  const sums = await db
-    .select({
-      runId: payrollLinesTable.runId,
-      gross: payrollLinesTable.grossWagesCents,
-      burden: payrollLinesTable.burdenCents,
-      total: payrollLinesTable.totalCostCents,
-    })
-    .from(payrollLinesTable);
+  const runIds = runs.map((r) => r.run.id);
+  const sums = runIds.length
+    ? await db
+        .select({
+          runId: payrollLinesTable.runId,
+          gross: payrollLinesTable.grossWagesCents,
+          burden: payrollLinesTable.burdenCents,
+          total: payrollLinesTable.totalCostCents,
+        })
+        .from(payrollLinesTable)
+        .where(inArray(payrollLinesTable.runId, runIds))
+    : [];
 
   const totalsByRun = new Map<
     number,
