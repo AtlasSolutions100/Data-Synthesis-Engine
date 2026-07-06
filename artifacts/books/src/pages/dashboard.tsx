@@ -1,30 +1,36 @@
+import { useState } from "react";
 import { useGetDashboardSummary, getGetDashboardSummaryQueryKey } from "@workspace/api-client-react";
 import { formatCents } from "@/lib/format";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { DollarSign, Briefcase, Activity, CreditCard } from "lucide-react";
+import { DollarSign, Activity, CreditCard } from "lucide-react";
+import { DateRangePicker, type DateRangeValue } from "@/components/date-range-picker";
 
 export default function Dashboard() {
-  const { data: summary, isLoading, isError } = useGetDashboardSummary({
-    query: { queryKey: getGetDashboardSummaryQueryKey() }
+  const [range, setRange] = useState<DateRangeValue>({});
+  const params = {
+    startDate: range.startDate,
+    endDate: range.endDate,
+  };
+  const { data: summary, isLoading, isError } = useGetDashboardSummary(params, {
+    query: { queryKey: getGetDashboardSummaryQueryKey(params) }
   });
-
-  if (isLoading) {
-    return <div className="p-8">Loading dashboard...</div>;
-  }
-
-  if (isError || !summary) {
-    return <div className="p-8 text-red-500">Failed to load dashboard data.</div>;
-  }
 
   return (
     <div className="space-y-8">
-      <div className="flex justify-between items-end">
+      <div className="flex flex-wrap justify-between items-end gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-slate-900">Dashboard</h1>
           <p className="text-slate-500 mt-1">Company financial overview</p>
         </div>
+        <DateRangePicker value={range} onChange={setRange} />
       </div>
 
+      {isLoading ? (
+        <div className="py-8 text-slate-500">Loading dashboard...</div>
+      ) : isError || !summary ? (
+        <div className="py-8 text-red-500">Failed to load dashboard data.</div>
+      ) : (
+      <>
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -120,6 +126,8 @@ export default function Dashboard() {
           </CardContent>
         </Card>
       </div>
+      </>
+      )}
     </div>
   );
 }

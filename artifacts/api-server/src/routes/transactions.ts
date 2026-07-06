@@ -18,6 +18,7 @@ import {
   UpdateTransactionBody,
   DeleteTransactionParams,
 } from "@workspace/api-zod";
+import { dateRangeConds } from "../lib/finance";
 
 const router: IRouter = Router();
 
@@ -129,6 +130,7 @@ router.get("/transactions", async (req, res): Promise<void> => {
   if (query.data.type != null && query.data.type !== "") {
     conds.push(eq(transactionsTable.type, query.data.type));
   }
+  conds.push(...dateRangeConds(transactionsTable.date, query.data));
 
   const rows = await db
     .select({

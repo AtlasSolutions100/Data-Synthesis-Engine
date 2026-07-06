@@ -38,6 +38,7 @@ import type {
   EmployeeInput,
   EmployeeUpdate,
   ErrorResponse,
+  GetDashboardSummaryParams,
   HealthStatus,
   Invoice,
   InvoiceInput,
@@ -51,6 +52,7 @@ import type {
   JobUpdate,
   ListBillsParams,
   ListInvoicesParams,
+  ListPayrollRunsParams,
   ListTransactionsParams,
   PayrollByJob,
   PayrollRun,
@@ -2668,20 +2670,27 @@ export const useDeleteTransaction = <TError = ErrorType<ErrorResponse>,
       return useMutation(getDeleteTransactionMutationOptions(options));
     }
 
-export const getGetDashboardSummaryUrl = () => {
+export const getGetDashboardSummaryUrl = (params?: GetDashboardSummaryParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
 
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
 
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/api/reports/dashboard`
+  return stringifiedParams.length > 0 ? `/api/reports/dashboard?${stringifiedParams}` : `/api/reports/dashboard`
 }
 
 /**
  * @summary Company-wide profit and loss summary
  */
-export const getDashboardSummary = async ( options?: RequestInit): Promise<DashboardSummary> => {
+export const getDashboardSummary = async (params?: GetDashboardSummaryParams, options?: RequestInit): Promise<DashboardSummary> => {
 
-  return customFetch<DashboardSummary>(getGetDashboardSummaryUrl(),
+  return customFetch<DashboardSummary>(getGetDashboardSummaryUrl(params),
   {
     ...options,
     method: 'GET'
@@ -2694,23 +2703,23 @@ export const getDashboardSummary = async ( options?: RequestInit): Promise<Dashb
 
 
 
-export const getGetDashboardSummaryQueryKey = () => {
+export const getGetDashboardSummaryQueryKey = (params?: GetDashboardSummaryParams,) => {
     return [
-    `/api/reports/dashboard`
+    `/api/reports/dashboard`, ...(params ? [params] : [])
     ] as const;
     }
 
 
-export const getGetDashboardSummaryQueryOptions = <TData = Awaited<ReturnType<typeof getDashboardSummary>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDashboardSummary>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getGetDashboardSummaryQueryOptions = <TData = Awaited<ReturnType<typeof getDashboardSummary>>, TError = ErrorType<unknown>>(params?: GetDashboardSummaryParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDashboardSummary>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetDashboardSummaryQueryKey();
+  const queryKey =  queryOptions?.queryKey ?? getGetDashboardSummaryQueryKey(params);
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getDashboardSummary>>> = ({ signal }) => getDashboardSummary({ signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getDashboardSummary>>> = ({ signal }) => getDashboardSummary(params, { signal, ...requestOptions });
 
 
 
@@ -2728,11 +2737,11 @@ export type GetDashboardSummaryQueryError = ErrorType<unknown>
  */
 
 export function useGetDashboardSummary<TData = Awaited<ReturnType<typeof getDashboardSummary>>, TError = ErrorType<unknown>>(
-  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDashboardSummary>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+ params?: GetDashboardSummaryParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDashboardSummary>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
-  const queryOptions = getGetDashboardSummaryQueryOptions(options)
+  const queryOptions = getGetDashboardSummaryQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 
@@ -4085,20 +4094,27 @@ export function useGetPayrollByJob<TData = Awaited<ReturnType<typeof getPayrollB
 
 
 
-export const getListPayrollRunsUrl = () => {
+export const getListPayrollRunsUrl = (params?: ListPayrollRunsParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
 
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
 
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/api/payroll-runs`
+  return stringifiedParams.length > 0 ? `/api/payroll-runs?${stringifiedParams}` : `/api/payroll-runs`
 }
 
 /**
  * @summary List payroll runs with computed totals
  */
-export const listPayrollRuns = async ( options?: RequestInit): Promise<PayrollRun[]> => {
+export const listPayrollRuns = async (params?: ListPayrollRunsParams, options?: RequestInit): Promise<PayrollRun[]> => {
 
-  return customFetch<PayrollRun[]>(getListPayrollRunsUrl(),
+  return customFetch<PayrollRun[]>(getListPayrollRunsUrl(params),
   {
     ...options,
     method: 'GET'
@@ -4111,23 +4127,23 @@ export const listPayrollRuns = async ( options?: RequestInit): Promise<PayrollRu
 
 
 
-export const getListPayrollRunsQueryKey = () => {
+export const getListPayrollRunsQueryKey = (params?: ListPayrollRunsParams,) => {
     return [
-    `/api/payroll-runs`
+    `/api/payroll-runs`, ...(params ? [params] : [])
     ] as const;
     }
 
 
-export const getListPayrollRunsQueryOptions = <TData = Awaited<ReturnType<typeof listPayrollRuns>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPayrollRuns>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getListPayrollRunsQueryOptions = <TData = Awaited<ReturnType<typeof listPayrollRuns>>, TError = ErrorType<unknown>>(params?: ListPayrollRunsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPayrollRuns>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getListPayrollRunsQueryKey();
+  const queryKey =  queryOptions?.queryKey ?? getListPayrollRunsQueryKey(params);
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof listPayrollRuns>>> = ({ signal }) => listPayrollRuns({ signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listPayrollRuns>>> = ({ signal }) => listPayrollRuns(params, { signal, ...requestOptions });
 
 
 
@@ -4145,11 +4161,11 @@ export type ListPayrollRunsQueryError = ErrorType<unknown>
  */
 
 export function useListPayrollRuns<TData = Awaited<ReturnType<typeof listPayrollRuns>>, TError = ErrorType<unknown>>(
-  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPayrollRuns>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+ params?: ListPayrollRunsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPayrollRuns>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
-  const queryOptions = getListPayrollRunsQueryOptions(options)
+  const queryOptions = getListPayrollRunsQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

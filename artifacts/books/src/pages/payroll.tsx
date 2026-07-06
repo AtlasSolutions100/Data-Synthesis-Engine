@@ -28,16 +28,43 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { PayrollRunForm } from "@/components/forms/payroll-run-form";
+import { DateRangePicker, type DateRangeValue } from "@/components/date-range-picker";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useQueryClient } from "@tanstack/react-query";
 import { Plus, Trash2 } from "lucide-react";
+
+const CURRENT_YEAR = new Date().getFullYear();
+const YEAR_OPTIONS = Array.from({ length: 6 }, (_, i) => CURRENT_YEAR - i);
 
 export default function Payroll() {
   const queryClient = useQueryClient();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [range, setRange] = useState<DateRangeValue>({});
 
-  const { data: runs, isLoading } = useListPayrollRuns({
-    query: { queryKey: getListPayrollRunsQueryKey() },
+  const params = { startDate: range.startDate, endDate: range.endDate };
+  const { data: runs, isLoading } = useListPayrollRuns(params, {
+    query: { queryKey: getListPayrollRunsQueryKey(params) },
   });
+
+  const yearValue =
+    range.startDate?.endsWith("-01-01") && range.endDate?.endsWith("-12-31") &&
+    range.startDate.slice(0, 4) === range.endDate.slice(0, 4)
+      ? range.startDate.slice(0, 4)
+      : "all";
+
+  const handleYearChange = (value: string) => {
+    if (value === "all") {
+      setRange({});
+    } else {
+      setRange({ startDate: `${value}-01-01`, endDate: `${value}-12-31` });
+    }
+  };
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: getListPayrollRunsQueryKey() });
@@ -69,6 +96,21 @@ export default function Payroll() {
             Pay-period runs with burdened labor cost posted to jobs
           </p>
         </div>
+        <div className="flex items-center gap-3">
+        <Select value={yearValue} onValueChange={handleYearChange}>
+          <SelectTrigger className="w-[130px]">
+            <SelectValue placeholder="Year" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All years</SelectItem>
+            {YEAR_OPTIONS.map((year) => (
+              <SelectItem key={year} value={String(year)}>
+                {year}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <DateRangePicker value={range} onChange={setRange} />
         <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
           <DialogTrigger asChild>
             <Button className="bg-blue-600 hover:bg-blue-700">
@@ -85,6 +127,7 @@ export default function Payroll() {
             />
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       <Card>

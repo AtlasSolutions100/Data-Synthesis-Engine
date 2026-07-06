@@ -607,10 +607,16 @@ export const DeleteJobDocumentResponse = zod.void()
 /**
  * @summary List transactions
  */
+export const listTransactionsQueryStartDateRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+export const listTransactionsQueryEndDateRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+
+
 export const ListTransactionsQueryParams = zod.object({
   "jobId": zod.coerce.number().optional(),
   "accountId": zod.coerce.number().optional(),
-  "type": zod.coerce.string().optional()
+  "type": zod.coerce.string().optional(),
+  "startDate": zod.coerce.string().regex(listTransactionsQueryStartDateRegExp).optional().describe('Inclusive start of the date range (YYYY-MM-DD). Omit for no lower bound.'),
+  "endDate": zod.coerce.string().regex(listTransactionsQueryEndDateRegExp).optional().describe('Inclusive end of the date range (YYYY-MM-DD). Omit for no upper bound.')
 })
 
 export const ListTransactionsResponseItem = zod.object({
@@ -754,6 +760,15 @@ export const DeleteTransactionResponse = zod.void()
 /**
  * @summary Company-wide profit and loss summary
  */
+export const getDashboardSummaryQueryStartDateRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+export const getDashboardSummaryQueryEndDateRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+
+
+export const GetDashboardSummaryQueryParams = zod.object({
+  "startDate": zod.coerce.string().regex(getDashboardSummaryQueryStartDateRegExp).optional().describe('Inclusive start of the date range (YYYY-MM-DD). Omit for no lower bound.'),
+  "endDate": zod.coerce.string().regex(getDashboardSummaryQueryEndDateRegExp).optional().describe('Inclusive end of the date range (YYYY-MM-DD). Omit for no upper bound.')
+})
+
 export const GetDashboardSummaryResponse = zod.object({
   "totalIncomeCents": zod.number(),
   "totalCogsCents": zod.number(),
@@ -896,10 +911,16 @@ export const GetApAgingResponse = zod.object({
 /**
  * @summary List invoices with computed totals
  */
+export const listInvoicesQueryStartDateRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+export const listInvoicesQueryEndDateRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+
+
 export const ListInvoicesQueryParams = zod.object({
   "jobId": zod.coerce.number().optional(),
   "customerId": zod.coerce.number().optional(),
-  "status": zod.enum(['open', 'partial', 'paid']).optional()
+  "status": zod.enum(['open', 'partial', 'paid']).optional(),
+  "startDate": zod.coerce.string().regex(listInvoicesQueryStartDateRegExp).optional().describe('Inclusive start of the date range (YYYY-MM-DD). Omit for no lower bound.'),
+  "endDate": zod.coerce.string().regex(listInvoicesQueryEndDateRegExp).optional().describe('Inclusive end of the date range (YYYY-MM-DD). Omit for no upper bound.')
 })
 
 export const ListInvoicesResponseItem = zod.object({
@@ -1528,6 +1549,15 @@ export const GetPayrollByJobResponse = zod.object({
 /**
  * @summary List payroll runs with computed totals
  */
+export const listPayrollRunsQueryStartDateRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+export const listPayrollRunsQueryEndDateRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+
+
+export const ListPayrollRunsQueryParams = zod.object({
+  "startDate": zod.coerce.string().regex(listPayrollRunsQueryStartDateRegExp).optional().describe('Inclusive start of the date range (YYYY-MM-DD). Omit for no lower bound.'),
+  "endDate": zod.coerce.string().regex(listPayrollRunsQueryEndDateRegExp).optional().describe('Inclusive end of the date range (YYYY-MM-DD). Omit for no upper bound.')
+})
+
 export const ListPayrollRunsResponseItem = zod.object({
   "id": zod.number(),
   "payPeriodStart": zod.string(),

@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import {
   db,
   transactionsTable,
@@ -20,6 +20,7 @@ import {
 } from "@workspace/db";
 import {
   GetDashboardSummaryResponse,
+  GetDashboardSummaryQueryParams,
   GetCostByAccountResponse,
   GetArAgingResponse,
   GetApAgingResponse,
@@ -29,6 +30,8 @@ import {
   getJobTotalsMap,
   getJobBillingMap,
   sumByAccountTypes,
+  dateRangeConds,
+  type DateRange,
 } from "../lib/finance";
 
 const router: IRouter = Router();
@@ -82,7 +85,17 @@ function addToBuckets(b: Buckets, bucket: AgingBucket, cents: number): void {
   b.totalCents += cents;
 }
 
-router.get("/reports/dashboard", async (_req, res): Promise<void> => {
+router.get("/reports/dashboard", async (req, res): Promise<void> => {
+  const query = GetDashboardSummaryQueryParams.safeParse(req.query);
+  if (!query.success) {
+    res.status(400).json({ error: query.error.message });
+    return;
+  }
+  const range: DateRange = {
+    startDate: query.data.startDate,
+    endDate: query.data.endDate,
+  };
+
   const [
     totalIncomeCents,
     totalCogsCents,
@@ -90,11 +103,11 @@ router.get("/reports/dashboard", async (_req, res): Promise<void> => {
     otherIncomeCents,
     otherExpenseCents,
   ] = await Promise.all([
-    sumByAccountTypes(["income"]),
-    sumByAccountTypes(["cogs"]),
-    sumByAccountTypes(["expense"]),
-    sumByAccountTypes(["other_income"]),
-    sumByAccountTypes(["other_expense"]),
+    sumByAccountTypes(["income"], range),
+    sumByAccountTypes(["cogs"], range),
+    sumByAccountTypes(["expense"], range),
+    sumByAccountTypes(["other_income"], range),
+    sumByAccountTypes(["other_expense"], range),
   ]);
 
   const grossProfitCents = totalIncomeCents - totalCogsCents;
@@ -108,13 +121,15 @@ router.get("/reports/dashboard", async (_req, res): Promise<void> => {
     .select({ count: sql<number>`count(*)::int` })
     .from(jobsTable)
     .where(eq(jobsTable.status, "active"));
+  const txCountConds = dateRangeConds(transactionsTable.date, range);
   const [txCountRow] = await db
     .select({ count: sql<number>`count(*)::int` })
-    .from(transactionsTable);
+    .from(transactionsTable)
+    .where(txCountConds.length ? and(...txCountConds) : undefined);
 
   const [totals, billing] = await Promise.all([
-    getJobTotalsMap(),
-    getJobBillingMap(),
+    getJobTotalsMap(range),
+    getJobBillingMap(range),
   ]);
   const jobRows = await db
     .select({ job: jobsTable, customerName: customersTable.name })
@@ -158,6 +173,7 @@ router.get("/reports/dashboard", async (_req, res): Promise<void> => {
     .from(transactionsTable)
     .leftJoin(accountsTable, eq(accountsTable.id, transactionsTable.accountId))
     .leftJoin(jobsTable, eq(jobsTable.id, transactionsTable.jobId))
+    .where(txCountConds.length ? and(...txCountConds) : undefined)
     .orderBy(desc(transactionsTable.date), desc(transactionsTable.id))
     .limit(10);
 

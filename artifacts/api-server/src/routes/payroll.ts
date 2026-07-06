@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import {
   db,
   payrollRunsTable,
@@ -12,6 +12,7 @@ import {
   vendorsTable,
 } from "@workspace/db";
 import {
+  ListPayrollRunsQueryParams,
   ListPayrollRunsResponse,
   CreatePayrollRunBody,
   CreatePayrollRunResponse,
@@ -27,7 +28,7 @@ import {
   UnpostPayrollRunResponse,
 } from "@workspace/api-zod";
 import { computeLine, type BurdenRates } from "../lib/payroll";
-import { COST_TYPES } from "../lib/finance";
+import { COST_TYPES, dateRangeConds } from "../lib/finance";
 
 const router: IRouter = Router();
 
@@ -320,7 +321,14 @@ function normalizeLines(
   }));
 }
 
-router.get("/payroll-runs", async (_req, res): Promise<void> => {
+router.get("/payroll-runs", async (req, res): Promise<void> => {
+  const query = ListPayrollRunsQueryParams.safeParse(req.query);
+  if (!query.success) {
+    res.status(400).json({ error: query.error.message });
+    return;
+  }
+  const conds = dateRangeConds(payrollRunsTable.payDate, query.data);
+
   const runs = await db
     .select({
       run: payrollRunsTable,
@@ -331,6 +339,7 @@ router.get("/payroll-runs", async (_req, res): Promise<void> => {
       accountsTable,
       eq(accountsTable.id, payrollRunsTable.laborAccountId),
     )
+    .where(conds.length ? and(...conds) : undefined)
     .orderBy(desc(payrollRunsTable.payDate), desc(payrollRunsTable.id));
 
   const sums = await db

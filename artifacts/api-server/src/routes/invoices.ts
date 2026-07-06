@@ -24,6 +24,7 @@ import {
   CreateInvoicePaymentResponse,
   DeleteInvoicePaymentParams,
 } from "@workspace/api-zod";
+import { dateRangeConds } from "../lib/finance";
 
 const router: IRouter = Router();
 
@@ -130,6 +131,7 @@ router.get("/invoices", async (req, res): Promise<void> => {
   if (query.data.customerId != null) {
     conds.push(eq(invoicesTable.customerId, query.data.customerId));
   }
+  conds.push(...dateRangeConds(invoicesTable.date, query.data));
 
   const rows = await db
     .select({

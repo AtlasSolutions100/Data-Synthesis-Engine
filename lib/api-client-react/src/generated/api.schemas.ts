@@ -1105,16 +1105,59 @@ export interface UploadUrlResponse {
  */
 export type ErrorResponse = Error;
 
+/**
+ * Inclusive start of the date range (YYYY-MM-DD). Omit for no lower bound.
+ */
+export type StartDateParamParameter = string;
+
+/**
+ * Inclusive end of the date range (YYYY-MM-DD). Omit for no upper bound.
+ */
+export type EndDateParamParameter = string;
+
 export type ListTransactionsParams = {
 jobId?: number;
 accountId?: number;
 type?: string;
+/**
+ * Inclusive start of the date range (YYYY-MM-DD). Omit for no lower bound.
+ * @pattern ^\d{4}-\d{2}-\d{2}$
+ */
+startDate?: StartDateParamParameter;
+/**
+ * Inclusive end of the date range (YYYY-MM-DD). Omit for no upper bound.
+ * @pattern ^\d{4}-\d{2}-\d{2}$
+ */
+endDate?: EndDateParamParameter;
+};
+
+export type GetDashboardSummaryParams = {
+/**
+ * Inclusive start of the date range (YYYY-MM-DD). Omit for no lower bound.
+ * @pattern ^\d{4}-\d{2}-\d{2}$
+ */
+startDate?: StartDateParamParameter;
+/**
+ * Inclusive end of the date range (YYYY-MM-DD). Omit for no upper bound.
+ * @pattern ^\d{4}-\d{2}-\d{2}$
+ */
+endDate?: EndDateParamParameter;
 };
 
 export type ListInvoicesParams = {
 jobId?: number;
 customerId?: number;
 status?: ListInvoicesStatus;
+/**
+ * Inclusive start of the date range (YYYY-MM-DD). Omit for no lower bound.
+ * @pattern ^\d{4}-\d{2}-\d{2}$
+ */
+startDate?: StartDateParamParameter;
+/**
+ * Inclusive end of the date range (YYYY-MM-DD). Omit for no upper bound.
+ * @pattern ^\d{4}-\d{2}-\d{2}$
+ */
+endDate?: EndDateParamParameter;
 };
 
 export type ListInvoicesStatus = typeof ListInvoicesStatus[keyof typeof ListInvoicesStatus];
@@ -1140,4 +1183,17 @@ export const ListBillsStatus = {
   partial: 'partial',
   paid: 'paid',
 } as const;
+
+export type ListPayrollRunsParams = {
+/**
+ * Inclusive start of the date range (YYYY-MM-DD). Omit for no lower bound.
+ * @pattern ^\d{4}-\d{2}-\d{2}$
+ */
+startDate?: StartDateParamParameter;
+/**
+ * Inclusive end of the date range (YYYY-MM-DD). Omit for no upper bound.
+ * @pattern ^\d{4}-\d{2}-\d{2}$
+ */
+endDate?: EndDateParamParameter;
+};
 

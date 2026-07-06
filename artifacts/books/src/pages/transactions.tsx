@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { TransactionForm } from "@/components/forms/transaction-form";
+import { DateRangePicker, type DateRangeValue } from "@/components/date-range-picker";
 import { useQueryClient } from "@tanstack/react-query";
 import { Plus, Edit2, Trash2 } from "lucide-react";
 
@@ -14,9 +15,11 @@ export default function Transactions() {
   const queryClient = useQueryClient();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
+  const [range, setRange] = useState<DateRangeValue>({});
 
-  const { data: transactions, isLoading } = useListTransactions(undefined, {
-    query: { queryKey: getListTransactionsQueryKey() },
+  const params = { startDate: range.startDate, endDate: range.endDate };
+  const { data: transactions, isLoading } = useListTransactions(params, {
+    query: { queryKey: getListTransactionsQueryKey(params) },
   });
 
   const createTransaction = useCreateTransaction({
@@ -52,6 +55,8 @@ export default function Transactions() {
           <h1 className="text-3xl font-bold tracking-tight text-slate-900">Transactions</h1>
           <p className="text-slate-500 mt-1">General ledger and transaction history</p>
         </div>
+        <div className="flex items-center gap-3">
+        <DateRangePicker value={range} onChange={setRange} />
         <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
           <DialogTrigger asChild>
             <Button className="bg-blue-600 hover:bg-blue-700">
@@ -68,6 +73,7 @@ export default function Transactions() {
             />
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       <Card>

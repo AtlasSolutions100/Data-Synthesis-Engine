@@ -28,6 +28,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { InvoiceForm } from "@/components/forms/invoice-form";
+import { DateRangePicker, type DateRangeValue } from "@/components/date-range-picker";
 import { useQueryClient } from "@tanstack/react-query";
 import { Plus, Trash2 } from "lucide-react";
 
@@ -40,9 +41,11 @@ const statusVariant: Record<string, "default" | "secondary" | "outline"> = {
 export default function Invoices() {
   const queryClient = useQueryClient();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [range, setRange] = useState<DateRangeValue>({});
 
-  const { data: invoices, isLoading } = useListInvoices(undefined, {
-    query: { queryKey: getListInvoicesQueryKey() },
+  const params = { startDate: range.startDate, endDate: range.endDate };
+  const { data: invoices, isLoading } = useListInvoices(params, {
+    query: { queryKey: getListInvoicesQueryKey(params) },
   });
 
   const createInvoice = useCreateInvoice({
@@ -77,6 +80,8 @@ export default function Invoices() {
             Progress billing against job contracts (Accounts Receivable)
           </p>
         </div>
+        <div className="flex items-center gap-3">
+        <DateRangePicker value={range} onChange={setRange} />
         <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
           <DialogTrigger asChild>
             <Button className="bg-blue-600 hover:bg-blue-700">
@@ -93,6 +98,7 @@ export default function Invoices() {
             />
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       <Card>

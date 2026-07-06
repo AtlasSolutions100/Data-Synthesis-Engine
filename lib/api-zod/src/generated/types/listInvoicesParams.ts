@@ -5,10 +5,22 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { EndDateParamParameter } from './endDateParamParameter';
 import type { ListInvoicesStatus } from './listInvoicesStatus';
+import type { StartDateParamParameter } from './startDateParamParameter';
 
 export type ListInvoicesParams = {
 jobId?: number;
 customerId?: number;
 status?: ListInvoicesStatus;
+/**
+ * Inclusive start of the date range (YYYY-MM-DD). Omit for no lower bound.
+ * @pattern ^\d{4}-\d{2}-\d{2}$
+ */
+startDate?: StartDateParamParameter;
+/**
+ * Inclusive end of the date range (YYYY-MM-DD). Omit for no upper bound.
+ * @pattern ^\d{4}-\d{2}-\d{2}$
+ */
+endDate?: EndDateParamParameter;
 };
