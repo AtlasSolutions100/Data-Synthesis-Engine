@@ -1,8 +1,13 @@
 uploads = []
-outputs = []
 
 [[generated]]
 id = "P2Cq3DPcnr1LE7S2Fb6cc"
 uri = "file://artifacts/books/public/logo.png"
 type = "image"
 title = "Allied Power Services Logo"
+
+[[outputs]]
+id = "dLxxie1cUWFCbL-RheWyy"
+uri = "file://.local/deliverables/allied-power-email.md"
+type = "text"
+title = "Client Email — Allied Power Books Capabilities & Next Steps"
