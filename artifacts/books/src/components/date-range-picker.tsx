@@ -30,7 +30,7 @@ function fromIso(s: string | undefined): Date | undefined {
   return s ? parseISO(s) : undefined;
 }
 
-function label(value: DateRangeValue): string {
+export function describeRange(value: DateRangeValue): string {
   const { startDate, endDate } = value;
   if (!startDate && !endDate) return "All time";
   const fmt = (s: string) => format(parseISO(s), "MMM d, yyyy");
@@ -111,7 +111,7 @@ export function DateRangePicker({
             )}
           >
             <CalendarIcon className="h-4 w-4" />
-            {label(value)}
+            {describeRange(value)}
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-auto p-0" align="end">

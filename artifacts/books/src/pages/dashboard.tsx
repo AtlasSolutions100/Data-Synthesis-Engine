@@ -3,7 +3,7 @@ import { useGetDashboardSummary, getGetDashboardSummaryQueryKey } from "@workspa
 import { formatCents } from "@/lib/format";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DollarSign, Activity, CreditCard } from "lucide-react";
-import { DateRangePicker, type DateRangeValue } from "@/components/date-range-picker";
+import { DateRangePicker, type DateRangeValue, describeRange } from "@/components/date-range-picker";
 
 export default function Dashboard() {
   const [range, setRange] = useState<DateRangeValue>({});
@@ -20,7 +20,10 @@ export default function Dashboard() {
       <div className="flex flex-wrap justify-between items-end gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-slate-900">Dashboard</h1>
-          <p className="text-slate-500 mt-1">Company financial overview</p>
+          <p className="text-slate-500 mt-1">
+            Company financial overview · Viewing:{" "}
+            <span className="font-medium text-slate-700">{describeRange(range)}</span>
+          </p>
         </div>
         <DateRangePicker value={range} onChange={setRange} />
       </div>
