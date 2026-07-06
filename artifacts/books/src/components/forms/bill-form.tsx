@@ -157,7 +157,7 @@ export function BillForm({ defaultValues, onSubmit, isLoading }: BillFormProps) 
 
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <FormLabel>Line Items</FormLabel>
+            <p className="text-sm font-medium leading-none">Line Items</p>
             <Button
               type="button"
               variant="outline"

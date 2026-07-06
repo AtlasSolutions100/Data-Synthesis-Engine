@@ -630,7 +630,9 @@ export function PayrollRunForm({
         </div>
 
         <div className="space-y-2 rounded-lg border p-4">
-          <FormLabel>Employer Burden Rates (%)</FormLabel>
+          <p className="text-sm font-medium leading-none">
+            Employer Burden Rates (%)
+          </p>
           <div className="grid grid-cols-5 gap-3">
             <FormField
               control={form.control}
@@ -705,7 +707,7 @@ export function PayrollRunForm({
 
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <FormLabel>Worker Lines</FormLabel>
+            <p className="text-sm font-medium leading-none">Worker Lines</p>
             <Button
               type="button"
               variant="outline"
