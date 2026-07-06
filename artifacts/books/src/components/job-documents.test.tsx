@@ -9,7 +9,11 @@ import {
 } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import path from "path";
-import readXlsxFileNode from "read-excel-file/node";
+import { Readable } from "stream";
+import { readFileSync } from "fs";
+import readXlsxFileNode, {
+  readSheetNames as readSheetNamesNode,
+} from "read-excel-file/node";
 import {
   parseCsv,
   fileKind,
@@ -60,6 +64,17 @@ const REAL_XLSX = path.resolve(
   "Allied_Power_Services_Profit_and_Loss_Detail_1782845742607.xlsx",
 );
 
+const MULTI_XLSX = path.resolve(
+  import.meta.dirname,
+  "__fixtures__",
+  "multi-sheet.xlsx",
+);
+const SINGLE_XLSX = path.resolve(
+  import.meta.dirname,
+  "__fixtures__",
+  "single-sheet.xlsx",
+);
+
 function csvResponse(text: string) {
   return {
     ok: true,
@@ -67,6 +82,30 @@ function csvResponse(text: string) {
     text: async () => text,
     blob: async () => new Blob([text]),
   } as unknown as Response;
+}
+
+// A fetch Response whose blob() yields the real fixture bytes. The component
+// treats the blob as opaque (it only caches it and hands it to the parser), so
+// jsdom's Blob — which lacks arrayBuffer() — is sidestepped by carrying the raw
+// Buffer through directly.
+function xlsxResponse(buffer: Buffer) {
+  return {
+    ok: true,
+    status: 200,
+    blob: async () => buffer,
+  } as unknown as Response;
+}
+
+// Bridge the browser `read-excel-file` mock to the real Node implementation:
+// parse the exact bytes the component passes so sheet discovery and the
+// selected-sheet argument are exercised for real, not stubbed.
+function bridgeXlsxMockToRealParser() {
+  mockedReadSheetNames.mockImplementation((buffer: Buffer) =>
+    readSheetNamesNode(Readable.from(buffer)),
+  );
+  mockedReadXlsx.mockImplementation((buffer: Buffer, opts?: unknown) =>
+    readXlsxFileNode(Readable.from(buffer), opts as never),
+  );
 }
 
 afterEach(() => {
@@ -262,6 +301,121 @@ describe("SpreadsheetPreview (xlsx)", () => {
     await waitFor(() =>
       expect(screen.getByText(/couldn't be previewed/i)).toBeTruthy(),
     );
+  });
+});
+
+// The fixtures below are REAL .xlsx workbooks (see scripts/make-xlsx-fixtures.mjs).
+// These tests drive the component through the real read-excel-file parser so a
+// regression in sheet discovery or sheet switching would actually be caught.
+describe("multi-sheet .xlsx fixture", () => {
+  it("is a genuine workbook with multiple sheets holding distinct data", async () => {
+    const names = await readSheetNamesNode(MULTI_XLSX);
+    expect(names).toEqual(["Summary", "Employees", "Transactions"]);
+
+    const summary = await readXlsxFileNode(MULTI_XLSX, { sheet: "Summary" });
+    const employees = await readXlsxFileNode(MULTI_XLSX, { sheet: "Employees" });
+    expect(summary[0]).toEqual(["Account", "Total"]);
+    expect(employees[0]).toEqual(["Employee", "Role", "Rate"]);
+    // Each sheet holds different data — not the same sheet under two names.
+    expect(JSON.stringify(summary)).not.toEqual(JSON.stringify(employees));
+
+    const transactions = await readXlsxFileNode(MULTI_XLSX, {
+      sheet: "Transactions",
+    });
+    // More than the preview cap, so per-sheet truncation is testable.
+    expect(transactions.length).toBeGreaterThan(100);
+  });
+});
+
+describe("SpreadsheetPreview (multi-sheet xlsx switching)", () => {
+  it("shows a selector for every sheet and renders the first sheet by default", async () => {
+    bridgeXlsxMockToRealParser();
+    const buffer = readFileSync(MULTI_XLSX);
+    global.fetch = vi.fn(async () =>
+      xlsxResponse(buffer),
+    ) as unknown as typeof fetch;
+
+    render(<SpreadsheetPreview href="/wb.xlsx" kind="xlsx" sizeBytes={buffer.length} />);
+
+    // First (default) sheet renders.
+    await waitFor(() => expect(screen.getByText("Account")).toBeTruthy());
+    expect(screen.getByText("Revenue")).toBeTruthy();
+    expect(screen.getByText("5000")).toBeTruthy();
+
+    // One selector button per sheet, in workbook order.
+    const buttons = screen.getAllByRole("button");
+    expect(buttons.map((b) => b.textContent)).toEqual([
+      "Summary",
+      "Employees",
+      "Transactions",
+    ]);
+  });
+
+  it("renders the selected sheet's own rows, not the first sheet's", async () => {
+    bridgeXlsxMockToRealParser();
+    const buffer = readFileSync(MULTI_XLSX);
+    global.fetch = vi.fn(async () =>
+      xlsxResponse(buffer),
+    ) as unknown as typeof fetch;
+
+    render(<SpreadsheetPreview href="/wb.xlsx" kind="xlsx" sizeBytes={buffer.length} />);
+    await waitFor(() => expect(screen.getByText("Revenue")).toBeTruthy());
+
+    fireEvent.click(screen.getByRole("button", { name: "Employees" }));
+
+    // The Employees sheet's distinct data appears...
+    await waitFor(() => expect(screen.getByText("Ada Lovelace")).toBeTruthy());
+    expect(screen.getByText("Grace Hopper")).toBeTruthy();
+    expect(screen.getByText("Foreman")).toBeTruthy();
+    // ...and the first sheet's data is gone (proves we didn't just keep sheet 1).
+    expect(screen.queryByText("Revenue")).toBeNull();
+  });
+
+  it("applies the ~100-row cap per sheet after switching", async () => {
+    bridgeXlsxMockToRealParser();
+    const buffer = readFileSync(MULTI_XLSX);
+    global.fetch = vi.fn(async () =>
+      xlsxResponse(buffer),
+    ) as unknown as typeof fetch;
+
+    render(<SpreadsheetPreview href="/wb.xlsx" kind="xlsx" sizeBytes={buffer.length} />);
+    await waitFor(() => expect(screen.getByText("Revenue")).toBeTruthy());
+
+    fireEvent.click(screen.getByRole("button", { name: "Transactions" }));
+
+    // Transactions (150 data rows) renders its own header + early rows...
+    await waitFor(() => expect(screen.getByText("Vendor-0")).toBeTruthy());
+    // ...but the cap keeps late rows out and shows the truncation note.
+    expect(screen.getByText(/Showing the first 100 rows/i)).toBeTruthy();
+    expect(screen.queryByText("Vendor-100")).toBeNull();
+  });
+});
+
+describe("SpreadsheetPreview shows no selector for single-sheet files", () => {
+  it("renders a single-sheet .xlsx without a sheet selector", async () => {
+    bridgeXlsxMockToRealParser();
+    const buffer = readFileSync(SINGLE_XLSX);
+    global.fetch = vi.fn(async () =>
+      xlsxResponse(buffer),
+    ) as unknown as typeof fetch;
+
+    render(<SpreadsheetPreview href="/one.xlsx" kind="xlsx" sizeBytes={buffer.length} />);
+
+    await waitFor(() => expect(screen.getByText("Widget")).toBeTruthy());
+    // No selector buttons at all for a one-sheet workbook.
+    expect(screen.queryAllByRole("button")).toHaveLength(0);
+  });
+
+  it("renders a .csv without a sheet selector", async () => {
+    const csv = "Name,Amount\nAlpha,100\nBeta,200\n";
+    global.fetch = vi.fn(async () =>
+      csvResponse(csv),
+    ) as unknown as typeof fetch;
+
+    render(<SpreadsheetPreview href="/f.csv" kind="csv" sizeBytes={csv.length} />);
+
+    await waitFor(() => expect(screen.getByText("Alpha")).toBeTruthy());
+    expect(screen.queryAllByRole("button")).toHaveLength(0);
   });
 });
 
