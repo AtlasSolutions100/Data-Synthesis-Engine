@@ -359,7 +359,12 @@ describe("JobDocuments preview affordances", () => {
     expect(dialog.querySelector("iframe")).toBeNull();
   });
 
-  it("opens a PDF in the iframe preview", async () => {
+  it("opens a PDF in the iframe preview once the probe succeeds", async () => {
+    global.fetch = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+    })) as unknown as typeof fetch;
+
     renderJobDocuments([
       makeDoc({
         id: 2,
@@ -373,14 +378,80 @@ describe("JobDocuments preview affordances", () => {
     fireEvent.click(screen.getByRole("button", { name: /contract\.pdf/ }));
 
     const dialog = await screen.findByRole("dialog");
+    await waitFor(() => expect(dialog.querySelector("iframe")).toBeTruthy());
     const iframe = dialog.querySelector("iframe");
-    expect(iframe).toBeTruthy();
     expect(iframe!.getAttribute("src")).toBe(
       "/api/storage/objects/uploads/contract.pdf?token=pdftok",
     );
     expect(iframe!.getAttribute("title")).toBe("contract.pdf");
+    // The probe hit the tokenized href.
+    expect(global.fetch).toHaveBeenCalledWith(
+      "/api/storage/objects/uploads/contract.pdf?token=pdftok",
+    );
     // No <img> preview for PDFs.
     expect(within(dialog).queryByAltText("contract.pdf")).toBeNull();
+  });
+
+  it("shows the download fallback instead of a blank iframe when the PDF request fails", async () => {
+    global.fetch = vi.fn(async () => ({
+      ok: false,
+      status: 403,
+    })) as unknown as typeof fetch;
+
+    renderJobDocuments([
+      makeDoc({
+        id: 2,
+        fileName: "contract.pdf",
+        objectPath: "/objects/uploads/contract.pdf",
+        downloadToken: "expired",
+        contentType: "application/pdf",
+      }),
+    ]);
+
+    fireEvent.click(screen.getByRole("button", { name: /contract\.pdf/ }));
+
+    const dialog = await screen.findByRole("dialog");
+    await waitFor(() =>
+      expect(
+        within(dialog).getByText(/This PDF couldn't be previewed/i),
+      ).toBeTruthy(),
+    );
+    expect(
+      within(dialog).getByText(/Download the file to view its contents/i),
+    ).toBeTruthy();
+    // No blank iframe is rendered in the failure state.
+    expect(dialog.querySelector("iframe")).toBeNull();
+    // The Download button is still available with the tokenized href.
+    const download = within(dialog).getByRole("link", { name: /download/i });
+    expect(download.getAttribute("href")).toBe(
+      "/api/storage/objects/uploads/contract.pdf?token=expired",
+    );
+  });
+
+  it("shows the download fallback when the PDF probe throws (network error)", async () => {
+    global.fetch = vi.fn(async () => {
+      throw new Error("network down");
+    }) as unknown as typeof fetch;
+
+    renderJobDocuments([
+      makeDoc({
+        id: 2,
+        fileName: "contract.pdf",
+        objectPath: "/objects/uploads/contract.pdf",
+        downloadToken: "pdftok",
+        contentType: "application/pdf",
+      }),
+    ]);
+
+    fireEvent.click(screen.getByRole("button", { name: /contract\.pdf/ }));
+
+    const dialog = await screen.findByRole("dialog");
+    await waitFor(() =>
+      expect(
+        within(dialog).getByText(/This PDF couldn't be previewed/i),
+      ).toBeTruthy(),
+    );
+    expect(dialog.querySelector("iframe")).toBeNull();
   });
 
   it("shows no preview affordance for non-previewable files, only download/delete", () => {

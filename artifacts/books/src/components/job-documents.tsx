@@ -406,6 +406,67 @@ export function SpreadsheetPreview({
   );
 }
 
+type PdfState = "loading" | "error" | "ready";
+
+export function PdfPreview({
+  href,
+  fileName,
+}: {
+  href: string;
+  fileName: string;
+}) {
+  const [state, setState] = useState<PdfState>("loading");
+
+  // The iframe itself gives no signal when the request fails (expired token,
+  // missing file, blocked response) — it just renders a blank pane. Probe the
+  // tokenized href first so we can show a friendly fallback instead.
+  useEffect(() => {
+    let cancelled = false;
+    setState("loading");
+
+    async function probe() {
+      try {
+        const res = await fetch(href);
+        if (!cancelled) setState(res.ok ? "ready" : "error");
+      } catch {
+        if (!cancelled) setState("error");
+      }
+    }
+
+    probe();
+    return () => {
+      cancelled = true;
+    };
+  }, [href]);
+
+  if (state === "loading") {
+    return (
+      <div className="flex items-center justify-center gap-2 py-16 text-slate-500">
+        <Loader2 className="h-4 w-4 animate-spin" />
+        Loading preview…
+      </div>
+    );
+  }
+
+  if (state === "error") {
+    return (
+      <div className="flex flex-col items-center justify-center gap-2 py-16 text-center text-slate-500">
+        <FileText className="h-8 w-8 text-slate-300" />
+        <p className="text-sm">This PDF couldn't be previewed.</p>
+        <p className="text-xs">Download the file to view its contents.</p>
+      </div>
+    );
+  }
+
+  return (
+    <iframe
+      src={href}
+      title={fileName}
+      className="w-full h-[75vh] rounded-md border border-slate-200"
+    />
+  );
+}
+
 export function JobDocuments({ jobId }: { jobId: number }) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -768,11 +829,7 @@ export function JobDocuments({ jobId }: { jobId: number }) {
               />
             </div>
           ) : preview?.kind === "pdf" ? (
-            <iframe
-              src={preview.href}
-              title={preview.fileName}
-              className="w-full h-[75vh] rounded-md border border-slate-200"
-            />
+            <PdfPreview href={preview.href} fileName={preview.fileName} />
           ) : preview?.kind === "csv" || preview?.kind === "xlsx" ? (
             <SpreadsheetPreview
               href={preview.href}
