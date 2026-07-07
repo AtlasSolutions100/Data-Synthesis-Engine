@@ -29,7 +29,9 @@ import {
   ExtractPayrollHoursBody,
   ExtractPayrollHoursResponse,
 } from "@workspace/api-zod";
-import { openai } from "@workspace/integrations-openai-ai-server";
+// NOTE: The OpenAI integration client throws at module load when its env vars
+// are missing. Import it lazily inside the extract-hours handler so an
+// unconfigured integration never crashes unrelated payroll routes at startup.
 import { computeLine, type BurdenRates } from "../lib/payroll";
 import { COST_TYPES, dateRangeConds } from "../lib/finance";
 
@@ -750,6 +752,18 @@ router.post("/payroll/extract-hours", async (req, res): Promise<void> => {
   const text = parsed.data.text.trim();
   if (!text) {
     res.status(400).json({ error: "Provide some text to extract hours from" });
+    return;
+  }
+
+  let openai;
+  try {
+    ({ openai } = await import("@workspace/integrations-openai-ai-server"));
+  } catch (err) {
+    req.log?.error({ err }, "openai integration unavailable");
+    res.status(503).json({
+      error:
+        "The hours extraction service is not configured. Please try again later.",
+    });
     return;
   }
 
