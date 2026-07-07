@@ -743,7 +743,17 @@ Rules:
 - Ignore anything that is not a worker's hours (greetings, signatures, job notes, dollar amounts).
 - If no worker hours are present, return {"rows": []}.`;
 
+const MAX_EXTRACT_TEXT_LENGTH = 20000;
+
 router.post("/payroll/extract-hours", async (req, res): Promise<void> => {
+  const rawText = (req.body as { text?: unknown })?.text;
+  if (typeof rawText === "string" && rawText.length > MAX_EXTRACT_TEXT_LENGTH) {
+    res.status(400).json({
+      error: `That text is too large to import (${rawText.length.toLocaleString()} characters). Please paste at most ${MAX_EXTRACT_TEXT_LENGTH.toLocaleString()} characters at a time.`,
+    });
+    return;
+  }
+
   const parsed = ExtractPayrollHoursBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });

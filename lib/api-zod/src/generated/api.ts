@@ -2040,11 +2040,12 @@ export const UnpostPayrollRunResponse = zod.object({
  * Uses an AI model to parse pasted email text or an uploaded timesheet into structured worker-hour rows for review before merging into a draft payroll run.
  * @summary Extract structured worker hours from free-form text
  */
+export const extractPayrollHoursBodyTextMax = 20000;
 
 
 
 export const ExtractPayrollHoursBody = zod.object({
-  "text": zod.string().min(1).describe('Free-form pasted email text or uploaded timesheet contents')
+  "text": zod.string().min(1).max(extractPayrollHoursBodyTextMax).describe('Free-form pasted email text or uploaded timesheet contents')
 })
 
 export const extractPayrollHoursResponseRowsItemRegularHoursMin = 0;

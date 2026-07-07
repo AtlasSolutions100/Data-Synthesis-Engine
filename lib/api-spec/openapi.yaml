@@ -2499,6 +2499,7 @@ components:
         text:
           type: string
           minLength: 1
+          maxLength: 20000
           description: Free-form pasted email text or uploaded timesheet contents
     ExtractedHourRow:
       type: object

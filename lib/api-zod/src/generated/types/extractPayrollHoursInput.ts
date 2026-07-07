@@ -10,6 +10,7 @@ export interface ExtractPayrollHoursInput {
   /**
      * Free-form pasted email text or uploaded timesheet contents
      * @minLength 1
+     * @maxLength 20000
      */
   text: string;
 }
