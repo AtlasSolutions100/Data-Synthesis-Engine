@@ -1,7 +1,7 @@
 import express, { type Express } from "express";
 import cors from "cors";
 import pinoHttp from "pino-http";
-import { clerkMiddleware, requireAuth } from "@clerk/express";
+import { clerkMiddleware } from "@clerk/express";
 import { publishableKeyFromHost } from "@clerk/shared/keys";
 import {
   CLERK_PROXY_PATH,
@@ -73,6 +73,13 @@ app.use(
 // Public health probe — must stay outside the auth gate.
 app.use("/api", healthRouter);
 
-app.use("/api", requireAuth(), withCurrentUser, router);
+// `withCurrentUser` is the auth gate: it reads the Clerk session via
+// `getAuth(req)` and responds with a JSON 401 when the request is
+// unauthenticated. We deliberately do NOT use Clerk's `requireAuth()` here —
+// it responds to unauthenticated API requests with a 302 redirect to the
+// sign-in page, which the browser's `fetch` silently follows to an HTML page,
+// producing non-JSON bodies that crash the client (e.g. "users.map is not a
+// function"). A 401 lets react-query surface the error cleanly instead.
+app.use("/api", withCurrentUser, router);
 
 export default app;
