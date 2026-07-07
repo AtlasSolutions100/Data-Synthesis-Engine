@@ -3,6 +3,7 @@ import {
   it,
   expect,
   beforeAll,
+  beforeEach,
   afterAll,
   vi,
 } from "vitest";
@@ -21,6 +22,19 @@ import {
   payrollRunsTable,
   payrollLinesTable,
 } from "@workspace/db";
+
+// The extract-hours route dynamically imports the OpenAI integration. Mock it so
+// the error-path tests can drive exactly what the model "returns" without any
+// network call or real API key.
+const { mockCreate } = vi.hoisted(() => ({ mockCreate: vi.fn() }));
+vi.mock("@workspace/integrations-openai-ai-server", () => ({
+  openai: { chat: { completions: { create: mockCreate } } },
+}));
+
+/** Build a chat-completion result carrying the given assistant message content. */
+function completionWith(content: string) {
+  return { choices: [{ message: { content } }] };
+}
 
 /**
  * Regression tests for the per-run total aggregation in GET /api/payroll-runs.
@@ -313,5 +327,100 @@ describe("PATCH /api/payroll-runs taxExempt round-trip", () => {
     expect(line.taxExempt).toBe(false);
     expect(line.grossWagesCents).toBe(200_000);
     expect(line.burdenCents).toBeGreaterThan(0);
+  });
+});
+
+/**
+ * Error-path coverage for POST /api/payroll/extract-hours.
+ *
+ * The happy path (model returns well-formed rows) is covered elsewhere; these
+ * tests lock in that the two failure modes fail *cleanly* with the right status
+ * and a user-facing message, rather than crashing or silently importing nothing:
+ *  - the model returns output we cannot parse as JSON  -> 502
+ *  - the model returns no usable rows / the input is empty -> 400
+ *
+ * The OpenAI integration is mocked (see top of file) so we can drive exactly
+ * what the model "returns" without a network call or API key.
+ */
+describe("POST /api/payroll/extract-hours error handling", () => {
+  beforeEach(() => {
+    mockCreate.mockReset();
+  });
+
+  it("returns 502 with a clear message when the model returns unparseable output", async () => {
+    // The model ignored the JSON instruction and returned prose. JSON.parse must
+    // fail and the route must surface a 502 rather than throwing.
+    mockCreate.mockResolvedValueOnce(
+      completionWith("Sorry, I could not read that timesheet."),
+    );
+
+    const res = await request(payrollApp)
+      .post("/api/payroll/extract-hours")
+      .send({ text: "Jane 40 reg, 5 OT" });
+
+    expect(res.status).toBe(502);
+    expect(res.body.error).toMatch(/could not read the extracted hours/i);
+    expect(mockCreate).toHaveBeenCalledTimes(1);
+  });
+
+  it("returns 502 when the model returns an empty completion (blank content)", async () => {
+    // A blank message body means JSON.parse("") throws — still a clean 502.
+    mockCreate.mockResolvedValueOnce(completionWith(""));
+
+    const res = await request(payrollApp)
+      .post("/api/payroll/extract-hours")
+      .send({ text: "Some hours somewhere" });
+
+    expect(res.status).toBe(502);
+    expect(res.body.error).toMatch(/could not read the extracted hours/i);
+  });
+
+  it("returns 400 with a clear message when the model extracts zero rows", async () => {
+    // Well-formed JSON, but no worker hours were found in the text.
+    mockCreate.mockResolvedValueOnce(
+      completionWith(JSON.stringify({ rows: [] })),
+    );
+
+    const res = await request(payrollApp)
+      .post("/api/payroll/extract-hours")
+      .send({ text: "Thanks, talk soon! -- Bob" });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/no worker hours were found/i);
+    expect(mockCreate).toHaveBeenCalledTimes(1);
+  });
+
+  it("returns 400 when the model's rows all lack a usable worker name", async () => {
+    // Rows exist but every one is unusable (blank/absent name), so after
+    // filtering there are no importable rows — must be a 400, not an empty 200.
+    mockCreate.mockResolvedValueOnce(
+      completionWith(
+        JSON.stringify({
+          rows: [
+            { workerName: "", regularHours: 8, overtimeHours: 0 },
+            { regularHours: 40, overtimeHours: 2 },
+          ],
+        }),
+      ),
+    );
+
+    const res = await request(payrollApp)
+      .post("/api/payroll/extract-hours")
+      .send({ text: "8 hours, 40 hours" });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/no worker hours were found/i);
+  });
+
+  it("returns 400 for empty input without ever calling the model", async () => {
+    // Whitespace-only text passes the min-length body check but trims to empty;
+    // the route must short-circuit with a 400 and never spend a model call.
+    const res = await request(payrollApp)
+      .post("/api/payroll/extract-hours")
+      .send({ text: "   \n\t  " });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/provide some text/i);
+    expect(mockCreate).not.toHaveBeenCalled();
   });
 });
