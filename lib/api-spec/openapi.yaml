@@ -1127,6 +1127,27 @@ paths:
           $ref: "#/components/responses/Error"
         "404":
           $ref: "#/components/responses/Error"
+  /payroll/extract-hours:
+    post:
+      operationId: extractPayrollHours
+      tags: [payroll]
+      summary: Extract structured worker hours from free-form text
+      description: Uses an AI model to parse pasted email text or an uploaded timesheet into structured worker-hour rows for review before merging into a draft payroll run.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ExtractPayrollHoursInput"
+      responses:
+        "200":
+          description: Extracted worker-hour rows
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExtractPayrollHoursResult"
+        "400":
+          $ref: "#/components/responses/Error"
 
   /users/me:
     get:
@@ -2255,6 +2276,7 @@ components:
           coSurchargeCents,
           burdenCents,
           totalCostCents,
+          taxExempt,
           allocations,
         ]
       properties:
@@ -2279,6 +2301,9 @@ components:
           type: ["integer", "null"]
         overtimeRateCents:
           type: ["integer", "null"]
+        taxExempt:
+          type: boolean
+          description: When true, employer payroll taxes were skipped for this line
         regularWagesCents:
           type: integer
         overtimeWagesCents:
@@ -2467,6 +2492,34 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/PayrollLineInput"
+    ExtractPayrollHoursInput:
+      type: object
+      required: [text]
+      properties:
+        text:
+          type: string
+          minLength: 1
+          description: Free-form pasted email text or uploaded timesheet contents
+    ExtractedHourRow:
+      type: object
+      required: [workerName, regularHours, overtimeHours]
+      properties:
+        workerName:
+          type: string
+        regularHours:
+          type: number
+          minimum: 0
+        overtimeHours:
+          type: number
+          minimum: 0
+    ExtractPayrollHoursResult:
+      type: object
+      required: [rows]
+      properties:
+        rows:
+          type: array
+          items:
+            $ref: "#/components/schemas/ExtractedHourRow"
     PayrollByJobRow:
       type: object
       required:

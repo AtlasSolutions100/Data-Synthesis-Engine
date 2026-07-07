@@ -23,6 +23,8 @@ export interface PayrollLine {
   straightRateCents?: number | null;
   /** @nullable */
   overtimeRateCents?: number | null;
+  /** When true, employer payroll taxes were skipped for this line */
+  taxExempt: boolean;
   regularWagesCents: number;
   overtimeWagesCents: number;
   grossWagesCents: number;

@@ -74,6 +74,9 @@ export const payrollLinesTable = pgTable("payroll_lines", {
     .default(0),
   straightRateCents: bigint("straight_rate_cents", { mode: "number" }),
   overtimeRateCents: bigint("overtime_rate_cents", { mode: "number" }),
+  // Whether employer burden was intentionally waived for this line. Persisted
+  // (not inferred) so re-opening a draft never silently changes burden.
+  taxExempt: boolean("tax_exempt").notNull().default(false),
   regularWagesCents: bigint("regular_wages_cents", { mode: "number" })
     .notNull()
     .default(0),

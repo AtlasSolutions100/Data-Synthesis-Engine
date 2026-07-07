@@ -886,6 +886,8 @@ export interface PayrollLine {
   straightRateCents?: number | null;
   /** @nullable */
   overtimeRateCents?: number | null;
+  /** When true, employer payroll taxes were skipped for this line */
+  taxExempt: boolean;
   regularWagesCents: number;
   overtimeWagesCents: number;
   grossWagesCents: number;
@@ -997,6 +999,26 @@ export interface PayrollRunUpdate {
   /** @minimum 0 */
   coSurchargeRateBps?: number;
   lines?: PayrollLineInput[];
+}
+
+export interface ExtractPayrollHoursInput {
+  /**
+     * Free-form pasted email text or uploaded timesheet contents
+     * @minLength 1
+     */
+  text: string;
+}
+
+export interface ExtractedHourRow {
+  workerName: string;
+  /** @minimum 0 */
+  regularHours: number;
+  /** @minimum 0 */
+  overtimeHours: number;
+}
+
+export interface ExtractPayrollHoursResult {
+  rows: ExtractedHourRow[];
 }
 
 export interface PayrollByJobRow {

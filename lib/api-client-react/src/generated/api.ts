@@ -38,6 +38,8 @@ import type {
   EmployeeInput,
   EmployeeUpdate,
   ErrorResponse,
+  ExtractPayrollHoursInput,
+  ExtractPayrollHoursResult,
   GetCostByAccountParams,
   GetDashboardSummaryParams,
   GetPayrollByJobParams,
@@ -4622,6 +4624,77 @@ export const useUnpostPayrollRun = <TError = ErrorType<ErrorResponse>,
         TContext
       > => {
       return useMutation(getUnpostPayrollRunMutationOptions(options));
+    }
+
+export const getExtractPayrollHoursUrl = () => {
+
+
+
+
+  return `/api/payroll/extract-hours`
+}
+
+/**
+ * Uses an AI model to parse pasted email text or an uploaded timesheet into structured worker-hour rows for review before merging into a draft payroll run.
+ * @summary Extract structured worker hours from free-form text
+ */
+export const extractPayrollHours = async (extractPayrollHoursInput: ExtractPayrollHoursInput, options?: RequestInit): Promise<ExtractPayrollHoursResult> => {
+
+  return customFetch<ExtractPayrollHoursResult>(getExtractPayrollHoursUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(extractPayrollHoursInput)
+  }
+);}
+
+
+
+
+export const getExtractPayrollHoursMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof extractPayrollHours>>, TError,{data: BodyType<ExtractPayrollHoursInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof extractPayrollHours>>, TError,{data: BodyType<ExtractPayrollHoursInput>}, TContext> => {
+
+const mutationKey = ['extractPayrollHours'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof extractPayrollHours>>, {data: BodyType<ExtractPayrollHoursInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  extractPayrollHours(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ExtractPayrollHoursMutationResult = NonNullable<Awaited<ReturnType<typeof extractPayrollHours>>>
+    export type ExtractPayrollHoursMutationBody = BodyType<ExtractPayrollHoursInput>
+    export type ExtractPayrollHoursMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Extract structured worker hours from free-form text
+ */
+export const useExtractPayrollHours = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof extractPayrollHours>>, TError,{data: BodyType<ExtractPayrollHoursInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof extractPayrollHours>>,
+        TError,
+        {data: BodyType<ExtractPayrollHoursInput>},
+        TContext
+      > => {
+      return useMutation(getExtractPayrollHoursMutationOptions(options));
     }
 
 export const getGetCurrentUserUrl = () => {

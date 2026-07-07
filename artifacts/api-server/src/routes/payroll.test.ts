@@ -211,3 +211,107 @@ describe("GET /api/payroll-runs total aggregation with date filtering", () => {
     expect(res.body).toEqual([]);
   });
 });
+
+/**
+ * Regression: a tax-exempt worker line must round-trip through create → get →
+ * edit without silently gaining employer burden. Previously taxExempt was not
+ * persisted, so re-opening a draft (especially a line with zero gross wages)
+ * lost the exemption and the edit PATCH recomputed burden on the wages.
+ */
+describe("PATCH /api/payroll-runs taxExempt round-trip", () => {
+  const editRunIds: number[] = [];
+
+  afterAll(async () => {
+    if (editRunIds.length) {
+      await db
+        .delete(payrollRunsTable)
+        .where(inArray(payrollRunsTable.id, editRunIds));
+    }
+  });
+
+  it("persists taxExempt across create, get, and edit — preserving zero burden", async () => {
+    // Create a draft with a tax-exempt employee at ZERO hours (zero gross).
+    const createRes = await request(payrollApp)
+      .post("/api/payroll-runs")
+      .send({
+        payPeriodStart: "2098-05-01",
+        payPeriodEnd: "2098-05-15",
+        payDate: "2098-05-20",
+        laborAccountId: laborAcctId,
+        lines: [
+          {
+            lineType: "employee",
+            workerName: "TEST-PR Exempt",
+            regularHours: 0,
+            overtimeHours: 0,
+            straightRateCents: 5000,
+            taxExempt: true,
+            allocations: [],
+          },
+        ],
+      });
+    expect(createRes.status).toBe(201);
+    const runId = createRes.body.id as number;
+    editRunIds.push(runId);
+
+    // GET must echo the persisted exemption (previously it was dropped).
+    const getRes = await request(payrollApp).get(`/api/payroll-runs/${runId}`);
+    expect(getRes.status).toBe(200);
+    expect(getRes.body.lines[0].taxExempt).toBe(true);
+
+    // Edit: import hours onto the exempt line (simulating the Import Hours flow),
+    // keeping taxExempt from the fetched line. Burden must stay zero.
+    const editLine = getRes.body.lines[0];
+    const patchRes = await request(payrollApp)
+      .patch(`/api/payroll-runs/${runId}`)
+      .send({
+        lines: [
+          {
+            lineType: "employee",
+            workerName: editLine.workerName,
+            regularHours: 40,
+            overtimeHours: 0,
+            straightRateCents: editLine.straightRateCents,
+            taxExempt: editLine.taxExempt,
+            allocations: [],
+          },
+        ],
+      });
+    expect(patchRes.status).toBe(200);
+    const patchedLine = patchRes.body.lines[0];
+    expect(patchedLine.taxExempt).toBe(true);
+    expect(patchedLine.grossWagesCents).toBe(200_000);
+    expect(patchedLine.burdenCents).toBe(0);
+    expect(patchedLine.totalCostCents).toBe(200_000);
+  });
+
+  it("recomputes burden when a line is NOT tax-exempt", async () => {
+    const createRes = await request(payrollApp)
+      .post("/api/payroll-runs")
+      .send({
+        payPeriodStart: "2098-05-01",
+        payPeriodEnd: "2098-05-15",
+        payDate: "2098-05-21",
+        laborAccountId: laborAcctId,
+        lines: [
+          {
+            lineType: "employee",
+            workerName: "TEST-PR Taxed",
+            regularHours: 40,
+            overtimeHours: 0,
+            straightRateCents: 5000,
+            taxExempt: false,
+            allocations: [],
+          },
+        ],
+      });
+    expect(createRes.status).toBe(201);
+    const runId = createRes.body.id as number;
+    editRunIds.push(runId);
+
+    const line = createRes.body.lines[0];
+    expect(line.taxExempt).toBe(false);
+    expect(line.grossWagesCents).toBe(200_000);
+    expect(line.burdenCents).toBeGreaterThan(0);
+  });
+});

@@ -1,13 +1,16 @@
+import { useState } from "react";
 import { useParams, Link } from "wouter";
 import {
   useGetPayrollRun,
   usePostPayrollRun,
   useUnpostPayrollRun,
+  useUpdatePayrollRun,
   getGetPayrollRunQueryKey,
   getListPayrollRunsQueryKey,
   getGetCostByAccountQueryKey,
   getGetPayrollByJobQueryKey,
   getListTransactionsQueryKey,
+  type PayrollRun,
 } from "@workspace/api-client-react";
 import { formatCents } from "@/lib/format";
 import {
@@ -26,13 +29,67 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { PayrollRunForm } from "@/components/forms/payroll-run-form";
 import { useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, CheckCircle2, Undo2 } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Undo2, Pencil } from "lucide-react";
+
+/** Basis points (620) -> percentage string ("6.2"). */
+function bpsToPct(bps: number): string {
+  return (bps / 100).toString();
+}
+
+/** Integer cents -> plain dollar string ("1234" -> "12.34"). */
+function centsToInput(cents: number | null | undefined): string {
+  if (cents == null) return "";
+  return (cents / 100).toString();
+}
+
+/** Map a saved payroll run into the string-based form default values. */
+function runToFormValues(run: PayrollRun) {
+  return {
+    payPeriodStart: run.payPeriodStart,
+    payPeriodEnd: run.payPeriodEnd,
+    payDate: run.payDate,
+    laborAccountId: String(run.laborAccountId),
+    memo: run.memo ?? "",
+    ssRate: bpsToPct(run.ssRateBps),
+    medicareRate: bpsToPct(run.medicareRateBps),
+    futaRate: bpsToPct(run.futaRateBps),
+    coSuiRate: bpsToPct(run.coSuiRateBps),
+    coSurchargeRate: bpsToPct(run.coSurchargeRateBps),
+    lines: run.lines.map((line) => ({
+      lineType: line.lineType,
+      employeeId: line.employeeId != null ? String(line.employeeId) : "",
+      vendorId: line.vendorId != null ? String(line.vendorId) : "",
+      workerName: line.workerName,
+      regularHours: line.regularHours ? String(line.regularHours) : "",
+      overtimeHours: line.overtimeHours ? String(line.overtimeHours) : "",
+      straightRate: centsToInput(line.straightRateCents),
+      overtimeRate: centsToInput(line.overtimeRateCents),
+      taxExempt: line.taxExempt,
+      subcontractorAmount:
+        line.lineType === "subcontractor"
+          ? centsToInput(line.totalCostCents)
+          : "",
+      allocations: line.allocations.map((a) => ({
+        jobId: String(a.jobId),
+        amount: centsToInput(a.amountCents),
+      })),
+    })),
+  };
+}
 
 export default function PayrollDetail() {
   const { id } = useParams<{ id: string }>();
   const runId = parseInt(id || "0", 10);
   const queryClient = useQueryClient();
+  const [isEditOpen, setIsEditOpen] = useState(false);
 
   const { data: run, isLoading } = useGetPayrollRun(runId, {
     query: { enabled: !!runId, queryKey: getGetPayrollRunQueryKey(runId) },
@@ -48,6 +105,14 @@ export default function PayrollDetail() {
 
   const postRun = usePostPayrollRun({ mutation: { onSuccess: invalidate } });
   const unpostRun = useUnpostPayrollRun({ mutation: { onSuccess: invalidate } });
+  const updateRun = useUpdatePayrollRun({
+    mutation: {
+      onSuccess: () => {
+        invalidate();
+        setIsEditOpen(false);
+      },
+    },
+  });
 
   if (isLoading) {
     return <div className="p-8 text-slate-500">Loading payroll run...</div>;
@@ -102,14 +167,22 @@ export default function PayrollDetail() {
               {unpostRun.isPending ? "Unposting..." : "Unpost"}
             </Button>
           ) : (
-            <Button
-              className="bg-emerald-600 hover:bg-emerald-700"
-              disabled={postRun.isPending}
-              onClick={() => postRun.mutate({ id: runId })}
-            >
-              <CheckCircle2 className="mr-2 h-4 w-4" />
-              {postRun.isPending ? "Posting..." : "Post to Ledger"}
-            </Button>
+            <div className="flex items-center gap-3">
+              <Button
+                variant="outline"
+                onClick={() => setIsEditOpen(true)}
+              >
+                <Pencil className="mr-2 h-4 w-4" /> Edit
+              </Button>
+              <Button
+                className="bg-emerald-600 hover:bg-emerald-700"
+                disabled={postRun.isPending}
+                onClick={() => postRun.mutate({ id: runId })}
+              >
+                <CheckCircle2 className="mr-2 h-4 w-4" />
+                {postRun.isPending ? "Posting..." : "Post to Ledger"}
+              </Button>
+            </div>
           )}
         </div>
       </div>
@@ -278,6 +351,21 @@ export default function PayrollDetail() {
           </Table>
         </CardContent>
       </Card>
+
+      <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
+        <DialogContent className="sm:max-w-[760px]">
+          <DialogHeader>
+            <DialogTitle>Edit Payroll Run</DialogTitle>
+          </DialogHeader>
+          {isEditOpen ? (
+            <PayrollRunForm
+              defaultValues={runToFormValues(run)}
+              onSubmit={(data) => updateRun.mutate({ id: runId, data })}
+              isLoading={updateRun.isPending}
+            />
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -26,7 +26,10 @@ import {
   PostPayrollRunResponse,
   UnpostPayrollRunParams,
   UnpostPayrollRunResponse,
+  ExtractPayrollHoursBody,
+  ExtractPayrollHoursResponse,
 } from "@workspace/api-zod";
+import { openai } from "@workspace/integrations-openai-ai-server";
 import { computeLine, type BurdenRates } from "../lib/payroll";
 import { COST_TYPES, dateRangeConds } from "../lib/finance";
 
@@ -127,6 +130,7 @@ async function getFullRun(id: number) {
       overtimeHours: Number(l.overtimeHours),
       straightRateCents: l.straightRateCents,
       overtimeRateCents: l.overtimeRateCents,
+      taxExempt: l.taxExempt,
       regularWagesCents: Number(l.regularWagesCents),
       overtimeWagesCents: Number(l.overtimeWagesCents),
       grossWagesCents: Number(l.grossWagesCents),
@@ -276,6 +280,7 @@ async function insertLines(
         overtimeHours: l.overtimeHours,
         straightRateCents: l.straightRateCents ?? null,
         overtimeRateCents: l.overtimeRateCents ?? null,
+        taxExempt: l.taxExempt,
         ...computed,
       })
       .returning();
@@ -712,6 +717,97 @@ router.post("/payroll-runs/:id/unpost", async (req, res): Promise<void> => {
 
   const full = await getFullRun(run.id);
   res.json(UnpostPayrollRunResponse.parse(full));
+});
+
+/** Coerce an arbitrary value into a non-negative hours number (2 decimals). */
+function normalizeHours(value: unknown): number {
+  const n = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(n) || n <= 0) return 0;
+  return Math.round(n * 100) / 100;
+}
+
+const EXTRACT_SYSTEM_PROMPT = `You extract worker payroll hours from free-form text such as emails, notes, or CSV data. Hours emails vary widely in format.
+
+Return ONLY a JSON object of this exact shape:
+{"rows": [{"workerName": string, "regularHours": number, "overtimeHours": number}]}
+
+Rules:
+- One row per distinct worker.
+- workerName: the person's name exactly as written (keep normal capitalization).
+- regularHours: straight-time hours. Default 0 when not stated.
+- overtimeHours: overtime / OT / time-and-a-half hours. Default 0 when not stated.
+- Numbers only (no units, no text). Convert values like "8h" to 8.
+- If only a single total is given with no reg/OT split, put the whole amount in regularHours and 0 in overtimeHours.
+- Ignore anything that is not a worker's hours (greetings, signatures, job notes, dollar amounts).
+- If no worker hours are present, return {"rows": []}.`;
+
+router.post("/payroll/extract-hours", async (req, res): Promise<void> => {
+  const parsed = ExtractPayrollHoursBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+  const text = parsed.data.text.trim();
+  if (!text) {
+    res.status(400).json({ error: "Provide some text to extract hours from" });
+    return;
+  }
+
+  let content: string;
+  try {
+    const completion = await openai.chat.completions.create({
+      model: "gpt-5-mini",
+      max_completion_tokens: 8192,
+      response_format: { type: "json_object" },
+      messages: [
+        { role: "system", content: EXTRACT_SYSTEM_PROMPT },
+        { role: "user", content: text },
+      ],
+    });
+    content = completion.choices[0]?.message?.content ?? "";
+  } catch (err) {
+    req.log?.error({ err }, "payroll hours extraction failed");
+    res.status(502).json({
+      error: "The hours extraction service is unavailable. Please try again.",
+    });
+    return;
+  }
+
+  let rawRows: unknown;
+  try {
+    const obj = JSON.parse(content) as { rows?: unknown };
+    rawRows = obj?.rows;
+  } catch {
+    res.status(502).json({
+      error: "Could not read the extracted hours. Please try again.",
+    });
+    return;
+  }
+
+  const rows = Array.isArray(rawRows)
+    ? rawRows
+        .map((r) => {
+          const row = (r ?? {}) as Record<string, unknown>;
+          const workerName =
+            typeof row.workerName === "string" ? row.workerName.trim() : "";
+          return {
+            workerName,
+            regularHours: normalizeHours(row.regularHours),
+            overtimeHours: normalizeHours(row.overtimeHours),
+          };
+        })
+        .filter((r) => r.workerName.length > 0)
+    : [];
+
+  if (rows.length === 0) {
+    res.status(400).json({
+      error:
+        "No worker hours were found in that text. Check the format and try again.",
+    });
+    return;
+  }
+
+  res.json(ExtractPayrollHoursResponse.parse({ rows }));
 });
 
 export default router;

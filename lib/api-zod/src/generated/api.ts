@@ -1606,6 +1606,7 @@ export const ListPayrollRunsResponseItem = zod.object({
   "overtimeHours": zod.number(),
   "straightRateCents": zod.number().nullish(),
   "overtimeRateCents": zod.number().nullish(),
+  "taxExempt": zod.boolean().describe('When true, employer payroll taxes were skipped for this line'),
   "regularWagesCents": zod.number(),
   "overtimeWagesCents": zod.number(),
   "grossWagesCents": zod.number(),
@@ -1711,6 +1712,7 @@ export const CreatePayrollRunResponse = zod.object({
   "overtimeHours": zod.number(),
   "straightRateCents": zod.number().nullish(),
   "overtimeRateCents": zod.number().nullish(),
+  "taxExempt": zod.boolean().describe('When true, employer payroll taxes were skipped for this line'),
   "regularWagesCents": zod.number(),
   "overtimeWagesCents": zod.number(),
   "grossWagesCents": zod.number(),
@@ -1770,6 +1772,7 @@ export const GetPayrollRunResponse = zod.object({
   "overtimeHours": zod.number(),
   "straightRateCents": zod.number().nullish(),
   "overtimeRateCents": zod.number().nullish(),
+  "taxExempt": zod.boolean().describe('When true, employer payroll taxes were skipped for this line'),
   "regularWagesCents": zod.number(),
   "overtimeWagesCents": zod.number(),
   "grossWagesCents": zod.number(),
@@ -1878,6 +1881,7 @@ export const UpdatePayrollRunResponse = zod.object({
   "overtimeHours": zod.number(),
   "straightRateCents": zod.number().nullish(),
   "overtimeRateCents": zod.number().nullish(),
+  "taxExempt": zod.boolean().describe('When true, employer payroll taxes were skipped for this line'),
   "regularWagesCents": zod.number(),
   "overtimeWagesCents": zod.number(),
   "grossWagesCents": zod.number(),
@@ -1948,6 +1952,7 @@ export const PostPayrollRunResponse = zod.object({
   "overtimeHours": zod.number(),
   "straightRateCents": zod.number().nullish(),
   "overtimeRateCents": zod.number().nullish(),
+  "taxExempt": zod.boolean().describe('When true, employer payroll taxes were skipped for this line'),
   "regularWagesCents": zod.number(),
   "overtimeWagesCents": zod.number(),
   "grossWagesCents": zod.number(),
@@ -2008,6 +2013,7 @@ export const UnpostPayrollRunResponse = zod.object({
   "overtimeHours": zod.number(),
   "straightRateCents": zod.number().nullish(),
   "overtimeRateCents": zod.number().nullish(),
+  "taxExempt": zod.boolean().describe('When true, employer payroll taxes were skipped for this line'),
   "regularWagesCents": zod.number(),
   "overtimeWagesCents": zod.number(),
   "grossWagesCents": zod.number(),
@@ -2026,6 +2032,32 @@ export const UnpostPayrollRunResponse = zod.object({
   "jobName": zod.string().nullish(),
   "amountCents": zod.number().describe('Burdened labor cost allocated to this job, in integer cents')
 }))
+}))
+})
+
+
+/**
+ * Uses an AI model to parse pasted email text or an uploaded timesheet into structured worker-hour rows for review before merging into a draft payroll run.
+ * @summary Extract structured worker hours from free-form text
+ */
+
+
+
+export const ExtractPayrollHoursBody = zod.object({
+  "text": zod.string().min(1).describe('Free-form pasted email text or uploaded timesheet contents')
+})
+
+export const extractPayrollHoursResponseRowsItemRegularHoursMin = 0;
+
+export const extractPayrollHoursResponseRowsItemOvertimeHoursMin = 0;
+
+
+
+export const ExtractPayrollHoursResponse = zod.object({
+  "rows": zod.array(zod.object({
+  "workerName": zod.string(),
+  "regularHours": zod.number().min(extractPayrollHoursResponseRowsItemRegularHoursMin),
+  "overtimeHours": zod.number().min(extractPayrollHoursResponseRowsItemOvertimeHoursMin)
 }))
 })
 

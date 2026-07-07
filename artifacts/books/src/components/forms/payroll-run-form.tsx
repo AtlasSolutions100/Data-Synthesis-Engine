@@ -1,4 +1,11 @@
-import { useForm, useFieldArray, Control, useWatch } from "react-hook-form";
+import { useState } from "react";
+import {
+  useForm,
+  useFieldArray,
+  Control,
+  useWatch,
+  type UseFormReturn,
+} from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Button } from "@/components/ui/button";
@@ -11,6 +18,25 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import {
   Select,
   SelectContent,
@@ -19,8 +45,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { parseDollars, formatCents } from "@/lib/format";
-import { Plus, Trash2 } from "lucide-react";
-import type { PayrollRunInput } from "@workspace/api-client-react";
+import { Plus, Trash2, Sparkles, Upload } from "lucide-react";
+import {
+  useExtractPayrollHours,
+  type PayrollRunInput,
+} from "@workspace/api-client-react";
 
 const allocationSchema = z.object({
   jobId: z.string().min(1, "Job ID required"),
@@ -447,6 +476,311 @@ function WorkerLine({
   );
 }
 
+const normalizeName = (s: string) =>
+  s.toLowerCase().trim().replace(/\s+/g, " ");
+
+function readApiError(err: unknown): string {
+  const data = (err as { data?: { error?: string } })?.data;
+  if (data?.error) return data.error;
+  const msg = (err as { message?: string })?.message;
+  return msg || "Couldn't extract hours. Please try again.";
+}
+
+type ImportStatus = "matched" | "ambiguous" | "unmatched";
+
+interface ReviewRow {
+  workerName: string;
+  regularHours: string;
+  overtimeHours: string;
+  target: string; // "skip" or the target line index as a string
+  status: ImportStatus;
+}
+
+function StatusBadge({ status }: { status: ImportStatus }) {
+  if (status === "matched") {
+    return (
+      <Badge className="mt-1 bg-emerald-100 text-emerald-700 hover:bg-emerald-100">
+        Matched
+      </Badge>
+    );
+  }
+  if (status === "ambiguous") {
+    return (
+      <Badge className="mt-1 bg-amber-100 text-amber-700 hover:bg-amber-100">
+        Multiple matches — choose one
+      </Badge>
+    );
+  }
+  return (
+    <Badge className="mt-1 bg-slate-100 text-slate-600 hover:bg-slate-100">
+      No match — pick or skip
+    </Badge>
+  );
+}
+
+function ImportHoursDialog({ form }: { form: UseFormReturn<RunFormValues> }) {
+  const [open, setOpen] = useState(false);
+  const [stage, setStage] = useState<"input" | "review">("input");
+  const [text, setText] = useState("");
+  const [fileName, setFileName] = useState("");
+  const [error, setError] = useState("");
+  const [rows, setRows] = useState<ReviewRow[]>([]);
+
+  const extract = useExtractPayrollHours();
+
+  const employeeOptions = (form.getValues("lines") ?? [])
+    .map((l, index) => ({ index, name: l.workerName, type: l.lineType }))
+    .filter((o) => o.type === "employee");
+
+  const resetAll = () => {
+    setStage("input");
+    setText("");
+    setFileName("");
+    setError("");
+    setRows([]);
+    extract.reset();
+  };
+
+  const handleOpenChange = (next: boolean) => {
+    setOpen(next);
+    if (!next) resetAll();
+  };
+
+  const handleFile = (file: File | undefined) => {
+    if (!file) return;
+    setFileName(file.name);
+    const reader = new FileReader();
+    reader.onload = () => setText(String(reader.result ?? ""));
+    reader.readAsText(file);
+  };
+
+  const buildReview = (
+    extracted: Array<{
+      workerName: string;
+      regularHours: number;
+      overtimeHours: number;
+    }>,
+  ): ReviewRow[] => {
+    const opts = (form.getValues("lines") ?? [])
+      .map((l, index) => ({ index, name: l.workerName, type: l.lineType }))
+      .filter((o) => o.type === "employee");
+    return extracted.map((r) => {
+      const matches = opts.filter(
+        (o) => normalizeName(o.name) === normalizeName(r.workerName),
+      );
+      let status: ImportStatus = "unmatched";
+      let target = "skip";
+      if (matches.length === 1) {
+        status = "matched";
+        target = String(matches[0].index);
+      } else if (matches.length > 1) {
+        status = "ambiguous";
+      }
+      return {
+        workerName: r.workerName,
+        regularHours: String(r.regularHours),
+        overtimeHours: String(r.overtimeHours),
+        target,
+        status,
+      };
+    });
+  };
+
+  const handleExtract = async () => {
+    setError("");
+    if (!text.trim()) {
+      setError("Paste some text or upload a file first.");
+      return;
+    }
+    try {
+      const result = await extract.mutateAsync({ data: { text } });
+      setRows(buildReview(result.rows));
+      setStage("review");
+    } catch (err) {
+      setError(readApiError(err));
+    }
+  };
+
+  const updateRow = (i: number, patch: Partial<ReviewRow>) => {
+    setRows((prev) => prev.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
+  };
+
+  const appliedCount = rows.filter((r) => r.target !== "skip").length;
+
+  const handleApply = () => {
+    rows.forEach((r) => {
+      if (r.target === "skip") return;
+      const idx = parseInt(r.target, 10);
+      if (Number.isNaN(idx)) return;
+      form.setValue(`lines.${idx}.regularHours`, r.regularHours, {
+        shouldDirty: true,
+        shouldValidate: true,
+      });
+      form.setValue(`lines.${idx}.overtimeHours`, r.overtimeHours, {
+        shouldDirty: true,
+        shouldValidate: true,
+      });
+    });
+    handleOpenChange(false);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogTrigger asChild>
+        <Button type="button" variant="outline" size="sm">
+          <Sparkles className="mr-1 h-4 w-4" /> Import hours
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-[720px]">
+        <DialogHeader>
+          <DialogTitle>Import hours</DialogTitle>
+          <DialogDescription>
+            Paste an hours email or upload a .txt/.csv file. Extracted hours
+            merge into matching worker lines by name — nothing posts
+            automatically.
+          </DialogDescription>
+        </DialogHeader>
+
+        {stage === "input" ? (
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="import-hours-text">Paste hours text</Label>
+              <Textarea
+                id="import-hours-text"
+                rows={9}
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+                placeholder={
+                  "e.g.\nJohn Smith — 40 reg, 5 OT\nJane Doe 38 hours"
+                }
+              />
+            </div>
+            <div className="flex items-center gap-3">
+              <Label
+                htmlFor="import-hours-file"
+                className="cursor-pointer text-sm font-normal text-blue-600 hover:underline"
+              >
+                <Upload className="mr-1 inline h-4 w-4" /> Upload .txt / .csv
+              </Label>
+              <input
+                id="import-hours-file"
+                type="file"
+                accept=".txt,.csv,text/plain,text/csv"
+                className="hidden"
+                onChange={(e) => handleFile(e.target.files?.[0])}
+              />
+              {fileName ? (
+                <span className="text-xs text-slate-500">{fileName}</span>
+              ) : null}
+            </div>
+            {error ? <p className="text-sm text-red-600">{error}</p> : null}
+            <div className="flex justify-end">
+              <Button
+                type="button"
+                onClick={handleExtract}
+                disabled={extract.isPending}
+              >
+                {extract.isPending ? "Extracting…" : "Extract hours"}
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <p className="text-sm text-slate-600">
+              {appliedCount} of {rows.length} row
+              {rows.length === 1 ? "" : "s"} will be applied. Review the hours and
+              confirm which worker line each maps to.
+            </p>
+            {employeeOptions.length === 0 ? (
+              <p className="text-sm text-amber-600">
+                Add employee worker lines first, then import to fill their hours.
+              </p>
+            ) : null}
+            <div className="max-h-[45vh] overflow-y-auto rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Extracted name</TableHead>
+                    <TableHead className="w-24 text-right">Reg</TableHead>
+                    <TableHead className="w-24 text-right">OT</TableHead>
+                    <TableHead className="w-48">Apply to worker</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {rows.map((r, i) => (
+                    <TableRow key={i}>
+                      <TableCell className="align-top">
+                        <div className="font-medium">{r.workerName}</div>
+                        <StatusBadge status={r.status} />
+                      </TableCell>
+                      <TableCell className="align-top">
+                        <Input
+                          type="number"
+                          step="0.01"
+                          className="text-right"
+                          value={r.regularHours}
+                          onChange={(e) =>
+                            updateRow(i, { regularHours: e.target.value })
+                          }
+                        />
+                      </TableCell>
+                      <TableCell className="align-top">
+                        <Input
+                          type="number"
+                          step="0.01"
+                          className="text-right"
+                          value={r.overtimeHours}
+                          onChange={(e) =>
+                            updateRow(i, { overtimeHours: e.target.value })
+                          }
+                        />
+                      </TableCell>
+                      <TableCell className="align-top">
+                        <Select
+                          value={r.target}
+                          onValueChange={(v) => updateRow(i, { target: v })}
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="skip">Skip</SelectItem>
+                            {employeeOptions.map((o) => (
+                              <SelectItem key={o.index} value={String(o.index)}>
+                                {o.name || `Worker ${o.index + 1}`}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+            <div className="flex justify-between">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setStage("input")}
+              >
+                Back
+              </Button>
+              <Button
+                type="button"
+                onClick={handleApply}
+                disabled={appliedCount === 0}
+              >
+                Apply hours
+              </Button>
+            </div>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export function PayrollRunForm({
   defaultValues,
   onSubmit,
@@ -708,14 +1042,17 @@ export function PayrollRunForm({
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <p className="text-sm font-medium leading-none">Worker Lines</p>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => append({ ...emptyLine })}
-            >
-              <Plus className="mr-1 h-4 w-4" /> Add Worker
-            </Button>
+            <div className="flex items-center gap-2">
+              <ImportHoursDialog form={form} />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => append({ ...emptyLine })}
+              >
+                <Plus className="mr-1 h-4 w-4" /> Add Worker
+              </Button>
+            </div>
           </div>
           {fields.map((f, index) => (
             <WorkerLine
