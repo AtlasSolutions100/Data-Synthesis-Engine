@@ -97,6 +97,94 @@ describe("computeLine", () => {
     );
   });
 
+  it("rounds fractional regular and overtime hours to the nearest cent, then derives each burden component from the rounded gross", () => {
+    // Both wage legs land on an exact half-cent so this locks in round-half-up:
+    //   37.75 * 4750 = 179_312.5  -> 179_313
+    //    5.25 * 7126 =  37_411.5  ->  37_412
+    const result = computeLine({
+      lineType: "employee",
+      regularHours: 37.75,
+      overtimeHours: 5.25,
+      straightRateCents: 4750,
+      overtimeRateCents: 7126,
+      taxExempt: false,
+      subcontractorAmountCents: null,
+      rates: RATES,
+    });
+
+    // Exact rounded wages (no floating-point drift, no off-by-one penny).
+    expect(result.regularWagesCents).toBe(179_313);
+    expect(result.overtimeWagesCents).toBe(37_412);
+    expect(result.grossWagesCents).toBe(216_725);
+
+    // Each burden component: exact rounded value of gross × rateBps / 10000.
+    //   620 bps -> 13_436.95   -> 13_437
+    //   145 bps ->  3_142.5125 ->  3_143
+    //    60 bps ->  1_300.35   ->  1_300
+    //   170 bps ->  3_684.325  ->  3_684
+    //    22 bps ->    476.795  ->    477
+    expect(result.socialSecurityCents).toBe(13_437);
+    expect(result.medicareCents).toBe(3_143);
+    expect(result.futaCents).toBe(1_300);
+    expect(result.coSuiCents).toBe(3_684);
+    expect(result.coSurchargeCents).toBe(477);
+
+    expect(result.burdenCents).toBe(22_041);
+
+    // Cross-check against the mirrored rounding helper as well.
+    expect(result.socialSecurityCents).toBe(bps(216_725, RATES.ssRateBps));
+    expect(result.medicareCents).toBe(bps(216_725, RATES.medicareRateBps));
+    expect(result.futaCents).toBe(bps(216_725, RATES.futaRateBps));
+    expect(result.coSuiCents).toBe(bps(216_725, RATES.coSuiRateBps));
+    expect(result.coSurchargeCents).toBe(bps(216_725, RATES.coSurchargeRateBps));
+
+    // Total reconciles to gross + burden even after all the per-part rounding.
+    expect(result.totalCostCents).toBe(238_766);
+    expect(result.totalCostCents).toBe(
+      result.grossWagesCents + result.burdenCents,
+    );
+  });
+
+  it("rounds burden components sitting exactly on the half-cent up (round half up)", () => {
+    // 12.75 * 1000 = 12_750 gross, chosen so two burden components fall on an
+    // exact half-cent and must round up rather than truncate:
+    //   620 bps -> 790.5 -> 791
+    //    60 bps ->  76.5 ->  77
+    const result = computeLine({
+      lineType: "employee",
+      regularHours: 12.75,
+      overtimeHours: 0,
+      straightRateCents: 1000,
+      overtimeRateCents: 0,
+      taxExempt: false,
+      subcontractorAmountCents: null,
+      rates: RATES,
+    });
+
+    expect(result.regularWagesCents).toBe(12_750);
+    expect(result.overtimeWagesCents).toBe(0);
+    expect(result.grossWagesCents).toBe(12_750);
+
+    // Half-cent components round up; the rest round normally.
+    //   620 bps -> 790.5   -> 791
+    //   145 bps -> 184.875 -> 185
+    //    60 bps ->  76.5   ->  77
+    //   170 bps -> 216.75  -> 217
+    //    22 bps ->  28.05  ->  28
+    expect(result.socialSecurityCents).toBe(791);
+    expect(result.medicareCents).toBe(185);
+    expect(result.futaCents).toBe(77);
+    expect(result.coSuiCents).toBe(217);
+    expect(result.coSurchargeCents).toBe(28);
+
+    expect(result.burdenCents).toBe(1_298);
+
+    expect(result.totalCostCents).toBe(14_048);
+    expect(result.totalCostCents).toBe(
+      result.grossWagesCents + result.burdenCents,
+    );
+  });
+
   it("treats a subcontractor line as a flat pass-through with no wages and no burden", () => {
     const amount = 123_456;
     const result = computeLine({
