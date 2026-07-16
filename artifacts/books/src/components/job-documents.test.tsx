@@ -372,6 +372,57 @@ describe("SpreadsheetPreview (multi-sheet xlsx switching)", () => {
     expect(screen.queryByText("Revenue")).toBeNull();
   });
 
+  it("does not re-parse a sheet the user already viewed (renders from cache)", async () => {
+    bridgeXlsxMockToRealParser();
+    const buffer = readFileSync(MULTI_XLSX);
+    global.fetch = vi.fn(async () =>
+      xlsxResponse(buffer),
+    ) as unknown as typeof fetch;
+
+    render(<SpreadsheetPreview href="/wb.xlsx" kind="xlsx" sizeBytes={buffer.length} />);
+    await waitFor(() => expect(screen.getByText("Revenue")).toBeTruthy());
+    // Initial load parsed the first sheet exactly once.
+    expect(mockedReadXlsx).toHaveBeenCalledTimes(1);
+
+    // Visit Employees (one new parse)...
+    fireEvent.click(screen.getByRole("button", { name: "Employees" }));
+    await waitFor(() => expect(screen.getByText("Ada Lovelace")).toBeTruthy());
+    expect(mockedReadXlsx).toHaveBeenCalledTimes(2);
+
+    // ...return to Summary: served from cache, no parse, no spinner.
+    fireEvent.click(screen.getByRole("button", { name: "Summary" }));
+    expect(screen.getByText("Revenue")).toBeTruthy();
+    expect(screen.queryByText(/Loading preview/i)).toBeNull();
+    expect(mockedReadXlsx).toHaveBeenCalledTimes(2);
+
+    // Back to Employees: also cached now.
+    fireEvent.click(screen.getByRole("button", { name: "Employees" }));
+    expect(screen.getByText("Ada Lovelace")).toBeTruthy();
+    expect(screen.queryByText(/Loading preview/i)).toBeNull();
+    expect(mockedReadXlsx).toHaveBeenCalledTimes(2);
+  });
+
+  it("resets the sheet cache when a different file is previewed", async () => {
+    bridgeXlsxMockToRealParser();
+    const buffer = readFileSync(MULTI_XLSX);
+    global.fetch = vi.fn(async () =>
+      xlsxResponse(buffer),
+    ) as unknown as typeof fetch;
+
+    const { rerender } = render(
+      <SpreadsheetPreview href="/wb.xlsx" kind="xlsx" sizeBytes={buffer.length} />,
+    );
+    await waitFor(() => expect(screen.getByText("Revenue")).toBeTruthy());
+    expect(mockedReadXlsx).toHaveBeenCalledTimes(1);
+
+    // A different href re-fetches and re-parses even the same-named sheet.
+    rerender(
+      <SpreadsheetPreview href="/wb2.xlsx" kind="xlsx" sizeBytes={buffer.length} />,
+    );
+    await waitFor(() => expect(screen.getByText("Revenue")).toBeTruthy());
+    expect(mockedReadXlsx).toHaveBeenCalledTimes(2);
+  });
+
   it("ignores a stale parse: fast A→B clicks end on B's rows even when A resolves last", async () => {
     const buffer = readFileSync(MULTI_XLSX);
     global.fetch = vi.fn(async () =>
