@@ -65,7 +65,7 @@ export function TransactionForm({ defaultValues, onSubmit, isLoading }: Transact
   const { data: vendors } = useListVendors({
     query: { queryKey: getListVendorsQueryKey() },
   });
-  const { data: jobs } = useListJobs({
+  const { data: jobs } = useListJobs(undefined, {
     query: { queryKey: getListJobsQueryKey() },
   });
 

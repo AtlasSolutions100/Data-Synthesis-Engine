@@ -13,7 +13,14 @@ import {
 import { Input } from "@/components/ui/input";
 import { parseDollars, formatCents } from "@/lib/format";
 import { Plus, Trash2 } from "lucide-react";
+import {
+  useListCustomers,
+  getListCustomersQueryKey,
+  useListJobs,
+  getListJobsQueryKey,
+} from "@workspace/api-client-react";
 import type { InvoiceInput } from "@workspace/api-client-react";
+import { EntityCombobox } from "@/components/forms/entity-combobox";
 
 const lineSchema = z.object({
   description: z.string().optional(),
@@ -22,7 +29,7 @@ const lineSchema = z.object({
 
 const invoiceSchema = z.object({
   invoiceNumber: z.string().min(1, "Invoice number is required"),
-  jobId: z.string().min(1, "Job ID is required"),
+  jobId: z.string().min(1, "Job is required"),
   customerId: z.string().optional(),
   date: z.string().min(1, "Date is required"),
   dueDate: z.string().optional(),
@@ -45,6 +52,13 @@ export function InvoiceForm({
   isLoading,
   lockJob,
 }: InvoiceFormProps) {
+  const { data: customers } = useListCustomers({
+    query: { queryKey: getListCustomersQueryKey() },
+  });
+  const { data: jobs } = useListJobs(undefined, {
+    query: { queryKey: getListJobsQueryKey() },
+  });
+
   const form = useForm<InvoiceFormValues>({
     resolver: zodResolver(invoiceSchema),
     defaultValues: {
@@ -106,9 +120,21 @@ export function InvoiceForm({
             name="jobId"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Job ID</FormLabel>
+                <FormLabel>Job</FormLabel>
                 <FormControl>
-                  <Input type="number" {...field} disabled={lockJob} />
+                  <EntityCombobox
+                    options={(jobs ?? []).map((j) => ({
+                      id: j.id,
+                      label: `${j.jobNumber} — ${j.name}`,
+                    }))}
+                    value={field.value ?? ""}
+                    onChange={field.onChange}
+                    placeholder="Select job"
+                    searchPlaceholder="Search jobs..."
+                    emptyText="No jobs found."
+                    clearable={false}
+                    disabled={lockJob}
+                  />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -121,12 +147,18 @@ export function InvoiceForm({
             name="customerId"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Customer ID (Optional)</FormLabel>
+                <FormLabel>Customer (Optional)</FormLabel>
                 <FormControl>
-                  <Input
-                    type="number"
+                  <EntityCombobox
+                    options={(customers ?? []).map((c) => ({
+                      id: c.id,
+                      label: c.name,
+                    }))}
+                    value={field.value ?? ""}
+                    onChange={field.onChange}
                     placeholder="Defaults to job"
-                    {...field}
+                    searchPlaceholder="Search customers..."
+                    emptyText="No customers found."
                   />
                 </FormControl>
                 <FormMessage />

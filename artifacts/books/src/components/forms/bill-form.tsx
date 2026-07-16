@@ -13,7 +13,14 @@ import {
 import { Input } from "@/components/ui/input";
 import { parseDollars, formatCents } from "@/lib/format";
 import { Plus, Trash2 } from "lucide-react";
+import {
+  useListVendors,
+  getListVendorsQueryKey,
+  useListJobs,
+  getListJobsQueryKey,
+} from "@workspace/api-client-react";
 import type { BillInput } from "@workspace/api-client-react";
+import { EntityCombobox } from "@/components/forms/entity-combobox";
 
 const lineSchema = z.object({
   accountId: z.string().optional(),
@@ -23,7 +30,7 @@ const lineSchema = z.object({
 
 const billSchema = z.object({
   billNumber: z.string().optional(),
-  vendorId: z.string().min(1, "Vendor ID is required"),
+  vendorId: z.string().min(1, "Vendor is required"),
   jobId: z.string().optional(),
   date: z.string().min(1, "Date is required"),
   dueDate: z.string().optional(),
@@ -40,6 +47,13 @@ interface BillFormProps {
 }
 
 export function BillForm({ defaultValues, onSubmit, isLoading }: BillFormProps) {
+  const { data: vendors } = useListVendors({
+    query: { queryKey: getListVendorsQueryKey() },
+  });
+  const { data: jobs } = useListJobs(undefined, {
+    query: { queryKey: getListJobsQueryKey() },
+  });
+
   const form = useForm<BillFormValues>({
     resolver: zodResolver(billSchema),
     defaultValues: {
@@ -91,9 +105,20 @@ export function BillForm({ defaultValues, onSubmit, isLoading }: BillFormProps) 
             name="vendorId"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Vendor ID</FormLabel>
+                <FormLabel>Vendor</FormLabel>
                 <FormControl>
-                  <Input type="number" {...field} />
+                  <EntityCombobox
+                    options={(vendors ?? []).map((v) => ({
+                      id: v.id,
+                      label: v.name,
+                    }))}
+                    value={field.value ?? ""}
+                    onChange={field.onChange}
+                    placeholder="Select vendor"
+                    searchPlaceholder="Search vendors..."
+                    emptyText="No vendors found."
+                    clearable={false}
+                  />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -119,9 +144,19 @@ export function BillForm({ defaultValues, onSubmit, isLoading }: BillFormProps) 
             name="jobId"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Job ID (Optional)</FormLabel>
+                <FormLabel>Job (Optional)</FormLabel>
                 <FormControl>
-                  <Input type="number" {...field} />
+                  <EntityCombobox
+                    options={(jobs ?? []).map((j) => ({
+                      id: j.id,
+                      label: `${j.jobNumber} — ${j.name}`,
+                    }))}
+                    value={field.value ?? ""}
+                    onChange={field.onChange}
+                    placeholder="Select job"
+                    searchPlaceholder="Search jobs..."
+                    emptyText="No jobs found."
+                  />
                 </FormControl>
                 <FormMessage />
               </FormItem>
