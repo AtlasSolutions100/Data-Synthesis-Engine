@@ -1151,6 +1151,11 @@ export type StartDateParamParameter = string;
  */
 export type EndDateParamParameter = string;
 
+/**
+ * Report balances as of this date (YYYY-MM-DD). Omit for today.
+ */
+export type AsOfDateParamParameter = string;
+
 export type ListJobsParams = {
 customerId?: number;
 };
@@ -1196,6 +1201,22 @@ startDate?: StartDateParamParameter;
  * @pattern ^\d{4}-\d{2}-\d{2}$
  */
 endDate?: EndDateParamParameter;
+};
+
+export type GetArAgingParams = {
+/**
+ * Report balances as of this date (YYYY-MM-DD). Omit for today.
+ * @pattern ^\d{4}-\d{2}-\d{2}$
+ */
+asOf?: AsOfDateParamParameter;
+};
+
+export type GetApAgingParams = {
+/**
+ * Report balances as of this date (YYYY-MM-DD). Omit for today.
+ * @pattern ^\d{4}-\d{2}-\d{2}$
+ */
+asOf?: AsOfDateParamParameter;
 };
 
 export type ListInvoicesParams = {

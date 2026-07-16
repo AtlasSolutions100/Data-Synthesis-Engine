@@ -72,11 +72,12 @@ export default function Reports() {
   const { data: report, isLoading } = useGetCostByAccount(params, {
     query: { queryKey: getGetCostByAccountQueryKey(params) },
   });
-  const { data: arAging, isLoading: arLoading } = useGetArAging({
-    query: { queryKey: getGetArAgingQueryKey() },
+  const agingParams = { asOf: range.endDate };
+  const { data: arAging, isLoading: arLoading } = useGetArAging(agingParams, {
+    query: { queryKey: getGetArAgingQueryKey(agingParams) },
   });
-  const { data: apAging, isLoading: apLoading } = useGetApAging({
-    query: { queryKey: getGetApAgingQueryKey() },
+  const { data: apAging, isLoading: apLoading } = useGetApAging(agingParams, {
+    query: { queryKey: getGetApAgingQueryKey(agingParams) },
   });
   const { data: payrollByJob, isLoading: payrollLoading } = useGetPayrollByJob(
     params,

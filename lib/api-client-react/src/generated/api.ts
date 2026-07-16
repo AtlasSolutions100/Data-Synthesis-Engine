@@ -41,6 +41,8 @@ import type {
   ErrorResponse,
   ExtractPayrollHoursInput,
   ExtractPayrollHoursResult,
+  GetApAgingParams,
+  GetArAgingParams,
   GetCostByAccountParams,
   GetDashboardSummaryParams,
   GetPayrollByJobParams,
@@ -2851,21 +2853,28 @@ export function useGetCostByAccount<TData = Awaited<ReturnType<typeof getCostByA
 
 
 
-export const getGetArAgingUrl = () => {
+export const getGetArAgingUrl = (params?: GetArAgingParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
 
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
 
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/api/reports/ar-aging`
+  return stringifiedParams.length > 0 ? `/api/reports/ar-aging?${stringifiedParams}` : `/api/reports/ar-aging`
 }
 
 /**
- * Outstanding customer invoice balances grouped by customer and age bucket.
+ * Outstanding customer invoice balances grouped by customer and age bucket, as of an optional date (defaults to today).
  * @summary Accounts receivable aging
  */
-export const getArAging = async ( options?: RequestInit): Promise<ArAging> => {
+export const getArAging = async (params?: GetArAgingParams, options?: RequestInit): Promise<ArAging> => {
 
-  return customFetch<ArAging>(getGetArAgingUrl(),
+  return customFetch<ArAging>(getGetArAgingUrl(params),
   {
     ...options,
     method: 'GET'
@@ -2878,23 +2887,23 @@ export const getArAging = async ( options?: RequestInit): Promise<ArAging> => {
 
 
 
-export const getGetArAgingQueryKey = () => {
+export const getGetArAgingQueryKey = (params?: GetArAgingParams,) => {
     return [
-    `/api/reports/ar-aging`
+    `/api/reports/ar-aging`, ...(params ? [params] : [])
     ] as const;
     }
 
 
-export const getGetArAgingQueryOptions = <TData = Awaited<ReturnType<typeof getArAging>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getArAging>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getGetArAgingQueryOptions = <TData = Awaited<ReturnType<typeof getArAging>>, TError = ErrorType<unknown>>(params?: GetArAgingParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getArAging>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetArAgingQueryKey();
+  const queryKey =  queryOptions?.queryKey ?? getGetArAgingQueryKey(params);
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getArAging>>> = ({ signal }) => getArAging({ signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getArAging>>> = ({ signal }) => getArAging(params, { signal, ...requestOptions });
 
 
 
@@ -2912,11 +2921,11 @@ export type GetArAgingQueryError = ErrorType<unknown>
  */
 
 export function useGetArAging<TData = Awaited<ReturnType<typeof getArAging>>, TError = ErrorType<unknown>>(
-  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getArAging>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+ params?: GetArAgingParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getArAging>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
-  const queryOptions = getGetArAgingQueryOptions(options)
+  const queryOptions = getGetArAgingQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 
@@ -2929,21 +2938,28 @@ export function useGetArAging<TData = Awaited<ReturnType<typeof getArAging>>, TE
 
 
 
-export const getGetApAgingUrl = () => {
+export const getGetApAgingUrl = (params?: GetApAgingParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
 
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
 
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/api/reports/ap-aging`
+  return stringifiedParams.length > 0 ? `/api/reports/ap-aging?${stringifiedParams}` : `/api/reports/ap-aging`
 }
 
 /**
- * Outstanding vendor bill balances grouped by vendor and age bucket.
+ * Outstanding vendor bill balances grouped by vendor and age bucket, as of an optional date (defaults to today).
  * @summary Accounts payable aging
  */
-export const getApAging = async ( options?: RequestInit): Promise<ApAging> => {
+export const getApAging = async (params?: GetApAgingParams, options?: RequestInit): Promise<ApAging> => {
 
-  return customFetch<ApAging>(getGetApAgingUrl(),
+  return customFetch<ApAging>(getGetApAgingUrl(params),
   {
     ...options,
     method: 'GET'
@@ -2956,23 +2972,23 @@ export const getApAging = async ( options?: RequestInit): Promise<ApAging> => {
 
 
 
-export const getGetApAgingQueryKey = () => {
+export const getGetApAgingQueryKey = (params?: GetApAgingParams,) => {
     return [
-    `/api/reports/ap-aging`
+    `/api/reports/ap-aging`, ...(params ? [params] : [])
     ] as const;
     }
 
 
-export const getGetApAgingQueryOptions = <TData = Awaited<ReturnType<typeof getApAging>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getApAging>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getGetApAgingQueryOptions = <TData = Awaited<ReturnType<typeof getApAging>>, TError = ErrorType<unknown>>(params?: GetApAgingParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getApAging>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetApAgingQueryKey();
+  const queryKey =  queryOptions?.queryKey ?? getGetApAgingQueryKey(params);
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getApAging>>> = ({ signal }) => getApAging({ signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getApAging>>> = ({ signal }) => getApAging(params, { signal, ...requestOptions });
 
 
 
@@ -2990,11 +3006,11 @@ export type GetApAgingQueryError = ErrorType<unknown>
  */
 
 export function useGetApAging<TData = Awaited<ReturnType<typeof getApAging>>, TError = ErrorType<unknown>>(
-  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getApAging>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+ params?: GetApAgingParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getApAging>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
-  const queryOptions = getGetApAgingQueryOptions(options)
+  const queryOptions = getGetApAgingQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

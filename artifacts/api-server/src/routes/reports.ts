@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, lte, sql } from "drizzle-orm";
 import {
   db,
   transactionsTable,
@@ -24,7 +24,9 @@ import {
   GetCostByAccountResponse,
   GetCostByAccountQueryParams,
   GetArAgingResponse,
+  GetArAgingQueryParams,
   GetApAgingResponse,
+  GetApAgingQueryParams,
   GetPayrollByJobResponse,
   GetPayrollByJobQueryParams,
 } from "@workspace/api-zod";
@@ -260,8 +262,17 @@ router.get("/reports/cost-by-account", async (req, res): Promise<void> => {
   );
 });
 
-router.get("/reports/ar-aging", async (_req, res): Promise<void> => {
-  const asOf = new Date().toISOString().slice(0, 10);
+router.get("/reports/ar-aging", async (req, res): Promise<void> => {
+  const query = GetArAgingQueryParams.safeParse(req.query);
+  if (!query.success) {
+    res.status(400).json({ error: query.error.message });
+    return;
+  }
+  // When asOf is provided, snapshot the ledger at that date: exclude invoices
+  // and payments dated after it. When omitted, keep the historical all-time
+  // behavior (future-dated rows included) and bucket relative to today.
+  const asOfFilter = query.data.asOf;
+  const asOf = asOfFilter ?? new Date().toISOString().slice(0, 10);
 
   const rows = await db
     .select({
@@ -272,6 +283,7 @@ router.get("/reports/ar-aging", async (_req, res): Promise<void> => {
     .from(invoicesTable)
     .leftJoin(customersTable, eq(customersTable.id, invoicesTable.customerId))
     .leftJoin(jobsTable, eq(jobsTable.id, invoicesTable.jobId))
+    .where(asOfFilter ? lte(invoicesTable.date, asOfFilter) : undefined)
     .orderBy(desc(invoicesTable.date), desc(invoicesTable.id));
 
   const lineSums = await db
@@ -287,6 +299,7 @@ router.get("/reports/ar-aging", async (_req, res): Promise<void> => {
       total: sql<number>`coalesce(sum(${invoicePaymentsTable.amountCents}), 0)::bigint`,
     })
     .from(invoicePaymentsTable)
+    .where(asOfFilter ? lte(invoicePaymentsTable.date, asOfFilter) : undefined)
     .groupBy(invoicePaymentsTable.invoiceId);
 
   const lineMap = new Map(lineSums.map((r) => [r.invoiceId, Number(r.total)]));
@@ -356,8 +369,15 @@ router.get("/reports/ar-aging", async (_req, res): Promise<void> => {
   res.json(GetArAgingResponse.parse({ asOf, totals, customers }));
 });
 
-router.get("/reports/ap-aging", async (_req, res): Promise<void> => {
-  const asOf = new Date().toISOString().slice(0, 10);
+router.get("/reports/ap-aging", async (req, res): Promise<void> => {
+  const query = GetApAgingQueryParams.safeParse(req.query);
+  if (!query.success) {
+    res.status(400).json({ error: query.error.message });
+    return;
+  }
+  // Same as-of semantics as AR aging above.
+  const asOfFilter = query.data.asOf;
+  const asOf = asOfFilter ?? new Date().toISOString().slice(0, 10);
 
   const rows = await db
     .select({
@@ -368,6 +388,7 @@ router.get("/reports/ap-aging", async (_req, res): Promise<void> => {
     .from(billsTable)
     .leftJoin(vendorsTable, eq(vendorsTable.id, billsTable.vendorId))
     .leftJoin(jobsTable, eq(jobsTable.id, billsTable.jobId))
+    .where(asOfFilter ? lte(billsTable.date, asOfFilter) : undefined)
     .orderBy(desc(billsTable.date), desc(billsTable.id));
 
   const lineSums = await db
@@ -383,6 +404,7 @@ router.get("/reports/ap-aging", async (_req, res): Promise<void> => {
       total: sql<number>`coalesce(sum(${billPaymentsTable.amountCents}), 0)::bigint`,
     })
     .from(billPaymentsTable)
+    .where(asOfFilter ? lte(billPaymentsTable.date, asOfFilter) : undefined)
     .groupBy(billPaymentsTable.billId);
   const creditSums = await db
     .select({
@@ -390,6 +412,7 @@ router.get("/reports/ap-aging", async (_req, res): Promise<void> => {
       total: sql<number>`coalesce(sum(${vendorCreditsTable.amountCents}), 0)::bigint`,
     })
     .from(vendorCreditsTable)
+    .where(asOfFilter ? lte(vendorCreditsTable.date, asOfFilter) : undefined)
     .groupBy(vendorCreditsTable.billId);
 
   const lineMap = new Map(lineSums.map((r) => [r.billId, Number(r.total)]));

@@ -852,9 +852,16 @@ export const GetCostByAccountResponse = zod.array(GetCostByAccountResponseItem)
 
 
 /**
- * Outstanding customer invoice balances grouped by customer and age bucket.
+ * Outstanding customer invoice balances grouped by customer and age bucket, as of an optional date (defaults to today).
  * @summary Accounts receivable aging
  */
+export const getArAgingQueryAsOfRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+
+
+export const GetArAgingQueryParams = zod.object({
+  "asOf": zod.coerce.string().regex(getArAgingQueryAsOfRegExp).optional().describe('Report balances as of this date (YYYY-MM-DD). Omit for today.')
+})
+
 export const GetArAgingResponse = zod.object({
   "asOf": zod.string(),
   "totals": zod.object({
@@ -892,9 +899,16 @@ export const GetArAgingResponse = zod.object({
 
 
 /**
- * Outstanding vendor bill balances grouped by vendor and age bucket.
+ * Outstanding vendor bill balances grouped by vendor and age bucket, as of an optional date (defaults to today).
  * @summary Accounts payable aging
  */
+export const getApAgingQueryAsOfRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+
+
+export const GetApAgingQueryParams = zod.object({
+  "asOf": zod.coerce.string().regex(getApAgingQueryAsOfRegExp).optional().describe('Report balances as of this date (YYYY-MM-DD). Omit for today.')
+})
+
 export const GetApAgingResponse = zod.object({
   "asOf": zod.string(),
   "totals": zod.object({

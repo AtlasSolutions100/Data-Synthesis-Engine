@@ -678,7 +678,9 @@ paths:
       operationId: getArAging
       tags: [reports]
       summary: Accounts receivable aging
-      description: Outstanding customer invoice balances grouped by customer and age bucket.
+      description: Outstanding customer invoice balances grouped by customer and age bucket, as of an optional date (defaults to today).
+      parameters:
+        - $ref: "#/components/parameters/AsOfDateParam"
       responses:
         "200":
           description: AR aging report
@@ -691,7 +693,9 @@ paths:
       operationId: getApAging
       tags: [reports]
       summary: Accounts payable aging
-      description: Outstanding vendor bill balances grouped by vendor and age bucket.
+      description: Outstanding vendor bill balances grouped by vendor and age bucket, as of an optional date (defaults to today).
+      parameters:
+        - $ref: "#/components/parameters/AsOfDateParam"
       responses:
         "200":
           description: AP aging report
@@ -1331,6 +1335,14 @@ components:
       in: query
       required: false
       description: Inclusive end of the date range (YYYY-MM-DD). Omit for no upper bound.
+      schema:
+        type: string
+        pattern: "^\\d{4}-\\d{2}-\\d{2}$"
+    AsOfDateParam:
+      name: asOf
+      in: query
+      required: false
+      description: Report balances as of this date (YYYY-MM-DD). Omit for today.
       schema:
         type: string
         pattern: "^\\d{4}-\\d{2}-\\d{2}$"
