@@ -16,6 +16,9 @@ import type {
   AgingBill,
 } from "@workspace/api-client-react";
 import { formatCents } from "@/lib/format";
+import { buildAgingCsv, agingCsvFilename, downloadCsv } from "@/lib/aging-csv";
+import { Button } from "@/components/ui/button";
+import { Download } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
@@ -188,7 +191,23 @@ export default function Reports() {
             </span>
           </p>
         </div>
-        <DateRangePicker value={range} onChange={setRange} />
+        <div className="flex items-end gap-3">
+          <DateRangePicker value={range} onChange={setRange} />
+          <Button
+            variant="outline"
+            disabled={!arAging || !apAging}
+            onClick={() => {
+              if (!arAging || !apAging) return;
+              downloadCsv(
+                buildAgingCsv(arAging, apAging),
+                agingCsvFilename(arAging.asOf),
+              );
+            }}
+          >
+            <Download className="h-4 w-4 mr-2" />
+            Export Aging CSV
+          </Button>
+        </div>
       </div>
 
       <Card>
