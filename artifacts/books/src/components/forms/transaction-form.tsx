@@ -23,6 +23,8 @@ import {
   getListVendorsQueryKey,
   useListJobs,
   getListJobsQueryKey,
+  useListAccounts,
+  getListAccountsQueryKey,
 } from "@workspace/api-client-react";
 import { EntityCombobox } from "@/components/forms/entity-combobox";
 
@@ -42,7 +44,7 @@ const transactionSchema = z.object({
   num: z.string().optional(),
   partyName: z.string().optional(),
   description: z.string().optional(),
-  accountId: z.string().min(1, "Account ID is required"),
+  accountId: z.string().min(1, "Account is required"),
   splitAccount: z.string().optional(),
   jobId: z.string().optional(),
   customerId: z.string().optional(),
@@ -67,6 +69,9 @@ export function TransactionForm({ defaultValues, onSubmit, isLoading }: Transact
   });
   const { data: jobs } = useListJobs(undefined, {
     query: { queryKey: getListJobsQueryKey() },
+  });
+  const { data: accounts } = useListAccounts({
+    query: { queryKey: getListAccountsQueryKey() },
   });
 
   const form = useForm<TransactionFormValues>({
@@ -167,9 +172,20 @@ export function TransactionForm({ defaultValues, onSubmit, isLoading }: Transact
             name="accountId"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Account ID</FormLabel>
+                <FormLabel>Account</FormLabel>
                 <FormControl>
-                  <Input type="number" {...field} />
+                  <EntityCombobox
+                    options={(accounts ?? []).map((a) => ({
+                      id: a.id,
+                      label: `${a.number} — ${a.name}`,
+                    }))}
+                    value={field.value ?? ""}
+                    onChange={field.onChange}
+                    placeholder="Select account"
+                    searchPlaceholder="Search accounts..."
+                    emptyText="No accounts found."
+                    clearable={false}
+                  />
                 </FormControl>
                 <FormMessage />
               </FormItem>
