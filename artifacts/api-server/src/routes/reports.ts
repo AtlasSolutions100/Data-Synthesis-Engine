@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { and, desc, eq, lte, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, lte, sql } from "drizzle-orm";
 import {
   db,
   transactionsTable,
@@ -33,6 +33,7 @@ import {
 import {
   getJobTotalsMap,
   getJobBillingMap,
+  getTopJobIdsByProfit,
   sumByAccountTypes,
   dateRangeConds,
   type DateRange,
@@ -131,14 +132,21 @@ router.get("/reports/dashboard", async (req, res): Promise<void> => {
     .from(transactionsTable)
     .where(txCountConds.length ? and(...txCountConds) : undefined);
 
-  const [totals, billing] = await Promise.all([
-    getJobTotalsMap(range),
-    getJobBillingMap(range),
+  // Rank the top jobs by profit in SQL first, then aggregate details only for
+  // those jobs so we never scan transactions/invoices for jobs that will not
+  // appear in the report.
+  const topJobIds = await getTopJobIdsByProfit(range, 5);
+  const [totals, billing, jobRows] = await Promise.all([
+    getJobTotalsMap(range, topJobIds),
+    getJobBillingMap(range, topJobIds),
+    topJobIds.length
+      ? db
+          .select({ job: jobsTable, customerName: customersTable.name })
+          .from(jobsTable)
+          .leftJoin(customersTable, eq(customersTable.id, jobsTable.customerId))
+          .where(inArray(jobsTable.id, topJobIds))
+      : Promise.resolve([]),
   ]);
-  const jobRows = await db
-    .select({ job: jobsTable, customerName: customersTable.name })
-    .from(jobsTable)
-    .leftJoin(customersTable, eq(customersTable.id, jobsTable.customerId));
 
   const topJobs = jobRows
     .map((r) => {

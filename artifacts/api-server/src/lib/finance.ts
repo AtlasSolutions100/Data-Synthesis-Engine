@@ -6,6 +6,7 @@ import {
   accountsTable,
   invoicesTable,
   invoiceLinesTable,
+  jobsTable,
 } from "@workspace/db";
 
 export const INCOME_TYPES = ["income"] as const;
@@ -107,6 +108,41 @@ export async function getJobBillingMap(
     map.set(r.jobId, Number(r.total));
   }
   return map;
+}
+
+/**
+ * Rank jobs by profit (income minus cost, in cents) within an optional date
+ * range and return the top `limit` job IDs. Ranking happens entirely in SQL so
+ * callers can restrict subsequent per-job aggregation to just these IDs
+ * instead of scanning transactions for every job. Jobs with no transactions
+ * count as zero profit (matching the historical in-memory ranking); ties break
+ * by job ID ascending for determinism.
+ */
+export async function getTopJobIdsByProfit(
+  range?: DateRange,
+  limit = 5,
+): Promise<number[]> {
+  const dateConds = dateRangeConds(transactionsTable.date, range);
+  const joinConds = [
+    eq(transactionsTable.jobId, jobsTable.id),
+    ...dateConds,
+  ];
+  const profitExpr = sql<number>`coalesce(sum(case
+    when ${accountsTable.type} in ('income') then ${transactionsTable.amountCents}
+    when ${accountsTable.type} in ('cogs', 'expense', 'other_expense') then -${transactionsTable.amountCents}
+    else 0
+  end), 0)::bigint`;
+
+  const rows = await db
+    .select({ jobId: jobsTable.id, profit: profitExpr })
+    .from(jobsTable)
+    .leftJoin(transactionsTable, and(...joinConds))
+    .leftJoin(accountsTable, eq(accountsTable.id, transactionsTable.accountId))
+    .groupBy(jobsTable.id)
+    .orderBy(sql`2 desc`, jobsTable.id)
+    .limit(limit);
+
+  return rows.map((r) => r.jobId);
 }
 
 /** Sum of amounts (cents) for transactions posted to accounts of the given types. */
