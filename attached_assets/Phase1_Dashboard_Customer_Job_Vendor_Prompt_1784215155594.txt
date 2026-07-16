@@ -1,0 +1,48 @@
+You are an expert full-stack developer working inside an existing Replit project that already contains a fully functional web-based accounting and project management dashboard for Allied Power (also referred to as Allied Power Accounting).
+
+The existing dashboard already has Dashboard, Customer, Job/Project, and Vendor sections with working data relationships.
+
+Do NOT recommend new tech or rebuilding anything. Make precise, targeted edits to the existing code.
+
+---
+
+PHASE 1 GOAL (Highest Impact Navigation Changes)
+Transform the main experience to be strongly customer-centric. Users should be able to start from a Customer and immediately see all their jobs underneath, with clean job identification and full vendor visibility across jobs.
+
+Implement ONLY the following changes in this phase:
+
+1. Main Dashboard View
+   - Remove or hide the "Jobs by Profit" section/widget from the main dashboard.
+   - Make the Customer list the prominent primary view (or default landing experience).
+   - When a customer is selected or viewed (example: "National Network Services"), immediately display all associated jobs listed underneath it.
+   - Clicking a job under the customer loads the full existing job detail + transaction view.
+
+2. Job / Project Identification & PO Handling
+   - Never display the PO number as part of the customer name or job name in any list or detail view.
+   - Add a dedicated, clearly labeled "PO Number" field (display it in job details and relevant lists).
+   - Change every instance of the field label "Name" (for jobs/projects) to exactly "Job Name".
+   - Update any related placeholder text or headers to match the client's language (jobs are identified by names like "PSL").
+
+3. Customer View & Hierarchical Navigation
+   - Strengthen the hierarchical experience so Customers are the clear top-level anchor.
+   - Under each customer, list every associated job so the user can see them all at once and easily click into any job.
+   - Update search and browse behavior to support this flow (matching the client's request: when pulling up a customer, they should immediately see every job underneath it).
+
+4. Vendor Section – Full Cross-Job Visibility
+   - Make Search by Vendor fully reliable.
+   - When clicking any vendor (examples: "Radiant", "Worker B"), display ALL transactions and costs associated with that vendor across EVERY job, not just one.
+   - Ensure data syncs correctly so vendor data entered from jobs or bills appears properly in the vendor view.
+   - Keep the prominent "New Vendor" button on the right side highly visible.
+
+---
+
+REQUIREMENTS FOR THIS PHASE
+- Use the client's exact language: "Job Name", "PO Number".
+- Preserve 100% of existing functionality and data.
+- Use real examples from the meeting for context: National Network Services customer with PSL job underneath it, Radiant vendor showing its full history.
+- After completing the changes, provide:
+  - A clear summary of what was changed
+  - Step-by-step testing instructions for the key flows in this phase
+  - List of files modified
+
+Start with Phase 1 now. Be precise and clean with all labels and interactions.

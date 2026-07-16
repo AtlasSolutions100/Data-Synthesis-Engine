@@ -1,0 +1,109 @@
+You are an expert full-stack developer working inside an existing Replit project that already contains a fully functional web-based accounting and project management dashboard for Allied Power (also referred to as Allied Power Accounting during this migration phase).
+
+The existing dashboard already includes:
+- Main Dashboard view (with total income, jobs by profit, transaction lists, etc.)
+- Customer and Job/Project management
+- Vendor section with search and new vendor creation
+- Employee records
+- Time/Payroll entry screen (currently called Payroll with new payroll run)
+- Bills creation and management
+- Reports section (Job Materials Purchased, Equipment Rentals, etc.)
+- Some upload functionality (currently placed lower on screens)
+- Data relationships between customers, jobs, vendors, employees, time entries, and bills
+
+The full codebase and running app are in this workspace. Do not recommend new tech, new architecture, or rebuilding anything from scratch. Make targeted, precise edits to the existing code to implement the refinements requested in the July 13, 2026 review meeting with client Michael Grenz.
+
+---
+
+GOAL
+Shift the primary user experience to be strongly customer-centric while giving the user multiple flexible pathways to reach the same data (start from Customer → see Jobs, start from Vendor → see all their transactions, start from Reports → drill down, etc.). Preserve every existing feature and all current data. Use the exact terminology and examples from the client meeting.
+
+---
+
+HIGH-PRIORITY CHANGES (implement these first)
+
+1. Main Dashboard View
+   - Remove or completely hide the "Jobs by Profit" section/widget from the main dashboard.
+   - Make the Customer list/view the prominent primary experience on the dashboard (or default landing after login).
+   - When viewing a customer (example: "National Network Services"), immediately show all associated jobs listed underneath it.
+   - Clicking one of those jobs (example: "PSL") loads the full existing job detail + transaction view.
+   - The profit/P&L analysis should remain available only via the separate P&L report (not on the main dashboard).
+
+2. Job / Project Identification & PO Handling (throughout the app)
+   - Never display the PO number as part of the customer name or job name in any list, detail view, or header.
+   - Create/add a dedicated separate field labeled exactly "PO Number" and display it appropriately in job details and relevant lists.
+   - Everywhere the field is currently labeled "Name" for a job/project, change the label to "Job Name".
+   - All job identifiers the client uses are job names (e.g., "PSL", "Bruce Randolph"). Update labels and any placeholder text accordingly.
+   - Keep Status, Cost to Date, and transaction details visible in the job view.
+
+3. Customer View & Navigation
+   - Strengthen or implement a clear hierarchical experience: Customers are the top-level anchor.
+   - Under each customer, list every associated job so the user can see them all at once and click into any job.
+   - Update search/browse behavior so selecting a customer immediately surfaces its jobs (matching the client's description: "When I pull up National Network Services, I should see every job underneath it, then pick which one I want to look at").
+
+4. Vendor Section
+   - Make "Search by Vendor" fully functional and reliable.
+   - When the user clicks any vendor (examples: "Radiant", "Worker B"), show ALL transactions, costs, and payments associated with that vendor across EVERY job — not limited to a single job.
+   - Ensure bidirectional data sync so that any vendor data entered via jobs, bills, or time immediately appears correctly in the vendor view.
+   - Keep the existing prominent "New Vendor" button/tab on the right side and make sure it remains highly visible.
+
+5. Employees / Employee Center (make this the single source of truth)
+   - The Employees tab must be the ONLY place where rates, overtime multiplier, payroll deductions, tax status, and active/inactive status can be edited. Remove any editing capability for these fields from the time entry / time card screens.
+   - Pre-populate or add the following employees with accurate data from the meeting:
+     - Brendan: $30.00/hr regular, 1.5× overtime ($45.00), Active
+     - Tracy
+     - Jeff Harris
+     - Michael Grenz (owner)
+   - Add or enhance the ability to view an employee's historical time cards/hours (e.g., an "All Years" selector or per-employee history view).
+
+6. Time Cards Tab (major rename + new logic)
+   - Rename the existing "Payroll" tab to exactly "Time Cards".
+   - Change the button/label "New Payroll Run" to exactly "New Time Card Run".
+   - Add a Pay Period Number selector (the client runs 26 weekly payrolls per year, Monday–Sunday).
+   - Implement pay-period intelligence: When the user selects only the Pay Period Number, automatically populate Begin Date, End Date, and Pay Date (Check/Direct Deposit date — typically the following Thursday). Use the existing data the client provided (Period 13 example: started ~6/8, ended 6/21, check date ~6/26). Hardcode a reasonable weekly schedule based on the data already in the project/downloads; make it easy to adjust later.
+   - Add a clean dropdown for "Labor Cost" / Labor Cost Type with exactly these three options:
+     - Regular Pay
+     - Overtime Pay
+     - Holiday / Vacation / Sick (one combined "slush fund" bucket)
+   - Improve the import hours feature: Support paste from email, upload of image/PDF/scan, or text. Extract employee name/ID, date(s), hours, and job name. Automatically apply the correct regular/OT rates from the Employee Center record. Show clear visual flags/alerts for mismatches (unknown employee, unknown job name like "Bruce Randolph", date outside selected pay period).
+   - In the time card entry screen, employee rates and burden information should be visible but not editable here (edits only happen in the Employee Center).
+
+7. Bills Tab
+   - Improve the New Bill flow to enforce this clear sequence:
+     1. Select Vendor first (greatly improve search/autocomplete so typing partial name like "CES", "Charlie", or "Worker" surfaces matching vendors — do not rely only on numeric ID).
+     2. Then select Customer.
+     3. Then select Job.
+   - Ensure any AI-assisted population from uploaded invoices flows correctly into the job costs and vendor history.
+
+8. Reports Section & Drill-Down
+   - Add Customer and Job filters to key reports such as "Job Materials Purchased" and "Equipment Rentals".
+   - Make dollar-amount totals clickable. Clicking a total (example: $19,665.80) expands to show every underlying transaction or line item that makes up that amount.
+   - Ensure the user can reach the same detailed data whether they start from the Jobs view on the left or from Reports on the right.
+
+9. Upload Buttons – Prominent Placement (usability win)
+   - Add a clear, prominent "Upload" button near the top (not buried at the bottom) of these areas:
+     - Main Jobs / Dashboard area (for new project/job documents or setup)
+     - Bills tab (for invoice scans, PDFs, or images)
+     - Time Cards tab (for timesheet photos, forwarded emails, or text files)
+     - Customers area (for bulk CSV import of customers from QuickBooks or similar)
+   - Support drag-and-drop where technically straightforward in the existing codebase.
+   - For Customers, enable CSV upload that creates multiple customer records at once.
+
+---
+
+ADDITIONAL REQUIREMENTS
+- Use the client's exact language wherever possible ("Time Cards", "Job Name", "PO Number", "New Time Card Run", Labor Cost dropdown options, etc.).
+- Preserve 100% of existing functionality and data. Do not break current views or relationships.
+- For testing examples, use the real scenarios discussed: National Network Services customer with PSL job underneath it, Brendan employee timesheet, "Bruce Randolph" as an unknown job that should flag, Radiant vendor showing its transaction, pay period 13 dates, etc.
+- After making changes, provide a clear step-by-step testing guide so I can verify the flows with the client on Thursday.
+- In UI text and any on-screen labels, refer to the application as "Allied Power Accounting" where it makes sense (or keep current branding if already consistent; note migration to "Work Optional" if needed).
+
+---
+
+EXECUTION APPROACH
+1. First, explore the existing project structure and locate the relevant components/files for Dashboard, Customer views, Job details, Vendor, Employees, Time/Payroll entry, Bills, Reports, and any upload components.
+2. Implement changes section by section, starting with the highest-priority items (Dashboard/Customer hierarchy + PO/Job Name handling, Vendor full sync, Time Cards rename + pay period logic + labor dropdown, Employee Center as single edit point).
+3. After each major section, briefly describe what was changed.
+4. At the end, give a consolidated summary of all edits and a ready-to-use testing checklist matching the client's requested flows.
+
+Begin now. Be precise, clean, and client-focused in every label and interaction.
