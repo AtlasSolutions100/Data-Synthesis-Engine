@@ -13,7 +13,18 @@ import {
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { parseDollars } from "@/lib/format";
-import { TransactionInput, TransactionUpdate, TransactionInputType } from "@workspace/api-client-react";
+import {
+  TransactionInput,
+  TransactionUpdate,
+  TransactionInputType,
+  useListCustomers,
+  getListCustomersQueryKey,
+  useListVendors,
+  getListVendorsQueryKey,
+  useListJobs,
+  getListJobsQueryKey,
+} from "@workspace/api-client-react";
+import { EntityCombobox } from "@/components/forms/entity-combobox";
 
 const transactionSchema = z.object({
   date: z.string().min(1, "Date is required"),
@@ -48,6 +59,16 @@ interface TransactionFormProps {
 }
 
 export function TransactionForm({ defaultValues, onSubmit, isLoading }: TransactionFormProps) {
+  const { data: customers } = useListCustomers({
+    query: { queryKey: getListCustomersQueryKey() },
+  });
+  const { data: vendors } = useListVendors({
+    query: { queryKey: getListVendorsQueryKey() },
+  });
+  const { data: jobs } = useListJobs({
+    query: { queryKey: getListJobsQueryKey() },
+  });
+
   const form = useForm<TransactionFormValues>({
     resolver: zodResolver(transactionSchema),
     defaultValues: {
@@ -189,9 +210,19 @@ export function TransactionForm({ defaultValues, onSubmit, isLoading }: Transact
             name="jobId"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Job ID</FormLabel>
+                <FormLabel>Job</FormLabel>
                 <FormControl>
-                  <Input type="number" {...field} />
+                  <EntityCombobox
+                    options={(jobs ?? []).map((j) => ({
+                      id: j.id,
+                      label: `${j.jobNumber} — ${j.name}`,
+                    }))}
+                    value={field.value ?? ""}
+                    onChange={field.onChange}
+                    placeholder="Select job"
+                    searchPlaceholder="Search jobs..."
+                    emptyText="No jobs found."
+                  />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -202,9 +233,16 @@ export function TransactionForm({ defaultValues, onSubmit, isLoading }: Transact
             name="customerId"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Customer ID</FormLabel>
+                <FormLabel>Customer</FormLabel>
                 <FormControl>
-                  <Input type="number" {...field} />
+                  <EntityCombobox
+                    options={(customers ?? []).map((c) => ({ id: c.id, label: c.name }))}
+                    value={field.value ?? ""}
+                    onChange={field.onChange}
+                    placeholder="Select customer"
+                    searchPlaceholder="Search customers..."
+                    emptyText="No customers found."
+                  />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -215,9 +253,16 @@ export function TransactionForm({ defaultValues, onSubmit, isLoading }: Transact
             name="vendorId"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Vendor ID</FormLabel>
+                <FormLabel>Vendor</FormLabel>
                 <FormControl>
-                  <Input type="number" {...field} />
+                  <EntityCombobox
+                    options={(vendors ?? []).map((v) => ({ id: v.id, label: v.name }))}
+                    value={field.value ?? ""}
+                    onChange={field.onChange}
+                    placeholder="Select vendor"
+                    searchPlaceholder="Search vendors..."
+                    emptyText="No vendors found."
+                  />
                 </FormControl>
                 <FormMessage />
               </FormItem>

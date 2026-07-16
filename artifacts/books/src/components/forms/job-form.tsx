@@ -13,7 +13,14 @@ import {
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { parseDollars } from "@/lib/format";
-import { JobInput, JobUpdate, JobInputStatus } from "@workspace/api-client-react";
+import {
+  JobInput,
+  JobUpdate,
+  JobInputStatus,
+  useListCustomers,
+  getListCustomersQueryKey,
+} from "@workspace/api-client-react";
+import { EntityCombobox } from "@/components/forms/entity-combobox";
 
 const jobSchema = z.object({
   jobNumber: z.string().min(1, "Job number is required"),
@@ -34,6 +41,10 @@ interface JobFormProps {
 }
 
 export function JobForm({ defaultValues, onSubmit, isLoading }: JobFormProps) {
+  const { data: customers } = useListCustomers({
+    query: { queryKey: getListCustomersQueryKey() },
+  });
+
   const form = useForm<JobFormValues>({
     resolver: zodResolver(jobSchema),
     defaultValues: {
@@ -52,7 +63,7 @@ export function JobForm({ defaultValues, onSubmit, isLoading }: JobFormProps) {
       jobNumber: values.jobNumber,
       name: values.name,
       poNumber: values.poNumber || null,
-      customerId: values.customerId ? parseInt(values.customerId, 10) : undefined,
+      customerId: values.customerId ? parseInt(values.customerId, 10) : null,
       description: values.description || null,
       status: values.status as JobInputStatus,
       contractAmountCents: values.contractAmount ? parseDollars(values.contractAmount) : 0,
@@ -109,9 +120,16 @@ export function JobForm({ defaultValues, onSubmit, isLoading }: JobFormProps) {
             name="customerId"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Customer ID (Optional)</FormLabel>
+                <FormLabel>Customer (Optional)</FormLabel>
                 <FormControl>
-                  <Input type="number" {...field} />
+                  <EntityCombobox
+                    options={(customers ?? []).map((c) => ({ id: c.id, label: c.name }))}
+                    value={field.value ?? ""}
+                    onChange={field.onChange}
+                    placeholder="Select customer"
+                    searchPlaceholder="Search customers..."
+                    emptyText="No customers found."
+                  />
                 </FormControl>
                 <FormMessage />
               </FormItem>
