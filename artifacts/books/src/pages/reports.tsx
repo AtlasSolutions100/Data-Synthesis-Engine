@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { Fragment, useState } from "react";
+import { ChevronDown, ChevronRight } from "lucide-react";
 import {
   useGetCostByAccount,
   getGetCostByAccountQueryKey,
@@ -9,7 +10,11 @@ import {
   useGetPayrollByJob,
   getGetPayrollByJobQueryKey,
 } from "@workspace/api-client-react";
-import type { AgingBuckets } from "@workspace/api-client-react";
+import type {
+  AgingBuckets,
+  AgingInvoice,
+  AgingBill,
+} from "@workspace/api-client-react";
 import { formatCents } from "@/lib/format";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -51,6 +56,69 @@ function BucketCells({ buckets }: { buckets: AgingBuckets }) {
   );
 }
 
+const bucketLabels: Record<string, string> = {
+  current: "Current",
+  days1to30: "1–30",
+  days31to60: "31–60",
+  days61to90: "61–90",
+  days90plus: "90+",
+};
+
+function AgingDetailRow({
+  items,
+  numberLabel,
+}: {
+  items: (AgingInvoice | AgingBill)[];
+  numberLabel: string;
+}) {
+  return (
+    <TableRow className="bg-slate-50/70 hover:bg-slate-50/70">
+      <TableCell colSpan={7} className="p-0">
+        <div className="px-8 py-3">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="h-8">{numberLabel}</TableHead>
+                <TableHead className="h-8">Job</TableHead>
+                <TableHead className="h-8">Date</TableHead>
+                <TableHead className="h-8">Due Date</TableHead>
+                <TableHead className="h-8 text-right">Days Overdue</TableHead>
+                <TableHead className="h-8">Bucket</TableHead>
+                <TableHead className="h-8 text-right">Balance</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {items.map((item) => (
+                <TableRow key={item.id}>
+                  <TableCell className="py-2 font-medium">
+                    {"invoiceNumber" in item
+                      ? item.invoiceNumber
+                      : item.billNumber || "—"}
+                  </TableCell>
+                  <TableCell className="py-2">
+                    {item.jobNumber || "—"}
+                  </TableCell>
+                  <TableCell className="py-2">{item.date}</TableCell>
+                  <TableCell className="py-2">{item.dueDate || "—"}</TableCell>
+                  <TableCell className="py-2 text-right">
+                    {item.daysOverdue > 0 ? item.daysOverdue : "—"}
+                  </TableCell>
+                  <TableCell className="py-2">
+                    {bucketLabels[item.bucket] ?? item.bucket}
+                  </TableCell>
+                  <TableCell className="py-2 text-right">
+                    {formatCents(item.balanceCents)}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      </TableCell>
+    </TableRow>
+  );
+}
+
 const agingHeaders = (
   <TableRow>
     <TableHead></TableHead>
@@ -65,6 +133,26 @@ const agingHeaders = (
 
 export default function Reports() {
   const [range, setRange] = useState<DateRangeValue>({});
+  const [expandedCustomers, setExpandedCustomers] = useState<Set<string>>(
+    new Set(),
+  );
+  const [expandedVendors, setExpandedVendors] = useState<Set<string>>(
+    new Set(),
+  );
+  const toggle = (
+    set: React.Dispatch<React.SetStateAction<Set<string>>>,
+    key: string,
+  ) => {
+    set((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      return next;
+    });
+  };
   const params = {
     startDate: range.startDate,
     endDate: range.endDate,
@@ -275,14 +363,37 @@ export default function Reports() {
                 </TableRow>
               ) : (
                 <>
-                  {arAging.customers.map((c) => (
-                    <TableRow key={c.customerId ?? "none"}>
-                      <TableCell className="font-medium">
-                        {c.customerName || "Unassigned"}
-                      </TableCell>
-                      <BucketCells buckets={c.buckets} />
-                    </TableRow>
-                  ))}
+                  {arAging.customers.map((c) => {
+                    const key = String(c.customerId ?? "none");
+                    const expanded = expandedCustomers.has(key);
+                    return (
+                      <Fragment key={key}>
+                        <TableRow
+                          className="cursor-pointer"
+                          onClick={() => toggle(setExpandedCustomers, key)}
+                          data-testid={`row-ar-customer-${key}`}
+                        >
+                          <TableCell className="font-medium">
+                            <span className="flex items-center gap-2">
+                              {expanded ? (
+                                <ChevronDown className="h-4 w-4 text-slate-400" />
+                              ) : (
+                                <ChevronRight className="h-4 w-4 text-slate-400" />
+                              )}
+                              {c.customerName || "Unassigned"}
+                            </span>
+                          </TableCell>
+                          <BucketCells buckets={c.buckets} />
+                        </TableRow>
+                        {expanded && (
+                          <AgingDetailRow
+                            items={c.invoices}
+                            numberLabel="Invoice #"
+                          />
+                        )}
+                      </Fragment>
+                    );
+                  })}
                   <TableRow className="bg-slate-50 hover:bg-slate-50">
                     <TableCell className="font-semibold text-slate-700">
                       Total
@@ -327,14 +438,37 @@ export default function Reports() {
                 </TableRow>
               ) : (
                 <>
-                  {apAging.vendors.map((v) => (
-                    <TableRow key={v.vendorId ?? "none"}>
-                      <TableCell className="font-medium">
-                        {v.vendorName || "Unassigned"}
-                      </TableCell>
-                      <BucketCells buckets={v.buckets} />
-                    </TableRow>
-                  ))}
+                  {apAging.vendors.map((v) => {
+                    const key = String(v.vendorId ?? "none");
+                    const expanded = expandedVendors.has(key);
+                    return (
+                      <Fragment key={key}>
+                        <TableRow
+                          className="cursor-pointer"
+                          onClick={() => toggle(setExpandedVendors, key)}
+                          data-testid={`row-ap-vendor-${key}`}
+                        >
+                          <TableCell className="font-medium">
+                            <span className="flex items-center gap-2">
+                              {expanded ? (
+                                <ChevronDown className="h-4 w-4 text-slate-400" />
+                              ) : (
+                                <ChevronRight className="h-4 w-4 text-slate-400" />
+                              )}
+                              {v.vendorName || "Unassigned"}
+                            </span>
+                          </TableCell>
+                          <BucketCells buckets={v.buckets} />
+                        </TableRow>
+                        {expanded && (
+                          <AgingDetailRow
+                            items={v.bills}
+                            numberLabel="Bill #"
+                          />
+                        )}
+                      </Fragment>
+                    );
+                  })}
                   <TableRow className="bg-slate-50 hover:bg-slate-50">
                     <TableCell className="font-semibold text-slate-700">
                       Total
