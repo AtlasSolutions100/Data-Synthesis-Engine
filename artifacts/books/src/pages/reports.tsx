@@ -1,4 +1,5 @@
 import { Fragment, useState } from "react";
+import { Link } from "wouter";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import {
   useGetCostByAccount,
@@ -94,9 +95,18 @@ function AgingDetailRow({
               {items.map((item) => (
                 <TableRow key={item.id}>
                   <TableCell className="py-2 font-medium">
-                    {"invoiceNumber" in item
-                      ? item.invoiceNumber
-                      : item.billNumber || "—"}
+                    <Link
+                      href={
+                        "invoiceNumber" in item
+                          ? `/invoices/${item.id}`
+                          : `/bills/${item.id}`
+                      }
+                      className="text-blue-600 hover:underline"
+                    >
+                      {"invoiceNumber" in item
+                        ? item.invoiceNumber
+                        : item.billNumber || "—"}
+                    </Link>
                   </TableCell>
                   <TableCell className="py-2">
                     {item.jobNumber || "—"}
