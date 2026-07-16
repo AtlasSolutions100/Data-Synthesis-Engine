@@ -10,7 +10,7 @@
     "backfill-documents": "tsx ./scripts/backfill-documents.ts",
     "cleanup-orphaned-uploads": "tsx ./scripts/cleanup-orphaned-uploads.ts",
     "test": "vitest run",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -b ../../lib/db ../../lib/api-zod ../../lib/integrations-openai-ai-server && tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
     "@clerk/express": "^2.1.33",
