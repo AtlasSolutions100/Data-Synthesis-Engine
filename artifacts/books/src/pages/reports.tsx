@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   useGetCostByAccount,
   getGetCostByAccountQueryKey,
@@ -19,6 +20,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  DateRangePicker,
+  type DateRangeValue,
+  describeRange,
+} from "@/components/date-range-picker";
 
 function BucketCells({ buckets }: { buckets: AgingBuckets }) {
   return (
@@ -58,8 +64,13 @@ const agingHeaders = (
 );
 
 export default function Reports() {
-  const { data: report, isLoading } = useGetCostByAccount(undefined, {
-    query: { queryKey: getGetCostByAccountQueryKey() },
+  const [range, setRange] = useState<DateRangeValue>({});
+  const params = {
+    startDate: range.startDate,
+    endDate: range.endDate,
+  };
+  const { data: report, isLoading } = useGetCostByAccount(params, {
+    query: { queryKey: getGetCostByAccountQueryKey(params) },
   });
   const { data: arAging, isLoading: arLoading } = useGetArAging({
     query: { queryKey: getGetArAgingQueryKey() },
@@ -68,23 +79,27 @@ export default function Reports() {
     query: { queryKey: getGetApAgingQueryKey() },
   });
   const { data: payrollByJob, isLoading: payrollLoading } = useGetPayrollByJob(
-    undefined,
+    params,
     {
-      query: { queryKey: getGetPayrollByJobQueryKey() },
+      query: { queryKey: getGetPayrollByJobQueryKey(params) },
     },
   );
 
   return (
     <div className="space-y-8">
-      <div className="flex justify-between items-end">
+      <div className="flex flex-wrap justify-between items-end gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-slate-900">
             Reports
           </h1>
           <p className="text-slate-500 mt-1">
-            Job costing, accounts receivable & payable aging
+            Job costing, accounts receivable & payable aging · Viewing:{" "}
+            <span className="font-medium text-slate-700">
+              {describeRange(range)}
+            </span>
           </p>
         </div>
+        <DateRangePicker value={range} onChange={setRange} />
       </div>
 
       <Card>
