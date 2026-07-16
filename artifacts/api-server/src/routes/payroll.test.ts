@@ -227,6 +227,56 @@ describe("GET /api/payroll-runs total aggregation with date filtering", () => {
 });
 
 /**
+ * Scale regression: the list endpoint aggregates per-run totals with SQL SUM
+ * (grouped, ::bigint-cast). Seed a run with 200+ lines whose cent values are
+ * deliberately awkward (odd cents, large values) and prove the list totals
+ * equal the detail-view totals (computed line-by-line in application code)
+ * to the penny.
+ */
+describe("GET /api/payroll-runs SQL aggregation at scale", () => {
+  it("list totals for a 200+ line run match the detail view to the penny", async () => {
+    const LINE_COUNT = 250;
+    const bigLines = Array.from({ length: LINE_COUNT }, (_, i) => {
+      const gross = 123_457 + i * 997; // odd cents, no clean rounding
+      const burden = Math.floor(gross * 0.1017) + (i % 3);
+      return {
+        grossWagesCents: gross,
+        burdenCents: burden,
+        totalCostCents: gross + burden,
+      };
+    });
+    const expected = sumLines(bigLines);
+    const bigRunId = await seedRun("2098-06-15", bigLines);
+
+    const listRes = await request(payrollApp)
+      .get("/api/payroll-runs")
+      .query({ startDate: "2098-06-01", endDate: "2098-06-30" });
+    expect(listRes.status).toBe(200);
+    const item = (listRes.body as RunItem[]).find((r) => r.id === bigRunId);
+    expect(item).toBeDefined();
+
+    const detailRes = await request(payrollApp).get(
+      `/api/payroll-runs/${bigRunId}`,
+    );
+    expect(detailRes.status).toBe(200);
+    expect(detailRes.body.lines).toHaveLength(LINE_COUNT);
+
+    // List (SQL SUM) === detail (application-code sum) === fixture sum.
+    expect(item!.grossWagesCents).toBe(expected.grossWagesCents);
+    expect(item!.burdenCents).toBe(expected.burdenCents);
+    expect(item!.totalCostCents).toBe(expected.totalCostCents);
+    expect(detailRes.body.grossWagesCents).toBe(expected.grossWagesCents);
+    expect(detailRes.body.burdenCents).toBe(expected.burdenCents);
+    expect(detailRes.body.totalCostCents).toBe(expected.totalCostCents);
+
+    // Guard against silent type drift from SQL bigint results: totals must be
+    // plain integer JSON numbers, not strings.
+    expect(typeof item!.grossWagesCents).toBe("number");
+    expect(Number.isSafeInteger(item!.totalCostCents)).toBe(true);
+  });
+});
+
+/**
  * Regression: a tax-exempt worker line must round-trip through create → get →
  * edit without silently gaining employer burden. Previously taxExempt was not
  * persisted, so re-opening a draft (especially a line with zero gross wages)

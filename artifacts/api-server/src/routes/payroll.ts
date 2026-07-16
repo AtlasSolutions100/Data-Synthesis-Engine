@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import {
   db,
   payrollRunsTable,
@@ -350,16 +350,27 @@ router.get("/payroll-runs", async (req, res): Promise<void> => {
     .orderBy(desc(payrollRunsTable.payDate), desc(payrollRunsTable.id));
 
   const runIds = runs.map((r) => r.run.id);
+  // Aggregate per-run totals in SQL rather than loading every line row into
+  // application memory (runs can have hundreds of worker lines). The explicit
+  // ::bigint cast makes the driver return a value we convert with Number() so
+  // the cent math stays integer-exact.
   const sums = runIds.length
     ? await db
         .select({
           runId: payrollLinesTable.runId,
-          gross: payrollLinesTable.grossWagesCents,
-          burden: payrollLinesTable.burdenCents,
-          total: payrollLinesTable.totalCostCents,
+          gross: sql<
+            string | number
+          >`coalesce(sum(${payrollLinesTable.grossWagesCents}), 0)::bigint`,
+          burden: sql<
+            string | number
+          >`coalesce(sum(${payrollLinesTable.burdenCents}), 0)::bigint`,
+          total: sql<
+            string | number
+          >`coalesce(sum(${payrollLinesTable.totalCostCents}), 0)::bigint`,
         })
         .from(payrollLinesTable)
         .where(inArray(payrollLinesTable.runId, runIds))
+        .groupBy(payrollLinesTable.runId)
     : [];
 
   const totalsByRun = new Map<
@@ -367,11 +378,11 @@ router.get("/payroll-runs", async (req, res): Promise<void> => {
     { gross: number; burden: number; total: number }
   >();
   for (const s of sums) {
-    const t = totalsByRun.get(s.runId) ?? { gross: 0, burden: 0, total: 0 };
-    t.gross += Number(s.gross);
-    t.burden += Number(s.burden);
-    t.total += Number(s.total);
-    totalsByRun.set(s.runId, t);
+    totalsByRun.set(s.runId, {
+      gross: Number(s.gross),
+      burden: Number(s.burden),
+      total: Number(s.total),
+    });
   }
 
   const items = runs.map((r) => {
