@@ -462,6 +462,42 @@ describe("POST /api/payroll/extract-hours error handling", () => {
     expect(res.body.error).toMatch(/no worker hours were found/i);
   });
 
+  it("rejects oversized input with a 400 before any model call", async () => {
+    // A paste over the 20,000-character cap must be rejected up front with a
+    // clear "too large" message — and the OpenAI client must never be invoked,
+    // so a huge accidental paste can't trigger a slow, expensive AI request.
+    const res = await request(payrollApp)
+      .post("/api/payroll/extract-hours")
+      .send({ text: "x".repeat(20_001) });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/too large/i);
+    expect(res.body.error).toMatch(/20,000/);
+    expect(mockCreate).not.toHaveBeenCalled();
+  });
+
+  it("accepts input exactly at the 20,000-character limit", async () => {
+    // Boundary check: text of exactly the cap length must pass the size guard
+    // and reach the model as usual.
+    mockCreate.mockResolvedValueOnce(
+      completionWith(
+        JSON.stringify({
+          rows: [{ workerName: "Jane Doe", regularHours: 40, overtimeHours: 5 }],
+        }),
+      ),
+    );
+
+    const res = await request(payrollApp)
+      .post("/api/payroll/extract-hours")
+      .send({ text: "Jane Doe 40 reg 5 OT ".padEnd(20_000, "x") });
+
+    expect(res.status).toBe(200);
+    expect(res.body.rows).toEqual([
+      { workerName: "Jane Doe", regularHours: 40, overtimeHours: 5 },
+    ]);
+    expect(mockCreate).toHaveBeenCalledTimes(1);
+  });
+
   it("returns 400 for empty input without ever calling the model", async () => {
     // Whitespace-only text passes the min-length body check but trims to empty;
     // the route must short-circuit with a 400 and never spend a model call.
