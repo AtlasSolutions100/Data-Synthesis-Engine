@@ -149,7 +149,10 @@ export function fileKind(
 
 const MAX_PREVIEW_BYTES = 5 * 1024 * 1024;
 const MAX_PDF_PREVIEW_BYTES = 50 * 1024 * 1024;
-const MAX_PREVIEW_ROWS = 100;
+// Rows are rendered in chunks so very large sheets stay responsive: the
+// full file is parsed (bounded by MAX_PREVIEW_BYTES) but only this many
+// rows hit the DOM at first, and more mount as the user scrolls.
+export const PREVIEW_ROW_CHUNK = 100;
 
 // Minimal RFC-4180-ish CSV parser: handles quoted fields, escaped quotes ("")
 // and both \n and \r\n line endings. Stops once `maxRows` rows are collected.
@@ -201,7 +204,7 @@ type SpreadsheetState =
   | { status: "loading" }
   | { status: "too-large" }
   | { status: "error" }
-  | { status: "ready"; rows: string[][]; truncated: boolean };
+  | { status: "ready"; rows: string[][] };
 
 function toStringRows(rows: unknown[][]): string[][] {
   return rows.map((r) => r.map((cell) => (cell == null ? "" : String(cell))));
@@ -225,9 +228,7 @@ export function SpreadsheetPreview({
   // update state.
   const sheetRequestIdRef = useRef(0);
   // Cache parsed rows per sheet so revisiting a tab doesn't re-parse.
-  const sheetCacheRef = useRef<
-    Map<string, { rows: string[][]; truncated: boolean }>
-  >(new Map());
+  const sheetCacheRef = useRef<Map<string, { rows: string[][] }>>(new Map());
 
   // Load the file, discover sheet names (xlsx), and render the first sheet.
   useEffect(() => {
@@ -257,7 +258,7 @@ export function SpreadsheetPreview({
         let initialSheetName: string | null = null;
         if (kind === "csv") {
           const text = await res.text();
-          rows = parseCsv(text, MAX_PREVIEW_ROWS + 1);
+          rows = parseCsv(text, Number.POSITIVE_INFINITY);
         } else {
           const blob = await res.blob();
           if (!isCurrent()) return;
@@ -278,9 +279,8 @@ export function SpreadsheetPreview({
           rows = toStringRows(parsed);
         }
 
-        const truncated = rows.length > MAX_PREVIEW_ROWS;
         if (isCurrent()) {
-          const entry = { rows: rows.slice(0, MAX_PREVIEW_ROWS), truncated };
+          const entry = { rows };
           if (kind === "xlsx" && initialSheetName != null) {
             sheetCacheRef.current.set(initialSheetName, entry);
           }
@@ -314,8 +314,7 @@ export function SpreadsheetPreview({
       const parsed = await readXlsxFile(blob, { sheet: name });
       if (requestId !== sheetRequestIdRef.current) return;
       const rows = toStringRows(parsed);
-      const truncated = rows.length > MAX_PREVIEW_ROWS;
-      const entry = { rows: rows.slice(0, MAX_PREVIEW_ROWS), truncated };
+      const entry = { rows };
       sheetCacheRef.current.set(name, entry);
       setState({ status: "ready", ...entry });
     } catch {
@@ -384,48 +383,89 @@ export function SpreadsheetPreview({
     );
   }
 
-  const [headerRow, ...bodyRows] = state.rows;
-  const columnCount = state.rows.reduce((max, r) => Math.max(max, r.length), 0);
-
   return (
     <div>
       {sheetSelector}
-      <div className="max-h-[75vh] overflow-auto rounded-md border border-slate-200">
-        <table className="w-full border-collapse text-sm">
-          <thead className="sticky top-0 z-10 bg-slate-100">
-            <tr>
+      {/* Keyed by sheet so switching tabs resets scroll + visible chunk. */}
+      <SpreadsheetTable key={activeSheet ?? "__single__"} rows={state.rows} />
+    </div>
+  );
+}
+
+// Renders parsed rows in chunks: the first PREVIEW_ROW_CHUNK body rows mount
+// immediately and more mount as the user scrolls near the bottom, so even
+// multi-thousand-row sheets stay responsive while every row remains viewable.
+function SpreadsheetTable({ rows }: { rows: string[][] }) {
+  const [visibleCount, setVisibleCount] = useState(PREVIEW_ROW_CHUNK);
+
+  const [headerRow, ...bodyRows] = rows;
+  const columnCount = rows.reduce((max, r) => Math.max(max, r.length), 0);
+  const shownRows = bodyRows.slice(0, visibleCount);
+  const hasMore = bodyRows.length > visibleCount;
+
+  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    if (!hasMore) return;
+    const el = e.currentTarget;
+    if (el.scrollTop + el.clientHeight >= el.scrollHeight - 200) {
+      setVisibleCount((c) =>
+        Math.min(c + PREVIEW_ROW_CHUNK, bodyRows.length),
+      );
+    }
+  };
+
+  return (
+    <div
+      className="max-h-[75vh] overflow-auto rounded-md border border-slate-200"
+      onScroll={handleScroll}
+      data-testid="spreadsheet-scroll"
+    >
+      <table className="w-full border-collapse text-sm">
+        <thead className="sticky top-0 z-10 bg-slate-100">
+          <tr>
+            {Array.from({ length: columnCount }).map((_, c) => (
+              <th
+                key={c}
+                className="border-b border-r border-slate-200 px-3 py-2 text-left font-medium text-slate-700 whitespace-nowrap"
+              >
+                {headerRow[c] ?? ""}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {shownRows.map((r, ri) => (
+            <tr key={ri} className="even:bg-slate-50">
               {Array.from({ length: columnCount }).map((_, c) => (
-                <th
+                <td
                   key={c}
-                  className="border-b border-r border-slate-200 px-3 py-2 text-left font-medium text-slate-700 whitespace-nowrap"
+                  className="border-b border-r border-slate-100 px-3 py-1.5 text-slate-700 whitespace-nowrap"
                 >
-                  {headerRow[c] ?? ""}
-                </th>
+                  {r[c] ?? ""}
+                </td>
               ))}
             </tr>
-          </thead>
-          <tbody>
-            {bodyRows.map((r, ri) => (
-              <tr key={ri} className="even:bg-slate-50">
-                {Array.from({ length: columnCount }).map((_, c) => (
-                  <td
-                    key={c}
-                    className="border-b border-r border-slate-100 px-3 py-1.5 text-slate-700 whitespace-nowrap"
-                  >
-                    {r[c] ?? ""}
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        {state.truncated && (
-          <div className="bg-slate-50 px-3 py-2 text-xs text-slate-500">
-            Showing the first {MAX_PREVIEW_ROWS} rows. Download the file to see
-            everything.
-          </div>
-        )}
-      </div>
+          ))}
+        </tbody>
+      </table>
+      {hasMore && (
+        <div className="flex items-center justify-between gap-3 bg-slate-50 px-3 py-2 text-xs text-slate-500">
+          <span>
+            Showing {shownRows.length.toLocaleString()} of{" "}
+            {bodyRows.length.toLocaleString()} rows. Scroll to load more.
+          </span>
+          <button
+            type="button"
+            onClick={() =>
+              setVisibleCount((c) =>
+                Math.min(c + PREVIEW_ROW_CHUNK, bodyRows.length),
+              )
+            }
+            className="shrink-0 rounded-md border border-slate-200 bg-white px-2.5 py-1 font-medium text-slate-600 hover:border-slate-300 hover:bg-slate-100"
+          >
+            Load more rows
+          </button>
+        </div>
+      )}
     </div>
   );
 }
