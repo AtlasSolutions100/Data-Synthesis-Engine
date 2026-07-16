@@ -33,19 +33,22 @@ const mocks = vi.hoisted(() => {
     downloadBody: "document-bytes",
     getObjectEntityFile: vi.fn(),
     downloadObject: vi.fn(),
+    // Spy on the DB query entry point so tests can assert the DB is untouched.
+    dbSelect: vi.fn(),
   };
 });
 
 vi.mock("@workspace/db", () => {
   // Minimal chainable stub matching db.select().from().where().limit().
-  const db = {
-    select: () => ({
-      from: () => ({
-        where: () => ({
-          limit: () => Promise.resolve(mocks.docRows),
-        }),
+  mocks.dbSelect.mockImplementation(() => ({
+    from: () => ({
+      where: () => ({
+        limit: () => Promise.resolve(mocks.docRows),
       }),
     }),
+  }));
+  const db = {
+    select: mocks.dbSelect,
   };
   return {
     db,
@@ -101,6 +104,8 @@ beforeEach(() => {
   mocks.docRows = [];
   mocks.getObjectEntityFile.mockReset();
   mocks.downloadObject.mockReset();
+  // Clear call history but keep the chainable implementation installed above.
+  mocks.dbSelect.mockClear();
 });
 
 describe("GET /api/storage/objects/*", () => {
@@ -123,6 +128,24 @@ describe("GET /api/storage/objects/*", () => {
 
     expect(res.status).toBe(403);
     // Must fail closed before touching the database or storage.
+    expect(mocks.dbSelect).not.toHaveBeenCalled();
+    expect(mocks.getObjectEntityFile).not.toHaveBeenCalled();
+    expect(mocks.downloadObject).not.toHaveBeenCalled();
+  });
+
+  it("returns 403 when a once-valid token has expired", async () => {
+    mocks.docRows = [{ id: "doc-1" }]; // tracked path — expiry alone must block it
+    const app = buildApp({ id: "user-1", role: "owner" });
+
+    // Mint a real token whose expiry is already in the past.
+    const expiredToken = createDownloadToken("/objects/uploads/tracked-1", -60);
+    const res = await request(app).get(
+      `/api/storage/objects/uploads/tracked-1?token=${encodeURIComponent(expiredToken)}`,
+    );
+
+    expect(res.status).toBe(403);
+    // Expired tokens must fail closed before touching the database or storage.
+    expect(mocks.dbSelect).not.toHaveBeenCalled();
     expect(mocks.getObjectEntityFile).not.toHaveBeenCalled();
     expect(mocks.downloadObject).not.toHaveBeenCalled();
   });
