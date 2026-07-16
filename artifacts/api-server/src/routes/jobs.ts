@@ -84,9 +84,11 @@ router.get("/jobs", async (req, res): Promise<void> => {
     ? baseQuery.where(eq(jobsTable.customerId, query.data.customerId))
     : baseQuery
   ).orderBy(jobsTable.jobNumber);
+  const jobIds =
+    query.data.customerId != null ? rows.map((r) => r.job.id) : undefined;
   const [totals, billing] = await Promise.all([
-    getJobTotalsMap(),
-    getJobBillingMap(),
+    getJobTotalsMap(undefined, jobIds),
+    getJobBillingMap(undefined, jobIds),
   ]);
   res.json(
     ListJobsResponse.parse(
@@ -131,8 +133,8 @@ router.get("/jobs/:id", async (req, res): Promise<void> => {
   }
   const customerName = await fetchCustomerName(job.customerId);
   const [totalsMap, billing] = await Promise.all([
-    getJobTotalsMap(),
-    getJobBillingMap(),
+    getJobTotalsMap(undefined, [job.id]),
+    getJobBillingMap(undefined, [job.id]),
   ]);
   res.json(
     GetJobResponse.parse(
@@ -236,8 +238,8 @@ router.patch("/jobs/:id", async (req, res): Promise<void> => {
   }
   const customerName = await fetchCustomerName(job.customerId);
   const [totalsMap, billing] = await Promise.all([
-    getJobTotalsMap(),
-    getJobBillingMap(),
+    getJobTotalsMap(undefined, [job.id]),
+    getJobBillingMap(undefined, [job.id]),
   ]);
   res.json(
     GetJobResponse.parse(

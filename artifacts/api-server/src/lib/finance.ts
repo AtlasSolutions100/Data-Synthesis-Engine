@@ -40,7 +40,9 @@ export function dateRangeConds(
  */
 export async function getJobTotalsMap(
   range?: DateRange,
+  jobIds?: number[],
 ): Promise<Map<number, JobTotals>> {
+  if (jobIds && jobIds.length === 0) return new Map();
   const rows = await db
     .select({
       jobId: transactionsTable.jobId,
@@ -52,6 +54,7 @@ export async function getJobTotalsMap(
     .where(
       and(
         isNotNull(transactionsTable.jobId),
+        ...(jobIds ? [inArray(transactionsTable.jobId, jobIds)] : []),
         ...dateRangeConds(transactionsTable.date, range),
       ),
     )
@@ -80,8 +83,11 @@ export async function getJobTotalsMap(
  */
 export async function getJobBillingMap(
   range?: DateRange,
+  jobIds?: number[],
 ): Promise<Map<number, number>> {
+  if (jobIds && jobIds.length === 0) return new Map();
   const conds = dateRangeConds(invoicesTable.date, range);
+  if (jobIds) conds.push(inArray(invoicesTable.jobId, jobIds));
   const rows = await db
     .select({
       jobId: invoicesTable.jobId,
