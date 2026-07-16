@@ -21,7 +21,7 @@ used), so only typecheck/CI catches it.
 `pnpm exec tsc -b lib/api-zod --force` and
 `pnpm exec tsc -b lib/api-client-react --force`, then re-typecheck consumers.
 
-**How to apply:** Any time codegen regenerates the api-zod / api-client-react
-sources (or a task merges such a change), rebuild those projects' declarations in
-lockstep. Consider making the codegen/post-merge step emit declarations too so
-the dist never drifts from src.
+**How to apply:** The api-spec `codegen` script now runs
+`tsc --build --force ../api-zod ../api-client-react` right after orval, so the
+normal codegen flow can't leave stale dist. If a merge brings regenerated src
+without dist (codegen ran elsewhere), rebuild with the force commands above.
