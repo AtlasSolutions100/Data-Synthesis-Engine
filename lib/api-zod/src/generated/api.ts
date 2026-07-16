@@ -115,7 +115,9 @@ export const ListCustomersResponseItem = zod.object({
   "email": zod.string().nullish(),
   "phone": zod.string().nullish(),
   "notes": zod.string().nullish()
-})
+}).and(zod.object({
+  "jobCount": zod.number()
+}))
 export const ListCustomersResponse = zod.array(ListCustomersResponseItem)
 
 

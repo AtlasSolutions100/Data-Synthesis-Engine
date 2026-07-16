@@ -32,6 +32,7 @@ import type {
   BillUpdate,
   Customer,
   CustomerInput,
+  CustomerListItem,
   CustomerUpdate,
   DashboardSummary,
   Employee,
@@ -557,9 +558,9 @@ export const getListCustomersUrl = () => {
 /**
  * @summary List customers
  */
-export const listCustomers = async ( options?: RequestInit): Promise<Customer[]> => {
+export const listCustomers = async ( options?: RequestInit): Promise<CustomerListItem[]> => {
 
-  return customFetch<Customer[]>(getListCustomersUrl(),
+  return customFetch<CustomerListItem[]>(getListCustomersUrl(),
   {
     ...options,
     method: 'GET'

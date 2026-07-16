@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
-import { eq } from "drizzle-orm";
-import { db, customersTable } from "@workspace/db";
+import { eq, count } from "drizzle-orm";
+import { db, customersTable, jobsTable } from "@workspace/db";
 import {
   ListCustomersResponse,
   CreateCustomerBody,
@@ -14,7 +14,19 @@ import {
 const router: IRouter = Router();
 
 router.get("/customers", async (_req, res): Promise<void> => {
-  const rows = await db.select().from(customersTable).orderBy(customersTable.name);
+  const rows = await db
+    .select({
+      id: customersTable.id,
+      name: customersTable.name,
+      email: customersTable.email,
+      phone: customersTable.phone,
+      notes: customersTable.notes,
+      jobCount: count(jobsTable.id),
+    })
+    .from(customersTable)
+    .leftJoin(jobsTable, eq(jobsTable.customerId, customersTable.id))
+    .groupBy(customersTable.id)
+    .orderBy(customersTable.name);
   res.json(ListCustomersResponse.parse(rows));
 });
 

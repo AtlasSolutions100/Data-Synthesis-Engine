@@ -35,6 +35,7 @@ export * from './billStatus';
 export * from './billUpdate';
 export * from './customer';
 export * from './customerInput';
+export * from './customerListItem';
 export * from './customerUpdate';
 export * from './dashboardSummary';
 export * from './employee';

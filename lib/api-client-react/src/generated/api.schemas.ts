@@ -116,6 +116,10 @@ export interface Customer {
   notes?: string | null;
 }
 
+export type CustomerListItem = Customer & {
+  jobCount: number;
+};
+
 export interface CustomerInput {
   /** @minLength 1 */
   name: string;

@@ -144,7 +144,7 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/Customer"
+                  $ref: "#/components/schemas/CustomerListItem"
     post:
       operationId: createCustomer
       tags: [customers]
@@ -1438,6 +1438,14 @@ components:
           type: ["string", "null"]
         notes:
           type: ["string", "null"]
+    CustomerListItem:
+      allOf:
+        - $ref: "#/components/schemas/Customer"
+        - type: object
+          required: [jobCount]
+          properties:
+            jobCount:
+              type: integer
     CustomerInput:
       type: object
       required: [name]

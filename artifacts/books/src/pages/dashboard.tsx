@@ -129,13 +129,18 @@ export default function Dashboard() {
                 return (
                   <div key={customer.id} className="px-6 py-4">
                     <div className="flex items-center justify-between">
-                      <Link
-                        href={`/customers/${customer.id}`}
-                        className="flex items-center gap-2 font-semibold text-lg text-blue-700 hover:underline"
-                      >
-                        {customer.name}
-                        <ChevronRight className="h-4 w-4 text-slate-400" />
-                      </Link>
+                      <div className="flex items-center gap-3">
+                        <Link
+                          href={`/customers/${customer.id}`}
+                          className="flex items-center gap-2 font-semibold text-lg text-blue-700 hover:underline"
+                        >
+                          {customer.name}
+                          <ChevronRight className="h-4 w-4 text-slate-400" />
+                        </Link>
+                        <Badge variant="secondary" className="text-xs" data-testid={`badge-job-count-${customer.id}`}>
+                          {customer.jobCount} {customer.jobCount === 1 ? "job" : "jobs"}
+                        </Badge>
+                      </div>
                       <button
                         type="button"
                         onClick={() => toggleCustomer(customer.id)}
