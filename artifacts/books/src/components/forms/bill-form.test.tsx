@@ -187,3 +187,100 @@ describe("BillForm line account selection", () => {
     expect(payload.memo).toBe("updated memo");
   });
 });
+
+describe("BillForm dangling id validation", () => {
+  it("blocks submit with a clear error when the preloaded vendor no longer exists", async () => {
+    const onSubmit = vi.fn();
+    render(
+      <BillForm
+        onSubmit={onSubmit}
+        defaultValues={{
+          vendorId: "999",
+          date: "2026-07-16",
+          lines: [{ accountId: "", description: "", amount: "10" }],
+        }}
+      />,
+    );
+
+    // The trigger flags the unresolved id instead of showing a bare "#999".
+    await triggerShowing(/Unknown \(#999\)/);
+
+    await submit();
+    await waitFor(() =>
+      expect(
+        screen.getByText(/vendor no longer exists/i),
+      ).toBeTruthy(),
+    );
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it("blocks submit when a line references a deleted account", async () => {
+    const onSubmit = vi.fn();
+    render(
+      <BillForm
+        onSubmit={onSubmit}
+        defaultValues={{
+          vendorId: "1",
+          date: "2026-07-16",
+          lines: [{ accountId: "888", description: "Old", amount: "10" }],
+        }}
+      />,
+    );
+
+    await triggerShowing(/Unknown \(#888\)/);
+
+    await submit();
+    await waitFor(() =>
+      expect(
+        screen.getByText(/account no longer exists/i),
+      ).toBeTruthy(),
+    );
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it("blocks submit when the selected job no longer exists", async () => {
+    const onSubmit = vi.fn();
+    render(
+      <BillForm
+        onSubmit={onSubmit}
+        defaultValues={{
+          vendorId: "1",
+          jobId: "777",
+          date: "2026-07-16",
+          lines: [{ accountId: "", description: "", amount: "10" }],
+        }}
+      />,
+    );
+
+    await submit();
+    await waitFor(() =>
+      expect(screen.getByText(/job no longer exists/i)).toBeTruthy(),
+    );
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it("still submits normally once the dangling vendor is replaced with a valid one", async () => {
+    const onSubmit = vi.fn();
+    render(
+      <BillForm
+        onSubmit={onSubmit}
+        defaultValues={{
+          vendorId: "999",
+          date: "2026-07-16",
+          lines: [{ accountId: "", description: "", amount: "10" }],
+        }}
+      />,
+    );
+
+    await submit();
+    await waitFor(() =>
+      expect(screen.getByText(/vendor no longer exists/i)).toBeTruthy(),
+    );
+
+    await pickOption(/Unknown \(#999\)/, /Acme Supply/);
+
+    await submit();
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    expect(onSubmit.mock.calls[0][0].vendorId).toBe(1);
+  });
+});

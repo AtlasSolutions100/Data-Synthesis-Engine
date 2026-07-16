@@ -86,6 +86,45 @@ export function BillForm({ defaultValues, onSubmit, isLoading }: BillFormProps) 
   );
 
   const handleSubmit = (values: BillFormValues) => {
+    let hasError = false;
+    if (
+      vendors &&
+      !vendors.some((v) => String(v.id) === values.vendorId)
+    ) {
+      form.setError("vendorId", {
+        type: "manual",
+        message:
+          "This vendor no longer exists. Please select a different vendor.",
+      });
+      hasError = true;
+    }
+    if (
+      values.jobId &&
+      jobs &&
+      !jobs.some((j) => String(j.id) === values.jobId)
+    ) {
+      form.setError("jobId", {
+        type: "manual",
+        message: "This job no longer exists. Please select a different job.",
+      });
+      hasError = true;
+    }
+    values.lines.forEach((line, index) => {
+      if (
+        line.accountId &&
+        accounts &&
+        !accounts.some((a) => String(a.id) === line.accountId)
+      ) {
+        form.setError(`lines.${index}.accountId`, {
+          type: "manual",
+          message:
+            "This account no longer exists. Please select a different account.",
+        });
+        hasError = true;
+      }
+    });
+    if (hasError) return;
+
     onSubmit({
       billNumber: values.billNumber || null,
       vendorId: parseInt(values.vendorId, 10),

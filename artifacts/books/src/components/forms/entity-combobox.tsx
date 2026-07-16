@@ -62,8 +62,14 @@ export function EntityCombobox({
           className="w-full justify-between font-normal"
           {...buttonProps}
         >
-          <span className={cn("truncate", !selected && "text-muted-foreground")}>
-            {selected ? selected.label : value ? `#${value}` : placeholder}
+          <span
+            className={cn(
+              "truncate",
+              !selected && !value && "text-muted-foreground",
+              !selected && value && "text-destructive"
+            )}
+          >
+            {selected ? selected.label : value ? `Unknown (#${value})` : placeholder}
           </span>
           <span className="flex items-center gap-1 shrink-0">
             {clearable && value && (
