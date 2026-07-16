@@ -5,3 +5,4 @@
 - [OpenAI AI-server lib template](integrations-openai-lib-template.md) — template ships a strict type error (response.data[0]→data?.[0]) that breaks typecheck:libs; gpt-5 uses max_completion_tokens, no temperature.
 - [Race regression tests](race-regression-test-flush.md) — waitFor(stale is absent) passes before the stale microtask lands; flush the stale resolve inside act, and verify the test fails with the guard disabled.
 - [Aging asOf semantics](aging-asof-semantics.md) — AR/AP aging date-filters only when asOf is explicitly passed; default keeps legacy all-time behavior (future-dated rows included).
+- [write-excel-file v4 quirks](write-excel-file-quirks.md) — must import "write-excel-file/browser" (no "." export); sheet prop is `sheet`; download via result.toFile(name).

@@ -24,6 +24,7 @@ import {
   agingDetailCsvFilename,
   downloadCsv,
 } from "@/lib/aging-csv";
+import { downloadAgingXlsx } from "@/lib/aging-xlsx";
 import {
   buildJobReportsCsv,
   jobReportsCsvFilename,
@@ -271,6 +272,18 @@ export default function Reports() {
           >
             <Download className="h-4 w-4 mr-2" />
             Export Aging Detail CSV
+          </Button>
+          <Button
+            variant="outline"
+            disabled={!arAging || !apAging}
+            data-testid="button-export-aging-xlsx"
+            onClick={() => {
+              if (!arAging || !apAging) return;
+              void downloadAgingXlsx(arAging, apAging);
+            }}
+          >
+            <Download className="h-4 w-4 mr-2" />
+            Export Aging (Excel)
           </Button>
         </div>
       </div>
