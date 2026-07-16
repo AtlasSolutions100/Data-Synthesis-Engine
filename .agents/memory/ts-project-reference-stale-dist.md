@@ -23,5 +23,7 @@ used), so only typecheck/CI catches it.
 
 **How to apply:** The api-spec `codegen` script now runs
 `tsc --build --force ../api-zod ../api-client-react` right after orval, so the
-normal codegen flow can't leave stale dist. If a merge brings regenerated src
-without dist (codegen ran elsewhere), rebuild with the force commands above.
+normal codegen flow can't leave stale dist. The post-merge setup script
+(`scripts/post-merge.sh`) also force-rebuilds both libs, so merges bringing
+regenerated src without dist are covered automatically. If either safeguard is
+removed, rebuild manually with the force commands above.
