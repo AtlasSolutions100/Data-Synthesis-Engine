@@ -150,6 +150,24 @@ describe("GET /api/storage/objects/*", () => {
     expect(mocks.downloadObject).not.toHaveBeenCalled();
   });
 
+  it("returns 403 when a valid token for one document is replayed against another", async () => {
+    mocks.docRows = [{ id: "doc-2" }]; // target path is tracked — binding alone must block it
+    const app = buildApp({ id: "user-1", role: "owner" });
+
+    // Mint a real, unexpired token for document A…
+    const tokenForA = createDownloadToken("/objects/uploads/tracked-1");
+    // …and replay it against document B's URL.
+    const res = await request(app).get(
+      `/api/storage/objects/uploads/tracked-2?token=${encodeURIComponent(tokenForA)}`,
+    );
+
+    expect(res.status).toBe(403);
+    // Path-binding mismatch must fail closed before touching the database or storage.
+    expect(mocks.dbSelect).not.toHaveBeenCalled();
+    expect(mocks.getObjectEntityFile).not.toHaveBeenCalled();
+    expect(mocks.downloadObject).not.toHaveBeenCalled();
+  });
+
   it("returns 404 for a guessed/unattached object path (no jobDocuments row)", async () => {
     mocks.docRows = []; // no tracked document maps to this path
     const app = buildApp({ id: "user-1", role: "owner" });
