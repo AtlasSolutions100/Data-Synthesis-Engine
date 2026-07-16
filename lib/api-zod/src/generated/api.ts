@@ -376,6 +376,10 @@ export const DeleteEmployeeResponse = zod.void()
 /**
  * @summary List jobs
  */
+export const ListJobsQueryParams = zod.object({
+  "customerId": zod.coerce.number().optional()
+})
+
 export const ListJobsResponseItem = zod.object({
   "id": zod.number(),
   "jobNumber": zod.string(),

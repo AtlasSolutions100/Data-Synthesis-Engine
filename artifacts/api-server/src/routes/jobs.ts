@@ -8,6 +8,7 @@ import {
   accountsTable,
 } from "@workspace/db";
 import {
+  ListJobsQueryParams,
   ListJobsResponse,
   CreateJobBody,
   GetJobParams,
@@ -69,12 +70,20 @@ async function fetchCustomerName(
   return c?.name ?? null;
 }
 
-router.get("/jobs", async (_req, res): Promise<void> => {
-  const rows = await db
+router.get("/jobs", async (req, res): Promise<void> => {
+  const query = ListJobsQueryParams.safeParse(req.query);
+  if (!query.success) {
+    res.status(400).json({ error: query.error.message });
+    return;
+  }
+  const baseQuery = db
     .select({ job: jobsTable, customerName: customersTable.name })
     .from(jobsTable)
-    .leftJoin(customersTable, eq(customersTable.id, jobsTable.customerId))
-    .orderBy(jobsTable.jobNumber);
+    .leftJoin(customersTable, eq(customersTable.id, jobsTable.customerId));
+  const rows = await (query.data.customerId != null
+    ? baseQuery.where(eq(jobsTable.customerId, query.data.customerId))
+    : baseQuery
+  ).orderBy(jobsTable.jobNumber);
   const [totals, billing] = await Promise.all([
     getJobTotalsMap(),
     getJobBillingMap(),

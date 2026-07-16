@@ -75,6 +75,7 @@ export * from './listBillsParams';
 export * from './listBillsStatus';
 export * from './listInvoicesParams';
 export * from './listInvoicesStatus';
+export * from './listJobsParams';
 export * from './listPayrollRunsParams';
 export * from './listTransactionsParams';
 export * from './payrollAllocation';

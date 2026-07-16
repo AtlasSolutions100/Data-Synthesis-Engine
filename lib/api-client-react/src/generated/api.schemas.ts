@@ -1147,6 +1147,10 @@ export type StartDateParamParameter = string;
  */
 export type EndDateParamParameter = string;
 
+export type ListJobsParams = {
+customerId?: number;
+};
+
 export type ListTransactionsParams = {
 jobId?: number;
 accountId?: number;

@@ -382,6 +382,12 @@ paths:
       operationId: listJobs
       tags: [jobs]
       summary: List jobs
+      parameters:
+        - name: customerId
+          in: query
+          required: false
+          schema:
+            type: integer
       responses:
         "200":
           description: List of jobs with rolled-up totals

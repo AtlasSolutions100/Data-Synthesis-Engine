@@ -56,6 +56,7 @@ import type {
   JobUpdate,
   ListBillsParams,
   ListInvoicesParams,
+  ListJobsParams,
   ListPayrollRunsParams,
   ListTransactionsParams,
   PayrollByJob,
@@ -1640,20 +1641,27 @@ export const useDeleteEmployee = <TError = ErrorType<ErrorResponse>,
       return useMutation(getDeleteEmployeeMutationOptions(options));
     }
 
-export const getListJobsUrl = () => {
+export const getListJobsUrl = (params?: ListJobsParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
 
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
 
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/api/jobs`
+  return stringifiedParams.length > 0 ? `/api/jobs?${stringifiedParams}` : `/api/jobs`
 }
 
 /**
  * @summary List jobs
  */
-export const listJobs = async ( options?: RequestInit): Promise<Job[]> => {
+export const listJobs = async (params?: ListJobsParams, options?: RequestInit): Promise<Job[]> => {
 
-  return customFetch<Job[]>(getListJobsUrl(),
+  return customFetch<Job[]>(getListJobsUrl(params),
   {
     ...options,
     method: 'GET'
@@ -1666,23 +1674,23 @@ export const listJobs = async ( options?: RequestInit): Promise<Job[]> => {
 
 
 
-export const getListJobsQueryKey = () => {
+export const getListJobsQueryKey = (params?: ListJobsParams,) => {
     return [
-    `/api/jobs`
+    `/api/jobs`, ...(params ? [params] : [])
     ] as const;
     }
 
 
-export const getListJobsQueryOptions = <TData = Awaited<ReturnType<typeof listJobs>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listJobs>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getListJobsQueryOptions = <TData = Awaited<ReturnType<typeof listJobs>>, TError = ErrorType<unknown>>(params?: ListJobsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listJobs>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getListJobsQueryKey();
+  const queryKey =  queryOptions?.queryKey ?? getListJobsQueryKey(params);
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof listJobs>>> = ({ signal }) => listJobs({ signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listJobs>>> = ({ signal }) => listJobs(params, { signal, ...requestOptions });
 
 
 
@@ -1700,11 +1708,11 @@ export type ListJobsQueryError = ErrorType<unknown>
  */
 
 export function useListJobs<TData = Awaited<ReturnType<typeof listJobs>>, TError = ErrorType<unknown>>(
-  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listJobs>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+ params?: ListJobsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listJobs>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
-  const queryOptions = getListJobsQueryOptions(options)
+  const queryOptions = getListJobsQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

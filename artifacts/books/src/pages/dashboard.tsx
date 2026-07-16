@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import {
   useGetDashboardSummary,
   getGetDashboardSummaryQueryKey,
@@ -10,7 +10,7 @@ import {
 import { formatCents } from "@/lib/format";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { DollarSign, Activity, CreditCard, Users, ChevronRight } from "lucide-react";
+import { DollarSign, Activity, CreditCard, Users, ChevronRight, ChevronDown } from "lucide-react";
 import { Link } from "wouter";
 import { DateRangePicker, type DateRangeValue, describeRange } from "@/components/date-range-picker";
 
@@ -27,20 +27,20 @@ export default function Dashboard() {
   const { data: customers } = useListCustomers({
     query: { queryKey: getListCustomersQueryKey() },
   });
-  const { data: jobs } = useListJobs({
-    query: { queryKey: getListJobsQueryKey() },
-  });
-
-  const jobsByCustomer = useMemo(() => {
-    const map = new Map<number, NonNullable<typeof jobs>>();
-    for (const job of jobs ?? []) {
-      if (job.customerId == null) continue;
-      const list = map.get(job.customerId) ?? [];
-      list.push(job);
-      map.set(job.customerId, list);
-    }
-    return map;
-  }, [jobs]);
+  const [expandedCustomers, setExpandedCustomers] = useState<Set<number>>(
+    new Set(),
+  );
+  const toggleCustomer = (id: number) => {
+    setExpandedCustomers((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
 
   return (
     <div className="space-y-8">
@@ -125,7 +125,7 @@ export default function Dashboard() {
           ) : (
             <div className="divide-y divide-slate-100">
               {customers.map((customer) => {
-                const customerJobs = jobsByCustomer.get(customer.id) ?? [];
+                const expanded = expandedCustomers.has(customer.id);
                 return (
                   <div key={customer.id} className="px-6 py-4">
                     <div className="flex items-center justify-between">
@@ -136,35 +136,20 @@ export default function Dashboard() {
                         {customer.name}
                         <ChevronRight className="h-4 w-4 text-slate-400" />
                       </Link>
-                      <span className="text-sm text-slate-500">
-                        {customerJobs.length} {customerJobs.length === 1 ? "job" : "jobs"}
-                      </span>
+                      <button
+                        type="button"
+                        onClick={() => toggleCustomer(customer.id)}
+                        className="flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700"
+                      >
+                        {expanded ? "Hide jobs" : "Show jobs"}
+                        {expanded ? (
+                          <ChevronDown className="h-4 w-4" />
+                        ) : (
+                          <ChevronRight className="h-4 w-4" />
+                        )}
+                      </button>
                     </div>
-                    {customerJobs.length > 0 && (
-                      <div className="mt-2 space-y-1">
-                        {customerJobs.map((job) => (
-                          <div key={job.id} className="flex items-center justify-between pl-4 py-1 rounded hover:bg-slate-50">
-                            <div className="flex items-center gap-2 min-w-0">
-                              <Link href={`/jobs/${job.id}`} className="text-blue-600 hover:underline truncate">
-                                {job.jobNumber} - {job.name}
-                              </Link>
-                              {job.poNumber && (
-                                <span className="text-xs text-slate-500 whitespace-nowrap">PO {job.poNumber}</span>
-                              )}
-                              <Badge
-                                variant={job.status === "active" ? "default" : job.status === "completed" ? "secondary" : "outline"}
-                                className="text-xs"
-                              >
-                                {job.status}
-                              </Badge>
-                            </div>
-                            <div className={`text-sm font-medium ${job.profitCents >= 0 ? "text-emerald-600" : "text-red-600"}`}>
-                              {formatCents(job.profitCents)}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
+                    {expanded && <CustomerJobs customerId={customer.id} />}
                   </div>
                 );
               })}
@@ -198,6 +183,45 @@ export default function Dashboard() {
       </Card>
       </>
       )}
+    </div>
+  );
+}
+
+function CustomerJobs({ customerId }: { customerId: number }) {
+  const { data: jobs, isLoading } = useListJobs(
+    { customerId },
+    { query: { queryKey: getListJobsQueryKey({ customerId }) } },
+  );
+
+  if (isLoading) {
+    return <div className="mt-2 pl-4 py-1 text-sm text-slate-500">Loading jobs...</div>;
+  }
+  if (!jobs || jobs.length === 0) {
+    return <div className="mt-2 pl-4 py-1 text-sm text-slate-500">No jobs for this customer yet.</div>;
+  }
+  return (
+    <div className="mt-2 space-y-1">
+      {jobs.map((job) => (
+        <div key={job.id} className="flex items-center justify-between pl-4 py-1 rounded hover:bg-slate-50">
+          <div className="flex items-center gap-2 min-w-0">
+            <Link href={`/jobs/${job.id}`} className="text-blue-600 hover:underline truncate">
+              {job.jobNumber} - {job.name}
+            </Link>
+            {job.poNumber && (
+              <span className="text-xs text-slate-500 whitespace-nowrap">PO {job.poNumber}</span>
+            )}
+            <Badge
+              variant={job.status === "active" ? "default" : job.status === "completed" ? "secondary" : "outline"}
+              className="text-xs"
+            >
+              {job.status}
+            </Badge>
+          </div>
+          <div className={`text-sm font-medium ${job.profitCents >= 0 ? "text-emerald-600" : "text-red-600"}`}>
+            {formatCents(job.profitCents)}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

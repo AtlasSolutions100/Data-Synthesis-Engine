@@ -16,7 +16,7 @@ export default function Jobs() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
 
-  const { data: jobs, isLoading } = useListJobs({
+  const { data: jobs, isLoading } = useListJobs(undefined, {
     query: { queryKey: getListJobsQueryKey() }
   });
 

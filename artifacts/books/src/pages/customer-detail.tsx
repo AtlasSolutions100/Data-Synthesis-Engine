@@ -18,11 +18,17 @@ export default function CustomerDetail() {
     query: { enabled: !!customerId, queryKey: getGetCustomerQueryKey(customerId) },
   });
 
-  const { data: jobs, isLoading: jobsLoading } = useListJobs({
-    query: { queryKey: getListJobsQueryKey() },
-  });
+  const { data: jobs, isLoading: jobsLoading } = useListJobs(
+    { customerId },
+    {
+      query: {
+        enabled: !!customerId,
+        queryKey: getListJobsQueryKey({ customerId }),
+      },
+    },
+  );
 
-  const customerJobs = (jobs ?? []).filter((j) => j.customerId === customerId);
+  const customerJobs = jobs ?? [];
 
   const totalContractCents = customerJobs.reduce((s, j) => s + j.contractAmountCents, 0);
   const totalBilledCents = customerJobs.reduce((s, j) => s + j.billedToDateCents, 0);
