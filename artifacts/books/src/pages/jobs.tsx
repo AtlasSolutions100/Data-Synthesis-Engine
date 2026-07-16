@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useListJobs, useCreateJob, useUpdateJob, useDeleteJob, getListJobsQueryKey } from "@workspace/api-client-react";
+import { useListJobs, useCreateJob, useUpdateJob, useDeleteJob, getListJobsQueryKey, getListCustomersQueryKey } from "@workspace/api-client-react";
 import { formatCents } from "@/lib/format";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -24,6 +24,7 @@ export default function Jobs() {
     mutation: {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: getListJobsQueryKey() });
+        queryClient.invalidateQueries({ queryKey: getListCustomersQueryKey() });
         setIsCreateOpen(false);
       }
     }
@@ -33,6 +34,7 @@ export default function Jobs() {
     mutation: {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: getListJobsQueryKey() });
+        queryClient.invalidateQueries({ queryKey: getListCustomersQueryKey() });
         setEditingId(null);
       }
     }
@@ -42,6 +44,7 @@ export default function Jobs() {
     mutation: {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: getListJobsQueryKey() });
+        queryClient.invalidateQueries({ queryKey: getListCustomersQueryKey() });
       }
     }
   });
