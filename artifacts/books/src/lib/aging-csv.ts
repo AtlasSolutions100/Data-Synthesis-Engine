@@ -61,6 +61,93 @@ export function agingCsvFilename(asOf: string): string {
   return `aging-report-${asOf}.csv`;
 }
 
+const DETAIL_HEADERS = [
+  "Number",
+  "Job",
+  "Date",
+  "Due Date",
+  "Days Overdue",
+  "Balance",
+];
+
+interface DetailDoc {
+  number: string;
+  jobNumber?: string | null;
+  date: string;
+  dueDate?: string | null;
+  daysOverdue: number;
+  balanceCents: number;
+}
+
+function detailRows(name: string, docs: DetailDoc[]): string[][] {
+  const rows: string[][] = [];
+  let subtotalCents = 0;
+  for (const d of docs) {
+    subtotalCents += d.balanceCents;
+    rows.push([
+      name,
+      d.number,
+      d.jobNumber ?? "",
+      d.date,
+      d.dueDate ?? "",
+      String(d.daysOverdue),
+      centsToDollars(d.balanceCents),
+    ]);
+  }
+  rows.push([name, "Subtotal", "", "", "", "", centsToDollars(subtotalCents)]);
+  return rows;
+}
+
+export function buildAgingDetailCsv(arAging: ArAging, apAging: ApAging): string {
+  const lines: string[][] = [];
+
+  lines.push(["Accounts Receivable Aging Detail", `As of ${arAging.asOf}`]);
+  lines.push(["Customer", "Invoice #", ...DETAIL_HEADERS.slice(1)]);
+  for (const c of arAging.customers) {
+    lines.push(
+      ...detailRows(
+        c.customerName || "Unassigned",
+        c.invoices.map((inv) => ({
+          number: inv.invoiceNumber,
+          jobNumber: inv.jobNumber,
+          date: inv.date,
+          dueDate: inv.dueDate,
+          daysOverdue: inv.daysOverdue,
+          balanceCents: inv.balanceCents,
+        })),
+      ),
+    );
+  }
+  lines.push(["Total", "", "", "", "", "", centsToDollars(arAging.totals.totalCents)]);
+
+  lines.push([]);
+
+  lines.push(["Accounts Payable Aging Detail", `As of ${apAging.asOf}`]);
+  lines.push(["Vendor", "Bill #", ...DETAIL_HEADERS.slice(1)]);
+  for (const v of apAging.vendors) {
+    lines.push(
+      ...detailRows(
+        v.vendorName || "Unassigned",
+        v.bills.map((b) => ({
+          number: b.billNumber ?? "",
+          jobNumber: b.jobNumber,
+          date: b.date,
+          dueDate: b.dueDate,
+          daysOverdue: b.daysOverdue,
+          balanceCents: b.balanceCents,
+        })),
+      ),
+    );
+  }
+  lines.push(["Total", "", "", "", "", "", centsToDollars(apAging.totals.totalCents)]);
+
+  return lines.map((row) => row.map(csvEscape).join(",")).join("\r\n") + "\r\n";
+}
+
+export function agingDetailCsvFilename(asOf: string): string {
+  return `aging-detail-${asOf}.csv`;
+}
+
 export function downloadCsv(content: string, filename: string): void {
   const blob = new Blob([content], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);

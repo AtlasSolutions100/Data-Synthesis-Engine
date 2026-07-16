@@ -17,7 +17,13 @@ import type {
   AgingBill,
 } from "@workspace/api-client-react";
 import { formatCents } from "@/lib/format";
-import { buildAgingCsv, agingCsvFilename, downloadCsv } from "@/lib/aging-csv";
+import {
+  buildAgingCsv,
+  agingCsvFilename,
+  buildAgingDetailCsv,
+  agingDetailCsvFilename,
+  downloadCsv,
+} from "@/lib/aging-csv";
 import { Button } from "@/components/ui/button";
 import { Download } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -216,6 +222,20 @@ export default function Reports() {
           >
             <Download className="h-4 w-4 mr-2" />
             Export Aging CSV
+          </Button>
+          <Button
+            variant="outline"
+            disabled={!arAging || !apAging}
+            onClick={() => {
+              if (!arAging || !apAging) return;
+              downloadCsv(
+                buildAgingDetailCsv(arAging, apAging),
+                agingDetailCsvFilename(arAging.asOf),
+              );
+            }}
+          >
+            <Download className="h-4 w-4 mr-2" />
+            Export Aging Detail CSV
           </Button>
         </div>
       </div>
