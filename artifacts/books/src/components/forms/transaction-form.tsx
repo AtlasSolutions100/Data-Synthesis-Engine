@@ -74,6 +74,11 @@ export function TransactionForm({ defaultValues, onSubmit, isLoading }: Transact
     query: { queryKey: getListAccountsQueryKey() },
   });
 
+  const accountOptions = (accounts ?? []).map((a) => ({
+    id: a.id,
+    label: `${a.number} — ${a.name}`,
+  }));
+
   const form = useForm<TransactionFormValues>({
     resolver: zodResolver(transactionSchema),
     defaultValues: {
@@ -175,10 +180,7 @@ export function TransactionForm({ defaultValues, onSubmit, isLoading }: Transact
                 <FormLabel>Account</FormLabel>
                 <FormControl>
                   <EntityCombobox
-                    options={(accounts ?? []).map((a) => ({
-                      id: a.id,
-                      label: `${a.number} — ${a.name}`,
-                    }))}
+                    options={accountOptions}
                     value={field.value ?? ""}
                     onChange={field.onChange}
                     placeholder="Select account"
@@ -285,6 +287,44 @@ export function TransactionForm({ defaultValues, onSubmit, isLoading }: Transact
             )}
           />
         </div>
+        <FormField
+          control={form.control}
+          name="splitAccount"
+          render={({ field }) => {
+            const selected = (accounts ?? []).find((a) => a.name === field.value);
+            const hasLegacyValue = Boolean(field.value) && !selected;
+            const options = hasLegacyValue
+              ? [{ id: -1, label: field.value! }, ...accountOptions]
+              : accountOptions;
+            return (
+              <FormItem>
+                <FormLabel>Split Account (Optional)</FormLabel>
+                <FormControl>
+                  <EntityCombobox
+                    options={options}
+                    value={selected ? String(selected.id) : hasLegacyValue ? "-1" : ""}
+                    onChange={(v) => {
+                      if (!v) {
+                        field.onChange("");
+                      } else if (v === "-1") {
+                        field.onChange(field.value);
+                      } else {
+                        const account = (accounts ?? []).find(
+                          (a) => String(a.id) === v
+                        );
+                        field.onChange(account ? account.name : "");
+                      }
+                    }}
+                    placeholder="Select split account"
+                    searchPlaceholder="Search accounts..."
+                    emptyText="No accounts found."
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            );
+          }}
+        />
         <FormField
           control={form.control}
           name="description"

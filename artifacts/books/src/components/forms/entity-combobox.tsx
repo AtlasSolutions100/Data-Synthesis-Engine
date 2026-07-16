@@ -17,7 +17,11 @@ export interface EntityOption {
   label: string;
 }
 
-interface EntityComboboxProps {
+interface EntityComboboxProps
+  extends Omit<
+    React.ButtonHTMLAttributes<HTMLButtonElement>,
+    "value" | "onChange" | "placeholder"
+  > {
   options: EntityOption[];
   value: string;
   onChange: (value: string) => void;
@@ -37,6 +41,7 @@ export function EntityCombobox({
   emptyText = "No results found.",
   clearable = true,
   disabled,
+  ...buttonProps
 }: EntityComboboxProps) {
   const [open, setOpen] = useState(false);
 
@@ -55,6 +60,7 @@ export function EntityCombobox({
           aria-expanded={open}
           disabled={disabled}
           className="w-full justify-between font-normal"
+          {...buttonProps}
         >
           <span className={cn("truncate", !selected && "text-muted-foreground")}>
             {selected ? selected.label : value ? `#${value}` : placeholder}
