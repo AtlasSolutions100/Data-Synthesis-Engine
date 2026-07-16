@@ -1,5 +1,10 @@
-import type { AccountTotal, PayrollByJob } from "@workspace/api-client-react";
-import { centsToDollars, csvEscape } from "./aging-csv";
+import type {
+  AccountTotal,
+  PayrollByJob,
+  ArAging,
+  ApAging,
+} from "@workspace/api-client-react";
+import { centsToDollars, csvEscape, buildAgingCsv } from "./aging-csv";
 
 export interface ReportDateRange {
   startDate?: string;
@@ -90,4 +95,29 @@ export function jobReportsCsvFilename(range: ReportDateRange): string {
     return `job-reports-through-${range.endDate}.csv`;
   }
   return "job-reports-all-time.csv";
+}
+
+export function buildMonthEndCsv(
+  costByAccount: AccountTotal[],
+  payrollByJob: PayrollByJob,
+  arAging: ArAging,
+  apAging: ApAging,
+  range: ReportDateRange,
+): string {
+  const jobReports = buildJobReportsCsv(costByAccount, payrollByJob, range);
+  const aging = buildAgingCsv(arAging, apAging);
+  return jobReports + "\r\n" + aging;
+}
+
+export function monthEndCsvFilename(range: ReportDateRange): string {
+  if (range.startDate && range.endDate) {
+    return `month-end-reports-${range.startDate}-to-${range.endDate}.csv`;
+  }
+  if (range.startDate) {
+    return `month-end-reports-from-${range.startDate}.csv`;
+  }
+  if (range.endDate) {
+    return `month-end-reports-through-${range.endDate}.csv`;
+  }
+  return "month-end-reports-all-time.csv";
 }
