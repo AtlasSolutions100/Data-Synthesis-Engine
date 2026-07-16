@@ -18,6 +18,8 @@ import {
   getListVendorsQueryKey,
   useListJobs,
   getListJobsQueryKey,
+  useListAccounts,
+  getListAccountsQueryKey,
 } from "@workspace/api-client-react";
 import type { BillInput } from "@workspace/api-client-react";
 import { EntityCombobox } from "@/components/forms/entity-combobox";
@@ -52,6 +54,9 @@ export function BillForm({ defaultValues, onSubmit, isLoading }: BillFormProps) 
   });
   const { data: jobs } = useListJobs(undefined, {
     query: { queryKey: getListJobsQueryKey() },
+  });
+  const { data: accounts } = useListAccounts({
+    query: { queryKey: getListAccountsQueryKey() },
   });
 
   const form = useForm<BillFormValues>({
@@ -210,9 +215,19 @@ export function BillForm({ defaultValues, onSubmit, isLoading }: BillFormProps) 
                 control={form.control}
                 name={`lines.${index}.accountId`}
                 render={({ field }) => (
-                  <FormItem className="w-28">
+                  <FormItem className="w-64">
                     <FormControl>
-                      <Input type="number" placeholder="Acct ID" {...field} />
+                      <EntityCombobox
+                        options={(accounts ?? []).map((a) => ({
+                          id: a.id,
+                          label: `${a.number} — ${a.name}`,
+                        }))}
+                        value={field.value ?? ""}
+                        onChange={field.onChange}
+                        placeholder="Account (optional)"
+                        searchPlaceholder="Search accounts..."
+                        emptyText="No accounts found."
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
