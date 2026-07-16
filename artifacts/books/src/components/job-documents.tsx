@@ -148,6 +148,7 @@ export function fileKind(
 }
 
 const MAX_PREVIEW_BYTES = 5 * 1024 * 1024;
+const MAX_PDF_PREVIEW_BYTES = 50 * 1024 * 1024;
 const MAX_PREVIEW_ROWS = 100;
 
 // Minimal RFC-4180-ish CSV parser: handles quoted fields, escaped quotes ("")
@@ -429,14 +430,16 @@ export function SpreadsheetPreview({
   );
 }
 
-type PdfState = "loading" | "error" | "ready";
+type PdfState = "loading" | "error" | "too-large" | "ready";
 
 export function PdfPreview({
   href,
   fileName,
+  sizeBytes,
 }: {
   href: string;
   fileName: string;
+  sizeBytes?: number | null;
 }) {
   const [state, setState] = useState<PdfState>("loading");
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
@@ -445,7 +448,9 @@ export function PdfPreview({
   // missing file, blocked response) — it just renders a blank pane. Probe the
   // tokenized href first so we can show a friendly fallback instead. Reuse the
   // probe's response body as a blob URL for the iframe so the file is only
-  // downloaded once.
+  // downloaded once. Very large PDFs are never buffered: the size is checked
+  // against document metadata (or the Content-Length header before reading
+  // the body) and a download prompt is shown instead.
   useEffect(() => {
     let cancelled = false;
     let objectUrl: string | null = null;
@@ -453,10 +458,23 @@ export function PdfPreview({
     setBlobUrl(null);
 
     async function probe() {
+      if (sizeBytes != null && sizeBytes > MAX_PDF_PREVIEW_BYTES) {
+        if (!cancelled) setState("too-large");
+        return;
+      }
       try {
         const res = await fetch(href);
         if (!res.ok) {
           if (!cancelled) setState("error");
+          return;
+        }
+        const contentLength = Number(res.headers.get("content-length"));
+        if (
+          Number.isFinite(contentLength) &&
+          contentLength > MAX_PDF_PREVIEW_BYTES
+        ) {
+          res.body?.cancel().catch(() => {});
+          if (!cancelled) setState("too-large");
           return;
         }
         const blob = await res.blob();
@@ -474,7 +492,7 @@ export function PdfPreview({
       cancelled = true;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [href]);
+  }, [href, sizeBytes]);
 
   if (state === "loading") {
     return (
@@ -485,11 +503,15 @@ export function PdfPreview({
     );
   }
 
-  if (state === "error") {
+  if (state === "error" || state === "too-large") {
     return (
       <div className="flex flex-col items-center justify-center gap-2 py-16 text-center text-slate-500">
         <FileText className="h-8 w-8 text-slate-300" />
-        <p className="text-sm">This PDF couldn't be previewed.</p>
+        <p className="text-sm">
+          {state === "too-large"
+            ? "This PDF is too large to preview here."
+            : "This PDF couldn't be previewed."}
+        </p>
         <p className="text-xs">Download the file to view its contents.</p>
       </div>
     );
@@ -875,7 +897,11 @@ export function JobDocuments({ jobId }: { jobId: number }) {
               />
             </div>
           ) : preview?.kind === "pdf" ? (
-            <PdfPreview href={preview.href} fileName={preview.fileName} />
+            <PdfPreview
+              href={preview.href}
+              fileName={preview.fileName}
+              sizeBytes={preview.sizeBytes}
+            />
           ) : preview?.kind === "csv" || preview?.kind === "xlsx" ? (
             <SpreadsheetPreview
               href={preview.href}

@@ -693,6 +693,7 @@ describe("JobDocuments preview affordances", () => {
     global.fetch = vi.fn(async () => ({
       ok: true,
       status: 200,
+      headers: { get: () => null },
       blob: async () => new Blob(["%PDF-1.4"]),
     })) as unknown as typeof fetch;
     const createObjectURL = vi.fn(() => "blob:mock-pdf-url");
@@ -761,6 +762,115 @@ describe("JobDocuments preview affordances", () => {
     const download = within(dialog).getByRole("link", { name: /download/i });
     expect(download.getAttribute("href")).toBe(
       "/api/storage/objects/uploads/contract.pdf?token=expired",
+    );
+  });
+
+  it("shows the download prompt without fetching when metadata says the PDF is too large", async () => {
+    const fetchSpy = vi.fn();
+    global.fetch = fetchSpy as unknown as typeof fetch;
+
+    renderJobDocuments([
+      makeDoc({
+        id: 2,
+        fileName: "contract.pdf",
+        objectPath: "/objects/uploads/contract.pdf",
+        downloadToken: "pdftok",
+        contentType: "application/pdf",
+        sizeBytes: 200 * 1024 * 1024,
+      }),
+    ]);
+
+    fireEvent.click(screen.getByRole("button", { name: /contract\.pdf/ }));
+
+    const dialog = await screen.findByRole("dialog");
+    await waitFor(() =>
+      expect(
+        within(dialog).getByText(/too large to preview/i),
+      ).toBeTruthy(),
+    );
+    expect(
+      within(dialog).getByText(/Download the file to view its contents/i),
+    ).toBeTruthy();
+    // No bytes were downloaded and no iframe was rendered.
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(dialog.querySelector("iframe")).toBeNull();
+    // The Download link is still available with the tokenized href.
+    const download = within(dialog).getByRole("link", { name: /download/i });
+    expect(download.getAttribute("href")).toBe(
+      "/api/storage/objects/uploads/contract.pdf?token=pdftok",
+    );
+  });
+
+  it("skips buffering via Content-Length when size metadata is missing", async () => {
+    const bodyCancel = vi.fn(async () => {});
+    const blobSpy = vi.fn(async () => new Blob(["%PDF-1.4"]));
+    global.fetch = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      headers: {
+        get: (name: string) =>
+          name.toLowerCase() === "content-length"
+            ? String(200 * 1024 * 1024)
+            : null,
+      },
+      body: { cancel: bodyCancel },
+      blob: blobSpy,
+    })) as unknown as typeof fetch;
+
+    renderJobDocuments([
+      makeDoc({
+        id: 2,
+        fileName: "contract.pdf",
+        objectPath: "/objects/uploads/contract.pdf",
+        downloadToken: "pdftok",
+        contentType: "application/pdf",
+        sizeBytes: null as unknown as number,
+      }),
+    ]);
+
+    fireEvent.click(screen.getByRole("button", { name: /contract\.pdf/ }));
+
+    const dialog = await screen.findByRole("dialog");
+    await waitFor(() =>
+      expect(
+        within(dialog).getByText(/too large to preview/i),
+      ).toBeTruthy(),
+    );
+    // The body was never buffered into memory and the stream was cancelled.
+    expect(blobSpy).not.toHaveBeenCalled();
+    expect(bodyCancel).toHaveBeenCalled();
+    expect(dialog.querySelector("iframe")).toBeNull();
+  });
+
+  it("still previews a normal-size PDF when metadata is under the cap", async () => {
+    global.fetch = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      headers: { get: () => null },
+      blob: async () => new Blob(["%PDF-1.4"]),
+    })) as unknown as typeof fetch;
+    URL.createObjectURL = vi.fn(
+      () => "blob:small-pdf",
+    ) as unknown as typeof URL.createObjectURL;
+    URL.revokeObjectURL = vi.fn() as unknown as typeof URL.revokeObjectURL;
+
+    renderJobDocuments([
+      makeDoc({
+        id: 2,
+        fileName: "contract.pdf",
+        objectPath: "/objects/uploads/contract.pdf",
+        downloadToken: "pdftok",
+        contentType: "application/pdf",
+        sizeBytes: 1 * 1024 * 1024,
+      }),
+    ]);
+
+    fireEvent.click(screen.getByRole("button", { name: /contract\.pdf/ }));
+
+    const dialog = await screen.findByRole("dialog");
+    await waitFor(() => expect(dialog.querySelector("iframe")).toBeTruthy());
+    expect(dialog.querySelector("iframe")!.getAttribute("src")).toBe(
+      "blob:small-pdf",
     );
   });
 
