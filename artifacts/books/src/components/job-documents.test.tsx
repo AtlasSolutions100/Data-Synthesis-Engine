@@ -517,7 +517,12 @@ describe("JobDocuments preview affordances", () => {
     global.fetch = vi.fn(async () => ({
       ok: true,
       status: 200,
+      blob: async () => new Blob(["%PDF-1.4"]),
     })) as unknown as typeof fetch;
+    const createObjectURL = vi.fn(() => "blob:mock-pdf-url");
+    const revokeObjectURL = vi.fn();
+    URL.createObjectURL = createObjectURL as unknown as typeof URL.createObjectURL;
+    URL.revokeObjectURL = revokeObjectURL as unknown as typeof URL.revokeObjectURL;
 
     renderJobDocuments([
       makeDoc({
@@ -534,9 +539,10 @@ describe("JobDocuments preview affordances", () => {
     const dialog = await screen.findByRole("dialog");
     await waitFor(() => expect(dialog.querySelector("iframe")).toBeTruthy());
     const iframe = dialog.querySelector("iframe");
-    expect(iframe!.getAttribute("src")).toBe(
-      "/api/storage/objects/uploads/contract.pdf?token=pdftok",
-    );
+    // The iframe reuses the probe's response body via a blob URL so the file
+    // is only downloaded once.
+    expect(iframe!.getAttribute("src")).toBe("blob:mock-pdf-url");
+    expect(createObjectURL).toHaveBeenCalledTimes(1);
     expect(iframe!.getAttribute("title")).toBe("contract.pdf");
     // The probe hit the tokenized href.
     expect(global.fetch).toHaveBeenCalledWith(

@@ -416,18 +416,31 @@ export function PdfPreview({
   fileName: string;
 }) {
   const [state, setState] = useState<PdfState>("loading");
+  const [blobUrl, setBlobUrl] = useState<string | null>(null);
 
   // The iframe itself gives no signal when the request fails (expired token,
   // missing file, blocked response) — it just renders a blank pane. Probe the
-  // tokenized href first so we can show a friendly fallback instead.
+  // tokenized href first so we can show a friendly fallback instead. Reuse the
+  // probe's response body as a blob URL for the iframe so the file is only
+  // downloaded once.
   useEffect(() => {
     let cancelled = false;
+    let objectUrl: string | null = null;
     setState("loading");
+    setBlobUrl(null);
 
     async function probe() {
       try {
         const res = await fetch(href);
-        if (!cancelled) setState(res.ok ? "ready" : "error");
+        if (!res.ok) {
+          if (!cancelled) setState("error");
+          return;
+        }
+        const blob = await res.blob();
+        if (cancelled) return;
+        objectUrl = URL.createObjectURL(blob);
+        setBlobUrl(objectUrl);
+        setState("ready");
       } catch {
         if (!cancelled) setState("error");
       }
@@ -436,6 +449,7 @@ export function PdfPreview({
     probe();
     return () => {
       cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
   }, [href]);
 
@@ -458,9 +472,18 @@ export function PdfPreview({
     );
   }
 
+  if (!blobUrl) {
+    return (
+      <div className="flex items-center justify-center gap-2 py-16 text-slate-500">
+        <Loader2 className="h-4 w-4 animate-spin" />
+        Loading preview…
+      </div>
+    );
+  }
+
   return (
     <iframe
-      src={href}
+      src={blobUrl}
       title={fileName}
       className="w-full h-[75vh] rounded-md border border-slate-200"
     />
