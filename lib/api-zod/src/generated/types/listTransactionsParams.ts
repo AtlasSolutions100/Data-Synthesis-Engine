@@ -11,6 +11,7 @@ import type { StartDateParamParameter } from './startDateParamParameter';
 export type ListTransactionsParams = {
 jobId?: number;
 accountId?: number;
+vendorId?: number;
 type?: string;
 /**
  * Inclusive start of the date range (YYYY-MM-DD). Omit for no lower bound.

@@ -13,6 +13,8 @@ export interface JobInput {
   /** @minLength 1 */
   name: string;
   /** @nullable */
+  poNumber?: string | null;
+  /** @nullable */
   customerId?: number | null;
   /** @nullable */
   description?: string | null;

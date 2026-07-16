@@ -1,5 +1,5 @@
 import { useState, useMemo, Fragment } from "react";
-import { useParams } from "wouter";
+import { useParams, Link } from "wouter";
 import { 
   useGetJob, 
   getGetJobQueryKey, 
@@ -148,7 +148,19 @@ export default function JobDetail() {
             <h1 className="text-3xl font-bold tracking-tight text-slate-900">{job.jobNumber} - {job.name}</h1>
             <Badge variant={job.status === "active" ? "default" : "secondary"}>{job.status}</Badge>
           </div>
-          <p className="text-slate-500 mt-1">{job.customerName ? `Customer: ${job.customerName}` : "No customer assigned"}</p>
+          <p className="text-slate-500 mt-1">
+            {job.customerId && job.customerName ? (
+              <>
+                Customer:{" "}
+                <Link href={`/customers/${job.customerId}`} className="text-blue-600 hover:underline">
+                  {job.customerName}
+                </Link>
+              </>
+            ) : (
+              job.customerName ? `Customer: ${job.customerName}` : "No customer assigned"
+            )}
+            {job.poNumber ? <span className="ml-3">PO Number: <span className="font-medium text-slate-700">{job.poNumber}</span></span> : null}
+          </p>
         </div>
       </div>
 

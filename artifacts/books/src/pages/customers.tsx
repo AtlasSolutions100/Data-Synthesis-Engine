@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { CustomerForm } from "@/components/forms/customer-form";
 import { useQueryClient } from "@tanstack/react-query";
 import { Plus, Edit2, Trash2 } from "lucide-react";
+import { Link } from "wouter";
 
 export default function Customers() {
   const queryClient = useQueryClient();
@@ -92,7 +93,11 @@ export default function Customers() {
               ) : (
                 customers?.map((customer) => (
                   <TableRow key={customer.id}>
-                    <TableCell className="font-medium">{customer.name}</TableCell>
+                    <TableCell className="font-medium">
+                      <Link href={`/customers/${customer.id}`} className="text-blue-600 hover:underline">
+                        {customer.name}
+                      </Link>
+                    </TableCell>
                     <TableCell>{customer.email || "-"}</TableCell>
                     <TableCell>{customer.phone || "-"}</TableCell>
                     <TableCell className="text-slate-500 truncate max-w-xs">{customer.notes || "-"}</TableCell>

@@ -42,6 +42,7 @@ function serializeJob(
     id: job.id,
     jobNumber: job.jobNumber,
     name: job.name,
+    poNumber: job.poNumber,
     customerId: job.customerId,
     customerName: customerName,
     description: job.description,

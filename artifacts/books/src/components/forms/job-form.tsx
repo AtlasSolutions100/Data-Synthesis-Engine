@@ -17,7 +17,8 @@ import { JobInput, JobUpdate, JobInputStatus } from "@workspace/api-client-react
 
 const jobSchema = z.object({
   jobNumber: z.string().min(1, "Job number is required"),
-  name: z.string().min(1, "Name is required"),
+  name: z.string().min(1, "Job name is required"),
+  poNumber: z.string().optional(),
   customerId: z.string().optional(),
   description: z.string().optional(),
   status: z.enum(["active", "completed", "on_hold"]),
@@ -38,6 +39,7 @@ export function JobForm({ defaultValues, onSubmit, isLoading }: JobFormProps) {
     defaultValues: {
       jobNumber: defaultValues?.jobNumber || "",
       name: defaultValues?.name || "",
+      poNumber: defaultValues?.poNumber || "",
       customerId: defaultValues?.customerId || "",
       description: defaultValues?.description || "",
       status: defaultValues?.status || "active",
@@ -49,6 +51,7 @@ export function JobForm({ defaultValues, onSubmit, isLoading }: JobFormProps) {
     onSubmit({
       jobNumber: values.jobNumber,
       name: values.name,
+      poNumber: values.poNumber || null,
       customerId: values.customerId ? parseInt(values.customerId, 10) : undefined,
       description: values.description || null,
       status: values.status as JobInputStatus,
@@ -78,7 +81,7 @@ export function JobForm({ defaultValues, onSubmit, isLoading }: JobFormProps) {
             name="name"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Name</FormLabel>
+                <FormLabel>Job Name</FormLabel>
                 <FormControl>
                   <Input {...field} />
                 </FormControl>
@@ -88,6 +91,19 @@ export function JobForm({ defaultValues, onSubmit, isLoading }: JobFormProps) {
           />
         </div>
         <div className="grid grid-cols-2 gap-4">
+          <FormField
+            control={form.control}
+            name="poNumber"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>PO Number</FormLabel>
+                <FormControl>
+                  <Input {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
           <FormField
             control={form.control}
             name="customerId"

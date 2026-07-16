@@ -380,6 +380,7 @@ export const ListJobsResponseItem = zod.object({
   "id": zod.number(),
   "jobNumber": zod.string(),
   "name": zod.string(),
+  "poNumber": zod.string().nullish().describe('Customer purchase order number for this job'),
   "customerId": zod.number().nullish(),
   "customerName": zod.string().nullish(),
   "description": zod.string().nullish(),
@@ -406,6 +407,7 @@ export const ListJobsResponse = zod.array(ListJobsResponseItem)
 export const CreateJobBody = zod.object({
   "jobNumber": zod.string().min(1),
   "name": zod.string().min(1),
+  "poNumber": zod.string().nullish(),
   "customerId": zod.number().nullish(),
   "description": zod.string().nullish(),
   "status": zod.enum(['active', 'completed', 'on_hold']).optional(),
@@ -416,6 +418,7 @@ export const CreateJobResponse = zod.object({
   "id": zod.number(),
   "jobNumber": zod.string(),
   "name": zod.string(),
+  "poNumber": zod.string().nullish().describe('Customer purchase order number for this job'),
   "customerId": zod.number().nullish(),
   "customerName": zod.string().nullish(),
   "description": zod.string().nullish(),
@@ -442,6 +445,7 @@ export const GetJobResponse = zod.object({
   "id": zod.number(),
   "jobNumber": zod.string(),
   "name": zod.string(),
+  "poNumber": zod.string().nullish().describe('Customer purchase order number for this job'),
   "customerId": zod.number().nullish(),
   "customerName": zod.string().nullish(),
   "description": zod.string().nullish(),
@@ -471,6 +475,7 @@ export const UpdateJobParams = zod.object({
 export const UpdateJobBody = zod.object({
   "jobNumber": zod.string().min(1).optional(),
   "name": zod.string().min(1).optional(),
+  "poNumber": zod.string().nullish(),
   "customerId": zod.number().nullish(),
   "description": zod.string().nullish(),
   "status": zod.enum(['active', 'completed', 'on_hold']).optional(),
@@ -481,6 +486,7 @@ export const UpdateJobResponse = zod.object({
   "id": zod.number(),
   "jobNumber": zod.string(),
   "name": zod.string(),
+  "poNumber": zod.string().nullish().describe('Customer purchase order number for this job'),
   "customerId": zod.number().nullish(),
   "customerName": zod.string().nullish(),
   "description": zod.string().nullish(),
@@ -614,6 +620,7 @@ export const listTransactionsQueryEndDateRegExp = new RegExp('^\\d{4}-\\d{2}-\\d
 export const ListTransactionsQueryParams = zod.object({
   "jobId": zod.coerce.number().optional(),
   "accountId": zod.coerce.number().optional(),
+  "vendorId": zod.coerce.number().optional(),
   "type": zod.coerce.string().optional(),
   "startDate": zod.coerce.string().regex(listTransactionsQueryStartDateRegExp).optional().describe('Inclusive start of the date range (YYYY-MM-DD). Omit for no lower bound.'),
   "endDate": zod.coerce.string().regex(listTransactionsQueryEndDateRegExp).optional().describe('Inclusive end of the date range (YYYY-MM-DD). Omit for no upper bound.')
@@ -782,6 +789,7 @@ export const GetDashboardSummaryResponse = zod.object({
   "id": zod.number(),
   "jobNumber": zod.string(),
   "name": zod.string(),
+  "poNumber": zod.string().nullish().describe('Customer purchase order number for this job'),
   "customerId": zod.number().nullish(),
   "customerName": zod.string().nullish(),
   "description": zod.string().nullish(),

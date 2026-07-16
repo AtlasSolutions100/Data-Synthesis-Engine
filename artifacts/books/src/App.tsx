@@ -18,7 +18,9 @@ import Bills from "./pages/bills";
 import BillDetail from "./pages/bill-detail";
 import Accounts from "./pages/accounts";
 import Customers from "./pages/customers";
+import CustomerDetail from "./pages/customer-detail";
 import Vendors from "./pages/vendors";
+import VendorDetail from "./pages/vendor-detail";
 import Employees from "./pages/employees";
 import Payroll from "./pages/payroll";
 import PayrollDetail from "./pages/payroll-detail";
@@ -234,7 +236,9 @@ function ClerkProviderWithRoutes() {
           <Route path="/bills/:id"><ProtectedRoute component={BillDetail} /></Route>
           <Route path="/accounts"><ProtectedRoute component={Accounts} /></Route>
           <Route path="/customers"><ProtectedRoute component={Customers} /></Route>
+          <Route path="/customers/:id"><ProtectedRoute component={CustomerDetail} /></Route>
           <Route path="/vendors"><ProtectedRoute component={Vendors} /></Route>
+          <Route path="/vendors/:id"><ProtectedRoute component={VendorDetail} /></Route>
           <Route path="/employees"><ProtectedRoute component={Employees} /></Route>
           <Route path="/payroll"><ProtectedRoute component={Payroll} /></Route>
           <Route path="/payroll/:id"><ProtectedRoute component={PayrollDetail} /></Route>

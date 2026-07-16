@@ -224,6 +224,11 @@ export interface Job {
   id: number;
   jobNumber: string;
   name: string;
+  /**
+     * Customer purchase order number for this job
+     * @nullable
+     */
+  poNumber?: string | null;
   /** @nullable */
   customerId?: number | null;
   /** @nullable */
@@ -264,6 +269,8 @@ export interface JobInput {
   /** @minLength 1 */
   name: string;
   /** @nullable */
+  poNumber?: string | null;
+  /** @nullable */
   customerId?: number | null;
   /** @nullable */
   description?: string | null;
@@ -285,6 +292,8 @@ export interface JobUpdate {
   jobNumber?: string;
   /** @minLength 1 */
   name?: string;
+  /** @nullable */
+  poNumber?: string | null;
   /** @nullable */
   customerId?: number | null;
   /** @nullable */
@@ -1141,6 +1150,7 @@ export type EndDateParamParameter = string;
 export type ListTransactionsParams = {
 jobId?: number;
 accountId?: number;
+vendorId?: number;
 type?: string;
 /**
  * Inclusive start of the date range (YYYY-MM-DD). Omit for no lower bound.

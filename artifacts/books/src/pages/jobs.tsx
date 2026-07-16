@@ -77,7 +77,8 @@ export default function Jobs() {
             <TableHeader>
               <TableRow>
                 <TableHead>Job Number</TableHead>
-                <TableHead>Name</TableHead>
+                <TableHead>Job Name</TableHead>
+                <TableHead>PO Number</TableHead>
                 <TableHead>Customer</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Contract</TableHead>
@@ -92,11 +93,11 @@ export default function Jobs() {
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={11} className="text-center py-8 text-slate-500">Loading jobs...</TableCell>
+                  <TableCell colSpan={12} className="text-center py-8 text-slate-500">Loading jobs...</TableCell>
                 </TableRow>
               ) : jobs?.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={11} className="text-center py-8 text-slate-500">No jobs found.</TableCell>
+                  <TableCell colSpan={12} className="text-center py-8 text-slate-500">No jobs found.</TableCell>
                 </TableRow>
               ) : (
                 jobs?.map((job) => (
@@ -107,7 +108,16 @@ export default function Jobs() {
                       </Link>
                     </TableCell>
                     <TableCell>{job.name}</TableCell>
-                    <TableCell>{job.customerName || "-"}</TableCell>
+                    <TableCell>{job.poNumber || "-"}</TableCell>
+                    <TableCell>
+                      {job.customerId ? (
+                        <Link href={`/customers/${job.customerId}`} className="text-blue-600 hover:underline">
+                          {job.customerName || "-"}
+                        </Link>
+                      ) : (
+                        job.customerName || "-"
+                      )}
+                    </TableCell>
                     <TableCell>
                       <Badge variant={job.status === "active" ? "default" : job.status === "completed" ? "secondary" : "outline"}>
                         {job.status}
@@ -141,6 +151,7 @@ export default function Jobs() {
                               defaultValues={{
                                 jobNumber: job.jobNumber,
                                 name: job.name,
+                                poNumber: job.poNumber || "",
                                 customerId: job.customerId?.toString() || "",
                                 description: job.description || "",
                                 status: job.status,

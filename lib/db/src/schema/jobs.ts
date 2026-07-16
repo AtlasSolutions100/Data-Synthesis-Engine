@@ -14,6 +14,7 @@ export const jobsTable = pgTable("jobs", {
   id: serial("id").primaryKey(),
   jobNumber: text("job_number").notNull(),
   name: text("name").notNull(),
+  poNumber: text("po_number"),
   customerId: integer("customer_id").references(() => customersTable.id, {
     onDelete: "set null",
   }),

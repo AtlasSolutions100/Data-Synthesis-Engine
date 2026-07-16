@@ -127,6 +127,9 @@ router.get("/transactions", async (req, res): Promise<void> => {
   if (query.data.accountId != null) {
     conds.push(eq(transactionsTable.accountId, query.data.accountId));
   }
+  if (query.data.vendorId != null) {
+    conds.push(eq(transactionsTable.vendorId, query.data.vendorId));
+  }
   if (query.data.type != null && query.data.type !== "") {
     conds.push(eq(transactionsTable.type, query.data.type));
   }

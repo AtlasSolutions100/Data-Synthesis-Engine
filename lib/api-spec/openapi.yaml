@@ -546,6 +546,11 @@ paths:
           required: false
           schema:
             type: integer
+        - name: vendorId
+          in: query
+          required: false
+          schema:
+            type: integer
         - name: type
           in: query
           required: false
@@ -1552,6 +1557,9 @@ components:
           type: string
         name:
           type: string
+        poNumber:
+          type: ["string", "null"]
+          description: Customer purchase order number for this job
         customerId:
           type: ["integer", "null"]
         customerName:
@@ -1595,6 +1603,8 @@ components:
         name:
           type: string
           minLength: 1
+        poNumber:
+          type: ["string", "null"]
         customerId:
           type: ["integer", "null"]
         description:
@@ -1613,6 +1623,8 @@ components:
         name:
           type: string
           minLength: 1
+        poNumber:
+          type: ["string", "null"]
         customerId:
           type: ["integer", "null"]
         description:

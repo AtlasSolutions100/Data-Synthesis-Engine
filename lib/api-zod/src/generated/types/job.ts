@@ -11,6 +11,11 @@ export interface Job {
   id: number;
   jobNumber: string;
   name: string;
+  /**
+     * Customer purchase order number for this job
+     * @nullable
+     */
+  poNumber?: string | null;
   /** @nullable */
   customerId?: number | null;
   /** @nullable */

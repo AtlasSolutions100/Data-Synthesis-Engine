@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { VendorForm } from "@/components/forms/vendor-form";
 import { useQueryClient } from "@tanstack/react-query";
 import { Plus, Edit2, Trash2 } from "lucide-react";
+import { Link } from "wouter";
 
 export default function Vendors() {
   const queryClient = useQueryClient();
@@ -92,7 +93,11 @@ export default function Vendors() {
               ) : (
                 vendors?.map((vendor) => (
                   <TableRow key={vendor.id}>
-                    <TableCell className="font-medium">{vendor.name}</TableCell>
+                    <TableCell className="font-medium">
+                      <Link href={`/vendors/${vendor.id}`} className="text-blue-600 hover:underline">
+                        {vendor.name}
+                      </Link>
+                    </TableCell>
                     <TableCell>{vendor.email || "-"}</TableCell>
                     <TableCell>{vendor.phone || "-"}</TableCell>
                     <TableCell className="text-slate-500 truncate max-w-xs">{vendor.notes || "-"}</TableCell>
