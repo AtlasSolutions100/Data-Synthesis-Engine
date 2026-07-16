@@ -220,10 +220,19 @@ export function SpreadsheetPreview({
   const [activeSheet, setActiveSheet] = useState<string | null>(null);
   // Cache the downloaded workbook so switching sheets doesn't re-fetch.
   const blobRef = useRef<Blob | null>(null);
+  // Guards against out-of-order sheet parses: only the latest request may
+  // update state.
+  const sheetRequestIdRef = useRef(0);
 
   // Load the file, discover sheet names (xlsx), and render the first sheet.
   useEffect(() => {
     let cancelled = false;
+    // Invalidate any in-flight parses (from a previous file or sheet switch)
+    // and claim a request id for this load, so out-of-order completions from
+    // any source are ignored.
+    const requestId = ++sheetRequestIdRef.current;
+    const isCurrent = () =>
+      !cancelled && requestId === sheetRequestIdRef.current;
     setState({ status: "loading" });
     setSheets([]);
     setActiveSheet(null);
@@ -231,7 +240,7 @@ export function SpreadsheetPreview({
 
     async function load() {
       if (sizeBytes != null && sizeBytes > MAX_PREVIEW_BYTES) {
-        if (!cancelled) setState({ status: "too-large" });
+        if (isCurrent()) setState({ status: "too-large" });
         return;
       }
       try {
@@ -244,12 +253,12 @@ export function SpreadsheetPreview({
           rows = parseCsv(text, MAX_PREVIEW_ROWS + 1);
         } else {
           const blob = await res.blob();
-          if (cancelled) return;
+          if (!isCurrent()) return;
           blobRef.current = blob;
           const mod = await import("read-excel-file");
           const readXlsxFile = mod.default;
           const names = await mod.readSheetNames(blob);
-          if (cancelled) return;
+          if (!isCurrent()) return;
           if (names.length > 1) {
             setSheets(names);
             setActiveSheet(names[0]);
@@ -262,14 +271,14 @@ export function SpreadsheetPreview({
         }
 
         const truncated = rows.length > MAX_PREVIEW_ROWS;
-        if (!cancelled)
+        if (isCurrent())
           setState({
             status: "ready",
             rows: rows.slice(0, MAX_PREVIEW_ROWS),
             truncated,
           });
       } catch {
-        if (!cancelled) setState({ status: "error" });
+        if (isCurrent()) setState({ status: "error" });
       }
     }
 
@@ -283,11 +292,13 @@ export function SpreadsheetPreview({
     if (name === activeSheet) return;
     const blob = blobRef.current;
     if (!blob) return;
+    const requestId = ++sheetRequestIdRef.current;
     setActiveSheet(name);
     setState({ status: "loading" });
     try {
       const readXlsxFile = (await import("read-excel-file")).default;
       const parsed = await readXlsxFile(blob, { sheet: name });
+      if (requestId !== sheetRequestIdRef.current) return;
       const rows = toStringRows(parsed);
       const truncated = rows.length > MAX_PREVIEW_ROWS;
       setState({
@@ -296,6 +307,7 @@ export function SpreadsheetPreview({
         truncated,
       });
     } catch {
+      if (requestId !== sheetRequestIdRef.current) return;
       setState({ status: "error" });
     }
   };

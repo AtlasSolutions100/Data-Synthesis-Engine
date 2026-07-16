@@ -6,6 +6,7 @@ import {
   cleanup,
   fireEvent,
   within,
+  act,
 } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import path from "path";
@@ -369,6 +370,130 @@ describe("SpreadsheetPreview (multi-sheet xlsx switching)", () => {
     expect(screen.getByText("Foreman")).toBeTruthy();
     // ...and the first sheet's data is gone (proves we didn't just keep sheet 1).
     expect(screen.queryByText("Revenue")).toBeNull();
+  });
+
+  it("ignores a stale parse: fast A→B clicks end on B's rows even when A resolves last", async () => {
+    const buffer = readFileSync(MULTI_XLSX);
+    global.fetch = vi.fn(async () =>
+      xlsxResponse(buffer),
+    ) as unknown as typeof fetch;
+
+    // Sheet discovery + initial load resolve normally; sheet switches are
+    // hand-controlled deferreds so resolution order can be inverted.
+    mockedReadSheetNames.mockResolvedValue([
+      "Summary",
+      "Employees",
+      "Transactions",
+    ]);
+    const deferred: Record<string, (rows: unknown[][]) => void> = {};
+    mockedReadXlsx.mockImplementation(
+      (_buffer: Buffer, opts?: { sheet?: string | number }) => {
+        const sheet = opts?.sheet;
+        if (sheet === "Summary") {
+          // Initial load of the first sheet.
+          return Promise.resolve([
+            ["Account", "Amount"],
+            ["Revenue", "5000"],
+          ]);
+        }
+        return new Promise<unknown[][]>((resolve) => {
+          deferred[String(sheet)] = resolve;
+        });
+      },
+    );
+
+    render(
+      <SpreadsheetPreview href="/wb.xlsx" kind="xlsx" sizeBytes={buffer.length} />,
+    );
+    await waitFor(() => expect(screen.getByText("Revenue")).toBeTruthy());
+
+    // Click Employees, then click Transactions while the Employees parse is
+    // still in flight (its deferred is registered but unresolved).
+    fireEvent.click(screen.getByRole("button", { name: "Employees" }));
+    await waitFor(() => expect(deferred["Employees"]).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: "Transactions" }));
+    await waitFor(() => expect(deferred["Transactions"]).toBeTruthy());
+
+    // Resolve out of order: Transactions (last click) first...
+    deferred["Transactions"]([
+      ["Date", "Vendor"],
+      ["2026-01-01", "Vendor-0"],
+    ]);
+    await waitFor(() => expect(screen.getByText("Vendor-0")).toBeTruthy());
+
+    // ...then the stale Employees parse lands late. Flush its continuation
+    // fully (inside act) so the assertions below run AFTER the stale update
+    // had every chance to apply.
+    await act(async () => {
+      deferred["Employees"]([
+        ["Name", "Role"],
+        ["Ada Lovelace", "Foreman"],
+      ]);
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    // The stale result must be ignored: Transactions rows stay rendered.
+    expect(screen.queryByText("Ada Lovelace")).toBeNull();
+    expect(screen.getByText("Vendor-0")).toBeTruthy();
+    // Selector highlight matches the rendered rows (Transactions is active).
+    const active = screen.getByRole("button", { name: "Transactions" });
+    expect(active.className).toContain("emerald");
+  });
+
+  it("ignores a stale initial-load parse when the user switches sheets while it is loading", async () => {
+    const buffer = readFileSync(MULTI_XLSX);
+    global.fetch = vi.fn(async () =>
+      xlsxResponse(buffer),
+    ) as unknown as typeof fetch;
+
+    mockedReadSheetNames.mockResolvedValue([
+      "Summary",
+      "Employees",
+      "Transactions",
+    ]);
+    // Every parse (including the initial Summary load) is a hand-controlled
+    // deferred so the initial parse can be resolved AFTER a user switch.
+    const deferred: Record<string, (rows: unknown[][]) => void> = {};
+    mockedReadXlsx.mockImplementation(
+      (_buffer: Buffer, opts?: { sheet?: string | number }) =>
+        new Promise<unknown[][]>((resolve) => {
+          deferred[String(opts?.sheet)] = resolve;
+        }),
+    );
+
+    render(
+      <SpreadsheetPreview href="/wb.xlsx" kind="xlsx" sizeBytes={buffer.length} />,
+    );
+
+    // The selector renders during loading; click Employees while the initial
+    // Summary parse is still in flight.
+    await waitFor(() => expect(deferred["Summary"]).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: "Employees" }));
+    await waitFor(() => expect(deferred["Employees"]).toBeTruthy());
+
+    // The user's Employees parse resolves first...
+    deferred["Employees"]([
+      ["Name", "Role"],
+      ["Ada Lovelace", "Foreman"],
+    ]);
+    await waitFor(() => expect(screen.getByText("Ada Lovelace")).toBeTruthy());
+
+    // ...then the stale initial Summary parse lands late.
+    await act(async () => {
+      deferred["Summary"]([
+        ["Account", "Amount"],
+        ["Revenue", "5000"],
+      ]);
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    // The stale initial load must be ignored: Employees rows stay rendered.
+    expect(screen.queryByText("Revenue")).toBeNull();
+    expect(screen.getByText("Ada Lovelace")).toBeTruthy();
+    const active = screen.getByRole("button", { name: "Employees" });
+    expect(active.className).toContain("emerald");
   });
 
   it("applies the ~100-row cap per sheet after switching", async () => {
