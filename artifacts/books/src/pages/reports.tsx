@@ -24,6 +24,7 @@ import {
   agingDetailCsvFilename,
   downloadCsv,
 } from "@/lib/aging-csv";
+import { buildJobReportsCsv, jobReportsCsvFilename } from "@/lib/reports-csv";
 import { Button } from "@/components/ui/button";
 import { Download } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -209,6 +210,21 @@ export default function Reports() {
         </div>
         <div className="flex items-end gap-3">
           <DateRangePicker value={range} onChange={setRange} />
+          <Button
+            variant="outline"
+            disabled={!report || !payrollByJob}
+            data-testid="button-export-job-reports"
+            onClick={() => {
+              if (!report || !payrollByJob) return;
+              downloadCsv(
+                buildJobReportsCsv(report, payrollByJob, range),
+                jobReportsCsvFilename(range),
+              );
+            }}
+          >
+            <Download className="h-4 w-4 mr-2" />
+            Export Job Reports CSV
+          </Button>
           <Button
             variant="outline"
             disabled={!arAging || !apAging}

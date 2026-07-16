@@ -4,11 +4,11 @@ import type {
   ApAging,
 } from "@workspace/api-client-react";
 
-function centsToDollars(cents: number): string {
+export function centsToDollars(cents: number): string {
   return (cents / 100).toFixed(2);
 }
 
-function csvEscape(value: string): string {
+export function csvEscape(value: string): string {
   if (/[",\n]/.test(value)) {
     return `"${value.replace(/"/g, '""')}"`;
   }
