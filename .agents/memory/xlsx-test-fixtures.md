@@ -28,3 +28,11 @@ description: How to test the xlsx SpreadsheetPreview (books artifact) with real 
 **Why:** the component only shows a sheet selector when a workbook has >1 sheet
 and re-parses on switch; verifying that against a genuine multi-sheet workbook
 requires real parsing, not stubbed row arrays.
+
+- **Roundtripping write-excel-file output in jsdom:** swap `globalThis.Blob` for
+  Node's `Blob` (from `node:buffer`) so `blob.arrayBuffer()` works, stub
+  `URL.createObjectURL` + `HTMLAnchorElement.prototype.click` to capture the
+  downloaded blob, then parse the bytes with `read-excel-file/node` via
+  `Readable.from(buffer)`. Number formats aren't exposed by the parser — read
+  `xl/styles.xml` straight from the zip (local-file headers +
+  `zlib.inflateRawSync`) to assert them.
