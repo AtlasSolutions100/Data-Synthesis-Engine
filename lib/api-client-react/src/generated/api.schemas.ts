@@ -341,7 +341,12 @@ export interface Transaction {
   /** @nullable */
   accountName?: string | null;
   /**
-     * Offsetting account (e.g. Accounts Receivable, Checking)
+     * Offsetting account id (FK to accounts)
+     * @nullable
+     */
+  splitAccountId?: number | null;
+  /**
+     * Offsetting account display name (resolved from splitAccountId when set, otherwise legacy free text)
      * @nullable
      */
   splitAccount?: string | null;
@@ -384,6 +389,11 @@ export interface TransactionInput {
   description?: string | null;
   accountId: number;
   /** @nullable */
+  splitAccountId?: number | null;
+  /**
+     * Legacy free-text split account name; only used when splitAccountId is null
+     * @nullable
+     */
   splitAccount?: string | null;
   /** @nullable */
   jobId?: number | null;
@@ -421,6 +431,11 @@ export interface TransactionUpdate {
   description?: string | null;
   accountId?: number;
   /** @nullable */
+  splitAccountId?: number | null;
+  /**
+     * Legacy free-text split account name; only used when splitAccountId is null
+     * @nullable
+     */
   splitAccount?: string | null;
   /** @nullable */
   jobId?: number | null;

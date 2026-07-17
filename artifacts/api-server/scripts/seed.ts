@@ -253,6 +253,7 @@ async function main() {
   const acctIdByNumber = new Map(
     insertedAccounts.map((a) => [a.number, a.id]),
   );
+  const acctIdByName = new Map(insertedAccounts.map((a) => [a.name, a.id]));
 
   // Customer (income rows reference "Customer:Job").
   const [customer] = await db
@@ -313,6 +314,9 @@ async function main() {
       partyName: t.nameRaw,
       description: t.description,
       accountId,
+      splitAccountId: t.splitAccount
+        ? acctIdByName.get(t.splitAccount) ?? null
+        : null,
       splitAccount: t.splitAccount,
       jobId: job.id,
       customerId: isIncome ? customer.id : null,

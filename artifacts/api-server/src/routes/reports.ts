@@ -1,5 +1,6 @@
 import { Router, type IRouter } from "express";
 import { and, desc, eq, inArray, lte, sql } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import {
   db,
   transactionsTable,
@@ -38,6 +39,8 @@ import {
   dateRangeConds,
   type DateRange,
 } from "../lib/finance";
+
+const splitAccounts = alias(accountsTable, "split_accounts");
 
 const router: IRouter = Router();
 
@@ -181,10 +184,15 @@ router.get("/reports/dashboard", async (req, res): Promise<void> => {
       accountNumber: accountsTable.number,
       accountName: accountsTable.name,
       jobNumber: jobsTable.jobNumber,
+      splitAccountName: splitAccounts.name,
     })
     .from(transactionsTable)
     .leftJoin(accountsTable, eq(accountsTable.id, transactionsTable.accountId))
     .leftJoin(jobsTable, eq(jobsTable.id, transactionsTable.jobId))
+    .leftJoin(
+      splitAccounts,
+      eq(splitAccounts.id, transactionsTable.splitAccountId),
+    )
     .where(txCountConds.length ? and(...txCountConds) : undefined)
     .orderBy(desc(transactionsTable.date), desc(transactionsTable.id))
     .limit(10);
@@ -199,7 +207,9 @@ router.get("/reports/dashboard", async (req, res): Promise<void> => {
     accountId: r.t.accountId,
     accountNumber: r.accountNumber,
     accountName: r.accountName,
-    splitAccount: r.t.splitAccount,
+    splitAccountId: r.t.splitAccountId,
+    splitAccount:
+      r.t.splitAccountId != null ? r.splitAccountName : r.t.splitAccount,
     jobId: r.t.jobId,
     jobNumber: r.jobNumber,
     customerId: r.t.customerId,

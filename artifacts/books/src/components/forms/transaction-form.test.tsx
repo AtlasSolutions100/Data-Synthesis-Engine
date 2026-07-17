@@ -105,10 +105,13 @@ describe("TransactionForm account selection", () => {
     const payload = onSubmit.mock.calls[0][0];
     expect(payload.accountId).toBe(502);
     expect(payload.amountCents).toBe(12550);
+    expect(payload.splitAccountId).toBeNull();
     expect(payload.splitAccount).toBeNull();
   });
+});
 
-  it("saves the split account picked by name from the dropdown", async () => {
+describe("TransactionForm split account", () => {
+  it("saves the split account id picked by name from the dropdown", async () => {
     const onSubmit = vi.fn();
     render(<TransactionForm onSubmit={onSubmit} defaultValues={baseDefaults} />);
 
@@ -121,10 +124,11 @@ describe("TransactionForm account selection", () => {
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
     const payload = onSubmit.mock.calls[0][0];
     expect(payload.accountId).toBe(501);
-    expect(payload.splitAccount).toBe("Office Supplies");
+    expect(payload.splitAccountId).toBe(503);
+    expect(payload.splitAccount).toBeNull();
   });
 
-  it("filtering the split dropdown by name still saves the matching account", async () => {
+  it("filtering the split dropdown by name still saves the matching account id", async () => {
     const onSubmit = vi.fn();
     render(<TransactionForm onSubmit={onSubmit} defaultValues={baseDefaults} />);
 
@@ -140,19 +144,30 @@ describe("TransactionForm account selection", () => {
 
     await submit();
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
-    expect(onSubmit.mock.calls[0][0].splitAccount).toBe("Office Supplies");
+    expect(onSubmit.mock.calls[0][0].splitAccountId).toBe(503);
+    expect(onSubmit.mock.calls[0][0].splitAccount).toBeNull();
   });
 
-  it("clearing the optional split account saves null", async () => {
+  it("displays an existing split account by id", async () => {
+    render(
+      <TransactionForm
+        defaultValues={{ ...baseDefaults, splitAccountId: "502" }}
+        onSubmit={vi.fn()}
+      />,
+    );
+    await triggerShowing(/5100 — Subcontractors/);
+  });
+
+  it("clearing the optional split account saves null id and name", async () => {
     const onSubmit = vi.fn();
     render(
       <TransactionForm
         onSubmit={onSubmit}
-        defaultValues={{ ...baseDefaults, splitAccount: "Subcontractors" }}
+        defaultValues={{ ...baseDefaults, splitAccountId: "502" }}
       />,
     );
 
-    // The split trigger shows the resolved label for the preselected name.
+    // The split trigger shows the resolved label for the preselected id.
     const trigger = await triggerShowing(/5100 — Subcontractors/);
 
     // The clear (X) icon is the first svg inside the trigger when a value is set.
@@ -167,12 +182,13 @@ describe("TransactionForm account selection", () => {
     await submit();
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
     const payload = onSubmit.mock.calls[0][0];
+    expect(payload.splitAccountId).toBeNull();
     expect(payload.splitAccount).toBeNull();
     expect(payload.accountId).toBe(501);
     expect(payload.amountCents).toBe(12550);
   });
 
-  it("editing an existing transaction preserves the split account untouched", async () => {
+  it("editing an existing transaction preserves the split account id untouched", async () => {
     const onSubmit = vi.fn();
     render(
       <TransactionForm
@@ -181,13 +197,13 @@ describe("TransactionForm account selection", () => {
           date: "2026-07-01",
           type: "check",
           accountId: "503",
-          splitAccount: "Materials",
+          splitAccountId: "501",
           amount: "100",
         }}
       />,
     );
 
-    // The split trigger resolves the stored name to its account label.
+    // The split trigger resolves the stored id to its account label.
     await triggerShowing(/5000 — Materials/);
 
     // Only edit the description; account + split must survive submit unchanged.
@@ -199,12 +215,13 @@ describe("TransactionForm account selection", () => {
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
     const payload = onSubmit.mock.calls[0][0];
     expect(payload.accountId).toBe(503);
-    expect(payload.splitAccount).toBe("Materials");
+    expect(payload.splitAccountId).toBe(501);
+    expect(payload.splitAccount).toBeNull();
     expect(payload.description).toBe("updated description");
     expect(payload.amountCents).toBe(10000);
   });
 
-  it("preserves a legacy split value not matching any account when untouched", async () => {
+  it("preserves a legacy split name not matching any account when untouched", async () => {
     const onSubmit = vi.fn();
     render(
       <TransactionForm
@@ -218,6 +235,24 @@ describe("TransactionForm account selection", () => {
 
     await submit();
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    expect(onSubmit.mock.calls[0][0].splitAccountId).toBeNull();
     expect(onSubmit.mock.calls[0][0].splitAccount).toBe("Old Imported Account");
+  });
+
+  it("replaces a legacy name with a real account id when reselected", async () => {
+    const onSubmit = vi.fn();
+    render(
+      <TransactionForm
+        onSubmit={onSubmit}
+        defaultValues={{ ...baseDefaults, splitAccount: "Old Imported Account" }}
+      />,
+    );
+
+    await pickOption(/Old Imported Account/, /6000 — Office Supplies/);
+
+    await submit();
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    expect(onSubmit.mock.calls[0][0].splitAccountId).toBe(503);
+    expect(onSubmit.mock.calls[0][0].splitAccount).toBeNull();
   });
 });

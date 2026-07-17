@@ -1,5 +1,6 @@
 import { Router, type IRouter } from "express";
 import { and, desc, eq, type SQL } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import {
   db,
   transactionsTable,
@@ -21,6 +22,8 @@ import {
 import { dateRangeConds } from "../lib/finance";
 
 const router: IRouter = Router();
+
+const splitAccounts = alias(accountsTable, "split_accounts");
 
 const REFERENCE_TABLES = {
   account: accountsTable,
@@ -49,12 +52,19 @@ async function refExists(
  */
 async function validateReferences(data: {
   accountId?: number;
+  splitAccountId?: number | null;
   jobId?: number | null;
   customerId?: number | null;
   vendorId?: number | null;
 }): Promise<string | null> {
   if (data.accountId != null && !(await refExists("account", data.accountId))) {
     return `Account ${data.accountId} does not exist`;
+  }
+  if (
+    data.splitAccountId != null &&
+    !(await refExists("account", data.splitAccountId))
+  ) {
+    return `Split account ${data.splitAccountId} does not exist`;
   }
   if (data.jobId != null && !(await refExists("job", data.jobId))) {
     return `Job ${data.jobId} does not exist`;
@@ -78,6 +88,7 @@ function serializeTx(
   accountNumber: string | null,
   accountName: string | null,
   jobNumber: string | null,
+  splitAccountName: string | null,
 ) {
   return {
     id: t.id,
@@ -89,7 +100,8 @@ function serializeTx(
     accountId: t.accountId,
     accountNumber,
     accountName,
-    splitAccount: t.splitAccount,
+    splitAccountId: t.splitAccountId,
+    splitAccount: t.splitAccountId != null ? splitAccountName : t.splitAccount,
     jobId: t.jobId,
     jobNumber,
     customerId: t.customerId,
@@ -105,13 +117,24 @@ async function fetchEnrichedTx(id: number) {
       accountNumber: accountsTable.number,
       accountName: accountsTable.name,
       jobNumber: jobsTable.jobNumber,
+      splitAccountName: splitAccounts.name,
     })
     .from(transactionsTable)
     .leftJoin(accountsTable, eq(accountsTable.id, transactionsTable.accountId))
     .leftJoin(jobsTable, eq(jobsTable.id, transactionsTable.jobId))
+    .leftJoin(
+      splitAccounts,
+      eq(splitAccounts.id, transactionsTable.splitAccountId),
+    )
     .where(eq(transactionsTable.id, id));
   if (!row) return null;
-  return serializeTx(row.t, row.accountNumber, row.accountName, row.jobNumber);
+  return serializeTx(
+    row.t,
+    row.accountNumber,
+    row.accountName,
+    row.jobNumber,
+    row.splitAccountName,
+  );
 }
 
 router.get("/transactions", async (req, res): Promise<void> => {
@@ -141,17 +164,28 @@ router.get("/transactions", async (req, res): Promise<void> => {
       accountNumber: accountsTable.number,
       accountName: accountsTable.name,
       jobNumber: jobsTable.jobNumber,
+      splitAccountName: splitAccounts.name,
     })
     .from(transactionsTable)
     .leftJoin(accountsTable, eq(accountsTable.id, transactionsTable.accountId))
     .leftJoin(jobsTable, eq(jobsTable.id, transactionsTable.jobId))
+    .leftJoin(
+      splitAccounts,
+      eq(splitAccounts.id, transactionsTable.splitAccountId),
+    )
     .where(conds.length ? and(...conds) : undefined)
     .orderBy(desc(transactionsTable.date), desc(transactionsTable.id));
 
   res.json(
     ListTransactionsResponse.parse(
       rows.map((r) =>
-        serializeTx(r.t, r.accountNumber, r.accountName, r.jobNumber),
+        serializeTx(
+          r.t,
+          r.accountNumber,
+          r.accountName,
+          r.jobNumber,
+          r.splitAccountName,
+        ),
       ),
     ),
   );

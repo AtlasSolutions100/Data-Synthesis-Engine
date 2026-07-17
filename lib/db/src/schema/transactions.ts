@@ -25,6 +25,10 @@ export const transactionsTable = pgTable("transactions", {
   accountId: integer("account_id")
     .notNull()
     .references(() => accountsTable.id, { onDelete: "restrict" }),
+  splitAccountId: integer("split_account_id").references(
+    () => accountsTable.id,
+    { onDelete: "set null" },
+  ),
   splitAccount: text("split_account"),
   jobId: integer("job_id").references(() => jobsTable.id, {
     onDelete: "set null",

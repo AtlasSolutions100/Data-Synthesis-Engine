@@ -19,6 +19,11 @@ export interface TransactionInput {
   description?: string | null;
   accountId: number;
   /** @nullable */
+  splitAccountId?: number | null;
+  /**
+     * Legacy free-text split account name; only used when splitAccountId is null
+     * @nullable
+     */
   splitAccount?: string | null;
   /** @nullable */
   jobId?: number | null;

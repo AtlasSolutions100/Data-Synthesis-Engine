@@ -1686,9 +1686,12 @@ components:
           type: ["string", "null"]
         accountName:
           type: ["string", "null"]
+        splitAccountId:
+          type: ["integer", "null"]
+          description: Offsetting account id (FK to accounts)
         splitAccount:
           type: ["string", "null"]
-          description: Offsetting account (e.g. Accounts Receivable, Checking)
+          description: Offsetting account display name (resolved from splitAccountId when set, otherwise legacy free text)
         jobId:
           type: ["integer", "null"]
         jobNumber:
@@ -1718,8 +1721,11 @@ components:
           type: ["string", "null"]
         accountId:
           type: integer
+        splitAccountId:
+          type: ["integer", "null"]
         splitAccount:
           type: ["string", "null"]
+          description: Legacy free-text split account name; only used when splitAccountId is null
         jobId:
           type: ["integer", "null"]
         customerId:
@@ -1745,8 +1751,11 @@ components:
           type: ["string", "null"]
         accountId:
           type: integer
+        splitAccountId:
+          type: ["integer", "null"]
         splitAccount:
           type: ["string", "null"]
+          description: Legacy free-text split account name; only used when splitAccountId is null
         jobId:
           type: ["integer", "null"]
         customerId:
