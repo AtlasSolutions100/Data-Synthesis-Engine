@@ -125,6 +125,92 @@ describe("InvoiceForm dangling id validation", () => {
     expect(onSubmit.mock.calls[0][0].jobId).toBe(10);
   });
 
+  it("attaches a server error with field 'customerId' to the customer input", async () => {
+    render(
+      <InvoiceForm
+        onSubmit={vi.fn()}
+        serverError={{
+          field: "customerId",
+          message: "Customer 999 does not exist",
+        }}
+        defaultValues={{ ...baseDefaults, jobId: "10", customerId: "999" }}
+      />,
+    );
+
+    await waitFor(() =>
+      expect(screen.getByText("Customer 999 does not exist")).toBeTruthy(),
+    );
+    // Not shown as a form-level message.
+    expect(screen.queryByTestId("text-invoice-server-error")).toBeNull();
+  });
+
+  it("attaches a server error with field 'jobId' to the job input", async () => {
+    render(
+      <InvoiceForm
+        onSubmit={vi.fn()}
+        serverError={{
+          field: "jobId",
+          message: "Job 777 does not exist",
+        }}
+        defaultValues={{ ...baseDefaults, jobId: "777" }}
+      />,
+    );
+
+    await waitFor(() =>
+      expect(screen.getByText("Job 777 does not exist")).toBeTruthy(),
+    );
+    expect(screen.queryByTestId("text-invoice-server-error")).toBeNull();
+  });
+
+  it("falls back to the form-level message when the server field is unknown", async () => {
+    render(
+      <InvoiceForm
+        onSubmit={vi.fn()}
+        serverError={{
+          field: "somethingElse",
+          message: "Something went wrong",
+        }}
+        defaultValues={{ ...baseDefaults, jobId: "10" }}
+      />,
+    );
+
+    const formError = await screen.findByTestId("text-invoice-server-error");
+    expect(formError.textContent).toBe("Something went wrong");
+  });
+
+  it("falls back to the form-level message when no field is provided", async () => {
+    render(
+      <InvoiceForm
+        onSubmit={vi.fn()}
+        serverError={{
+          message: "Failed to save the invoice. Please try again.",
+        }}
+        defaultValues={{ ...baseDefaults, jobId: "10" }}
+      />,
+    );
+
+    const formError = await screen.findByTestId("text-invoice-server-error");
+    expect(formError.textContent).toBe(
+      "Failed to save the invoice. Please try again.",
+    );
+  });
+
+  it("falls back to the form-level message when the line index is out of range", async () => {
+    render(
+      <InvoiceForm
+        onSubmit={vi.fn()}
+        serverError={{
+          field: "lines.5.amount",
+          message: "Amount is invalid",
+        }}
+        defaultValues={{ ...baseDefaults, jobId: "10" }}
+      />,
+    );
+
+    const formError = await screen.findByTestId("text-invoice-server-error");
+    expect(formError.textContent).toBe("Amount is invalid");
+  });
+
   it("submits with valid job and customer selections", async () => {
     const onSubmit = vi.fn();
     render(

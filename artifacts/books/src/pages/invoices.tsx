@@ -28,6 +28,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { InvoiceForm } from "@/components/forms/invoice-form";
+import type { ServerFieldError } from "@/components/forms/invoice-form";
 import { ApiError } from "@workspace/api-client-react";
 import { DateRangePicker, type DateRangeValue } from "@/components/date-range-picker";
 import { useQueryClient } from "@tanstack/react-query";
@@ -49,7 +50,9 @@ export default function Invoices() {
     query: { queryKey: getListInvoicesQueryKey(params) },
   });
 
-  const [createError, setCreateError] = useState<string | null>(null);
+  const [createError, setCreateError] = useState<ServerFieldError | null>(
+    null,
+  );
 
   const createInvoice = useCreateInvoice({
     mutation: {
@@ -62,12 +65,19 @@ export default function Invoices() {
       },
       onError: (error) => {
         if (error instanceof ApiError) {
-          const data = error.data as { error?: string } | null;
-          setCreateError(
-            data?.error ?? "Failed to save the invoice. Please try again.",
-          );
+          const data = error.data as {
+            error?: string;
+            field?: string;
+          } | null;
+          setCreateError({
+            message:
+              data?.error ?? "Failed to save the invoice. Please try again.",
+            field: data?.field ?? null,
+          });
         } else {
-          setCreateError("Failed to save the invoice. Please try again.");
+          setCreateError({
+            message: "Failed to save the invoice. Please try again.",
+          });
         }
       },
     },

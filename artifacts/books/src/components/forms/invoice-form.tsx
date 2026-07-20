@@ -1,4 +1,6 @@
+import { useEffect } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
+import type { FieldPath } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Button } from "@/components/ui/button";
@@ -39,12 +41,19 @@ const invoiceSchema = z.object({
 
 type InvoiceFormValues = z.infer<typeof invoiceSchema>;
 
+export interface ServerFieldError {
+  field?: string | null;
+  message: string;
+}
+
+const SERVER_FIELD_PATTERN = /^(jobId|customerId|invoiceNumber|date|dueDate|memo|lines\.\d+\.(description|amount))$/;
+
 interface InvoiceFormProps {
   defaultValues?: Partial<InvoiceFormValues>;
   onSubmit: (data: InvoiceInput) => void;
   isLoading?: boolean;
   lockJob?: boolean;
-  serverError?: string | null;
+  serverError?: ServerFieldError | null;
 }
 
 export function InvoiceForm({
@@ -78,6 +87,23 @@ export function InvoiceForm({
     control: form.control,
     name: "lines",
   });
+
+  const fieldError =
+    serverError?.field &&
+    SERVER_FIELD_PATTERN.test(serverError.field) &&
+    (!serverError.field.startsWith("lines.") ||
+      parseInt(serverError.field.split(".")[1], 10) < fields.length)
+      ? serverError
+      : null;
+  const formLevelError = serverError && !fieldError ? serverError : null;
+
+  useEffect(() => {
+    if (!fieldError?.field) return;
+    form.setError(fieldError.field as FieldPath<InvoiceFormValues>, {
+      type: "server",
+      message: fieldError.message,
+    });
+  }, [fieldError, form]);
 
   const watchedLines = form.watch("lines");
   const totalCents = (watchedLines ?? []).reduce(
@@ -290,13 +316,13 @@ export function InvoiceForm({
             </FormItem>
           )}
         />
-        {serverError ? (
+        {formLevelError ? (
           <p
             role="alert"
             className="text-sm font-medium text-destructive"
             data-testid="text-invoice-server-error"
           >
-            {serverError}
+            {formLevelError.message}
           </p>
         ) : null}
         <Button type="submit" disabled={isLoading} className="w-full">
