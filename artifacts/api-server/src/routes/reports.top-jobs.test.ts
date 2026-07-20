@@ -41,6 +41,10 @@ const W = { start: "2098-03-10", end: "2098-03-20", inside: "2098-03-15" };
 // Range-sensitivity windows: April vs May 2098.
 const EARLY = "2098-04-15";
 const LATE = "2098-05-15";
+// Tie-only window: June 2098 holds ONLY the equal-profit pair, so the
+// dashboard's ordering of the tied jobs can be asserted directly.
+const TIE_ONLY = "2098-06-15";
+const TIE_W = { start: "2098-06-01", end: "2098-06-30" };
 
 function buildApp(router: IRouter): Express {
   const app = express();
@@ -135,6 +139,10 @@ beforeAll(async () => {
     // Equal-profit tie pair (positive but below all P jobs).
     tx(tieLowId, incomeAcctId, 5_000),
     tx(tieHighId, incomeAcctId, 5_000),
+    // The same pair also ties inside the June-only window (no other fixture
+    // job has June transactions).
+    tx(tieLowId, incomeAcctId, 5_000, TIE_ONLY),
+    tx(tieHighId, incomeAcctId, 5_000, TIE_ONLY),
     // Range sensitivity: A dominates over the wide range, B wins in LATE-only.
     tx(rangeAId, incomeAcctId, 100_000, EARLY),
     tx(rangeAId, incomeAcctId, 1_000, LATE),
@@ -179,6 +187,25 @@ describe("GET /api/reports/dashboard topJobs ranking", () => {
     expect(top.map((j) => j.profitCents)).toEqual([
       50_000, 40_000, 30_000, 20_000, 10_000,
     ]);
+  });
+
+  it("keeps tied jobs in the SQL ranking order (job id ascending)", async () => {
+    const sqlIds = await getTopJobIdsByProfit(
+      { startDate: TIE_W.start, endDate: TIE_W.end },
+      5,
+    );
+    const res = await request(reportsApp)
+      .get("/api/reports/dashboard")
+      .query({ startDate: TIE_W.start, endDate: TIE_W.end });
+    expect(res.status).toBe(200);
+    const top = res.body.topJobs as Array<{ id: number; profitCents: number }>;
+
+    // Both tied jobs are present with equal profit, and the dashboard
+    // response preserves the exact order the SQL ranking chose.
+    const tieRows = top.filter((j) => j.id === tieLowId || j.id === tieHighId);
+    expect(tieRows.map((j) => j.profitCents)).toEqual([5_000, 5_000]);
+    expect(tieRows.map((j) => j.id)).toEqual([tieLowId, tieHighId]);
+    expect(top.map((j) => j.id)).toEqual(sqlIds.slice(0, top.length));
   });
 });
 

@@ -175,7 +175,7 @@ router.get("/reports/dashboard", async (req, res): Promise<void> => {
         overUnderBillingCents: billedToDateCents - costCents,
       };
     })
-    .sort((a, b) => b.profitCents - a.profitCents)
+    .sort((a, b) => topJobIds.indexOf(a.id) - topJobIds.indexOf(b.id))
     .slice(0, 5);
 
   const recentRows = await db
