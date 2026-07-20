@@ -27,6 +27,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { BillForm } from "@/components/forms/bill-form";
+import { ApiError } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Plus, Trash2 } from "lucide-react";
 
@@ -44,12 +45,25 @@ export default function Bills() {
     query: { queryKey: getListBillsQueryKey() },
   });
 
+  const [createError, setCreateError] = useState<string | null>(null);
+
   const createBill = useCreateBill({
     mutation: {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: getListBillsQueryKey() });
         queryClient.invalidateQueries({ queryKey: getGetApAgingQueryKey() });
+        setCreateError(null);
         setIsCreateOpen(false);
+      },
+      onError: (error) => {
+        if (error instanceof ApiError) {
+          const data = error.data as { error?: string } | null;
+          setCreateError(
+            data?.error ?? "Failed to save the bill. Please try again.",
+          );
+        } else {
+          setCreateError("Failed to save the bill. Please try again.");
+        }
       },
     },
   });
@@ -74,7 +88,13 @@ export default function Bills() {
             Vendor bills, payments & credits (Accounts Payable)
           </p>
         </div>
-        <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+        <Dialog
+          open={isCreateOpen}
+          onOpenChange={(open) => {
+            setIsCreateOpen(open);
+            if (!open) setCreateError(null);
+          }}
+        >
           <DialogTrigger asChild>
             <Button className="bg-blue-600 hover:bg-blue-700">
               <Plus className="mr-2 h-4 w-4" /> New Bill
@@ -85,8 +105,12 @@ export default function Bills() {
               <DialogTitle>Create Bill</DialogTitle>
             </DialogHeader>
             <BillForm
-              onSubmit={(data) => createBill.mutate({ data })}
+              onSubmit={(data) => {
+                setCreateError(null);
+                createBill.mutate({ data });
+              }}
               isLoading={createBill.isPending}
+              serverError={createError}
             />
           </DialogContent>
         </Dialog>

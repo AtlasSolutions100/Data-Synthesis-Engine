@@ -46,9 +46,15 @@ interface BillFormProps {
   defaultValues?: Partial<BillFormValues>;
   onSubmit: (data: BillInput) => void;
   isLoading?: boolean;
+  serverError?: string | null;
 }
 
-export function BillForm({ defaultValues, onSubmit, isLoading }: BillFormProps) {
+export function BillForm({
+  defaultValues,
+  onSubmit,
+  isLoading,
+  serverError,
+}: BillFormProps) {
   const { data: vendors } = useListVendors({
     query: { queryKey: getListVendorsQueryKey() },
   });
@@ -331,6 +337,15 @@ export function BillForm({ defaultValues, onSubmit, isLoading }: BillFormProps) 
             </FormItem>
           )}
         />
+        {serverError ? (
+          <p
+            role="alert"
+            className="text-sm font-medium text-destructive"
+            data-testid="text-bill-server-error"
+          >
+            {serverError}
+          </p>
+        ) : null}
         <Button type="submit" disabled={isLoading} className="w-full">
           {isLoading ? "Saving..." : "Save Bill"}
         </Button>

@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { and, desc, eq, sql, type SQL } from "drizzle-orm";
+import { and, desc, eq, inArray, sql, type SQL } from "drizzle-orm";
 import {
   db,
   billsTable,
@@ -30,6 +30,29 @@ import {
 } from "@workspace/api-zod";
 
 const router: IRouter = Router();
+
+/**
+ * Return the first line accountId that doesn't exist, or null when all
+ * referenced accounts are present.
+ */
+async function findMissingAccountId(
+  lines: Array<{ accountId?: number | null }>,
+): Promise<number | null> {
+  const ids = [
+    ...new Set(
+      lines
+        .map((l) => l.accountId)
+        .filter((id): id is number => id != null),
+    ),
+  ];
+  if (ids.length === 0) return null;
+  const found = await db
+    .select({ id: accountsTable.id })
+    .from(accountsTable)
+    .where(inArray(accountsTable.id, ids));
+  const foundSet = new Set(found.map((r) => r.id));
+  return ids.find((id) => !foundSet.has(id)) ?? null;
+}
 
 type BillStatus = "open" | "partial" | "paid";
 
@@ -225,6 +248,13 @@ router.post("/bills", async (req, res): Promise<void> => {
       return;
     }
   }
+  const missingAccountId = await findMissingAccountId(data.lines);
+  if (missingAccountId != null) {
+    res
+      .status(400)
+      .json({ error: `Account ${missingAccountId} does not exist` });
+    return;
+  }
 
   const newId = await db.transaction(async (tx) => {
     const [bill] = await tx
@@ -295,6 +325,25 @@ router.patch("/bills/:id", async (req, res): Promise<void> => {
       .where(eq(vendorsTable.id, data.vendorId));
     if (!vendor) {
       res.status(400).json({ error: `Vendor ${data.vendorId} does not exist` });
+      return;
+    }
+  }
+  if (data.jobId != null) {
+    const [job] = await db
+      .select({ id: jobsTable.id })
+      .from(jobsTable)
+      .where(eq(jobsTable.id, data.jobId));
+    if (!job) {
+      res.status(400).json({ error: `Job ${data.jobId} does not exist` });
+      return;
+    }
+  }
+  if (data.lines !== undefined) {
+    const missingAccountId = await findMissingAccountId(data.lines);
+    if (missingAccountId != null) {
+      res
+        .status(400)
+        .json({ error: `Account ${missingAccountId} does not exist` });
       return;
     }
   }
