@@ -3,6 +3,7 @@ import { useParams, Link } from "wouter";
 import {
   useGetBill,
   getGetBillQueryKey,
+  useUpdateBill,
   useCreateBillPayment,
   useCreateVendorCredit,
   getListBillsQueryKey,
@@ -34,12 +35,13 @@ import {
 } from "@/components/ui/dialog";
 import { PaymentForm } from "@/components/forms/payment-form";
 import { VendorCreditForm } from "@/components/forms/vendor-credit-form";
+import { BillForm } from "@/components/forms/bill-form";
 import {
   toServerFieldError,
   type ServerFieldError,
 } from "@/lib/server-field-error";
 import { useQueryClient } from "@tanstack/react-query";
-import { Plus, ArrowLeft } from "lucide-react";
+import { Plus, ArrowLeft, Pencil } from "lucide-react";
 
 const statusVariant: Record<string, "default" | "secondary" | "outline"> = {
   paid: "secondary",
@@ -53,6 +55,8 @@ export default function BillDetail() {
   const queryClient = useQueryClient();
   const [isPayOpen, setIsPayOpen] = useState(false);
   const [isCreditOpen, setIsCreditOpen] = useState(false);
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [editError, setEditError] = useState<ServerFieldError | null>(null);
   const [paymentError, setPaymentError] = useState<ServerFieldError | null>(
     null,
   );
@@ -67,6 +71,24 @@ export default function BillDetail() {
     queryClient.invalidateQueries({ queryKey: getListBillsQueryKey() });
     queryClient.invalidateQueries({ queryKey: getGetApAgingQueryKey() });
   };
+
+  const updateBill = useUpdateBill({
+    mutation: {
+      onSuccess: () => {
+        invalidate();
+        setEditError(null);
+        setIsEditOpen(false);
+      },
+      onError: (error) => {
+        setEditError(
+          toServerFieldError(
+            error,
+            "Failed to save the bill. Please try again.",
+          ),
+        );
+      },
+    },
+  });
 
   const createPayment = useCreateBillPayment({
     mutation: {
@@ -130,6 +152,48 @@ export default function BillDetail() {
           >
             {bill.status}
           </Badge>
+          <Dialog
+            open={isEditOpen}
+            onOpenChange={(open) => {
+              setIsEditOpen(open);
+              if (!open) setEditError(null);
+            }}
+          >
+            <DialogTrigger asChild>
+              <Button variant="outline" size="sm" data-testid="button-edit-bill">
+                <Pencil className="mr-2 h-4 w-4" /> Edit
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[720px]">
+              <DialogHeader>
+                <DialogTitle>Edit Bill</DialogTitle>
+              </DialogHeader>
+              {isEditOpen && (
+                <BillForm
+                  defaultValues={{
+                    billNumber: bill.billNumber ?? "",
+                    vendorId: String(bill.vendorId),
+                    jobId: bill.jobId != null ? String(bill.jobId) : "",
+                    date: bill.date,
+                    dueDate: bill.dueDate ?? "",
+                    memo: bill.memo ?? "",
+                    lines: bill.lines.map((l) => ({
+                      accountId:
+                        l.accountId != null ? String(l.accountId) : "",
+                      description: l.description ?? "",
+                      amount: (l.amountCents / 100).toFixed(2),
+                    })),
+                  }}
+                  onSubmit={(data) => {
+                    setEditError(null);
+                    updateBill.mutate({ id: billId, data });
+                  }}
+                  isLoading={updateBill.isPending}
+                  serverError={editError}
+                />
+              )}
+            </DialogContent>
+          </Dialog>
         </div>
         <p className="text-slate-500 mt-1">
           {bill.vendorName || "Unknown vendor"}
