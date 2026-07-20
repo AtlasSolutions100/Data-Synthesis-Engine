@@ -145,6 +145,107 @@ export async function getTopJobIdsByProfit(
   return rows.map((r) => r.jobId);
 }
 
+export const BALANCE_SHEET_TYPES = [
+  "asset",
+  "bank",
+  "liability",
+  "credit_card",
+] as const;
+
+/** Account types whose natural balance is a debit (increases with debits). */
+const DEBIT_NATURED_TYPES = [
+  "asset",
+  "bank",
+  "expense",
+  "cogs",
+  "other_expense",
+] as const;
+
+export type AccountBalanceRow = {
+  accountId: number;
+  accountNumber: string;
+  accountName: string;
+  type: string;
+  balanceCents: number;
+};
+
+/**
+ * Compute the balance of every balance-sheet account (asset, bank, liability,
+ * credit_card) from linked transactions, in each account's natural sign
+ * (assets positive when holding value, liabilities positive when owed).
+ *
+ * Sign convention: a transaction's amount is stored in the primary account's
+ * natural direction (income positive = credit, expense positive = debit,
+ * balance-sheet positive = increases its natural balance). The split account
+ * receives the offsetting entry. So for a balance-sheet account B:
+ *   - rows where accountId = B contribute +amount;
+ *   - rows where splitAccountId = B contribute -amount when B and the primary
+ *     account share the same debit/credit nature, +amount otherwise (e.g. an
+ *     expense split to Checking decreases it; split to a credit card
+ *     increases the card balance; income split to A/R increases A/R).
+ * Accounts with no linked transactions are included with a zero balance.
+ */
+export async function getBalanceSheetBalances(): Promise<AccountBalanceRow[]> {
+  const accounts = await db
+    .select()
+    .from(accountsTable)
+    .where(inArray(accountsTable.type, [...BALANCE_SHEET_TYPES]));
+
+  const primarySums = await db
+    .select({
+      accountId: transactionsTable.accountId,
+      total: sql<number>`coalesce(sum(${transactionsTable.amountCents}), 0)::bigint`,
+    })
+    .from(transactionsTable)
+    .innerJoin(accountsTable, eq(accountsTable.id, transactionsTable.accountId))
+    .where(inArray(accountsTable.type, [...BALANCE_SHEET_TYPES]))
+    .groupBy(transactionsTable.accountId);
+
+  const splitSums = await db
+    .select({
+      splitAccountId: transactionsTable.splitAccountId,
+      primaryType: accountsTable.type,
+      total: sql<number>`coalesce(sum(${transactionsTable.amountCents}), 0)::bigint`,
+    })
+    .from(transactionsTable)
+    .innerJoin(accountsTable, eq(accountsTable.id, transactionsTable.accountId))
+    .where(isNotNull(transactionsTable.splitAccountId))
+    .groupBy(transactionsTable.splitAccountId, accountsTable.type);
+
+  const primaryMap = new Map(
+    primarySums.map((r) => [r.accountId, Number(r.total)]),
+  );
+
+  const isDebitNatured = (type: string): boolean =>
+    (DEBIT_NATURED_TYPES as readonly string[]).includes(type);
+
+  const accountById = new Map(accounts.map((a) => [a.id, a]));
+  const splitDeltaMap = new Map<number, number>();
+  for (const r of splitSums) {
+    if (r.splitAccountId == null) continue;
+    const account = accountById.get(r.splitAccountId);
+    if (!account) continue;
+    const sameNature =
+      isDebitNatured(account.type) === isDebitNatured(r.primaryType);
+    const delta = sameNature ? -Number(r.total) : Number(r.total);
+    splitDeltaMap.set(
+      r.splitAccountId,
+      (splitDeltaMap.get(r.splitAccountId) ?? 0) + delta,
+    );
+  }
+
+  return accounts
+    .map((a) => ({
+      accountId: a.id,
+      accountNumber: a.number,
+      accountName: a.name,
+      type: a.type,
+      balanceCents:
+        (primaryMap.get(a.id) ?? 0) + (splitDeltaMap.get(a.id) ?? 0),
+    }))
+    .sort((x, y) => x.accountNumber.localeCompare(y.accountNumber));
+}
+
 /** Sum of amounts (cents) for transactions posted to accounts of the given types. */
 export async function sumByAccountTypes(
   types: readonly string[],

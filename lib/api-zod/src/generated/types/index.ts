@@ -7,6 +7,9 @@
  */
 
 export * from './account';
+export * from './accountBalance';
+export * from './accountBalances';
+export * from './accountBalanceType';
 export * from './accountInput';
 export * from './accountInputType';
 export * from './accountTotal';

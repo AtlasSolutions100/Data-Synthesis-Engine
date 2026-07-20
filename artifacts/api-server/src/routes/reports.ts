@@ -30,8 +30,10 @@ import {
   GetApAgingQueryParams,
   GetPayrollByJobResponse,
   GetPayrollByJobQueryParams,
+  GetAccountBalancesResponse,
 } from "@workspace/api-zod";
 import {
+  getBalanceSheetBalances,
   getJobTotalsMap,
   getJobBillingMap,
   getTopJobIdsByProfit,
@@ -277,6 +279,11 @@ router.get("/reports/cost-by-account", async (req, res): Promise<void> => {
       })),
     ),
   );
+});
+
+router.get("/reports/account-balances", async (_req, res): Promise<void> => {
+  const rows = await getBalanceSheetBalances();
+  res.json(GetAccountBalancesResponse.parse({ rows }));
 });
 
 router.get("/reports/ar-aging", async (req, res): Promise<void> => {

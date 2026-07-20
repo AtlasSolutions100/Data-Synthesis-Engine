@@ -10,6 +10,8 @@ import {
   getGetApAgingQueryKey,
   useGetPayrollByJob,
   getGetPayrollByJobQueryKey,
+  useGetAccountBalances,
+  getGetAccountBalancesQueryKey,
 } from "@workspace/api-client-react";
 import type {
   AgingBuckets,
@@ -219,6 +221,10 @@ export default function Reports() {
       query: { queryKey: getGetPayrollByJobQueryKey(params) },
     },
   );
+  const { data: accountBalances, isLoading: balancesLoading } =
+    useGetAccountBalances({
+      query: { queryKey: getGetAccountBalancesQueryKey() },
+    });
 
   return (
     <div className="space-y-8">
@@ -357,6 +363,64 @@ export default function Reports() {
           </Button>
         </div>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Account Balances</CardTitle>
+          <p className="text-sm text-slate-500">
+            Balance-sheet accounts computed from all linked transactions
+          </p>
+        </CardHeader>
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Account</TableHead>
+                <TableHead>Type</TableHead>
+                <TableHead className="text-right">Balance</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {balancesLoading ? (
+                <TableRow>
+                  <TableCell
+                    colSpan={3}
+                    className="text-center py-8 text-slate-500"
+                  >
+                    Loading account balances...
+                  </TableCell>
+                </TableRow>
+              ) : !accountBalances || accountBalances.rows.length === 0 ? (
+                <TableRow>
+                  <TableCell
+                    colSpan={3}
+                    className="text-center py-8 text-slate-500"
+                  >
+                    No balance-sheet accounts in the chart of accounts.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                accountBalances.rows.map((row) => (
+                  <TableRow
+                    key={row.accountId}
+                    data-testid={`row-account-balance-${row.accountId}`}
+                  >
+                    <TableCell className="font-medium">
+                      {row.accountNumber} - {row.accountName}
+                    </TableCell>
+                    <TableCell className="capitalize">
+                      {row.type.replace("_", " ")}
+                    </TableCell>
+                    <TableCell className="text-right font-medium">
+                      {formatCents(row.balanceCents)}
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

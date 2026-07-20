@@ -486,6 +486,28 @@ export interface JobCostSummary {
   lines: AccountTotal[];
 }
 
+export type AccountBalanceType = typeof AccountBalanceType[keyof typeof AccountBalanceType];
+
+
+export const AccountBalanceType = {
+  asset: 'asset',
+  bank: 'bank',
+  liability: 'liability',
+  credit_card: 'credit_card',
+} as const;
+
+export interface AccountBalance {
+  accountId: number;
+  accountNumber: string;
+  accountName: string;
+  type: AccountBalanceType;
+  balanceCents: number;
+}
+
+export interface AccountBalances {
+  rows: AccountBalance[];
+}
+
 export interface DashboardSummary {
   totalIncomeCents: number;
   totalCogsCents: number;

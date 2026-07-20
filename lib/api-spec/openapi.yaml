@@ -673,6 +673,19 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/AccountTotal"
+  /reports/account-balances:
+    get:
+      operationId: getAccountBalances
+      tags: [reports]
+      summary: Balance-sheet account balances
+      description: Computed balance of each balance-sheet account (asset, bank, liability, credit_card) from linked transaction and split lines.
+      responses:
+        "200":
+          description: Balance-sheet account balances
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccountBalances"
   /reports/ar-aging:
     get:
       operationId: getArAging
@@ -1804,6 +1817,31 @@ components:
           enum: [income, cogs, expense, other_income, other_expense, asset, bank, liability, credit_card]
         amountCents:
           type: integer
+
+    AccountBalance:
+      type: object
+      required: [accountId, accountNumber, accountName, type, balanceCents]
+      properties:
+        accountId:
+          type: integer
+        accountNumber:
+          type: string
+        accountName:
+          type: string
+        type:
+          type: string
+          enum: [asset, bank, liability, credit_card]
+        balanceCents:
+          type: integer
+
+    AccountBalances:
+      type: object
+      required: [rows]
+      properties:
+        rows:
+          type: array
+          items:
+            $ref: "#/components/schemas/AccountBalance"
 
     DashboardSummary:
       type: object

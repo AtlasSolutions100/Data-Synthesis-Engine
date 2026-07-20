@@ -857,6 +857,21 @@ export const GetCostByAccountResponse = zod.array(GetCostByAccountResponseItem)
 
 
 /**
+ * Computed balance of each balance-sheet account (asset, bank, liability, credit_card) from linked transaction and split lines.
+ * @summary Balance-sheet account balances
+ */
+export const GetAccountBalancesResponse = zod.object({
+  "rows": zod.array(zod.object({
+  "accountId": zod.number(),
+  "accountNumber": zod.string(),
+  "accountName": zod.string(),
+  "type": zod.enum(['asset', 'bank', 'liability', 'credit_card']),
+  "balanceCents": zod.number()
+}))
+})
+
+
+/**
  * Outstanding customer invoice balances grouped by customer and age bucket, as of an optional date (defaults to today).
  * @summary Accounts receivable aging
  */

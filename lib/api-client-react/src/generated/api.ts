@@ -21,6 +21,7 @@ import type {
 
 import type {
   Account,
+  AccountBalances,
   AccountInput,
   AccountTotal,
   AccountUpdate,
@@ -2841,6 +2842,84 @@ export function useGetCostByAccount<TData = Awaited<ReturnType<typeof getCostByA
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetCostByAccountQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetAccountBalancesUrl = () => {
+
+
+
+
+  return `/api/reports/account-balances`
+}
+
+/**
+ * Computed balance of each balance-sheet account (asset, bank, liability, credit_card) from linked transaction and split lines.
+ * @summary Balance-sheet account balances
+ */
+export const getAccountBalances = async ( options?: RequestInit): Promise<AccountBalances> => {
+
+  return customFetch<AccountBalances>(getGetAccountBalancesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetAccountBalancesQueryKey = () => {
+    return [
+    `/api/reports/account-balances`
+    ] as const;
+    }
+
+
+export const getGetAccountBalancesQueryOptions = <TData = Awaited<ReturnType<typeof getAccountBalances>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAccountBalances>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetAccountBalancesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getAccountBalances>>> = ({ signal }) => getAccountBalances({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getAccountBalances>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetAccountBalancesQueryResult = NonNullable<Awaited<ReturnType<typeof getAccountBalances>>>
+export type GetAccountBalancesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Balance-sheet account balances
+ */
+
+export function useGetAccountBalances<TData = Awaited<ReturnType<typeof getAccountBalances>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAccountBalances>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetAccountBalancesQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

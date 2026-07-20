@@ -144,6 +144,28 @@ vi.mock("@workspace/api-client-react", () => ({
   getGetArAgingQueryKey: (params: unknown) => ["/api/reports/ar-aging", params],
   useGetApAging: () => ({ data: apAging, isLoading: false }),
   getGetApAgingQueryKey: (params: unknown) => ["/api/reports/ap-aging", params],
+  useGetAccountBalances: () => ({
+    data: {
+      rows: [
+        {
+          accountId: 1,
+          accountNumber: "1000",
+          accountName: "Checking",
+          type: "bank",
+          balanceCents: 1234500,
+        },
+        {
+          accountId: 2,
+          accountNumber: "2100",
+          accountName: "Home Depot CC",
+          type: "credit_card",
+          balanceCents: 45600,
+        },
+      ],
+    },
+    isLoading: false,
+  }),
+  getGetAccountBalancesQueryKey: () => ["/api/reports/account-balances"],
 }));
 
 function renderReports() {
