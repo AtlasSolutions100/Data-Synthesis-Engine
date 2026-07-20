@@ -204,3 +204,54 @@ describe("PATCH /api/bills/:id referential validation", () => {
     expect(res.body.totalCents).toBe(2500);
   });
 });
+
+describe("PATCH /api/bills/:id paid-amount floor", () => {
+  let paidBillId: number;
+
+  beforeAll(async () => {
+    const res = await request(app)
+      .post("/api/bills")
+      .send(baseBill({ lines: [{ accountId: acctId, amountCents: 10000 }] }));
+    expect(res.status).toBe(201);
+    paidBillId = res.body.id;
+    billIds.push(paidBillId);
+
+    const pay = await request(app)
+      .post(`/api/bills/${paidBillId}/payments`)
+      .send({ date: "2098-01-20", method: "check", amountCents: 6000 });
+    expect(pay.status).toBe(201);
+
+    const credit = await request(app)
+      .post(`/api/bills/${paidBillId}/credits`)
+      .send({ date: "2098-01-21", amountCents: 1000 });
+    expect(credit.status).toBe(201);
+  });
+
+  it("rejects shrinking the bill below what's already been paid/credited", async () => {
+    const res = await request(app)
+      .patch(`/api/bills/${paidBillId}`)
+      .send({ lines: [{ accountId: acctId, amountCents: 5000 }] });
+    expect(res.status).toBe(400);
+    expect(res.body.field).toBe("lines");
+    expect(res.body.error).toContain("$50.00");
+    expect(res.body.error).toContain("$70.00");
+    expect(res.body.error).toContain("already paid or credited");
+  });
+
+  it("allows shrinking down to exactly the paid amount", async () => {
+    const res = await request(app)
+      .patch(`/api/bills/${paidBillId}`)
+      .send({ lines: [{ accountId: acctId, amountCents: 7000 }] });
+    expect(res.status).toBe(200);
+    expect(res.body.totalCents).toBe(7000);
+    expect(res.body.balanceCents).toBe(0);
+  });
+
+  it("still allows edits that don't touch lines on a paid bill", async () => {
+    const res = await request(app)
+      .patch(`/api/bills/${paidBillId}`)
+      .send({ memo: "updated memo" });
+    expect(res.status).toBe(200);
+    expect(res.body.memo).toBe("updated memo");
+  });
+});

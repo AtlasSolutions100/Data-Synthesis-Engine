@@ -364,6 +364,28 @@ router.patch("/bills/:id", async (req, res): Promise<void> => {
       });
       return;
     }
+
+    const [paySum] = await db
+      .select({
+        total: sql<number>`coalesce(sum(${billPaymentsTable.amountCents}), 0)::bigint`,
+      })
+      .from(billPaymentsTable)
+      .where(eq(billPaymentsTable.billId, params.data.id));
+    const [creditSum] = await db
+      .select({
+        total: sql<number>`coalesce(sum(${vendorCreditsTable.amountCents}), 0)::bigint`,
+      })
+      .from(vendorCreditsTable)
+      .where(eq(vendorCreditsTable.billId, params.data.id));
+    const paidCents = Number(paySum?.total ?? 0) + Number(creditSum?.total ?? 0);
+    const newTotalCents = data.lines.reduce((s, l) => s + l.amountCents, 0);
+    if (newTotalCents < paidCents) {
+      res.status(400).json({
+        error: `New total ($${(newTotalCents / 100).toFixed(2)}) is less than the $${(paidCents / 100).toFixed(2)} already paid or credited on this bill. Remove or adjust payments and credits first, or keep the total at or above that amount.`,
+        field: "lines",
+      });
+      return;
+    }
   }
 
   await db.transaction(async (tx) => {
