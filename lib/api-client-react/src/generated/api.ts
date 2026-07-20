@@ -62,6 +62,11 @@ import type {
   JobDocumentInput,
   JobInput,
   JobUpdate,
+  LegacySplitGroup,
+  LegacySplitMapBody,
+  LegacySplitMapResponse,
+  LegacySplitUndoBody,
+  LegacySplitUndoResponse,
   ListBillsParams,
   ListInvoicesParams,
   ListJobsParams,
@@ -2688,6 +2693,223 @@ export const useDeleteTransaction = <TError = ErrorType<ErrorResponse>,
         TContext
       > => {
       return useMutation(getDeleteTransactionMutationOptions(options));
+    }
+
+export const getListLegacySplitsUrl = () => {
+
+
+
+
+  return `/api/transactions/legacy-splits`
+}
+
+/**
+ * @summary List unresolved legacy free-text split account names
+ */
+export const listLegacySplits = async ( options?: RequestInit): Promise<LegacySplitGroup[]> => {
+
+  return customFetch<LegacySplitGroup[]>(getListLegacySplitsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListLegacySplitsQueryKey = () => {
+    return [
+    `/api/transactions/legacy-splits`
+    ] as const;
+    }
+
+
+export const getListLegacySplitsQueryOptions = <TData = Awaited<ReturnType<typeof listLegacySplits>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listLegacySplits>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListLegacySplitsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listLegacySplits>>> = ({ signal }) => listLegacySplits({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listLegacySplits>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListLegacySplitsQueryResult = NonNullable<Awaited<ReturnType<typeof listLegacySplits>>>
+export type ListLegacySplitsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List unresolved legacy free-text split account names
+ */
+
+export function useListLegacySplits<TData = Awaited<ReturnType<typeof listLegacySplits>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listLegacySplits>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListLegacySplitsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getMapLegacySplitUrl = () => {
+
+
+
+
+  return `/api/transactions/legacy-splits/map`
+}
+
+/**
+ * @summary Link all transactions with a legacy split name to an account
+ */
+export const mapLegacySplit = async (legacySplitMapBody: LegacySplitMapBody, options?: RequestInit): Promise<LegacySplitMapResponse> => {
+
+  return customFetch<LegacySplitMapResponse>(getMapLegacySplitUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(legacySplitMapBody)
+  }
+);}
+
+
+
+
+export const getMapLegacySplitMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof mapLegacySplit>>, TError,{data: BodyType<LegacySplitMapBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof mapLegacySplit>>, TError,{data: BodyType<LegacySplitMapBody>}, TContext> => {
+
+const mutationKey = ['mapLegacySplit'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof mapLegacySplit>>, {data: BodyType<LegacySplitMapBody>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  mapLegacySplit(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type MapLegacySplitMutationResult = NonNullable<Awaited<ReturnType<typeof mapLegacySplit>>>
+    export type MapLegacySplitMutationBody = BodyType<LegacySplitMapBody>
+    export type MapLegacySplitMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Link all transactions with a legacy split name to an account
+ */
+export const useMapLegacySplit = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof mapLegacySplit>>, TError,{data: BodyType<LegacySplitMapBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof mapLegacySplit>>,
+        TError,
+        {data: BodyType<LegacySplitMapBody>},
+        TContext
+      > => {
+      return useMutation(getMapLegacySplitMutationOptions(options));
+    }
+
+export const getUndoLegacySplitMappingUrl = () => {
+
+
+
+
+  return `/api/transactions/legacy-splits/undo`
+}
+
+/**
+ * @summary Undo a previous legacy split mapping for explicit transactions
+ */
+export const undoLegacySplitMapping = async (legacySplitUndoBody: LegacySplitUndoBody, options?: RequestInit): Promise<LegacySplitUndoResponse> => {
+
+  return customFetch<LegacySplitUndoResponse>(getUndoLegacySplitMappingUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(legacySplitUndoBody)
+  }
+);}
+
+
+
+
+export const getUndoLegacySplitMappingMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof undoLegacySplitMapping>>, TError,{data: BodyType<LegacySplitUndoBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof undoLegacySplitMapping>>, TError,{data: BodyType<LegacySplitUndoBody>}, TContext> => {
+
+const mutationKey = ['undoLegacySplitMapping'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof undoLegacySplitMapping>>, {data: BodyType<LegacySplitUndoBody>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  undoLegacySplitMapping(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UndoLegacySplitMappingMutationResult = NonNullable<Awaited<ReturnType<typeof undoLegacySplitMapping>>>
+    export type UndoLegacySplitMappingMutationBody = BodyType<LegacySplitUndoBody>
+    export type UndoLegacySplitMappingMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Undo a previous legacy split mapping for explicit transactions
+ */
+export const useUndoLegacySplitMapping = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof undoLegacySplitMapping>>, TError,{data: BodyType<LegacySplitUndoBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof undoLegacySplitMapping>>,
+        TError,
+        {data: BodyType<LegacySplitUndoBody>},
+        TContext
+      > => {
+      return useMutation(getUndoLegacySplitMappingMutationOptions(options));
     }
 
 export const getGetDashboardSummaryUrl = (params?: GetDashboardSummaryParams,) => {

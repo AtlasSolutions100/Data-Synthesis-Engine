@@ -775,6 +775,54 @@ export const DeleteTransactionResponse = zod.void()
 
 
 /**
+ * @summary List unresolved legacy free-text split account names
+ */
+export const ListLegacySplitsResponseItem = zod.object({
+  "name": zod.string().describe('Legacy free-text split account name (trimmed)'),
+  "count": zod.number(),
+  "transactionIds": zod.array(zod.number())
+})
+export const ListLegacySplitsResponse = zod.array(ListLegacySplitsResponseItem)
+
+
+/**
+ * @summary Link all transactions with a legacy split name to an account
+ */
+
+
+
+export const MapLegacySplitBody = zod.object({
+  "name": zod.string().min(1).describe('Legacy free-text split account name to resolve'),
+  "accountId": zod.number().describe('Account to link the matching transactions to')
+})
+
+export const MapLegacySplitResponse = zod.object({
+  "name": zod.string(),
+  "accountId": zod.number(),
+  "transactionIds": zod.array(zod.number()).describe('Ids of the transactions that were linked')
+})
+
+
+/**
+ * @summary Undo a previous legacy split mapping for explicit transactions
+ */
+
+
+
+
+export const UndoLegacySplitMappingBody = zod.object({
+  "name": zod.string().min(1).describe('Legacy name restored onto reverted rows'),
+  "accountId": zod.number().describe('Account the mapping linked; only rows still linked to it are reverted'),
+  "transactionIds": zod.array(zod.number()).min(1).describe('Explicit ids from the original mapping to revert')
+})
+
+export const UndoLegacySplitMappingResponse = zod.object({
+  "revertedTransactionIds": zod.array(zod.number()),
+  "skippedCount": zod.number().describe('Rows not reverted because they changed since the mapping')
+})
+
+
+/**
  * @summary Company-wide profit and loss summary
  */
 export const getDashboardSummaryQueryStartDateRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');

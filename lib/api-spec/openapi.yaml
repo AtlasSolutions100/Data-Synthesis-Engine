@@ -641,6 +641,61 @@ paths:
         "404":
           $ref: "#/components/responses/Error"
 
+  /transactions/legacy-splits:
+    get:
+      operationId: listLegacySplits
+      tags: [transactions]
+      summary: List unresolved legacy free-text split account names
+      responses:
+        "200":
+          description: Legacy split names grouped with their transaction ids
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/LegacySplitGroup"
+  /transactions/legacy-splits/map:
+    post:
+      operationId: mapLegacySplit
+      tags: [transactions]
+      summary: Link all transactions with a legacy split name to an account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LegacySplitMapBody"
+      responses:
+        "200":
+          description: Mapping applied
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LegacySplitMapResponse"
+        "400":
+          $ref: "#/components/responses/Error"
+  /transactions/legacy-splits/undo:
+    post:
+      operationId: undoLegacySplitMapping
+      tags: [transactions]
+      summary: Undo a previous legacy split mapping for explicit transactions
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LegacySplitUndoBody"
+      responses:
+        "200":
+          description: Undo applied
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LegacySplitUndoResponse"
+        "400":
+          $ref: "#/components/responses/Error"
+
   /reports/dashboard:
     get:
       operationId: getDashboardSummary
@@ -1804,6 +1859,76 @@ components:
           type: ["integer", "null"]
         amountCents:
           type: integer
+
+    LegacySplitGroup:
+      type: object
+      required: [name, count, transactionIds]
+      properties:
+        name:
+          type: string
+          description: Legacy free-text split account name (trimmed)
+        count:
+          type: integer
+        transactionIds:
+          type: array
+          items:
+            type: integer
+
+    LegacySplitMapBody:
+      type: object
+      required: [name, accountId]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          description: Legacy free-text split account name to resolve
+        accountId:
+          type: integer
+          description: Account to link the matching transactions to
+
+    LegacySplitMapResponse:
+      type: object
+      required: [name, accountId, transactionIds]
+      properties:
+        name:
+          type: string
+        accountId:
+          type: integer
+        transactionIds:
+          type: array
+          items:
+            type: integer
+          description: Ids of the transactions that were linked
+
+    LegacySplitUndoBody:
+      type: object
+      required: [name, accountId, transactionIds]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          description: Legacy name restored onto reverted rows
+        accountId:
+          type: integer
+          description: Account the mapping linked; only rows still linked to it are reverted
+        transactionIds:
+          type: array
+          minItems: 1
+          items:
+            type: integer
+          description: Explicit ids from the original mapping to revert
+
+    LegacySplitUndoResponse:
+      type: object
+      required: [revertedTransactionIds, skippedCount]
+      properties:
+        revertedTransactionIds:
+          type: array
+          items:
+            type: integer
+        skippedCount:
+          type: integer
+          description: Rows not reverted because they changed since the mapping
 
     JobCostSummary:
       type: object

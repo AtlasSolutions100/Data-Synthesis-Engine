@@ -450,6 +450,51 @@ export interface TransactionUpdate {
   amountCents?: number;
 }
 
+export interface LegacySplitGroup {
+  /** Legacy free-text split account name (trimmed) */
+  name: string;
+  count: number;
+  transactionIds: number[];
+}
+
+export interface LegacySplitMapBody {
+  /**
+     * Legacy free-text split account name to resolve
+     * @minLength 1
+     */
+  name: string;
+  /** Account to link the matching transactions to */
+  accountId: number;
+}
+
+export interface LegacySplitMapResponse {
+  name: string;
+  accountId: number;
+  /** Ids of the transactions that were linked */
+  transactionIds: number[];
+}
+
+export interface LegacySplitUndoBody {
+  /**
+     * Legacy name restored onto reverted rows
+     * @minLength 1
+     */
+  name: string;
+  /** Account the mapping linked; only rows still linked to it are reverted */
+  accountId: number;
+  /**
+     * Explicit ids from the original mapping to revert
+     * @minItems 1
+     */
+  transactionIds: number[];
+}
+
+export interface LegacySplitUndoResponse {
+  revertedTransactionIds: number[];
+  /** Rows not reverted because they changed since the mapping */
+  skippedCount: number;
+}
+
 export type AccountTotalType = typeof AccountTotalType[keyof typeof AccountTotalType];
 
 

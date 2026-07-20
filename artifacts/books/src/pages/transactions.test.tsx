@@ -94,6 +94,13 @@ vi.mock("@workspace/api-client-react", () => ({
   useCreateTransaction: () => ({ mutate: vi.fn(), isPending: false }),
   useUpdateTransaction: () => ({ mutate: vi.fn(), isPending: false }),
   useDeleteTransaction: () => ({ mutate: vi.fn(), isPending: false }),
+  // Used by the LegacySplitCleanup dialog rendered on the page header.
+  useListLegacySplits: () => ({ data: [], isLoading: false }),
+  getListLegacySplitsQueryKey: () => ["/api/transactions/legacy-splits"],
+  useMapLegacySplit: () => ({ mutate: vi.fn(), isPending: false }),
+  useUndoLegacySplitMapping: () => ({ mutate: vi.fn(), isPending: false }),
+  useListAccounts: () => ({ data: [], isLoading: false }),
+  getListAccountsQueryKey: () => ["/api/accounts"],
 }));
 
 const scrollIntoView = vi.fn();

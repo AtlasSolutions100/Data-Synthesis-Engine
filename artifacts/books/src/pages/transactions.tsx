@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { TransactionForm } from "@/components/forms/transaction-form";
+import { LegacySplitCleanup } from "@/components/legacy-split-cleanup";
 import {
   toServerFieldError,
   type ServerFieldError,
@@ -154,6 +155,7 @@ export default function Transactions() {
             setHighlightId(null);
           }}
         />
+        <LegacySplitCleanup />
         <Dialog
           open={isCreateOpen}
           onOpenChange={(open) => {

@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { and, desc, eq, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, or, sql, type SQL } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import {
   db,
@@ -18,6 +18,11 @@ import {
   UpdateTransactionParams,
   UpdateTransactionBody,
   DeleteTransactionParams,
+  ListLegacySplitsResponse,
+  MapLegacySplitBody,
+  MapLegacySplitResponse,
+  UndoLegacySplitMappingBody,
+  UndoLegacySplitMappingResponse,
 } from "@workspace/api-zod";
 import { dateRangeConds } from "../lib/finance";
 
@@ -221,6 +226,107 @@ router.post("/transactions", async (req, res): Promise<void> => {
   const enriched = await fetchEnrichedTx(tx.id);
   res.status(201).json(GetTransactionResponse.parse(enriched));
 });
+
+/**
+ * Legacy split cleanup: transactions imported from QuickBooks may still carry
+ * a free-text split account name (legacy `split_account` column) with no
+ * split_account_id link. These endpoints let the UI list those rows grouped
+ * by name, map a name to a real account, and undo a mapping for the explicit
+ * set of transaction ids from a prior map call.
+ *
+ * NOTE: these routes must be registered before /transactions/:id so
+ * "legacy-splits" is not parsed as an id.
+ */
+
+const legacyNameTrimmed = sql<string>`btrim(${transactionsTable.splitAccount})`;
+const hasLegacyText = sql`${transactionsTable.splitAccount} IS NOT NULL AND btrim(${transactionsTable.splitAccount}) <> ''`;
+
+router.get("/transactions/legacy-splits", async (_req, res): Promise<void> => {
+  const rows = await db
+    .select({
+      name: legacyNameTrimmed,
+      count: sql<number>`count(*)::int`,
+      transactionIds: sql<number[]>`array_agg(${transactionsTable.id} ORDER BY ${transactionsTable.id})`,
+    })
+    .from(transactionsTable)
+    .where(and(isNull(transactionsTable.splitAccountId), hasLegacyText))
+    .groupBy(legacyNameTrimmed)
+    .orderBy(desc(sql`count(*)`), asc(legacyNameTrimmed));
+
+  res.json(ListLegacySplitsResponse.parse(rows));
+});
+
+router.post(
+  "/transactions/legacy-splits/map",
+  async (req, res): Promise<void> => {
+    const parsed = MapLegacySplitBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+    const { name, accountId } = parsed.data;
+    if (!(await refExists("account", accountId))) {
+      res.status(400).json({
+        field: "accountId",
+        error: `Account ${accountId} does not exist`,
+      });
+      return;
+    }
+    const updated = await db
+      .update(transactionsTable)
+      .set({ splitAccountId: accountId, splitAccount: null })
+      .where(
+        and(
+          isNull(transactionsTable.splitAccountId),
+          sql`btrim(coalesce(${transactionsTable.splitAccount}, '')) = ${name.trim()}`,
+        ),
+      )
+      .returning({ id: transactionsTable.id });
+
+    res.json(
+      MapLegacySplitResponse.parse({
+        name,
+        accountId,
+        transactionIds: updated.map((r) => r.id).sort((a, b) => a - b),
+      }),
+    );
+  },
+);
+
+router.post(
+  "/transactions/legacy-splits/undo",
+  async (req, res): Promise<void> => {
+    const parsed = UndoLegacySplitMappingBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+    const { name, accountId, transactionIds } = parsed.data;
+    // Safety rules: only revert rows that are still linked to the mapped
+    // account and have not picked up new legacy text since the mapping.
+    const reverted = await db
+      .update(transactionsTable)
+      .set({ splitAccountId: null, splitAccount: name })
+      .where(
+        and(
+          inArray(transactionsTable.id, transactionIds),
+          eq(transactionsTable.splitAccountId, accountId),
+          or(
+            isNull(transactionsTable.splitAccount),
+            sql`btrim(${transactionsTable.splitAccount}) = ''`,
+          ),
+        ),
+      )
+      .returning({ id: transactionsTable.id });
+
+    res.json(
+      UndoLegacySplitMappingResponse.parse({
+        revertedTransactionIds: reverted.map((r) => r.id).sort((a, b) => a - b),
+        skippedCount: transactionIds.length - reverted.length,
+      }),
+    );
+  },
+);
 
 router.get("/transactions/:id", async (req, res): Promise<void> => {
   const params = GetTransactionParams.safeParse(req.params);
