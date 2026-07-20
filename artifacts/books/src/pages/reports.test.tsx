@@ -42,8 +42,11 @@ vi.mock("@/lib/aging-xlsx", () => ({
 }));
 
 // Replace the popover/calendar picker with simple buttons so jsdom can drive
-// the same onChange contract the real picker uses (start-only is what a
-// single calendar click produces; clearing produces {}).
+// the same onChange contract the real picker uses. Note: with react-day-picker
+// v9 range mode, a single calendar click sets from=to (a one-day range, see
+// "pick-single-day"); start-only and end-only states are NOT reachable through
+// the calendar UI today and are exercised here as synthetic branch coverage.
+// Clearing produces {}.
 vi.mock("@/components/date-range-picker", async (importOriginal) => {
   const actual =
     await importOriginal<typeof import("@/components/date-range-picker")>();
@@ -74,6 +77,14 @@ vi.mock("@/components/date-range-picker", async (importOriginal) => {
           onClick={() => onChange({ endDate: "2026-06-30" })}
         >
           end only
+        </button>
+        <button
+          data-testid="pick-single-day"
+          onClick={() =>
+            onChange({ startDate: "2026-07-01", endDate: "2026-07-01" })
+          }
+        >
+          single day
         </button>
         <button data-testid="pick-clear" onClick={() => onChange({})}>
           clear
@@ -402,6 +413,7 @@ describe("Export All (Zip) downloads a valid zip with three CSVs", () => {
     expect(filename).toBe("month-end-reports-2026-06-01-to-2026-06-30.zip");
     const files = unzipSync(new Uint8Array(data));
     expect(Object.keys(files).sort()).toEqual([
+      "account-balances-2026-06-01-to-2026-06-30.csv",
       "aging-detail-as-of-2026-07-17.csv",
       "aging-summary-as-of-2026-07-17.csv",
       "job-reports-2026-06-01-to-2026-06-30.csv",
@@ -440,6 +452,68 @@ describe("Export All (Zip) downloads a valid zip with three CSVs", () => {
     const jobReports = strFromU8(files["job-reports-from-2026-06-01.csv"]);
     expect(jobReports).toContain("Costs Across All Jobs,From 2026-06-01");
     expect(jobReports).toContain("Total,,2222.00");
+  });
+});
+
+describe("Export All CSV filename with partial date ranges", () => {
+  beforeEach(() => {
+    downloadCsv.mockClear();
+  });
+
+  afterEach(() => {
+    cleanup();
+  });
+
+  // The only user-reachable single-date state: one calendar click sets
+  // from=to (a one-day range) with react-day-picker v9. Verified in a real
+  // browser too: single click on Jul 1, 2026 downloaded this exact filename.
+  it("single day picked: exports month-end-reports-<day>-to-<day>.csv", async () => {
+    const user = userEvent.setup();
+    renderReports();
+
+    await user.click(screen.getByTestId("pick-single-day"));
+    await user.click(screen.getByTestId("button-export-all"));
+
+    const { csv, filename } = lastDownload();
+    expect(filename).toBe("month-end-reports-2026-07-01-to-2026-07-01.csv");
+    expect(csv).toContain("Costs Across All Jobs,2026-07-01 to 2026-07-01");
+  });
+
+  it("start only (synthetic, not UI-reachable): exports month-end-reports-from-<start>.csv", async () => {
+    const user = userEvent.setup();
+    renderReports();
+
+    await user.click(screen.getByTestId("pick-start-only"));
+    await user.click(screen.getByTestId("button-export-all"));
+
+    const { csv, filename } = lastDownload();
+    expect(filename).toBe("month-end-reports-from-2026-06-01.csv");
+    expect(csv).toContain("Costs Across All Jobs,From 2026-06-01");
+  });
+
+  it("end only (synthetic, not UI-reachable): exports month-end-reports-through-<end>.csv", async () => {
+    const user = userEvent.setup();
+    renderReports();
+
+    await user.click(screen.getByTestId("pick-end-only"));
+    await user.click(screen.getByTestId("button-export-all"));
+
+    const { csv, filename } = lastDownload();
+    expect(filename).toBe("month-end-reports-through-2026-06-30.csv");
+    expect(csv).toContain("Costs Across All Jobs,Through 2026-06-30");
+  });
+
+  it("clearing the range returns to month-end-reports-all-time.csv", async () => {
+    const user = userEvent.setup();
+    renderReports();
+
+    await user.click(screen.getByTestId("pick-start-only"));
+    await user.click(screen.getByTestId("pick-clear"));
+    await user.click(screen.getByTestId("button-export-all"));
+
+    const { csv, filename } = lastDownload();
+    expect(filename).toBe("month-end-reports-all-time.csv");
+    expect(csv).toContain("Costs Across All Jobs,All time");
   });
 });
 
