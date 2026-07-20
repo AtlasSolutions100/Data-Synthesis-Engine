@@ -26,9 +26,20 @@ import {
 // The extract-hours route dynamically imports the OpenAI integration. Mock it so
 // the error-path tests can drive exactly what the model "returns" without any
 // network call or real API key.
-const { mockCreate } = vi.hoisted(() => ({ mockCreate: vi.fn() }));
+const { mockCreate, openaiImportState } = vi.hoisted(() => ({
+  mockCreate: vi.fn(),
+  // When `fail` is true, accessing the mocked module's `openai` export throws,
+  // simulating the integration failing to load (e.g. not configured). The route
+  // destructures `{ openai }` inside its try/catch, so the throw lands there.
+  openaiImportState: { fail: false },
+}));
 vi.mock("@workspace/integrations-openai-ai-server", () => ({
-  openai: { chat: { completions: { create: mockCreate } } },
+  get openai() {
+    if (openaiImportState.fail) {
+      throw new Error("simulated: OpenAI integration failed to load");
+    }
+    return { chat: { completions: { create: mockCreate } } };
+  },
 }));
 
 /** Build a chat-completion result carrying the given assistant message content. */
@@ -395,6 +406,7 @@ describe("PATCH /api/payroll-runs taxExempt round-trip", () => {
 describe("POST /api/payroll/extract-hours error handling", () => {
   beforeEach(() => {
     mockCreate.mockReset();
+    openaiImportState.fail = false;
   });
 
   it("returns 502 with a clear message when the model returns unparseable output", async () => {
@@ -495,6 +507,40 @@ describe("POST /api/payroll/extract-hours error handling", () => {
     expect(res.body.rows).toEqual([
       { workerName: "Jane Doe", regularHours: 40, overtimeHours: 5 },
     ]);
+    expect(mockCreate).toHaveBeenCalledTimes(1);
+  });
+
+  it("returns 503 with a 'not configured' message when the OpenAI integration fails to load", async () => {
+    // Simulate the integration package itself failing to import (e.g. the AI
+    // service is not configured in this environment). The route's dynamic
+    // import must reject and surface a clean 503 — never call the model.
+    openaiImportState.fail = true;
+    try {
+      const res = await request(payrollApp)
+        .post("/api/payroll/extract-hours")
+        .send({ text: "Jane 40 reg, 5 OT" });
+
+      expect(res.status).toBe(503);
+      expect(res.body.error).toMatch(/not configured/i);
+      expect(res.body.error).toMatch(/try again/i);
+      expect(mockCreate).not.toHaveBeenCalled();
+    } finally {
+      openaiImportState.fail = false;
+    }
+  });
+
+  it("returns 502 with an 'unavailable' message when the model call rejects", async () => {
+    // The integration loads fine but the completions call itself throws (API
+    // outage, timeout, etc.). The route must catch it and return a clean 502.
+    mockCreate.mockRejectedValueOnce(new Error("simulated: upstream timeout"));
+
+    const res = await request(payrollApp)
+      .post("/api/payroll/extract-hours")
+      .send({ text: "Jane 40 reg, 5 OT" });
+
+    expect(res.status).toBe(502);
+    expect(res.body.error).toMatch(/unavailable/i);
+    expect(res.body.error).toMatch(/try again/i);
     expect(mockCreate).toHaveBeenCalledTimes(1);
   });
 
