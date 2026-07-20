@@ -558,7 +558,11 @@ describe("POST /api/payroll/extract-hours error handling", () => {
       .send({ text: "Jane 40 reg, 5 OT" });
 
     expect(res.status).toBe(502);
-    expect(res.body.error).toMatch(/could not read the extracted hours/i);
+    // Exact-match: the frontend import dialog contract tests
+    // (payroll-run-form-import-errors.test.tsx) assert this precise message.
+    expect(res.body.error).toBe(
+      "Could not read the extracted hours. Please try again.",
+    );
     expect(mockCreate).toHaveBeenCalledTimes(1);
   });
 
@@ -571,7 +575,9 @@ describe("POST /api/payroll/extract-hours error handling", () => {
       .send({ text: "Some hours somewhere" });
 
     expect(res.status).toBe(502);
-    expect(res.body.error).toMatch(/could not read the extracted hours/i);
+    expect(res.body.error).toBe(
+      "Could not read the extracted hours. Please try again.",
+    );
   });
 
   it("returns 400 with a clear message when the model extracts zero rows", async () => {
@@ -585,7 +591,10 @@ describe("POST /api/payroll/extract-hours error handling", () => {
       .send({ text: "Thanks, talk soon! -- Bob" });
 
     expect(res.status).toBe(400);
-    expect(res.body.error).toMatch(/no worker hours were found/i);
+    // Exact-match: mirrors the frontend contract test for the "no rows" case.
+    expect(res.body.error).toBe(
+      "No worker hours were found in that text. Check the format and try again.",
+    );
     expect(mockCreate).toHaveBeenCalledTimes(1);
   });
 
@@ -608,7 +617,9 @@ describe("POST /api/payroll/extract-hours error handling", () => {
       .send({ text: "8 hours, 40 hours" });
 
     expect(res.status).toBe(400);
-    expect(res.body.error).toMatch(/no worker hours were found/i);
+    expect(res.body.error).toBe(
+      "No worker hours were found in that text. Check the format and try again.",
+    );
   });
 
   it("rejects oversized input with a 400 before any model call", async () => {
