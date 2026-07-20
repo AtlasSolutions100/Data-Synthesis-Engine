@@ -28,6 +28,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { InvoiceForm } from "@/components/forms/invoice-form";
+import { ApiError } from "@workspace/api-client-react";
 import { DateRangePicker, type DateRangeValue } from "@/components/date-range-picker";
 import { useQueryClient } from "@tanstack/react-query";
 import { Plus, Trash2 } from "lucide-react";
@@ -48,13 +49,26 @@ export default function Invoices() {
     query: { queryKey: getListInvoicesQueryKey(params) },
   });
 
+  const [createError, setCreateError] = useState<string | null>(null);
+
   const createInvoice = useCreateInvoice({
     mutation: {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: getListInvoicesQueryKey() });
         queryClient.invalidateQueries({ queryKey: getListJobsQueryKey() });
         queryClient.invalidateQueries({ queryKey: getGetArAgingQueryKey() });
+        setCreateError(null);
         setIsCreateOpen(false);
+      },
+      onError: (error) => {
+        if (error instanceof ApiError) {
+          const data = error.data as { error?: string } | null;
+          setCreateError(
+            data?.error ?? "Failed to save the invoice. Please try again.",
+          );
+        } else {
+          setCreateError("Failed to save the invoice. Please try again.");
+        }
       },
     },
   });
@@ -82,7 +96,13 @@ export default function Invoices() {
         </div>
         <div className="flex items-center gap-3">
         <DateRangePicker value={range} onChange={setRange} />
-        <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+        <Dialog
+          open={isCreateOpen}
+          onOpenChange={(open) => {
+            setIsCreateOpen(open);
+            if (!open) setCreateError(null);
+          }}
+        >
           <DialogTrigger asChild>
             <Button className="bg-blue-600 hover:bg-blue-700">
               <Plus className="mr-2 h-4 w-4" /> New Invoice
@@ -93,8 +113,12 @@ export default function Invoices() {
               <DialogTitle>Create Invoice</DialogTitle>
             </DialogHeader>
             <InvoiceForm
-              onSubmit={(data) => createInvoice.mutate({ data })}
+              onSubmit={(data) => {
+                setCreateError(null);
+                createInvoice.mutate({ data });
+              }}
               isLoading={createInvoice.isPending}
+              serverError={createError}
             />
           </DialogContent>
         </Dialog>

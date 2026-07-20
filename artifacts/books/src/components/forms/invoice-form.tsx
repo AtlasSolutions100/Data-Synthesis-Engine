@@ -44,6 +44,7 @@ interface InvoiceFormProps {
   onSubmit: (data: InvoiceInput) => void;
   isLoading?: boolean;
   lockJob?: boolean;
+  serverError?: string | null;
 }
 
 export function InvoiceForm({
@@ -51,6 +52,7 @@ export function InvoiceForm({
   onSubmit,
   isLoading,
   lockJob,
+  serverError,
 }: InvoiceFormProps) {
   const { data: customers } = useListCustomers({
     query: { queryKey: getListCustomersQueryKey() },
@@ -288,6 +290,15 @@ export function InvoiceForm({
             </FormItem>
           )}
         />
+        {serverError ? (
+          <p
+            role="alert"
+            className="text-sm font-medium text-destructive"
+            data-testid="text-invoice-server-error"
+          >
+            {serverError}
+          </p>
+        ) : null}
         <Button type="submit" disabled={isLoading} className="w-full">
           {isLoading ? "Saving..." : "Save Invoice"}
         </Button>

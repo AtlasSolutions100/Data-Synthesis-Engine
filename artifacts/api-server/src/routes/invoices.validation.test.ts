@@ -16,11 +16,13 @@ import {
 } from "@workspace/db";
 
 /**
- * Locks in server-side referential validation on invoice create: an invoice
- * pointing at a missing job or customer must be rejected with a clear
- * per-field 400 error instead of a foreign-key failure or a silently
- * dangling reference. Runs against the real database with uniquely named
- * fixtures torn down afterwards.
+ * Locks in server-side referential validation on invoice create: an
+ * invoice pointing at a missing job or customer must be rejected with a
+ * clear per-field 400 error instead of a foreign-key failure or a
+ * silently dangling reference. (Invoice lines carry no account
+ * references, and the update endpoint cannot change job/customer, so
+ * create is the only surface with referential inputs.) Runs against the
+ * real database with uniquely named fixtures torn down afterwards.
  */
 
 function buildApp(router: IRouter): Express {
@@ -37,6 +39,7 @@ function buildApp(router: IRouter): Express {
 let app: Express;
 let customerId: number;
 let jobId: number;
+let orphanJobId: number;
 let missingCustomerId: number;
 let missingJobId: number;
 const invoiceIds: number[] = [];
@@ -56,6 +59,13 @@ beforeAll(async () => {
     .values({ jobNumber: "TEST-IV-J1", name: "Test IV Job", customerId })
     .returning();
   jobId = job.id;
+
+  // A job with no associated customer, to exercise the required-customer path.
+  const [orphanJob] = await db
+    .insert(jobsTable)
+    .values({ jobNumber: "TEST-IV-J2", name: "Test IV Orphan Job" })
+    .returning();
+  orphanJobId = orphanJob.id;
 
   // Create-then-delete rows to obtain ids guaranteed not to exist.
   const [ghostCustomer] = await db
@@ -79,13 +89,18 @@ afterAll(async () => {
   if (invoiceIds.length) {
     await db.delete(invoicesTable).where(inArray(invoicesTable.id, invoiceIds));
   }
-  await db.delete(jobsTable).where(eq(jobsTable.id, jobId));
+  await db
+    .delete(jobsTable)
+    .where(inArray(jobsTable.id, [jobId, orphanJobId]));
   await db.delete(customersTable).where(eq(customersTable.id, customerId));
 });
 
+let invoiceSeq = 0;
+
 function baseInvoice(overrides: Record<string, unknown> = {}) {
+  invoiceSeq += 1;
   return {
-    invoiceNumber: "TEST-IV-1001",
+    invoiceNumber: `TEST-IV-${Date.now()}-${invoiceSeq}`,
     jobId,
     date: "2098-01-15",
     lines: [{ description: "test", amountCents: 1000 }],
@@ -114,6 +129,17 @@ describe("POST /api/invoices referential validation", () => {
     expect(res.body.field).toBe("customerId");
   });
 
+  it("rejects an omitted customerId when the job has no customer", async () => {
+    const res = await request(app)
+      .post("/api/invoices")
+      .send(baseInvoice({ jobId: orphanJobId }));
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe(
+      "customerId is required (job has no associated customer)",
+    );
+    expect(res.body.field).toBe("customerId");
+  });
+
   it("accepts an invoice whose references all exist", async () => {
     const res = await request(app)
       .post("/api/invoices")
@@ -121,6 +147,13 @@ describe("POST /api/invoices referential validation", () => {
     expect(res.status).toBe(201);
     invoiceIds.push(res.body.id);
     expect(res.body.jobId).toBe(jobId);
+    expect(res.body.customerId).toBe(customerId);
+  });
+
+  it("defaults to the job's customer when customerId is omitted", async () => {
+    const res = await request(app).post("/api/invoices").send(baseInvoice());
+    expect(res.status).toBe(201);
+    invoiceIds.push(res.body.id);
     expect(res.body.customerId).toBe(customerId);
   });
 });
