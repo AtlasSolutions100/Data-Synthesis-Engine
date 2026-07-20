@@ -21,6 +21,7 @@ import {
   accountsTable,
   payrollRunsTable,
   payrollLinesTable,
+  jobsTable,
 } from "@workspace/db";
 
 // The extract-hours route dynamically imports the OpenAI integration. Mock it so
@@ -284,6 +285,142 @@ describe("GET /api/payroll-runs SQL aggregation at scale", () => {
     // plain integer JSON numbers, not strings.
     expect(typeof item!.grossWagesCents).toBe("number");
     expect(Number.isSafeInteger(item!.totalCostCents)).toBe(true);
+  });
+});
+
+/**
+ * Scale regression for the WRITE path: creating/updating a run with 200+ lines
+ * must use batched inserts (not one round-trip per line). These tests lock in
+ * correctness at scale — line order, per-line computed values, and each line's
+ * allocations landing on the right line — plus a timing sanity-check.
+ */
+describe("POST/PATCH /api/payroll-runs batched line inserts at scale", () => {
+  const scaleRunIds: number[] = [];
+  let scaleJobId: number;
+
+  beforeAll(async () => {
+    const [job] = await db
+      .insert(jobsTable)
+      .values({ jobNumber: "TEST-PR-SCALE", name: "Test PR Scale Job" })
+      .returning();
+    scaleJobId = job.id;
+  });
+
+  afterAll(async () => {
+    if (scaleRunIds.length) {
+      await db
+        .delete(payrollRunsTable)
+        .where(inArray(payrollRunsTable.id, scaleRunIds));
+    }
+    if (scaleJobId != null) {
+      await db.delete(jobsTable).where(eq(jobsTable.id, scaleJobId));
+    }
+  });
+
+  const LINE_COUNT = 220;
+  // Distinct hours per line so each line's computed gross is unique and order
+  // mix-ups would be caught. Every 4th line gets an allocation to the job with
+  // an index-derived amount so allocation-to-line mapping is verifiable.
+  function buildLines() {
+    return Array.from({ length: LINE_COUNT }, (_, i) => ({
+      lineType: "employee" as const,
+      workerName: `TEST-PR Scale Worker ${String(i).padStart(3, "0")}`,
+      regularHours: 1 + (i % 40),
+      overtimeHours: 0,
+      straightRateCents: 2000 + i, // unique rate per line
+      taxExempt: false,
+      allocations:
+        i % 4 === 0 ? [{ jobId: scaleJobId, amountCents: 100 + i }] : [],
+    }));
+  }
+
+  it("creates a 200+ line run quickly, preserving order, values, and allocations", async () => {
+    const lines = buildLines();
+    const started = Date.now();
+    const createRes = await request(payrollApp)
+      .post("/api/payroll-runs")
+      .send({
+        payPeriodStart: "2098-07-01",
+        payPeriodEnd: "2098-07-15",
+        payDate: "2098-07-20",
+        laborAccountId: laborAcctId,
+        lines,
+      });
+    const elapsedMs = Date.now() - started;
+    expect(createRes.status).toBe(201);
+    scaleRunIds.push(createRes.body.id as number);
+
+    // Timing sanity-check: batched inserts finish in a couple of statements.
+    // Generous bound to avoid flakiness, but far below per-line round-trips.
+    expect(elapsedMs).toBeLessThan(10_000);
+
+    const got = createRes.body.lines as Array<{
+      workerName: string;
+      regularHours: number;
+      straightRateCents: number;
+      grossWagesCents: number;
+      allocations: Array<{ jobId: number; amountCents: number }>;
+    }>;
+    expect(got).toHaveLength(LINE_COUNT);
+    for (let i = 0; i < LINE_COUNT; i++) {
+      expect(got[i].workerName).toBe(lines[i].workerName);
+      expect(got[i].straightRateCents).toBe(lines[i].straightRateCents);
+      // Computed per-line value: regularHours * straightRate.
+      expect(got[i].grossWagesCents).toBe(
+        lines[i].regularHours * lines[i].straightRateCents,
+      );
+      if (i % 4 === 0) {
+        expect(got[i].allocations).toHaveLength(1);
+        expect(got[i].allocations[0].jobId).toBe(scaleJobId);
+        expect(got[i].allocations[0].amountCents).toBe(100 + i);
+      } else {
+        expect(got[i].allocations).toHaveLength(0);
+      }
+    }
+  });
+
+  it("replaces lines on PATCH with the same batched correctness", async () => {
+    const createRes = await request(payrollApp)
+      .post("/api/payroll-runs")
+      .send({
+        payPeriodStart: "2098-07-01",
+        payPeriodEnd: "2098-07-15",
+        payDate: "2098-07-21",
+        laborAccountId: laborAcctId,
+        lines: [
+          {
+            lineType: "employee",
+            workerName: "TEST-PR Placeholder",
+            regularHours: 1,
+            overtimeHours: 0,
+            straightRateCents: 1000,
+            taxExempt: false,
+            allocations: [],
+          },
+        ],
+      });
+    expect(createRes.status).toBe(201);
+    const runId = createRes.body.id as number;
+    scaleRunIds.push(runId);
+
+    const lines = buildLines();
+    const patchRes = await request(payrollApp)
+      .patch(`/api/payroll-runs/${runId}`)
+      .send({ lines });
+    expect(patchRes.status).toBe(200);
+    const got = patchRes.body.lines as Array<{
+      workerName: string;
+      allocations: Array<{ jobId: number; amountCents: number }>;
+    }>;
+    expect(got).toHaveLength(LINE_COUNT);
+    // Spot-check ends and an allocated line in the middle.
+    expect(got[0].workerName).toBe(lines[0].workerName);
+    expect(got[LINE_COUNT - 1].workerName).toBe(lines[LINE_COUNT - 1].workerName);
+    expect(got[100].allocations).toHaveLength(1);
+    expect(got[100].allocations[0]).toMatchObject({
+      jobId: scaleJobId,
+      amountCents: 200,
+    });
   });
 });
 

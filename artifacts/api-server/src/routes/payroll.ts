@@ -261,7 +261,8 @@ async function insertLines(
   lines: LineInput[],
   rates: BurdenRates,
 ): Promise<void> {
-  for (const l of lines) {
+  if (lines.length === 0) return;
+  const values = lines.map((l) => {
     const computed = computeLine({
       lineType: l.lineType,
       regularHours: l.regularHours,
@@ -272,31 +273,50 @@ async function insertLines(
       subcontractorAmountCents: l.subcontractorAmountCents ?? null,
       rates,
     });
-    const [line] = await tx
+    return {
+      runId,
+      lineType: l.lineType,
+      employeeId: l.employeeId ?? null,
+      vendorId: l.vendorId ?? null,
+      workerName: l.workerName,
+      regularHours: l.regularHours,
+      overtimeHours: l.overtimeHours,
+      straightRateCents: l.straightRateCents ?? null,
+      overtimeRateCents: l.overtimeRateCents ?? null,
+      taxExempt: l.taxExempt,
+      ...computed,
+    };
+  });
+
+  // Insert lines in batches to keep statement size bounded while avoiding
+  // one round-trip per line. Inserted ids come back in values order.
+  const BATCH_SIZE = 500;
+  const insertedIds: number[] = [];
+  for (let i = 0; i < values.length; i += BATCH_SIZE) {
+    const batch = values.slice(i, i + BATCH_SIZE);
+    const rows = await tx
       .insert(payrollLinesTable)
-      .values({
-        runId,
-        lineType: l.lineType,
-        employeeId: l.employeeId ?? null,
-        vendorId: l.vendorId ?? null,
-        workerName: l.workerName,
-        regularHours: l.regularHours,
-        overtimeHours: l.overtimeHours,
-        straightRateCents: l.straightRateCents ?? null,
-        overtimeRateCents: l.overtimeRateCents ?? null,
-        taxExempt: l.taxExempt,
-        ...computed,
-      })
-      .returning();
-    if (l.allocations.length) {
-      await tx.insert(payrollAllocationsTable).values(
-        l.allocations.map((a) => ({
-          lineId: line.id,
-          jobId: a.jobId,
-          amountCents: a.amountCents,
-        })),
+      .values(batch)
+      .returning({ id: payrollLinesTable.id });
+    if (rows.length !== batch.length) {
+      throw new Error(
+        `Payroll line batch insert returned ${rows.length} rows, expected ${batch.length}`,
       );
     }
+    for (const r of rows) insertedIds.push(r.id);
+  }
+
+  const allocationValues = lines.flatMap((l, idx) =>
+    l.allocations.map((a) => ({
+      lineId: insertedIds[idx],
+      jobId: a.jobId,
+      amountCents: a.amountCents,
+    })),
+  );
+  for (let i = 0; i < allocationValues.length; i += BATCH_SIZE) {
+    await tx
+      .insert(payrollAllocationsTable)
+      .values(allocationValues.slice(i, i + BATCH_SIZE));
   }
 }
 
