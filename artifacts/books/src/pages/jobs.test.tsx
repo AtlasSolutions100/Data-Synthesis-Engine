@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, cleanup } from "@testing-library/react";
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import Jobs from "./jobs";
 
@@ -87,5 +89,46 @@ describe("Jobs page cache invalidation", () => {
     expect(invalidateSpy).toHaveBeenCalledWith({
       queryKey: ["/api/customers"],
     });
+  });
+});
+
+// The dashboard's per-customer job count badges come from the customers list
+// query. Any component that creates, updates, or deletes jobs must invalidate
+// getListCustomersQueryKey() or those badges go stale. This scan enforces the
+// rule across the whole app (e.g. if job mutations are ever added to
+// job-detail.tsx), so new mutation sites can't silently skip the invalidation.
+describe("job mutation sites invalidate the customers list", () => {
+  const SRC_ROOT = join(__dirname, "..");
+  const JOB_MUTATION_HOOKS = /\buse(?:Create|Update|Delete)Job\b/;
+
+  function collectSourceFiles(dir: string): string[] {
+    const files: string[] = [];
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const full = join(dir, entry.name);
+      if (entry.isDirectory()) {
+        files.push(...collectSourceFiles(full));
+      } else if (/\.tsx?$/.test(entry.name) && !/\.test\.tsx?$/.test(entry.name)) {
+        files.push(full);
+      }
+    }
+    return files;
+  }
+
+  it("every file using a job create/update/delete hook also invalidates getListCustomersQueryKey", () => {
+    const offenders: string[] = [];
+    for (const file of collectSourceFiles(SRC_ROOT)) {
+      const content = readFileSync(file, "utf8");
+      if (JOB_MUTATION_HOOKS.test(content) && !content.includes("getListCustomersQueryKey")) {
+        offenders.push(file);
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
+
+  it("sanity check: the scan finds the known job mutation site (jobs.tsx)", () => {
+    const mutationFiles = collectSourceFiles(SRC_ROOT).filter((file) =>
+      JOB_MUTATION_HOOKS.test(readFileSync(file, "utf8")),
+    );
+    expect(mutationFiles.some((f) => f.endsWith("pages/jobs.tsx"))).toBe(true);
   });
 });
