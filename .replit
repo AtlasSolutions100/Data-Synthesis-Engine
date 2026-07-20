@@ -24,6 +24,10 @@ args = "test"
 task = "workflow.run"
 args = "codegen-check"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "pdf-streaming"
+
 [[workflows.workflow]]
 name = "test"
 author = "agent"
@@ -45,6 +49,17 @@ isValidation = true
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "bash scripts/codegen-check.sh"
+
+[[workflows.workflow]]
+name = "pdf-streaming"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "node scripts/check-pdf-streaming.mjs"
+
+[workflows.workflow.metadata]
+isValidation = true
 
 [agent]
 stack = "PNPM_WORKSPACE"
