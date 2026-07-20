@@ -59,6 +59,10 @@ const ERR_503 =
   "The hours extraction service is not configured. Please try again later.";
 const ERR_502 =
   "The hours extraction service is unavailable. Please try again.";
+const ERR_502_UNPARSEABLE =
+  "Could not read the extracted hours. Please try again.";
+const ERR_400_NO_ROWS =
+  "No worker hours were found in that text. Check the format and try again.";
 
 function apiError(status: number, error: string) {
   // Shape produced by the generated client's error handling: the parsed JSON
@@ -120,6 +124,69 @@ describe("ImportHoursDialog AI-service error handling", () => {
     expect(mutateAsync).toHaveBeenCalledTimes(2);
     expect(mutateAsync).toHaveBeenLastCalledWith({ data: { text: pasted } });
     // Extracted row shows up for review.
+    expect(screen.getAllByText("John Smith").length).toBeGreaterThan(0);
+  });
+
+  it("shows the 502 'could not read' message when the AI returns garbled results and allows retry without re-pasting", async () => {
+    mutateAsync
+      .mockRejectedValueOnce(apiError(502, ERR_502_UNPARSEABLE))
+      .mockResolvedValueOnce({
+        rows: [{ workerName: "John Smith", regularHours: 40, overtimeHours: 5 }],
+      });
+    render(<PayrollRunForm onSubmit={vi.fn()} defaultValues={defaults} />);
+
+    const pasted = "John Smith — 40 reg, 5 OT";
+    const textarea = await openDialogAndPaste(pasted);
+
+    fireEvent.click(screen.getByRole("button", { name: /extract hours/i }));
+    await waitFor(() =>
+      expect(screen.getByText(ERR_502_UNPARSEABLE)).toBeTruthy(),
+    );
+    // Still on the input stage with the user's text intact.
+    expect(textarea.value).toBe(pasted);
+
+    // Retry with the same pasted text — no re-typing needed.
+    fireEvent.click(screen.getByRole("button", { name: /extract hours/i }));
+
+    await waitFor(() =>
+      expect(screen.getByText(/will be applied/i)).toBeTruthy(),
+    );
+    expect(screen.queryByText(ERR_502_UNPARSEABLE)).toBeNull();
+    expect(mutateAsync).toHaveBeenCalledTimes(2);
+    expect(mutateAsync).toHaveBeenLastCalledWith({ data: { text: pasted } });
+    expect(screen.getAllByText("John Smith").length).toBeGreaterThan(0);
+  });
+
+  it("shows the 400 'no worker hours found' message and allows retry without re-pasting", async () => {
+    mutateAsync
+      .mockRejectedValueOnce(apiError(400, ERR_400_NO_ROWS))
+      .mockResolvedValueOnce({
+        rows: [{ workerName: "John Smith", regularHours: 40, overtimeHours: 5 }],
+      });
+    render(<PayrollRunForm onSubmit={vi.fn()} defaultValues={defaults} />);
+
+    const pasted = "John Smith — 40 reg, 5 OT";
+    const textarea = await openDialogAndPaste(pasted);
+
+    fireEvent.click(screen.getByRole("button", { name: /extract hours/i }));
+    await waitFor(() =>
+      expect(screen.getByText(ERR_400_NO_ROWS)).toBeTruthy(),
+    );
+    // Still on the input stage with the user's text intact.
+    expect(textarea.value).toBe(pasted);
+    expect(
+      screen.getByRole("button", { name: /extract hours/i }),
+    ).toBeTruthy();
+
+    // Retry with the same pasted text — no re-typing needed.
+    fireEvent.click(screen.getByRole("button", { name: /extract hours/i }));
+
+    await waitFor(() =>
+      expect(screen.getByText(/will be applied/i)).toBeTruthy(),
+    );
+    expect(screen.queryByText(ERR_400_NO_ROWS)).toBeNull();
+    expect(mutateAsync).toHaveBeenCalledTimes(2);
+    expect(mutateAsync).toHaveBeenLastCalledWith({ data: { text: pasted } });
     expect(screen.getAllByText("John Smith").length).toBeGreaterThan(0);
   });
 
