@@ -208,8 +208,8 @@ export default function Reports() {
     },
   );
   const { data: accountBalances, isLoading: balancesLoading } =
-    useGetAccountBalances({
-      query: { queryKey: getGetAccountBalancesQueryKey() },
+    useGetAccountBalances(agingParams, {
+      query: { queryKey: getGetAccountBalancesQueryKey(agingParams) },
     });
 
   return (

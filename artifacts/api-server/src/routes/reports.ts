@@ -31,6 +31,7 @@ import {
   GetPayrollByJobResponse,
   GetPayrollByJobQueryParams,
   GetAccountBalancesResponse,
+  GetAccountBalancesQueryParams,
 } from "@workspace/api-zod";
 import {
   getBalanceSheetBalances,
@@ -281,8 +282,13 @@ router.get("/reports/cost-by-account", async (req, res): Promise<void> => {
   );
 });
 
-router.get("/reports/account-balances", async (_req, res): Promise<void> => {
-  const rows = await getBalanceSheetBalances();
+router.get("/reports/account-balances", async (req, res): Promise<void> => {
+  const query = GetAccountBalancesQueryParams.safeParse(req.query);
+  if (!query.success) {
+    res.status(400).json({ error: query.error.message });
+    return;
+  }
+  const rows = await getBalanceSheetBalances(query.data.asOf);
   res.json(GetAccountBalancesResponse.parse({ rows }));
 });
 

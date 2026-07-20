@@ -7,6 +7,6 @@
  */
 
 /**
- * Report balances as of this date (YYYY-MM-DD). Omit for today.
+ * Report balances as of this date, inclusive (YYYY-MM-DD). When omitted, all transactions count regardless of date; aging buckets are computed relative to today.
  */
 export type AsOfDateParamParameter = string;

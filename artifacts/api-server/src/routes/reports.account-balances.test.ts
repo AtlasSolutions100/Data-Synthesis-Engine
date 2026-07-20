@@ -67,11 +67,12 @@ async function addTx(values: {
   accountId: number;
   splitAccountId?: number;
   amountCents: number;
+  date?: string;
 }): Promise<void> {
   const [row] = await db
     .insert(transactionsTable)
     .values({
-      date: "2098-06-15",
+      date: values.date ?? "2098-06-15",
       type: "TEST-BAL",
       description: "TEST-BAL fixture",
       accountId: values.accountId,
@@ -125,6 +126,16 @@ beforeAll(async () => {
     splitAccountId: emptyBankId,
     amountCents: 7000,
   });
+  // Later-dated activity, excluded when asOf=2098-06-30:
+  // direct deposit to Checking +9000 on 2098-07-01.
+  await addTx({ accountId: checkingId, amountCents: 9000, date: "2098-07-01" });
+  // Expense paid from Checking on 2098-07-02: Checking -4000.
+  await addTx({
+    accountId: expenseId,
+    splitAccountId: checkingId,
+    amountCents: 4000,
+    date: "2098-07-02",
+  });
 });
 
 afterAll(async () => {
@@ -152,8 +163,8 @@ describe("GET /api/reports/account-balances", () => {
     const byId = new Map(rows.map((r) => [r.accountId, r]));
 
     // Checking: +40000 (income deposit) -15000 (expense) +5000 (direct)
-    // +7000 (transfer in) = 37000.
-    expect(byId.get(checkingId)?.balanceCents).toBe(37000);
+    // +7000 (transfer in) +9000 (July deposit) -4000 (July expense) = 42000.
+    expect(byId.get(checkingId)?.balanceCents).toBe(42000);
     expect(byId.get(checkingId)?.type).toBe("bank");
 
     // A/R: +100000 from income split.
@@ -183,5 +194,42 @@ describe("GET /api/reports/account-balances", () => {
     for (const t of types) {
       expect(["asset", "bank", "liability", "credit_card"]).toContain(t);
     }
+  });
+
+  it("filters out transactions dated after asOf, on both primary and split sides", async () => {
+    const res = await request(app).get(
+      "/api/reports/account-balances?asOf=2098-06-30",
+    );
+    expect(res.status).toBe(200);
+    const byId = new Map(
+      (res.body.rows as Array<{ accountId: number; balanceCents: number }>).map(
+        (r) => [r.accountId, r],
+      ),
+    );
+    // Excludes the July +9000 direct deposit and the July -4000 expense split.
+    expect(byId.get(checkingId)?.balanceCents).toBe(37000);
+    // Untouched accounts are unchanged.
+    expect(byId.get(arId)?.balanceCents).toBe(100000);
+    expect(byId.get(cardId)?.balanceCents).toBe(25000);
+  });
+
+  it("includes transactions dated exactly on asOf", async () => {
+    const res = await request(app).get(
+      "/api/reports/account-balances?asOf=2098-06-15",
+    );
+    expect(res.status).toBe(200);
+    const byId = new Map(
+      (res.body.rows as Array<{ accountId: number; balanceCents: number }>).map(
+        (r) => [r.accountId, r],
+      ),
+    );
+    expect(byId.get(checkingId)?.balanceCents).toBe(37000);
+  });
+
+  it("rejects a malformed asOf date", async () => {
+    const res = await request(app).get(
+      "/api/reports/account-balances?asOf=June-30",
+    );
+    expect(res.status).toBe(400);
   });
 });

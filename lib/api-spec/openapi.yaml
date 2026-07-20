@@ -678,7 +678,9 @@ paths:
       operationId: getAccountBalances
       tags: [reports]
       summary: Balance-sheet account balances
-      description: Computed balance of each balance-sheet account (asset, bank, liability, credit_card) from linked transaction and split lines.
+      description: Computed balance of each balance-sheet account (asset, bank, liability, credit_card) from linked transaction and split lines. When asOf is provided, only transactions dated on or before asOf count; omitted = all-time.
+      parameters:
+        - $ref: "#/components/parameters/AsOfDateParam"
       responses:
         "200":
           description: Balance-sheet account balances
@@ -1355,7 +1357,7 @@ components:
       name: asOf
       in: query
       required: false
-      description: Report balances as of this date (YYYY-MM-DD). Omit for today.
+      description: Report balances as of this date, inclusive (YYYY-MM-DD). When omitted, all transactions count regardless of date; aging buckets are computed relative to today.
       schema:
         type: string
         pattern: "^\\d{4}-\\d{2}-\\d{2}$"

@@ -1200,7 +1200,7 @@ export type StartDateParamParameter = string;
 export type EndDateParamParameter = string;
 
 /**
- * Report balances as of this date (YYYY-MM-DD). Omit for today.
+ * Report balances as of this date, inclusive (YYYY-MM-DD). When omitted, all transactions count regardless of date; aging buckets are computed relative to today.
  */
 export type AsOfDateParamParameter = string;
 
@@ -1251,9 +1251,17 @@ startDate?: StartDateParamParameter;
 endDate?: EndDateParamParameter;
 };
 
+export type GetAccountBalancesParams = {
+/**
+ * Report balances as of this date, inclusive (YYYY-MM-DD). When omitted, all transactions count regardless of date; aging buckets are computed relative to today.
+ * @pattern ^\d{4}-\d{2}-\d{2}$
+ */
+asOf?: AsOfDateParamParameter;
+};
+
 export type GetArAgingParams = {
 /**
- * Report balances as of this date (YYYY-MM-DD). Omit for today.
+ * Report balances as of this date, inclusive (YYYY-MM-DD). When omitted, all transactions count regardless of date; aging buckets are computed relative to today.
  * @pattern ^\d{4}-\d{2}-\d{2}$
  */
 asOf?: AsOfDateParamParameter;
@@ -1261,7 +1269,7 @@ asOf?: AsOfDateParamParameter;
 
 export type GetApAgingParams = {
 /**
- * Report balances as of this date (YYYY-MM-DD). Omit for today.
+ * Report balances as of this date, inclusive (YYYY-MM-DD). When omitted, all transactions count regardless of date; aging buckets are computed relative to today.
  * @pattern ^\d{4}-\d{2}-\d{2}$
  */
 asOf?: AsOfDateParamParameter;

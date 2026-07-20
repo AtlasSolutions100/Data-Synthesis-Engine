@@ -184,12 +184,23 @@ export type AccountBalanceRow = {
  *     expense split to Checking decreases it; split to a credit card
  *     increases the card balance; income split to A/R increases A/R).
  * Accounts with no linked transactions are included with a zero balance.
+ *
+ * When `asOf` (YYYY-MM-DD) is provided, only transactions dated on or before
+ * that date are counted. When omitted, all transactions count (all-time),
+ * including future-dated ones, matching the AR/AP aging semantics.
  */
-export async function getBalanceSheetBalances(): Promise<AccountBalanceRow[]> {
+export async function getBalanceSheetBalances(
+  asOf?: string,
+): Promise<AccountBalanceRow[]> {
   const accounts = await db
     .select()
     .from(accountsTable)
     .where(inArray(accountsTable.type, [...BALANCE_SHEET_TYPES]));
+
+  const primaryConds = [
+    inArray(accountsTable.type, [...BALANCE_SHEET_TYPES]),
+  ];
+  if (asOf) primaryConds.push(lte(transactionsTable.date, asOf));
 
   const primarySums = await db
     .select({
@@ -198,8 +209,11 @@ export async function getBalanceSheetBalances(): Promise<AccountBalanceRow[]> {
     })
     .from(transactionsTable)
     .innerJoin(accountsTable, eq(accountsTable.id, transactionsTable.accountId))
-    .where(inArray(accountsTable.type, [...BALANCE_SHEET_TYPES]))
+    .where(and(...primaryConds))
     .groupBy(transactionsTable.accountId);
+
+  const splitConds = [isNotNull(transactionsTable.splitAccountId)];
+  if (asOf) splitConds.push(lte(transactionsTable.date, asOf));
 
   const splitSums = await db
     .select({
@@ -209,7 +223,7 @@ export async function getBalanceSheetBalances(): Promise<AccountBalanceRow[]> {
     })
     .from(transactionsTable)
     .innerJoin(accountsTable, eq(accountsTable.id, transactionsTable.accountId))
-    .where(isNotNull(transactionsTable.splitAccountId))
+    .where(and(...splitConds))
     .groupBy(transactionsTable.splitAccountId, accountsTable.type);
 
   const primaryMap = new Map(

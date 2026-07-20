@@ -42,6 +42,7 @@ import type {
   ErrorResponse,
   ExtractPayrollHoursInput,
   ExtractPayrollHoursResult,
+  GetAccountBalancesParams,
   GetApAgingParams,
   GetArAgingParams,
   GetCostByAccountParams,
@@ -2854,21 +2855,28 @@ export function useGetCostByAccount<TData = Awaited<ReturnType<typeof getCostByA
 
 
 
-export const getGetAccountBalancesUrl = () => {
+export const getGetAccountBalancesUrl = (params?: GetAccountBalancesParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
 
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
 
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/api/reports/account-balances`
+  return stringifiedParams.length > 0 ? `/api/reports/account-balances?${stringifiedParams}` : `/api/reports/account-balances`
 }
 
 /**
- * Computed balance of each balance-sheet account (asset, bank, liability, credit_card) from linked transaction and split lines.
+ * Computed balance of each balance-sheet account (asset, bank, liability, credit_card) from linked transaction and split lines. When asOf is provided, only transactions dated on or before asOf count; omitted = all-time.
  * @summary Balance-sheet account balances
  */
-export const getAccountBalances = async ( options?: RequestInit): Promise<AccountBalances> => {
+export const getAccountBalances = async (params?: GetAccountBalancesParams, options?: RequestInit): Promise<AccountBalances> => {
 
-  return customFetch<AccountBalances>(getGetAccountBalancesUrl(),
+  return customFetch<AccountBalances>(getGetAccountBalancesUrl(params),
   {
     ...options,
     method: 'GET'
@@ -2881,23 +2889,23 @@ export const getAccountBalances = async ( options?: RequestInit): Promise<Accoun
 
 
 
-export const getGetAccountBalancesQueryKey = () => {
+export const getGetAccountBalancesQueryKey = (params?: GetAccountBalancesParams,) => {
     return [
-    `/api/reports/account-balances`
+    `/api/reports/account-balances`, ...(params ? [params] : [])
     ] as const;
     }
 
 
-export const getGetAccountBalancesQueryOptions = <TData = Awaited<ReturnType<typeof getAccountBalances>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAccountBalances>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getGetAccountBalancesQueryOptions = <TData = Awaited<ReturnType<typeof getAccountBalances>>, TError = ErrorType<unknown>>(params?: GetAccountBalancesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAccountBalances>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetAccountBalancesQueryKey();
+  const queryKey =  queryOptions?.queryKey ?? getGetAccountBalancesQueryKey(params);
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getAccountBalances>>> = ({ signal }) => getAccountBalances({ signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getAccountBalances>>> = ({ signal }) => getAccountBalances(params, { signal, ...requestOptions });
 
 
 
@@ -2915,11 +2923,11 @@ export type GetAccountBalancesQueryError = ErrorType<unknown>
  */
 
 export function useGetAccountBalances<TData = Awaited<ReturnType<typeof getAccountBalances>>, TError = ErrorType<unknown>>(
-  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAccountBalances>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+ params?: GetAccountBalancesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAccountBalances>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
-  const queryOptions = getGetAccountBalancesQueryOptions(options)
+  const queryOptions = getGetAccountBalancesQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

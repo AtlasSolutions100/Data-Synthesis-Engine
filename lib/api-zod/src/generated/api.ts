@@ -857,9 +857,16 @@ export const GetCostByAccountResponse = zod.array(GetCostByAccountResponseItem)
 
 
 /**
- * Computed balance of each balance-sheet account (asset, bank, liability, credit_card) from linked transaction and split lines.
+ * Computed balance of each balance-sheet account (asset, bank, liability, credit_card) from linked transaction and split lines. When asOf is provided, only transactions dated on or before asOf count; omitted = all-time.
  * @summary Balance-sheet account balances
  */
+export const getAccountBalancesQueryAsOfRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+
+
+export const GetAccountBalancesQueryParams = zod.object({
+  "asOf": zod.coerce.string().regex(getAccountBalancesQueryAsOfRegExp).optional().describe('Report balances as of this date, inclusive (YYYY-MM-DD). When omitted, all transactions count regardless of date; aging buckets are computed relative to today.')
+})
+
 export const GetAccountBalancesResponse = zod.object({
   "rows": zod.array(zod.object({
   "accountId": zod.number(),
@@ -879,7 +886,7 @@ export const getArAgingQueryAsOfRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
 
 
 export const GetArAgingQueryParams = zod.object({
-  "asOf": zod.coerce.string().regex(getArAgingQueryAsOfRegExp).optional().describe('Report balances as of this date (YYYY-MM-DD). Omit for today.')
+  "asOf": zod.coerce.string().regex(getArAgingQueryAsOfRegExp).optional().describe('Report balances as of this date, inclusive (YYYY-MM-DD). When omitted, all transactions count regardless of date; aging buckets are computed relative to today.')
 })
 
 export const GetArAgingResponse = zod.object({
@@ -926,7 +933,7 @@ export const getApAgingQueryAsOfRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
 
 
 export const GetApAgingQueryParams = zod.object({
-  "asOf": zod.coerce.string().regex(getApAgingQueryAsOfRegExp).optional().describe('Report balances as of this date (YYYY-MM-DD). Omit for today.')
+  "asOf": zod.coerce.string().regex(getApAgingQueryAsOfRegExp).optional().describe('Report balances as of this date, inclusive (YYYY-MM-DD). When omitted, all transactions count regardless of date; aging buckets are computed relative to today.')
 })
 
 export const GetApAgingResponse = zod.object({

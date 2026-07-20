@@ -51,6 +51,7 @@ export * from './errorResponse';
 export * from './extractedHourRow';
 export * from './extractPayrollHoursInput';
 export * from './extractPayrollHoursResult';
+export * from './getAccountBalancesParams';
 export * from './getApAgingParams';
 export * from './getArAgingParams';
 export * from './getCostByAccountParams';
