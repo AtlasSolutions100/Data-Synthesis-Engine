@@ -9,6 +9,7 @@ import type {
   ApAging,
 } from "@workspace/api-client-react";
 import Reports from "./reports";
+import { unzipSync, strFromU8 } from "fflate";
 import { downloadAgingXlsx } from "@/lib/aging-xlsx";
 import { Toaster } from "@/components/ui/toaster";
 import { waitFor } from "@testing-library/react";
@@ -24,6 +25,16 @@ const downloadCsv = vi.fn();
 vi.mock("@/lib/aging-csv", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/aging-csv")>();
   return { ...actual, downloadCsv: (...args: unknown[]) => downloadCsv(...args) };
+});
+
+const downloadZip = vi.fn();
+
+vi.mock("@/lib/reports-csv", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/reports-csv")>();
+  return {
+    ...actual,
+    downloadZip: (...args: unknown[]) => downloadZip(...args),
+  };
 });
 
 vi.mock("@/lib/aging-xlsx", () => ({
@@ -302,6 +313,85 @@ describe("Aging summary rows link to customer/vendor pages", () => {
     // Clicking elsewhere on the row still toggles expansion.
     await user.click(screen.getByTestId("row-ar-customer-7"));
     expect(screen.getByText("Invoice #")).toBeTruthy();
+  });
+});
+
+describe("Export All (Zip) downloads a valid zip with three CSVs", () => {
+  beforeEach(() => {
+    downloadZip.mockClear();
+  });
+
+  afterEach(() => {
+    cleanup();
+  });
+
+  function lastZip(): { data: Uint8Array; filename: string } {
+    expect(downloadZip).toHaveBeenCalled();
+    const [data, filename] =
+      downloadZip.mock.calls[downloadZip.mock.calls.length - 1];
+    return { data: data as Uint8Array, filename: filename as string };
+  }
+
+  function expectValidCsv(content: string) {
+    expect(content.length).toBeGreaterThan(0);
+    const rows = content.trimEnd().split("\r\n");
+    expect(rows.length).toBeGreaterThan(1);
+    // Header row with at least two comma-separated columns, readable text.
+    expect(rows[0]).toMatch(/^[\x20-\x7E]+$/);
+    expect(rows[0]).toContain(",");
+  }
+
+  it("all-time range: builds month-end-reports-all-time.zip containing exactly three date-stamped CSVs", async () => {
+    const user = userEvent.setup();
+    renderReports();
+
+    await user.click(screen.getByTestId("button-export-all-zip"));
+    const { data, filename } = lastZip();
+
+    expect(filename).toBe("month-end-reports-all-time.zip");
+
+    const files = unzipSync(new Uint8Array(data));
+    const names = Object.keys(files).sort();
+    expect(names).toEqual([
+      "aging-detail-as-of-2026-07-17.csv",
+      "aging-summary-as-of-2026-07-17.csv",
+      "job-reports-all-time.csv",
+    ]);
+    expect(names.every((n) => n.endsWith(".csv"))).toBe(true);
+
+    for (const name of names) {
+      expectValidCsv(strFromU8(files[name]));
+    }
+
+    const jobReports = strFromU8(files["job-reports-all-time.csv"]);
+    expect(jobReports).toContain("Costs Across All Jobs,All time");
+    expect(jobReports).toContain("Total,,4444.00");
+    const summary = strFromU8(files["aging-summary-as-of-2026-07-17.csv"]);
+    expect(summary).toContain("Accounts Receivable Aging,As of 2026-07-17");
+    expect(summary).toContain("Accounts Payable Aging,As of 2026-07-17");
+    const detail = strFromU8(files["aging-detail-as-of-2026-07-17.csv"]);
+    expect(detail).toContain("Accounts Receivable Aging Detail,As of 2026-07-17");
+    expect(detail).toContain("Accounts Payable Aging Detail,As of 2026-07-17");
+  });
+
+  it("selected range: zip and job-reports filenames carry the range slug", async () => {
+    const user = userEvent.setup();
+    renderReports();
+
+    await user.click(screen.getByTestId("pick-start-only"));
+    await user.click(screen.getByTestId("button-export-all-zip"));
+    const { data, filename } = lastZip();
+
+    expect(filename).toBe("month-end-reports-from-2026-06-01.zip");
+    const files = unzipSync(new Uint8Array(data));
+    expect(Object.keys(files).sort()).toEqual([
+      "aging-detail-as-of-2026-07-17.csv",
+      "aging-summary-as-of-2026-07-17.csv",
+      "job-reports-from-2026-06-01.csv",
+    ]);
+    const jobReports = strFromU8(files["job-reports-from-2026-06-01.csv"]);
+    expect(jobReports).toContain("Costs Across All Jobs,From 2026-06-01");
+    expect(jobReports).toContain("Total,,2222.00");
   });
 });
 
