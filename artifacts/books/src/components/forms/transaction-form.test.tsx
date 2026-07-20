@@ -165,6 +165,42 @@ describe("TransactionForm server field errors", () => {
     expect(screen.queryByTestId("text-transaction-server-error")).toBeNull();
   });
 
+  it("attaches a server error with field 'customerId' to the customer input", async () => {
+    render(
+      <TransactionForm
+        onSubmit={vi.fn()}
+        serverError={{
+          field: "customerId",
+          message: "Customer 999 does not exist",
+        }}
+        defaultValues={{ ...baseDefaults, customerId: "999" }}
+      />,
+    );
+
+    await waitFor(() =>
+      expect(screen.getByText("Customer 999 does not exist")).toBeTruthy(),
+    );
+    expect(screen.queryByTestId("text-transaction-server-error")).toBeNull();
+  });
+
+  it("attaches a server error with field 'jobId' to the job input", async () => {
+    render(
+      <TransactionForm
+        onSubmit={vi.fn()}
+        serverError={{
+          field: "jobId",
+          message: "Job 999 does not exist",
+        }}
+        defaultValues={{ ...baseDefaults, jobId: "999" }}
+      />,
+    );
+
+    await waitFor(() =>
+      expect(screen.getByText("Job 999 does not exist")).toBeTruthy(),
+    );
+    expect(screen.queryByTestId("text-transaction-server-error")).toBeNull();
+  });
+
   it("falls back to the form-level message when no field is provided", async () => {
     render(
       <TransactionForm
