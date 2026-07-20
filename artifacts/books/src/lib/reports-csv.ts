@@ -93,9 +93,13 @@ export function buildJobReportsCsv(
 
 export function buildAccountBalancesCsv(
   accountBalances: AccountBalances,
+  asOf?: string,
 ): string {
   const lines: string[][] = [];
-  lines.push(["Account Balances", "All transactions"]);
+  lines.push([
+    "Account Balances",
+    asOf ? `As of ${asOf}` : "All transactions",
+  ]);
   lines.push(["Account", "Type", "Balance"]);
   for (const row of accountBalances.rows) {
     lines.push([
@@ -131,7 +135,7 @@ export function buildMonthEndCsv(
   const jobReports = buildJobReportsCsv(costByAccount, payrollByJob, range);
   const aging = buildAgingCsv(arAging, apAging);
   const agingDetail = buildAgingDetailCsv(arAging, apAging);
-  const balances = buildAccountBalancesCsv(accountBalances);
+  const balances = buildAccountBalancesCsv(accountBalances, range.endDate);
   return jobReports + "\r\n" + aging + "\r\n" + agingDetail + "\r\n" + balances;
 }
 
@@ -189,7 +193,7 @@ export function buildMonthEndZipEntries(
     },
     {
       filename: `account-balances-${rangeSlug(range)}.csv`,
-      content: buildAccountBalancesCsv(accountBalances),
+      content: buildAccountBalancesCsv(accountBalances, range.endDate),
     },
   ];
 }

@@ -205,6 +205,13 @@ describe("buildAccountBalancesCsv", () => {
       "Account Balances,All transactions\r\nAccount,Type,Balance\r\n",
     );
   });
+
+  it("labels the as-of date when one is provided", () => {
+    const dated = buildAccountBalancesCsv(accountBalances, "2026-06-30");
+    const datedRows = dated.trimEnd().split("\r\n");
+    expect(datedRows[0]).toBe("Account Balances,As of 2026-06-30");
+    expect(datedRows[1]).toBe("Account,Type,Balance");
+  });
 });
 
 describe("buildMonthEndCsv", () => {
@@ -259,7 +266,7 @@ describe("buildMonthEndCsv", () => {
     const idxApDetail = rows.indexOf(
       "Accounts Payable Aging Detail,As of 2026-06-30",
     );
-    const idxBalances = rows.indexOf("Account Balances,All transactions");
+    const idxBalances = rows.indexOf("Account Balances,As of 2026-06-30");
     expect(idxBalances).toBeGreaterThan(idxApDetail);
     expect(rows[idxBalances - 1]).toBe("");
     expect(rows).toContain("2100 - Equipment Loan,Loan,-1000.00");

@@ -439,7 +439,7 @@ describe("Export All (Zip) downloads a valid zip with three CSVs", () => {
     expect(detail).toContain("Accounts Receivable Aging Detail,As of 2026-07-17");
     expect(detail).toContain("Accounts Payable Aging Detail,As of 2026-07-17");
     const balances = strFromU8(files["account-balances-all-time.csv"]);
-    expect(balances).toContain("Account Balances");
+    expect(balances).toContain("Account Balances,All transactions");
     expect(balances).toContain("1000 - Checking,Bank,12345.00");
     expect(balances).toContain("2100 - Home Depot CC,Credit Card,456.00");
   });
@@ -477,6 +477,10 @@ describe("Export All (Zip) downloads a valid zip with three CSVs", () => {
     // Totals reflect the range-filtered dataset, not the all-time one.
     expect(jobReports).toContain("Total,,1111.00");
     expect(jobReports).toContain("Total,1000.00,0.00,1000.00,250.00,1250.00");
+    const balances = strFromU8(
+      files["account-balances-2026-06-01-to-2026-06-30.csv"],
+    );
+    expect(balances).toContain("Account Balances,As of 2026-06-30");
   });
 
   it("selected range: zip and job-reports filenames carry the range slug", async () => {

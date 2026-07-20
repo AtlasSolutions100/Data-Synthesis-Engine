@@ -474,8 +474,10 @@ export default function Reports() {
       <Card>
         <CardHeader>
           <CardTitle>Account Balances</CardTitle>
-          <p className="text-sm text-slate-500">
-            Balance-sheet accounts computed from all linked transactions
+          <p className="text-sm text-slate-500" data-testid="text-account-balances-subtitle">
+            {range.endDate
+              ? `Balance-sheet accounts as of ${range.endDate}`
+              : "Balance-sheet accounts computed from all linked transactions"}
           </p>
         </CardHeader>
         <CardContent className="p-0">
