@@ -190,6 +190,23 @@ describe("ImportHoursDialog AI-service error handling", () => {
     expect(screen.getAllByText("John Smith").length).toBeGreaterThan(0);
   });
 
+  it("rejects oversized pastes client-side without sending a request", async () => {
+    const { MAX_EXTRACT_TEXT_LENGTH } = await import("@workspace/api-zod");
+    render(<PayrollRunForm onSubmit={vi.fn()} defaultValues={defaults} />);
+
+    const huge = "x".repeat(MAX_EXTRACT_TEXT_LENGTH + 1);
+    const textarea = await openDialogAndPaste(huge);
+
+    fireEvent.click(screen.getByRole("button", { name: /extract hours/i }));
+
+    await waitFor(() =>
+      expect(screen.getByText(/too large to import/i)).toBeTruthy(),
+    );
+    expect(mutateAsync).not.toHaveBeenCalled();
+    // Text is preserved so the user can trim it down.
+    expect(textarea.value).toBe(huge);
+  });
+
   it("falls back to a friendly generic message when the error has no server body", async () => {
     mutateAsync.mockRejectedValueOnce(new Error("Network Error"));
     render(<PayrollRunForm onSubmit={vi.fn()} defaultValues={defaults} />);

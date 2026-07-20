@@ -50,6 +50,10 @@ import {
   useExtractPayrollHours,
   type PayrollRunInput,
 } from "@workspace/api-client-react";
+import {
+  MAX_EXTRACT_TEXT_LENGTH,
+  extractTextTooLargeMessage,
+} from "@workspace/api-zod";
 
 const allocationSchema = z.object({
   jobId: z.string().min(1, "Job ID required"),
@@ -590,6 +594,10 @@ function ImportHoursDialog({ form }: { form: UseFormReturn<RunFormValues> }) {
     setError("");
     if (!text.trim()) {
       setError("Paste some text or upload a file first.");
+      return;
+    }
+    if (text.length > MAX_EXTRACT_TEXT_LENGTH) {
+      setError(extractTextTooLargeMessage(text.length));
       return;
     }
     try {
