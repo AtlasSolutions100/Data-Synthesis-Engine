@@ -206,4 +206,35 @@ describe("GET /api/storage/objects/*", () => {
     expect(Buffer.from(res.body).toString()).toBe(mocks.downloadBody);
     expect(mocks.getObjectEntityFile).toHaveBeenCalledWith("/objects/uploads/tracked-1");
   });
+
+  it("forwards the Range header so streaming viewers get partial content", async () => {
+    mocks.docRows = [{ id: "doc-1" }];
+    const fakeFile = { name: "fake" };
+    mocks.getObjectEntityFile.mockResolvedValue(fakeFile);
+    mocks.downloadObject.mockResolvedValue(
+      new Response("cdef", {
+        status: 206,
+        headers: {
+          "Content-Type": "application/pdf",
+          "Accept-Ranges": "bytes",
+          "Content-Range": "bytes 2-5/100",
+          "Content-Length": "4",
+        },
+      }),
+    );
+    const app = buildApp({ id: "user-1", role: "owner" });
+
+    const token = createDownloadToken("/objects/uploads/tracked-1");
+    const res = await request(app)
+      .get(`/api/storage/objects/uploads/tracked-1?token=${encodeURIComponent(token)}`)
+      .set("Range", "bytes=2-5")
+      .responseType("blob");
+
+    expect(res.status).toBe(206);
+    expect(res.headers["content-range"]).toBe("bytes 2-5/100");
+    expect(res.headers["accept-ranges"]).toBe("bytes");
+    expect(Buffer.from(res.body).toString()).toBe("cdef");
+    // The route hands the raw Range header through to the storage layer.
+    expect(mocks.downloadObject).toHaveBeenCalledWith(fakeFile, 3600, "bytes=2-5");
+  });
 });

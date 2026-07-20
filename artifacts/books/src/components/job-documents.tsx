@@ -470,7 +470,159 @@ function SpreadsheetTable({ rows }: { rows: string[][] }) {
   );
 }
 
-type PdfState = "loading" | "error" | "too-large" | "ready";
+type PdfState = "loading" | "error" | "paged" | "ready";
+
+type PagedPdfDoc = {
+  numPages: number;
+  getPage(n: number): Promise<{
+    getViewport(opts: { scale: number }): { width: number; height: number };
+    render(opts: unknown): { promise: Promise<void>; cancel(): void };
+    cleanup(): void;
+  }>;
+  destroy(): Promise<void> | void;
+};
+
+type PagedPdfState =
+  | { status: "loading" }
+  | { status: "error" }
+  | { status: "ready"; numPages: number };
+
+// Streaming page-by-page viewer for PDFs too large to buffer whole. pdf.js is
+// configured with disableAutoFetch + range requests, so only the byte ranges
+// needed for the visible page are downloaded — memory stays bounded no matter
+// how big the file is. Rendered pages are cleaned up as the user navigates.
+export function PagedPdfViewer({ href }: { href: string }) {
+  const [state, setState] = useState<PagedPdfState>({ status: "loading" });
+  const [pageNum, setPageNum] = useState(1);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const docRef = useRef<PagedPdfDoc | null>(null);
+  const renderTaskRef = useRef<{ cancel(): void } | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setState({ status: "loading" });
+    setPageNum(1);
+
+    async function load() {
+      try {
+        const pdfjs = await import("pdfjs-dist");
+        if (!pdfjs.GlobalWorkerOptions.workerSrc) {
+          pdfjs.GlobalWorkerOptions.workerSrc = new URL(
+            "pdfjs-dist/build/pdf.worker.min.mjs",
+            import.meta.url,
+          ).toString();
+        }
+        const loadingTask = pdfjs.getDocument({
+          url: href,
+          // Never prefetch the whole file — fetch ranges on demand only.
+          disableAutoFetch: true,
+          rangeChunkSize: 256 * 1024,
+        });
+        const doc = (await loadingTask.promise) as unknown as PagedPdfDoc;
+        if (cancelled) {
+          doc.destroy();
+          return;
+        }
+        docRef.current = doc;
+        setState({ status: "ready", numPages: doc.numPages });
+      } catch {
+        if (!cancelled) setState({ status: "error" });
+      }
+    }
+
+    load();
+    return () => {
+      cancelled = true;
+      renderTaskRef.current?.cancel();
+      docRef.current?.destroy();
+      docRef.current = null;
+    };
+  }, [href]);
+
+  // Render the current page onto the canvas whenever it changes.
+  useEffect(() => {
+    if (state.status !== "ready") return;
+    const doc = docRef.current;
+    if (!doc) return;
+    let cancelled = false;
+
+    async function renderPage(activeDoc: PagedPdfDoc) {
+      try {
+        const page = await activeDoc.getPage(pageNum);
+        if (cancelled) return;
+        const canvas = canvasRef.current;
+        const ctx = canvas?.getContext("2d");
+        if (!canvas || !ctx) return;
+        const viewport = page.getViewport({ scale: 1.5 });
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+        renderTaskRef.current?.cancel();
+        const task = page.render({ canvasContext: ctx, viewport });
+        renderTaskRef.current = task;
+        await task.promise;
+        // Release page resources so memory stays bounded while paging.
+        page.cleanup();
+      } catch {
+        // Render cancellations (rapid page flips / unmount) are expected.
+      }
+    }
+
+    renderPage(doc);
+    return () => {
+      cancelled = true;
+    };
+  }, [state, pageNum]);
+
+  if (state.status === "loading") {
+    return (
+      <div className="flex items-center justify-center gap-2 py-16 text-slate-500">
+        <Loader2 className="h-4 w-4 animate-spin" />
+        Loading preview…
+      </div>
+    );
+  }
+
+  if (state.status === "error") {
+    return (
+      <div className="flex flex-col items-center justify-center gap-2 py-16 text-center text-slate-500">
+        <FileText className="h-8 w-8 text-slate-300" />
+        <p className="text-sm">This PDF couldn't be previewed.</p>
+        <p className="text-xs">Download the file to view its contents.</p>
+      </div>
+    );
+  }
+
+  const { numPages } = state;
+
+  return (
+    <div data-testid="paged-pdf-viewer">
+      <div className="mb-2 flex items-center justify-center gap-3">
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={pageNum <= 1}
+          onClick={() => setPageNum((p) => Math.max(1, p - 1))}
+        >
+          Previous
+        </Button>
+        <span className="text-sm text-slate-600" data-testid="pdf-page-indicator">
+          Page {pageNum.toLocaleString()} of {numPages.toLocaleString()}
+        </span>
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={pageNum >= numPages}
+          onClick={() => setPageNum((p) => Math.min(numPages, p + 1))}
+        >
+          Next
+        </Button>
+      </div>
+      <div className="flex max-h-[70vh] justify-center overflow-auto rounded-md border border-slate-200 bg-slate-50">
+        <canvas ref={canvasRef} data-testid="pdf-page-canvas" />
+      </div>
+    </div>
+  );
+}
 
 export function PdfPreview({
   href,
@@ -490,7 +642,7 @@ export function PdfPreview({
   // probe's response body as a blob URL for the iframe so the file is only
   // downloaded once. Very large PDFs are never buffered: the size is checked
   // against document metadata (or the Content-Length header before reading
-  // the body) and a download prompt is shown instead.
+  // the body) and they open in the streaming paged viewer instead.
   useEffect(() => {
     let cancelled = false;
     let objectUrl: string | null = null;
@@ -499,7 +651,7 @@ export function PdfPreview({
 
     async function probe() {
       if (sizeBytes != null && sizeBytes > MAX_PDF_PREVIEW_BYTES) {
-        if (!cancelled) setState("too-large");
+        if (!cancelled) setState("paged");
         return;
       }
       try {
@@ -514,7 +666,7 @@ export function PdfPreview({
           contentLength > MAX_PDF_PREVIEW_BYTES
         ) {
           res.body?.cancel().catch(() => {});
-          if (!cancelled) setState("too-large");
+          if (!cancelled) setState("paged");
           return;
         }
         const blob = await res.blob();
@@ -543,15 +695,15 @@ export function PdfPreview({
     );
   }
 
-  if (state === "error" || state === "too-large") {
+  if (state === "paged") {
+    return <PagedPdfViewer href={href} />;
+  }
+
+  if (state === "error") {
     return (
       <div className="flex flex-col items-center justify-center gap-2 py-16 text-center text-slate-500">
         <FileText className="h-8 w-8 text-slate-300" />
-        <p className="text-sm">
-          {state === "too-large"
-            ? "This PDF is too large to preview here."
-            : "This PDF couldn't be previewed."}
-        </p>
+        <p className="text-sm">This PDF couldn't be previewed.</p>
         <p className="text-xs">Download the file to view its contents.</p>
       </div>
     );

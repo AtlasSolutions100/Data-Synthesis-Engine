@@ -48,6 +48,33 @@ vi.mock("read-excel-file", () => ({
   default: vi.fn(),
   readSheetNames: vi.fn(),
 }));
+
+// The dynamic `import("pdfjs-dist")` inside PagedPdfViewer is replaced with a
+// controllable stub: jsdom can't run the real pdf.js worker/canvas pipeline,
+// so tests drive the paged-viewer states (document loaded, page count, load
+// failure) directly.
+const pdfjsMocks = vi.hoisted(() => ({
+  getDocument: vi.fn(),
+}));
+vi.mock("pdfjs-dist", () => ({
+  getDocument: pdfjsMocks.getDocument,
+  GlobalWorkerOptions: { workerSrc: "test-worker" },
+}));
+
+function stubPdfDocument(numPages: number) {
+  const page = {
+    getViewport: () => ({ width: 100, height: 140 }),
+    render: () => ({ promise: Promise.resolve(), cancel: vi.fn() }),
+    cleanup: vi.fn(),
+  };
+  const doc = {
+    numPages,
+    getPage: vi.fn(async () => page),
+    destroy: vi.fn(),
+  };
+  pdfjsMocks.getDocument.mockReturnValue({ promise: Promise.resolve(doc) });
+  return doc;
+}
 import readXlsxFile, { readSheetNames } from "read-excel-file";
 
 const mockedReadXlsx = readXlsxFile as unknown as ReturnType<typeof vi.fn>;
@@ -114,6 +141,7 @@ afterEach(() => {
   vi.restoreAllMocks();
   mockedReadXlsx.mockReset();
   mockedReadSheetNames.mockReset();
+  pdfjsMocks.getDocument.mockReset();
 });
 
 describe("parseCsv", () => {
@@ -808,9 +836,68 @@ describe("JobDocuments preview affordances", () => {
     );
   });
 
-  it("shows the download prompt without fetching when metadata says the PDF is too large", async () => {
+  it("opens the paged streaming viewer without buffering when metadata says the PDF is over the cap", async () => {
     const fetchSpy = vi.fn();
     global.fetch = fetchSpy as unknown as typeof fetch;
+    stubPdfDocument(120);
+
+    renderJobDocuments([
+      makeDoc({
+        id: 2,
+        fileName: "contract.pdf",
+        objectPath: "/objects/uploads/contract.pdf",
+        downloadToken: "pdftok",
+        contentType: "application/pdf",
+        sizeBytes: 200 * 1024 * 1024,
+      }),
+    ]);
+
+    fireEvent.click(screen.getByRole("button", { name: /contract\.pdf/ }));
+
+    const dialog = await screen.findByRole("dialog");
+    await waitFor(() =>
+      expect(within(dialog).getByTestId("paged-pdf-viewer")).toBeTruthy(),
+    );
+
+    // The full file was never fetched/buffered — pdf.js streams byte ranges.
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(dialog.querySelector("iframe")).toBeNull();
+    expect(pdfjsMocks.getDocument).toHaveBeenCalledWith(
+      expect.objectContaining({
+        url: "/api/storage/objects/uploads/contract.pdf?token=pdftok",
+        disableAutoFetch: true,
+      }),
+    );
+
+    // Page navigation works: starts at page 1, Next advances, Previous returns.
+    expect(
+      within(dialog).getByTestId("pdf-page-indicator").textContent,
+    ).toMatch(/Page 1 of 120/);
+    fireEvent.click(within(dialog).getByRole("button", { name: /next/i }));
+    await waitFor(() =>
+      expect(
+        within(dialog).getByTestId("pdf-page-indicator").textContent,
+      ).toMatch(/Page 2 of 120/),
+    );
+    fireEvent.click(within(dialog).getByRole("button", { name: /previous/i }));
+    await waitFor(() =>
+      expect(
+        within(dialog).getByTestId("pdf-page-indicator").textContent,
+      ).toMatch(/Page 1 of 120/),
+    );
+
+    // The Download link is still available as a fallback with the tokenized href.
+    const download = within(dialog).getByRole("link", { name: /download/i });
+    expect(download.getAttribute("href")).toBe(
+      "/api/storage/objects/uploads/contract.pdf?token=pdftok",
+    );
+  });
+
+  it("falls back to the download prompt when the paged viewer fails to load the PDF", async () => {
+    global.fetch = vi.fn() as unknown as typeof fetch;
+    pdfjsMocks.getDocument.mockReturnValue({
+      promise: Promise.reject(new Error("bad pdf")),
+    });
 
     renderJobDocuments([
       makeDoc({
@@ -828,23 +915,19 @@ describe("JobDocuments preview affordances", () => {
     const dialog = await screen.findByRole("dialog");
     await waitFor(() =>
       expect(
-        within(dialog).getByText(/too large to preview/i),
+        within(dialog).getByText(/This PDF couldn't be previewed/i),
       ).toBeTruthy(),
     );
     expect(
       within(dialog).getByText(/Download the file to view its contents/i),
     ).toBeTruthy();
-    // No bytes were downloaded and no iframe was rendered.
-    expect(fetchSpy).not.toHaveBeenCalled();
-    expect(dialog.querySelector("iframe")).toBeNull();
-    // The Download link is still available with the tokenized href.
     const download = within(dialog).getByRole("link", { name: /download/i });
     expect(download.getAttribute("href")).toBe(
       "/api/storage/objects/uploads/contract.pdf?token=pdftok",
     );
   });
 
-  it("skips buffering via Content-Length when size metadata is missing", async () => {
+  it("skips buffering via Content-Length when size metadata is missing and opens the paged viewer", async () => {
     const bodyCancel = vi.fn(async () => {});
     const blobSpy = vi.fn(async () => new Blob(["%PDF-1.4"]));
     global.fetch = vi.fn(async () => ({
@@ -859,6 +942,7 @@ describe("JobDocuments preview affordances", () => {
       body: { cancel: bodyCancel },
       blob: blobSpy,
     })) as unknown as typeof fetch;
+    stubPdfDocument(3);
 
     renderJobDocuments([
       makeDoc({
@@ -875,9 +959,7 @@ describe("JobDocuments preview affordances", () => {
 
     const dialog = await screen.findByRole("dialog");
     await waitFor(() =>
-      expect(
-        within(dialog).getByText(/too large to preview/i),
-      ).toBeTruthy(),
+      expect(within(dialog).getByTestId("paged-pdf-viewer")).toBeTruthy(),
     );
     // The body was never buffered into memory and the stream was cancelled.
     expect(blobSpy).not.toHaveBeenCalled();

@@ -99,21 +99,59 @@ export class ObjectStorageService {
     return null;
   }
 
-  async downloadObject(file: File, cacheTtlSec: number = 3600): Promise<Response> {
+  async downloadObject(
+    file: File,
+    cacheTtlSec: number = 3600,
+    rangeHeader?: string,
+  ): Promise<Response> {
     const [metadata] = await file.getMetadata();
     const aclPolicy = await getObjectAclPolicy(file);
     const isPublic = aclPolicy?.visibility === "public";
 
-    const nodeStream = file.createReadStream();
-    const webStream = Readable.toWeb(nodeStream) as ReadableStream;
+    const totalSize = metadata.size != null ? Number(metadata.size) : null;
 
     const headers: Record<string, string> = {
       "Content-Type": (metadata.contentType as string) || "application/octet-stream",
       "Cache-Control": `${isPublic ? "public" : "private"}, max-age=${cacheTtlSec}`,
+      // Advertise byte-range support so streaming clients (e.g. pdf.js) can
+      // fetch large files piecemeal instead of buffering them whole.
+      "Accept-Ranges": "bytes",
     };
-    if (metadata.size) {
-      headers["Content-Length"] = String(metadata.size);
+
+    // Serve a single byte range (RFC 7233) when requested and the object size
+    // is known. Multi-range requests fall through to a full 200 response.
+    if (rangeHeader && totalSize != null && Number.isFinite(totalSize)) {
+      const range = parseByteRange(rangeHeader, totalSize);
+      if (range === "invalid") {
+        return new Response(null, {
+          status: 416,
+          headers: {
+            ...headers,
+            "Content-Range": `bytes */${totalSize}`,
+          },
+        });
+      }
+      if (range) {
+        const { start, end } = range;
+        const nodeStream = file.createReadStream({ start, end });
+        const webStream = Readable.toWeb(nodeStream) as ReadableStream;
+        return new Response(webStream, {
+          status: 206,
+          headers: {
+            ...headers,
+            "Content-Range": `bytes ${start}-${end}/${totalSize}`,
+            "Content-Length": String(end - start + 1),
+          },
+        });
+      }
     }
+
+    if (totalSize != null && Number.isFinite(totalSize)) {
+      headers["Content-Length"] = String(totalSize);
+    }
+
+    const nodeStream = file.createReadStream();
+    const webStream = Readable.toWeb(nodeStream) as ReadableStream;
 
     return new Response(webStream, { headers });
   }
@@ -262,6 +300,41 @@ export class ObjectStorageService {
       requestedPermission: requestedPermission ?? ObjectPermission.READ,
     });
   }
+}
+
+/**
+ * Parse a single-range `Range: bytes=...` header against a known object size.
+ *
+ * Returns:
+ * - `{ start, end }` (inclusive, clamped to the object) for a satisfiable range
+ * - `"invalid"` for a syntactically valid but unsatisfiable range (=> 416)
+ * - `null` for anything else (malformed / multi-range) so callers fall back to
+ *   a full 200 response, which is what RFC 7233 permits.
+ */
+export function parseByteRange(
+  header: string,
+  totalSize: number,
+): { start: number; end: number } | "invalid" | null {
+  const match = /^bytes=(\d*)-(\d*)$/.exec(header.trim());
+  if (!match) return null;
+  const [, startStr, endStr] = match;
+  if (startStr === "" && endStr === "") return null;
+
+  if (totalSize <= 0) return "invalid";
+
+  if (startStr === "") {
+    // Suffix range: last N bytes.
+    const suffixLen = Number(endStr);
+    if (suffixLen === 0) return "invalid";
+    const start = Math.max(0, totalSize - suffixLen);
+    return { start, end: totalSize - 1 };
+  }
+
+  const start = Number(startStr);
+  if (start >= totalSize) return "invalid";
+  const end = endStr === "" ? totalSize - 1 : Math.min(Number(endStr), totalSize - 1);
+  if (end < start) return "invalid";
+  return { start, end };
 }
 
 function parseObjectPath(path: string): {

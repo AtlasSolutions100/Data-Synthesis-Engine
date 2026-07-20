@@ -144,7 +144,13 @@ router.get("/storage/objects/*path", async (req: Request, res: Response) => {
 
     const objectFile = await objectStorageService.getObjectEntityFile(objectPath);
 
-    const response = await objectStorageService.downloadObject(objectFile);
+    // Forward the Range header so streaming viewers (e.g. pdf.js paging
+    // through a huge PDF) can fetch only the byte ranges they need.
+    const response = await objectStorageService.downloadObject(
+      objectFile,
+      3600,
+      req.headers.range,
+    );
 
     res.status(response.status);
     response.headers.forEach((value, key) => res.setHeader(key, value));
