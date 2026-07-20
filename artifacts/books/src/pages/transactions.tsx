@@ -14,7 +14,9 @@ import {
 } from "@/lib/server-field-error";
 import { DateRangePicker, type DateRangeValue } from "@/components/date-range-picker";
 import { useQueryClient } from "@tanstack/react-query";
-import { Plus, Edit2, Trash2, ArrowLeft } from "lucide-react";
+import { Plus, Edit2, Trash2, ArrowLeft, X } from "lucide-react";
+
+const HIGHLIGHT_FADE_MS = 6000;
 
 export default function Transactions() {
   const queryClient = useQueryClient();
@@ -22,8 +24,10 @@ export default function Transactions() {
   const searchParams = new URLSearchParams(search);
   const highlightParam = searchParams.get("highlight");
   const parsedHighlight = highlightParam ? Number(highlightParam) : NaN;
-  const highlightId = Number.isFinite(parsedHighlight) ? parsedHighlight : null;
+  const initialHighlightId = Number.isFinite(parsedHighlight) ? parsedHighlight : null;
+  const [highlightId, setHighlightId] = useState<number | null>(initialHighlightId);
   const fromReports = searchParams.get("from") === "reports";
+  const [bannerDismissed, setBannerDismissed] = useState(false);
   const highlightRef = useRef<HTMLTableRowElement | null>(null);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -83,6 +87,17 @@ export default function Transactions() {
   });
 
   useEffect(() => {
+    setHighlightId(initialHighlightId);
+    setBannerDismissed(false);
+  }, [initialHighlightId]);
+
+  useEffect(() => {
+    if (highlightId == null) return;
+    const timer = setTimeout(() => setHighlightId(null), HIGHLIGHT_FADE_MS);
+    return () => clearTimeout(timer);
+  }, [highlightId]);
+
+  useEffect(() => {
     if (highlightId != null && transactions && highlightRef.current) {
       highlightRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
     }
@@ -94,7 +109,7 @@ export default function Transactions() {
 
   return (
     <div className="space-y-8">
-      {fromReports && (
+      {fromReports && !bannerDismissed && (
         <div
           className="flex items-center justify-between rounded-md border border-blue-200 bg-blue-50 px-4 py-2"
           data-testid="banner-from-reports"
@@ -106,13 +121,24 @@ export default function Transactions() {
                 : "The transaction you selected isn't in the current list. It may have been deleted or filtered out."
               : "Viewing transactions from the report."}
           </p>
-          <Link
-            href="/reports"
-            className="inline-flex items-center text-sm font-medium text-blue-700 hover:underline"
-            data-testid="link-back-to-reports"
-          >
-            <ArrowLeft className="mr-1 h-4 w-4" /> Back to report
-          </Link>
+          <div className="flex items-center gap-3">
+            <Link
+              href="/reports"
+              className="inline-flex items-center text-sm font-medium text-blue-700 hover:underline"
+              data-testid="link-back-to-reports"
+            >
+              <ArrowLeft className="mr-1 h-4 w-4" /> Back to report
+            </Link>
+            <button
+              type="button"
+              onClick={() => setBannerDismissed(true)}
+              className="rounded p-1 text-blue-700 hover:bg-blue-100"
+              aria-label="Dismiss"
+              data-testid="button-dismiss-banner"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
         </div>
       )}
       <div className="flex justify-between items-end">
@@ -121,7 +147,13 @@ export default function Transactions() {
           <p className="text-slate-500 mt-1">General ledger and transaction history</p>
         </div>
         <div className="flex items-center gap-3">
-        <DateRangePicker value={range} onChange={setRange} />
+        <DateRangePicker
+          value={range}
+          onChange={(next) => {
+            setRange(next);
+            setHighlightId(null);
+          }}
+        />
         <Dialog
           open={isCreateOpen}
           onOpenChange={(open) => {
@@ -182,8 +214,8 @@ export default function Transactions() {
                     ref={txn.id === highlightId ? highlightRef : undefined}
                     className={
                       txn.id === highlightId
-                        ? "bg-blue-50 hover:bg-blue-100"
-                        : undefined
+                        ? "bg-blue-50 hover:bg-blue-100 transition-colors duration-1000"
+                        : "transition-colors duration-1000"
                     }
                     data-testid={`row-transaction-${txn.id}`}
                   >
