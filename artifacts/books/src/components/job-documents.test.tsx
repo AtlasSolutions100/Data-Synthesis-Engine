@@ -45,8 +45,9 @@ vi.mock("@workspace/object-storage-web", () => ({
   useUpload: () => ({ uploadFile: vi.fn(), isUploading: false }),
 }));
 
+const mockToast = vi.hoisted(() => vi.fn());
 vi.mock("@/hooks/use-toast", () => ({
-  useToast: () => ({ toast: vi.fn() }),
+  useToast: () => ({ toast: mockToast }),
 }));
 
 // The dynamic `import("read-excel-file")` inside SpreadsheetPreview is replaced
@@ -166,6 +167,7 @@ function bridgeXlsxMockToRealParser() {
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
+  mockToast.mockClear();
   mockedReadXlsx.mockReset();
   mockedReadSheetNames.mockReset();
   pdfjsMocks.getDocument.mockReset();
@@ -1145,6 +1147,104 @@ describe("JobDocuments preview affordances", () => {
     // Clicking the plain-text name does not open a dialog.
     fireEvent.click(screen.getByText("notes.txt"));
     expect(screen.queryByRole("dialog")).toBeNull();
+  });
+});
+
+describe("JobDocuments download failure handling", () => {
+  it("shows a destructive toast when the download request fails", async () => {
+    const fetchSpy = vi
+      .fn()
+      .mockResolvedValue({ ok: false, status: 500 } as unknown as Response);
+    global.fetch = fetchSpy as unknown as typeof fetch;
+
+    renderJobDocuments([
+      makeDoc({
+        fileName: "notes.txt",
+        objectPath: "/objects/uploads/notes.txt",
+        downloadToken: "txttok",
+        contentType: "text/plain",
+      }),
+    ]);
+
+    fireEvent.click(screen.getByTitle("Download"));
+
+    await waitFor(() =>
+      expect(mockToast).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: "Download failed",
+          variant: "destructive",
+        }),
+      ),
+    );
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "/api/storage/objects/uploads/notes.txt?token=txttok",
+    );
+  });
+
+  it("shows a destructive toast when the network request rejects", async () => {
+    global.fetch = vi
+      .fn()
+      .mockRejectedValue(new Error("network down")) as unknown as typeof fetch;
+
+    renderJobDocuments([
+      makeDoc({
+        fileName: "notes.txt",
+        objectPath: "/objects/uploads/notes.txt",
+        downloadToken: "txttok",
+        contentType: "text/plain",
+      }),
+    ]);
+
+    fireEvent.click(screen.getByTitle("Download"));
+
+    await waitFor(() =>
+      expect(mockToast).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: "Download failed",
+          description: "network down",
+          variant: "destructive",
+        }),
+      ),
+    );
+  });
+
+  it("disables the download link while a download is in flight", async () => {
+    let resolveFetch: (r: Response) => void = () => {};
+    const pending = new Promise<Response>((resolve) => {
+      resolveFetch = resolve;
+    });
+    global.fetch = vi.fn().mockReturnValue(pending) as unknown as typeof fetch;
+
+    renderJobDocuments([
+      makeDoc({
+        fileName: "notes.txt",
+        objectPath: "/objects/uploads/notes.txt",
+        downloadToken: "txttok",
+        contentType: "text/plain",
+      }),
+    ]);
+
+    const download = screen.getByTitle("Download");
+    fireEvent.click(download);
+
+    await waitFor(() =>
+      expect(download.getAttribute("aria-disabled")).toBe("true"),
+    );
+
+    await act(async () => {
+      resolveFetch({ ok: false, status: 404 } as unknown as Response);
+      await pending.catch(() => {});
+    });
+
+    await waitFor(() =>
+      expect(download.getAttribute("aria-disabled")).toBeNull(),
+    );
+    expect(mockToast).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: "Download failed",
+        variant: "destructive",
+      }),
+    );
   });
 });
 

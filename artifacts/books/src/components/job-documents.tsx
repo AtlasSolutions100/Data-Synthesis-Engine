@@ -34,6 +34,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
+import { useExportToast } from "@/lib/export-toast";
 import {
   Upload,
   Download,
@@ -848,6 +849,41 @@ export function JobDocuments({ jobId }: { jobId: number }) {
     sizeBytes: number | null | undefined;
   } | null>(null);
 
+  // Shared export/download pattern: failures surface a destructive toast and
+  // the triggering link is disabled while the download is in flight. The
+  // anchor keeps its tokenized href so right-click "Save link as" and
+  // middle-click still work as a native fallback.
+  const { exporting: downloading, runExport } = useExportToast();
+  const [downloadingHref, setDownloadingHref] = useState<string | null>(null);
+
+  const handleDownload = (
+    e: React.MouseEvent<HTMLAnchorElement>,
+    href: string,
+    fileName: string,
+  ) => {
+    e.preventDefault();
+    if (downloading) return;
+    setDownloadingHref(href);
+    runExport("Download failed", async () => {
+      const res = await fetch(href);
+      if (!res.ok) {
+        throw new Error(
+          `The file could not be downloaded (request failed with status ${res.status}).`,
+        );
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      // Give the browser a tick to start the download before revoking.
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    });
+  };
+
   const { data: documents, isLoading } = useListJobDocuments(jobId, {
     query: {
       enabled: !!jobId,
@@ -1137,8 +1173,21 @@ export function JobDocuments({ jobId }: { jobId: number }) {
                             target="_blank"
                             rel="noopener noreferrer"
                             title="Download"
+                            aria-disabled={downloading || undefined}
+                            className={
+                              downloading
+                                ? "pointer-events-none opacity-50"
+                                : undefined
+                            }
+                            onClick={(e) =>
+                              handleDownload(e, href, doc.fileName)
+                            }
                           >
-                            <Download className="h-4 w-4 text-slate-500" />
+                            {downloading && downloadingHref === href ? (
+                              <Loader2 className="h-4 w-4 animate-spin text-slate-500" />
+                            ) : (
+                              <Download className="h-4 w-4 text-slate-500" />
+                            )}
                           </a>
                         </Button>
                         <Button
@@ -1214,9 +1263,22 @@ export function JobDocuments({ jobId }: { jobId: number }) {
                   href={preview.href}
                   target="_blank"
                   rel="noopener noreferrer"
+                  aria-disabled={downloading || undefined}
+                  className={
+                    downloading ? "pointer-events-none opacity-50" : undefined
+                  }
+                  onClick={(e) =>
+                    handleDownload(e, preview.href, preview.fileName)
+                  }
                 >
-                  <Download className="mr-2 h-4 w-4" />
-                  Download
+                  {downloading && downloadingHref === preview.href ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Download className="mr-2 h-4 w-4" />
+                  )}
+                  {downloading && downloadingHref === preview.href
+                    ? "Downloading…"
+                    : "Download"}
                 </a>
               </Button>
             </div>
