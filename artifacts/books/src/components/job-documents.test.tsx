@@ -269,6 +269,29 @@ describe("SpreadsheetPreview (csv)", () => {
       screen.getByText("Line one\nLine two", { normalizer: (s) => s }),
     ).toBeTruthy();
     expect(screen.getByText("Acme Co")).toBeTruthy();
+
+    // The multi-line cell keeps pre-wrap whitespace so both lines display.
+    const cell = screen.getByText("Line one\nLine two", {
+      normalizer: (s) => s,
+    });
+    expect(cell.className).toContain("whitespace-pre-wrap");
+  });
+
+  it("virtualized rows carry data-index for dynamic height measurement", async () => {
+    const csv =
+      'Vendor,Memo\n"Doe, John","Line one\nLine two"\n"Acme Co","Simple"\n';
+    global.fetch = vi.fn(async () => csvResponse(csv)) as unknown as typeof fetch;
+
+    render(<SpreadsheetPreview href="/f.csv" kind="csv" sizeBytes={csv.length} />);
+
+    await waitFor(() => expect(screen.getByText("Doe, John")).toBeTruthy());
+
+    // Every mounted body row exposes data-index — the hook the virtualizer's
+    // measureElement uses to map a DOM node back to its row for measurement.
+    const row0 = screen.getByText("Doe, John").closest("tr");
+    const row1 = screen.getByText("Acme Co").closest("tr");
+    expect(row0?.getAttribute("data-index")).toBe("0");
+    expect(row1?.getAttribute("data-index")).toBe("1");
   });
 
   it("virtualizes large files: only rows near the viewport are mounted", async () => {
