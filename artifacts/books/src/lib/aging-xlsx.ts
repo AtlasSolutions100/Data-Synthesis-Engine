@@ -4,6 +4,7 @@ import type {
   AgingBuckets,
   ArAging,
   ApAging,
+  AccountBalances,
 } from "@workspace/api-client-react";
 
 const CURRENCY_FORMAT = "$#,##0.00";
@@ -187,6 +188,31 @@ export function buildSummarySheetData(
   return rows;
 }
 
+function formatAccountType(type: string): string {
+  return type.replace(/_/g, " ").replace(/\b\w/g, (ch) => ch.toUpperCase());
+}
+
+export function buildAccountBalancesSheetData(
+  accountBalances: AccountBalances,
+  asOf?: string,
+): SheetData {
+  const rows: SheetData = [];
+  rows.push([
+    titleCell("Account Balances"),
+    null,
+    textCell(asOf ? `As of ${asOf}` : "All transactions"),
+  ]);
+  rows.push([headerCell("Account"), headerCell("Type"), headerCell("Balance")]);
+  for (const row of accountBalances.rows) {
+    rows.push([
+      textCell(`${row.accountNumber} - ${row.accountName}`),
+      textCell(formatAccountType(row.type)),
+      currencyCell(row.balanceCents),
+    ]);
+  }
+  return rows;
+}
+
 const DETAIL_COLUMNS = [
   { width: 28 },
   { width: 16 },
@@ -211,9 +237,13 @@ export function agingXlsxFilename(asOf: string): string {
   return `aging-report-${asOf}.xlsx`;
 }
 
+const BALANCES_COLUMNS = [{ width: 28 }, { width: 18 }, { width: 14 }];
+
 export async function downloadAgingXlsx(
   arAging: ArAging,
   apAging: ApAging,
+  accountBalances: AccountBalances,
+  asOf?: string,
 ): Promise<void> {
   const result = writeXlsxFile(
     [
@@ -231,6 +261,11 @@ export async function downloadAgingXlsx(
         sheet: "AP Aging Detail",
         data: buildApDetailSheetData(apAging),
         columns: DETAIL_COLUMNS,
+      },
+      {
+        sheet: "Account Balances",
+        data: buildAccountBalancesSheetData(accountBalances, asOf),
+        columns: BALANCES_COLUMNS,
       },
     ],
   );

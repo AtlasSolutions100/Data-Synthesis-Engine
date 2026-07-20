@@ -5,7 +5,11 @@ import { inflateRawSync } from "node:zlib";
 import { Readable } from "node:stream";
 import readXlsxFileNode, { readSheetNames } from "read-excel-file/node";
 import { downloadAgingXlsx } from "./aging-xlsx";
-import type { ArAging, ApAging } from "@workspace/api-client-react";
+import type {
+  ArAging,
+  ApAging,
+  AccountBalances,
+} from "@workspace/api-client-react";
 
 function buckets(
   current: number,
@@ -115,6 +119,27 @@ const emptyAp: ApAging = {
   vendors: [],
 };
 
+const accountBalances: AccountBalances = {
+  rows: [
+    {
+      accountId: 1,
+      accountNumber: "1000",
+      accountName: "Operating Checking",
+      type: "bank",
+      balanceCents: 1234567,
+    },
+    {
+      accountId: 2,
+      accountNumber: "2100",
+      accountName: "Equipment Loan",
+      type: "credit_card",
+      balanceCents: -500000,
+    },
+  ],
+};
+
+const emptyBalances: AccountBalances = { rows: [] };
+
 // Minimal ZIP local-file-header reader: extracts a named entry from an
 // in-memory .xlsx (entries are either stored or raw-deflate compressed).
 function readZipEntry(zip: Buffer, entryName: string): Buffer {
@@ -149,7 +174,12 @@ function readZipEntry(zip: Buffer, entryName: string): Buffer {
   throw new Error(`entry ${entryName} not found in zip`);
 }
 
-async function captureWorkbook(ar: ArAging, ap: ApAging) {
+async function captureWorkbook(
+  ar: ArAging,
+  ap: ApAging,
+  balances: AccountBalances = accountBalances,
+  asOf?: string,
+) {
   const captured: { blob: globalThis.Blob | null; filename: string | null } = {
     blob: null,
     filename: null,
@@ -168,7 +198,7 @@ async function captureWorkbook(ar: ArAging, ap: ApAging) {
       captured.filename = this.download;
     });
   try {
-    await downloadAgingXlsx(ar, ap);
+    await downloadAgingXlsx(ar, ap, balances, asOf);
     // write-excel-file's download helper schedules DOM cleanup with
     // setTimeout(..., 100); wait it out so it runs before jsdom teardown.
     await new Promise((resolve) => setTimeout(resolve, 150));
@@ -202,7 +232,7 @@ afterAll(() => {
 });
 
 describe("aging xlsx roundtrip", () => {
-  it("downloads a valid workbook with three named sheets", async () => {
+  it("downloads a valid workbook with four named sheets", async () => {
     const { buffer, filename } = await captureWorkbook(arAging, apAging);
     expect(filename).toBe("aging-report-2026-06-30.xlsx");
     // Valid xlsx starts with the ZIP local file header signature.
@@ -211,7 +241,32 @@ describe("aging xlsx roundtrip", () => {
       Buffer.from([0x50, 0x4b, 0x03, 0x04]),
     );
     const names = await readSheetNames(Readable.from(buffer));
-    expect(names).toEqual(["Summary", "AR Aging Detail", "AP Aging Detail"]);
+    expect(names).toEqual([
+      "Summary",
+      "AR Aging Detail",
+      "AP Aging Detail",
+      "Account Balances",
+    ]);
+  });
+
+  it("roundtrips the Account Balances sheet with an as-of label", async () => {
+    const { buffer } = await captureWorkbook(
+      arAging,
+      apAging,
+      accountBalances,
+      "2026-06-30",
+    );
+    const rows = await parseSheet(buffer, "Account Balances");
+    expect(rows[0]).toEqual(["Account Balances", null, "As of 2026-06-30"]);
+    expect(rows[1]).toEqual(["Account", "Type", "Balance"]);
+    expect(rows[2]).toEqual(["1000 - Operating Checking", "Bank", 12345.67]);
+    expect(rows[3]).toEqual(["2100 - Equipment Loan", "Credit Card", -5000]);
+  });
+
+  it("labels the Account Balances sheet 'All transactions' without an as-of date", async () => {
+    const { buffer } = await captureWorkbook(arAging, apAging);
+    const rows = await parseSheet(buffer, "Account Balances");
+    expect(rows[0]).toEqual(["Account Balances", null, "All transactions"]);
   });
 
   it("roundtrips Summary sheet headers, rows, and totals", async () => {
@@ -328,12 +383,17 @@ describe("aging xlsx roundtrip", () => {
   });
 
   it("produces a valid non-empty workbook when AR and AP have zero rows", async () => {
-    const { buffer } = await captureWorkbook(emptyAr, emptyAp);
+    const { buffer } = await captureWorkbook(emptyAr, emptyAp, emptyBalances);
     expect(buffer.subarray(0, 4)).toEqual(
       Buffer.from([0x50, 0x4b, 0x03, 0x04]),
     );
     const names = await readSheetNames(Readable.from(buffer));
-    expect(names).toEqual(["Summary", "AR Aging Detail", "AP Aging Detail"]);
+    expect(names).toEqual([
+      "Summary",
+      "AR Aging Detail",
+      "AP Aging Detail",
+      "Account Balances",
+    ]);
 
     const summary = await parseSheet(buffer, "Summary");
     expect(summary[2]).toEqual(["Total", 0, 0, 0, 0, 0, 0]);
