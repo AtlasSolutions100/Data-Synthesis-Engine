@@ -12,3 +12,4 @@
 - [PDF range streaming preview](pdf-range-streaming.md) — big-PDF paged viewer needs the object route to keep Accept-Ranges + single-range 206 responses, or pdf.js buffers the whole file.
 - [Split-account prod migration](split-account-prod-migration.md) — keep legacy split_account column in dev schema until prod is backfilled; Publish diffs atomically and prod writes only happen via the deployed app.
 - [pdf.js range streaming config](pdfjs-range-streaming-config.md) — legacy build + disableAutoFetch + disableStream + `?url` worker import are all required; test PDFs must cluster page dicts.
+- [codegen-check must be read-only](codegen-check-read-only.md) — parallel validations race in-place regeneration; diff temp-copy output instead of mutating src/generated.
