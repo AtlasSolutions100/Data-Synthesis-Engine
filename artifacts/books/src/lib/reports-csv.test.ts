@@ -124,7 +124,17 @@ const arAging: ArAging = {
       customerId: 1,
       customerName: "Acme Utility",
       buckets,
-      invoices: [],
+      invoices: [
+        {
+          invoiceId: 10,
+          invoiceNumber: "INV-100",
+          jobNumber: "J-100",
+          date: "2026-06-01",
+          dueDate: "2026-06-15",
+          daysOverdue: 15,
+          balanceCents: 12500,
+        },
+      ],
     },
   ],
   totals: buckets,
@@ -137,7 +147,17 @@ const apAging: ApAging = {
       vendorId: 2,
       vendorName: "Volt Supply",
       buckets,
-      bills: [],
+      bills: [
+        {
+          billId: 20,
+          billNumber: "BILL-200",
+          jobNumber: null,
+          date: "2026-06-05",
+          dueDate: "2026-06-20",
+          daysOverdue: 10,
+          balanceCents: 12500,
+        },
+      ],
     },
   ],
   totals: buckets,
@@ -149,6 +169,25 @@ describe("buildMonthEndCsv", () => {
     endDate: "2026-06-30",
   });
   const rows = csv.trimEnd().split("\r\n");
+
+  it("appends aging detail sections after the summary sections", () => {
+    const idxAp = rows.indexOf("Accounts Payable Aging,As of 2026-06-30");
+    const idxArDetail = rows.indexOf(
+      "Accounts Receivable Aging Detail,As of 2026-06-30",
+    );
+    const idxApDetail = rows.indexOf(
+      "Accounts Payable Aging Detail,As of 2026-06-30",
+    );
+    expect(idxArDetail).toBeGreaterThan(idxAp);
+    expect(idxApDetail).toBeGreaterThan(idxArDetail);
+    expect(rows[idxArDetail - 1]).toBe("");
+    expect(rows).toContain(
+      "Acme Utility,INV-100,J-100,2026-06-01,2026-06-15,15,125.00",
+    );
+    expect(rows).toContain(
+      "Volt Supply,BILL-200,,2026-06-05,2026-06-20,10,125.00",
+    );
+  });
 
   it("contains all four report sections in order", () => {
     const idxCost = rows.indexOf(

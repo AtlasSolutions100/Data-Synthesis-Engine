@@ -4,7 +4,12 @@ import type {
   ArAging,
   ApAging,
 } from "@workspace/api-client-react";
-import { centsToDollars, csvEscape, buildAgingCsv } from "./aging-csv";
+import {
+  centsToDollars,
+  csvEscape,
+  buildAgingCsv,
+  buildAgingDetailCsv,
+} from "./aging-csv";
 
 export interface ReportDateRange {
   startDate?: string;
@@ -106,7 +111,8 @@ export function buildMonthEndCsv(
 ): string {
   const jobReports = buildJobReportsCsv(costByAccount, payrollByJob, range);
   const aging = buildAgingCsv(arAging, apAging);
-  return jobReports + "\r\n" + aging;
+  const agingDetail = buildAgingDetailCsv(arAging, apAging);
+  return jobReports + "\r\n" + aging + "\r\n" + agingDetail;
 }
 
 export function monthEndCsvFilename(range: ReportDateRange): string {
