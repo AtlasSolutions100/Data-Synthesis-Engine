@@ -23,6 +23,7 @@ import {
 } from "@workspace/api-client-react";
 import type { InvoiceInput } from "@workspace/api-client-react";
 import { EntityCombobox } from "@/components/forms/entity-combobox";
+import type { ServerFieldError } from "@/lib/server-field-error";
 
 const lineSchema = z.object({
   description: z.string().optional(),
@@ -41,12 +42,10 @@ const invoiceSchema = z.object({
 
 type InvoiceFormValues = z.infer<typeof invoiceSchema>;
 
-export interface ServerFieldError {
-  field?: string | null;
-  message: string;
-}
+export type { ServerFieldError } from "@/lib/server-field-error";
 
-const SERVER_FIELD_PATTERN = /^(jobId|customerId|invoiceNumber|date|dueDate|memo|lines\.\d+\.(description|amount))$/;
+const SERVER_FIELD_PATTERN =
+  /^(jobId|customerId|invoiceNumber|date|dueDate|memo|lines\.\d+\.(description|amount))$/;
 
 interface InvoiceFormProps {
   defaultValues?: Partial<InvoiceFormValues>;

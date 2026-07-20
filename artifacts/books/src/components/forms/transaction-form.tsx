@@ -1,4 +1,6 @@
+import { useEffect } from "react";
 import { useForm } from "react-hook-form";
+import type { FieldPath } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Button } from "@/components/ui/button";
@@ -27,6 +29,7 @@ import {
   getListAccountsQueryKey,
 } from "@workspace/api-client-react";
 import { EntityCombobox } from "@/components/forms/entity-combobox";
+import type { ServerFieldError } from "@/lib/server-field-error";
 
 const transactionSchema = z.object({
   date: z.string().min(1, "Date is required"),
@@ -54,13 +57,22 @@ const transactionSchema = z.object({
 
 type TransactionFormValues = z.infer<typeof transactionSchema>;
 
+const SERVER_FIELD_PATTERN =
+  /^(accountId|splitAccountId|jobId|customerId|vendorId)$/;
+
 interface TransactionFormProps {
   defaultValues?: Partial<TransactionFormValues>;
   onSubmit: (data: TransactionInput | TransactionUpdate) => void;
   isLoading?: boolean;
+  serverError?: ServerFieldError | null;
 }
 
-export function TransactionForm({ defaultValues, onSubmit, isLoading }: TransactionFormProps) {
+export function TransactionForm({
+  defaultValues,
+  onSubmit,
+  isLoading,
+  serverError,
+}: TransactionFormProps) {
   const { data: customers } = useListCustomers({
     query: { queryKey: getListCustomersQueryKey() },
   });
@@ -95,6 +107,20 @@ export function TransactionForm({ defaultValues, onSubmit, isLoading }: Transact
       amount: defaultValues?.amount || "",
     },
   });
+
+  const fieldError =
+    serverError?.field && SERVER_FIELD_PATTERN.test(serverError.field)
+      ? serverError
+      : null;
+  const formLevelError = serverError && !fieldError ? serverError : null;
+
+  useEffect(() => {
+    if (!fieldError?.field) return;
+    form.setError(fieldError.field as FieldPath<TransactionFormValues>, {
+      type: "server",
+      message: fieldError.message,
+    });
+  }, [fieldError, form]);
 
   const handleSubmit = (values: TransactionFormValues) => {
     let hasError = false;
@@ -380,6 +406,15 @@ export function TransactionForm({ defaultValues, onSubmit, isLoading }: Transact
             </FormItem>
           )}
         />
+        {formLevelError ? (
+          <p
+            role="alert"
+            className="text-sm font-medium text-destructive"
+            data-testid="text-transaction-server-error"
+          >
+            {formLevelError.message}
+          </p>
+        ) : null}
         <Button type="submit" disabled={isLoading} className="w-full">
           {isLoading ? "Saving..." : "Save Transaction"}
         </Button>

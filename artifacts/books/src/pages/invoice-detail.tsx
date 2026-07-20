@@ -9,8 +9,11 @@ import {
   getListInvoicesQueryKey,
   getListJobsQueryKey,
   getGetArAgingQueryKey,
-  ApiError,
 } from "@workspace/api-client-react";
+import {
+  toServerFieldError,
+  type ServerFieldError,
+} from "@/lib/server-field-error";
 import { formatCents } from "@/lib/format";
 import {
   Card,
@@ -52,7 +55,7 @@ export default function InvoiceDetail() {
   const queryClient = useQueryClient();
   const [isPayOpen, setIsPayOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
-  const [editError, setEditError] = useState<string | null>(null);
+  const [editError, setEditError] = useState<ServerFieldError | null>(null);
 
   const { data: invoice, isLoading } = useGetInvoice(invoiceId, {
     query: { enabled: !!invoiceId, queryKey: getGetInvoiceQueryKey(invoiceId) },
@@ -75,14 +78,12 @@ export default function InvoiceDetail() {
         setIsEditOpen(false);
       },
       onError: (error) => {
-        if (error instanceof ApiError) {
-          const data = error.data as { error?: string } | null;
-          setEditError(
-            data?.error ?? "Failed to save the invoice. Please try again.",
-          );
-        } else {
-          setEditError("Failed to save the invoice. Please try again.");
-        }
+        setEditError(
+          toServerFieldError(
+            error,
+            "Failed to save the invoice. Please try again.",
+          ),
+        );
       },
     },
   });

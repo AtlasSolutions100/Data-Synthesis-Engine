@@ -178,6 +178,7 @@ describe("InvoiceForm dangling id validation", () => {
     expect(formError.textContent).toBe("Something went wrong");
   });
 
+
   it("falls back to the form-level message when no field is provided", async () => {
     render(
       <InvoiceForm

@@ -25,6 +25,7 @@ import {
 } from "@workspace/api-client-react";
 import type { BillInput } from "@workspace/api-client-react";
 import { EntityCombobox } from "@/components/forms/entity-combobox";
+import type { ServerFieldError } from "@/lib/server-field-error";
 
 const lineSchema = z.object({
   accountId: z.string().optional(),
@@ -44,10 +45,7 @@ const billSchema = z.object({
 
 type BillFormValues = z.infer<typeof billSchema>;
 
-export interface ServerFieldError {
-  field?: string | null;
-  message: string;
-}
+export type { ServerFieldError };
 
 const SERVER_FIELD_PATTERN = /^(vendorId|jobId|lines\.\d+\.accountId)$/;
 

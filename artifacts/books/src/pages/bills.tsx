@@ -27,8 +27,10 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { BillForm } from "@/components/forms/bill-form";
-import type { ServerFieldError } from "@/components/forms/bill-form";
-import { ApiError } from "@workspace/api-client-react";
+import {
+  toServerFieldError,
+  type ServerFieldError,
+} from "@/lib/server-field-error";
 import { useQueryClient } from "@tanstack/react-query";
 import { Plus, Trash2 } from "lucide-react";
 
@@ -59,21 +61,9 @@ export default function Bills() {
         setIsCreateOpen(false);
       },
       onError: (error) => {
-        if (error instanceof ApiError) {
-          const data = error.data as {
-            error?: string;
-            field?: string;
-          } | null;
-          setCreateError({
-            message:
-              data?.error ?? "Failed to save the bill. Please try again.",
-            field: data?.field ?? null,
-          });
-        } else {
-          setCreateError({
-            message: "Failed to save the bill. Please try again.",
-          });
-        }
+        setCreateError(
+          toServerFieldError(error, "Failed to save the bill. Please try again."),
+        );
       },
     },
   });

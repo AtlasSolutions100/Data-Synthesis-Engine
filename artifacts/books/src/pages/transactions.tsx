@@ -7,6 +7,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { TransactionForm } from "@/components/forms/transaction-form";
+import {
+  toServerFieldError,
+  type ServerFieldError,
+} from "@/lib/server-field-error";
 import { DateRangePicker, type DateRangeValue } from "@/components/date-range-picker";
 import { useQueryClient } from "@tanstack/react-query";
 import { Plus, Edit2, Trash2 } from "lucide-react";
@@ -16,6 +20,10 @@ export default function Transactions() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [range, setRange] = useState<DateRangeValue>({});
+  const [createError, setCreateError] = useState<ServerFieldError | null>(
+    null,
+  );
+  const [editError, setEditError] = useState<ServerFieldError | null>(null);
 
   const params = { startDate: range.startDate, endDate: range.endDate };
   const { data: transactions, isLoading } = useListTransactions(params, {
@@ -26,8 +34,17 @@ export default function Transactions() {
     mutation: {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: getListTransactionsQueryKey() });
+        setCreateError(null);
         setIsCreateOpen(false);
-      }
+      },
+      onError: (error) => {
+        setCreateError(
+          toServerFieldError(
+            error,
+            "Failed to save the transaction. Please try again.",
+          ),
+        );
+      },
     }
   });
 
@@ -35,8 +52,17 @@ export default function Transactions() {
     mutation: {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: getListTransactionsQueryKey() });
+        setEditError(null);
         setEditingId(null);
-      }
+      },
+      onError: (error) => {
+        setEditError(
+          toServerFieldError(
+            error,
+            "Failed to save the transaction. Please try again.",
+          ),
+        );
+      },
     }
   });
 
@@ -57,7 +83,13 @@ export default function Transactions() {
         </div>
         <div className="flex items-center gap-3">
         <DateRangePicker value={range} onChange={setRange} />
-        <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+        <Dialog
+          open={isCreateOpen}
+          onOpenChange={(open) => {
+            setIsCreateOpen(open);
+            if (!open) setCreateError(null);
+          }}
+        >
           <DialogTrigger asChild>
             <Button className="bg-blue-600 hover:bg-blue-700">
               <Plus className="mr-2 h-4 w-4" /> New Transaction
@@ -68,8 +100,12 @@ export default function Transactions() {
               <DialogTitle>Create Transaction</DialogTitle>
             </DialogHeader>
             <TransactionForm 
-              onSubmit={(data) => createTransaction.mutate({ data: data as any })} 
+              onSubmit={(data) => {
+                setCreateError(null);
+                createTransaction.mutate({ data: data as any });
+              }} 
               isLoading={createTransaction.isPending} 
+              serverError={createError}
             />
           </DialogContent>
         </Dialog>
@@ -117,7 +153,13 @@ export default function Transactions() {
                     <TableCell className="text-right font-medium">{formatCents(txn.amountCents)}</TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2 justify-end">
-                        <Dialog open={editingId === txn.id} onOpenChange={(val) => setEditingId(val ? txn.id : null)}>
+                        <Dialog
+                          open={editingId === txn.id}
+                          onOpenChange={(val) => {
+                            setEditingId(val ? txn.id : null);
+                            if (!val) setEditError(null);
+                          }}
+                        >
                           <DialogTrigger asChild>
                             <Button variant="ghost" size="icon" className="h-8 w-8">
                               <Edit2 className="h-4 w-4 text-slate-500" />
@@ -141,8 +183,12 @@ export default function Transactions() {
                                 vendorId: txn.vendorId?.toString() || "",
                                 amount: (txn.amountCents / 100).toString(),
                               }}
-                              onSubmit={(data) => updateTransaction.mutate({ id: txn.id, data: data as any })} 
+                              onSubmit={(data) => {
+                                setEditError(null);
+                                updateTransaction.mutate({ id: txn.id, data: data as any });
+                              }} 
                               isLoading={updateTransaction.isPending} 
+                              serverError={editingId === txn.id ? editError : null}
                             />
                           </DialogContent>
                         </Dialog>

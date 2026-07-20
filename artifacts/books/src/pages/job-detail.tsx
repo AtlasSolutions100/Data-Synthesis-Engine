@@ -19,6 +19,10 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { TransactionForm } from "@/components/forms/transaction-form";
 import { JobDocuments } from "@/components/job-documents";
+import {
+  toServerFieldError,
+  type ServerFieldError,
+} from "@/lib/server-field-error";
 import { useQueryClient } from "@tanstack/react-query";
 import { Plus, Edit2, Trash2 } from "lucide-react";
 
@@ -29,6 +33,10 @@ export default function JobDetail() {
 
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingTxnId, setEditingTxnId] = useState<number | null>(null);
+  const [createError, setCreateError] = useState<ServerFieldError | null>(
+    null,
+  );
+  const [editError, setEditError] = useState<ServerFieldError | null>(null);
 
   const { data: job, isLoading: jobLoading } = useGetJob(jobId, {
     query: { enabled: !!jobId, queryKey: getGetJobQueryKey(jobId) }
@@ -54,8 +62,17 @@ export default function JobDetail() {
         queryClient.invalidateQueries({ queryKey: getListTransactionsQueryKey() });
         queryClient.invalidateQueries({ queryKey: getGetJobCostSummaryQueryKey(jobId) });
         queryClient.invalidateQueries({ queryKey: getGetJobQueryKey(jobId) });
+        setCreateError(null);
         setIsCreateOpen(false);
-      }
+      },
+      onError: (error) => {
+        setCreateError(
+          toServerFieldError(
+            error,
+            "Failed to save the transaction. Please try again.",
+          ),
+        );
+      },
     }
   });
 
@@ -65,8 +82,17 @@ export default function JobDetail() {
         queryClient.invalidateQueries({ queryKey: getListTransactionsQueryKey() });
         queryClient.invalidateQueries({ queryKey: getGetJobCostSummaryQueryKey(jobId) });
         queryClient.invalidateQueries({ queryKey: getGetJobQueryKey(jobId) });
+        setEditError(null);
         setEditingTxnId(null);
-      }
+      },
+      onError: (error) => {
+        setEditError(
+          toServerFieldError(
+            error,
+            "Failed to save the transaction. Please try again.",
+          ),
+        );
+      },
     }
   });
 
@@ -243,7 +269,13 @@ export default function JobDetail() {
               Every entry coded to this job, grouped by account with subtotals.
             </p>
           </div>
-          <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+          <Dialog
+            open={isCreateOpen}
+            onOpenChange={(open) => {
+              setIsCreateOpen(open);
+              if (!open) setCreateError(null);
+            }}
+          >
             <DialogTrigger asChild>
               <Button size="sm" className="bg-blue-600 hover:bg-blue-700">
                 <Plus className="mr-2 h-4 w-4" /> New Transaction
@@ -255,8 +287,12 @@ export default function JobDetail() {
               </DialogHeader>
               <TransactionForm
                 defaultValues={{ jobId: jobId.toString() }}
-                onSubmit={(data) => createTransaction.mutate({ data: data as any })}
+                onSubmit={(data) => {
+                  setCreateError(null);
+                  createTransaction.mutate({ data: data as any });
+                }}
                 isLoading={createTransaction.isPending}
+                serverError={createError}
               />
             </DialogContent>
           </Dialog>
@@ -312,7 +348,13 @@ export default function JobDetail() {
                           <TableCell className="text-right font-medium">{formatCents(txn.amountCents)}</TableCell>
                           <TableCell>
                             <div className="flex items-center gap-1 justify-end">
-                              <Dialog open={editingTxnId === txn.id} onOpenChange={(val) => setEditingTxnId(val ? txn.id : null)}>
+                              <Dialog
+                                open={editingTxnId === txn.id}
+                                onOpenChange={(val) => {
+                                  setEditingTxnId(val ? txn.id : null);
+                                  if (!val) setEditError(null);
+                                }}
+                              >
                                 <DialogTrigger asChild>
                                   <Button variant="ghost" size="icon" className="h-8 w-8">
                                     <Edit2 className="h-4 w-4 text-slate-500" />
@@ -336,8 +378,12 @@ export default function JobDetail() {
                                       vendorId: txn.vendorId?.toString() || "",
                                       amount: (txn.amountCents / 100).toString(),
                                     }}
-                                    onSubmit={(data) => updateTransaction.mutate({ id: txn.id, data: data as any })}
+                                    onSubmit={(data) => {
+                                      setEditError(null);
+                                      updateTransaction.mutate({ id: txn.id, data: data as any });
+                                    }}
                                     isLoading={updateTransaction.isPending}
+                                    serverError={editingTxnId === txn.id ? editError : null}
                                   />
                                 </DialogContent>
                               </Dialog>

@@ -110,6 +110,99 @@ describe("TransactionForm account selection", () => {
   });
 });
 
+describe("TransactionForm server field errors", () => {
+  it("attaches a server error with field 'accountId' to the account input", async () => {
+    render(
+      <TransactionForm
+        onSubmit={vi.fn()}
+        serverError={{
+          field: "accountId",
+          message: "Account 999 does not exist",
+        }}
+        defaultValues={{ ...baseDefaults, accountId: "999" }}
+      />,
+    );
+
+    await waitFor(() =>
+      expect(screen.getByText("Account 999 does not exist")).toBeTruthy(),
+    );
+    expect(screen.queryByTestId("text-transaction-server-error")).toBeNull();
+  });
+
+  it("attaches a server error with field 'vendorId' to the vendor input", async () => {
+    render(
+      <TransactionForm
+        onSubmit={vi.fn()}
+        serverError={{
+          field: "vendorId",
+          message: "Vendor 999 does not exist",
+        }}
+        defaultValues={{ ...baseDefaults, vendorId: "999" }}
+      />,
+    );
+
+    await waitFor(() =>
+      expect(screen.getByText("Vendor 999 does not exist")).toBeTruthy(),
+    );
+    expect(screen.queryByTestId("text-transaction-server-error")).toBeNull();
+  });
+
+  it("attaches a server error with field 'splitAccountId' to the split account input", async () => {
+    render(
+      <TransactionForm
+        onSubmit={vi.fn()}
+        serverError={{
+          field: "splitAccountId",
+          message: "Account 888 does not exist",
+        }}
+        defaultValues={{ ...baseDefaults, splitAccountId: "888" }}
+      />,
+    );
+
+    await waitFor(() =>
+      expect(screen.getByText("Account 888 does not exist")).toBeTruthy(),
+    );
+    expect(screen.queryByTestId("text-transaction-server-error")).toBeNull();
+  });
+
+  it("falls back to the form-level message when no field is provided", async () => {
+    render(
+      <TransactionForm
+        onSubmit={vi.fn()}
+        serverError={{
+          message: "Failed to save the transaction. Please try again.",
+        }}
+        defaultValues={baseDefaults}
+      />,
+    );
+
+    const formError = await screen.findByTestId(
+      "text-transaction-server-error",
+    );
+    expect(formError.textContent).toBe(
+      "Failed to save the transaction. Please try again.",
+    );
+  });
+
+  it("falls back to the form-level message when the server field is unknown", async () => {
+    render(
+      <TransactionForm
+        onSubmit={vi.fn()}
+        serverError={{
+          field: "somethingElse",
+          message: "Something went wrong",
+        }}
+        defaultValues={baseDefaults}
+      />,
+    );
+
+    const formError = await screen.findByTestId(
+      "text-transaction-server-error",
+    );
+    expect(formError.textContent).toBe("Something went wrong");
+  });
+});
+
 describe("TransactionForm split account", () => {
   it("saves the split account id picked by name from the dropdown", async () => {
     const onSubmit = vi.fn();
