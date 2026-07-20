@@ -172,6 +172,12 @@ async function getFullRun(id: number) {
   };
 }
 
+/** Format a cent amount as a dollar string, e.g. 25000 -> "$250.00". */
+function formatDollars(cents: number): string {
+  const sign = cents < 0 ? "-" : "";
+  return `${sign}$${(Math.abs(cents) / 100).toFixed(2)}`;
+}
+
 /** Validate that a labor account exists and is a cost-type account. */
 async function validateLaborAccount(
   accountId: number,
@@ -248,7 +254,7 @@ async function validateLines(
     });
     const allocated = l.allocations.reduce((s, a) => s + a.amountCents, 0);
     if (allocated > computed.totalCostCents) {
-      return `Allocations for ${l.workerName} (${allocated}) exceed the line cost (${computed.totalCostCents})`;
+      return `Allocations for ${l.workerName} (${formatDollars(allocated)}) exceed the line cost (${formatDollars(computed.totalCostCents)}) by ${formatDollars(allocated - computed.totalCostCents)}`;
     }
   }
   return null;
@@ -683,7 +689,7 @@ router.post("/payroll-runs/:id/post", async (req, res): Promise<void> => {
     }
     if (allocated > total) {
       res.status(400).json({
-        error: `Allocations for ${l.workerName} (${allocated}) exceed the line cost (${total}) by ${allocated - total}`,
+        error: `Allocations for ${l.workerName} (${formatDollars(allocated)}) exceed the line cost (${formatDollars(total)}) by ${formatDollars(allocated - total)}`,
       });
       return;
     }

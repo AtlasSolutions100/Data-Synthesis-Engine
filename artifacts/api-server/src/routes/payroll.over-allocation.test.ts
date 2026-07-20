@@ -135,10 +135,12 @@ describe("POST /api/payroll-runs over-allocation rejection (create validation)",
 
     expect(res.status).toBe(400);
     expect(res.body.error).toMatch(/exceed the line cost/i);
-    // The message names the offending worker and both figures.
+    // The message names the offending worker and both figures as dollars.
     expect(res.body.error).toContain("TEST-OA Overshoot");
-    expect(res.body.error).toContain("20000");
-    expect(res.body.error).toContain("10000");
+    expect(res.body.error).toContain("$200.00");
+    expect(res.body.error).toContain("$100.00");
+    // ...and the overage amount.
+    expect(res.body.error).toContain("by $100.00");
 
     // No run should have been persisted for this rejected create.
     const runs = await db
@@ -187,10 +189,11 @@ describe("POST /api/payroll-runs/:id/post over-allocation rejection (post handle
     expect(res.status).toBe(400);
     expect(res.body.error).toMatch(/exceed the line cost/i);
     expect(res.body.error).toContain("TEST-OA PostOvershoot");
-    // The message includes the allocated total, the line cost, and the overage.
-    expect(res.body.error).toContain("25000");
-    expect(res.body.error).toContain("10000");
-    expect(res.body.error).toContain("15000");
+    // The message includes the allocated total, the line cost, and the
+    // overage, all formatted as dollars.
+    expect(res.body.error).toContain("$250.00");
+    expect(res.body.error).toContain("$100.00");
+    expect(res.body.error).toContain("$150.00");
 
     // The guard must fire before any ledger rows are written.
     const rows = await ledgerRowsForRun(run.id);
