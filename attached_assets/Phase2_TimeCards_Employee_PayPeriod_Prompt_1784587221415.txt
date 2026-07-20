@@ -1,0 +1,62 @@
+You are an expert full-stack developer working inside an existing Replit project that already contains a fully functional web-based accounting and project management dashboard for Allied Power.
+
+The existing dashboard already has Time/Payroll entry, Employees, and related data models.
+
+Do NOT recommend new tech or rebuilding anything. Make precise, targeted edits to the existing code. Assume Phase 1 changes (Dashboard, Customer hierarchy, Job Name/PO, Vendor sync) have already been implemented or will be merged separately.
+
+---
+
+PHASE 2 GOAL
+Deliver the major operational improvements around time tracking and employee management that the client spent significant time discussing.
+
+Implement ONLY the following changes in this phase:
+
+1. Time Cards Tab Rename & Core Labeling
+   - Rename the existing "Payroll" tab to exactly "Time Cards".
+   - Change the main action button/label from "New Payroll Run" to exactly "New Time Card Run".
+   - Update any related headers or navigation text to match.
+
+2. Pay Period Intelligence (High Value)
+   - Add a Pay Period Number selector (client runs 26 weekly payrolls per year, Monday–Sunday).
+   - When the user selects only the Pay Period Number, automatically populate:
+     - Begin Date
+     - End Date
+     - Pay Date (typically the following Thursday)
+   - Use the existing pay period data already in the project (Period 13 example: started ~6/8, ended 6/21, check date ~6/26). Hardcode a clean weekly schedule based on data already present; make it easy to adjust later if needed.
+   - The user should only need to choose the pay period number for most cases.
+
+3. Labor Cost Type Dropdown
+   - Add a clean dropdown for Labor Cost / Labor Cost Type with exactly these three options:
+     - Regular Pay
+     - Overtime Pay
+     - Holiday / Vacation / Sick (one combined "slush fund" bucket)
+   - Replace any free-text or previous options with this controlled dropdown.
+
+4. Employee Center as Single Source of Truth
+   - Make the Employees tab the ONLY place where rates, overtime multiplier (1.5x), payroll deductions, tax status, and active/inactive status can be edited.
+   - Remove editing capability for these fields from the time card / time entry screens (make them view-only where rates are shown).
+   - Pre-populate or add these employees with data from the meeting:
+     - Brendan: $30.00/hr regular, 1.5× OT ($45.00), Active
+     - Tracy
+     - Jeff Harris
+     - Michael Grenz (owner)
+   - Add or enhance the ability to view historical time cards/hours for an employee (e.g., "All Years" selector or per-employee history view).
+
+5. Time Import Improvements
+   - Improve the import hours feature to support paste from email, upload of image/PDF/scan, or text block.
+   - Extract employee, date(s), hours, and job name.
+   - Automatically apply correct regular/OT rates from the Employee Center record.
+   - Show clear visual flags or alerts for mismatches (unknown employee, unknown job like "Bruce Randolph", date outside pay period).
+
+---
+
+REQUIREMENTS FOR THIS PHASE
+- Use the client's exact language: "Time Cards", "New Time Card Run", the three Labor Cost options.
+- Preserve all existing functionality and data.
+- Use meeting examples: Brendan timesheet, "Bruce Randolph" as unknown job that should flag, pay period 13 dates.
+- After completing the changes, provide:
+  - Summary of what was changed
+  - Step-by-step testing instructions for the new Time Cards flows and Employee Center
+  - List of files modified
+
+Start with Phase 2 now. Be precise with labels and interactions.
