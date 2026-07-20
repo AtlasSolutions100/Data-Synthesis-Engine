@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import type { FieldPath } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -53,6 +53,9 @@ interface InvoiceFormProps {
   isLoading?: boolean;
   lockJob?: boolean;
   serverError?: ServerFieldError | null;
+  /** Amount already paid on this invoice (cents). When the edited total drops
+   * below this, the form asks for confirmation before submitting. */
+  paidCents?: number;
 }
 
 export function InvoiceForm({
@@ -61,6 +64,7 @@ export function InvoiceForm({
   isLoading,
   lockJob,
   serverError,
+  paidCents,
 }: InvoiceFormProps) {
   const { data: customers } = useListCustomers({
     query: { queryKey: getListCustomersQueryKey() },
@@ -110,6 +114,14 @@ export function InvoiceForm({
     0,
   );
 
+  const overpaid = paidCents != null && paidCents > 0 && totalCents < paidCents;
+  const [overpaidConfirmationPending, setOverpaidConfirmationPending] =
+    useState(false);
+
+  useEffect(() => {
+    if (!overpaid) setOverpaidConfirmationPending(false);
+  }, [overpaid]);
+
   const handleSubmit = (values: InvoiceFormValues) => {
     let hasError = false;
     if (jobs && !jobs.some((j) => String(j.id) === values.jobId)) {
@@ -132,6 +144,12 @@ export function InvoiceForm({
       hasError = true;
     }
     if (hasError) return;
+
+    if (overpaid && !overpaidConfirmationPending) {
+      setOverpaidConfirmationPending(true);
+      return;
+    }
+    setOverpaidConfirmationPending(false);
 
     onSubmit({
       invoiceNumber: values.invoiceNumber,
@@ -315,6 +333,18 @@ export function InvoiceForm({
             </FormItem>
           )}
         />
+        {overpaid && overpaidConfirmationPending ? (
+          <div
+            role="alert"
+            className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900"
+            data-testid="text-invoice-overpaid-warning"
+          >
+            The new total ({formatCents(totalCents)}) is less than the amount
+            already paid ({formatCents(paidCents ?? 0)}). Saving will leave this
+            invoice with a negative balance. Click{" "}
+            <span className="font-semibold">Save Anyway</span> to confirm.
+          </div>
+        ) : null}
         {formLevelError ? (
           <p
             role="alert"
@@ -325,7 +355,11 @@ export function InvoiceForm({
           </p>
         ) : null}
         <Button type="submit" disabled={isLoading} className="w-full">
-          {isLoading ? "Saving..." : "Save Invoice"}
+          {isLoading
+            ? "Saving..."
+            : overpaid && overpaidConfirmationPending
+              ? "Save Anyway"
+              : "Save Invoice"}
         </Button>
       </form>
     </Form>

@@ -212,6 +212,75 @@ describe("InvoiceForm dangling id validation", () => {
     expect(formError.textContent).toBe("Amount is invalid");
   });
 
+  it("warns and blocks the first submit when the new total is below the amount paid", async () => {
+    const onSubmit = vi.fn();
+    render(
+      <InvoiceForm
+        onSubmit={onSubmit}
+        paidCents={15000}
+        defaultValues={{ ...baseDefaults, jobId: "10" }}
+      />,
+    );
+
+    // Total is $100 but $150 is already paid.
+    await submit();
+    const warning = await screen.findByTestId("text-invoice-overpaid-warning");
+    expect(warning.textContent).toContain("$100.00");
+    expect(warning.textContent).toContain("$150.00");
+    expect(onSubmit).not.toHaveBeenCalled();
+
+    // Button now asks for explicit confirmation.
+    const confirmBtn = screen.getByRole("button", { name: /save anyway/i });
+    fireEvent.click(confirmBtn);
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+  });
+
+  it("clears the warning when the total is raised back above the paid amount", async () => {
+    const onSubmit = vi.fn();
+    render(
+      <InvoiceForm
+        onSubmit={onSubmit}
+        paidCents={15000}
+        defaultValues={{ ...baseDefaults, jobId: "10" }}
+      />,
+    );
+
+    await submit();
+    await screen.findByTestId("text-invoice-overpaid-warning");
+
+    fireEvent.change(screen.getByPlaceholderText("Amount"), {
+      target: { value: "200" },
+    });
+    await waitFor(() =>
+      expect(
+        screen.queryByTestId("text-invoice-overpaid-warning"),
+      ).toBeNull(),
+    );
+
+    await submit();
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    expect(
+      onSubmit.mock.calls[0][0].lines.map(
+        (l: { amountCents: number }) => l.amountCents,
+      ),
+    ).toEqual([20000]);
+  });
+
+  it("does not warn when no payments have been recorded", async () => {
+    const onSubmit = vi.fn();
+    render(
+      <InvoiceForm
+        onSubmit={onSubmit}
+        paidCents={0}
+        defaultValues={{ ...baseDefaults, jobId: "10" }}
+      />,
+    );
+
+    await submit();
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    expect(screen.queryByTestId("text-invoice-overpaid-warning")).toBeNull();
+  });
+
   it("submits with valid job and customer selections", async () => {
     const onSubmit = vi.fn();
     render(

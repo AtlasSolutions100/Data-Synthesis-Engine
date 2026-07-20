@@ -178,6 +178,7 @@ export default function InvoiceDetail() {
                   }}
                   isLoading={updateInvoice.isPending}
                   serverError={editError}
+                  paidCents={invoice.paidCents}
                 />
               )}
             </DialogContent>
