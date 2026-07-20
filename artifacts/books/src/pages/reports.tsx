@@ -1,4 +1,4 @@
-import { Fragment, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { Link } from "wouter";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import {
@@ -315,6 +315,15 @@ export default function Reports() {
     useGetAccountBalances(agingParams, {
       query: { queryKey: getGetAccountBalancesQueryKey(agingParams) },
     });
+
+  useEffect(() => {
+    const hash = window.location.hash.replace("#", "");
+    if (!hash) return;
+    const el = document.getElementById(hash);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, []);
 
   return (
     <div className="space-y-8">
@@ -695,7 +704,7 @@ export default function Reports() {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card id="ar-aging" className="scroll-mt-6">
         <CardHeader>
           <CardTitle>Accounts Receivable Aging</CardTitle>
           {arAging?.asOf && (
@@ -781,7 +790,7 @@ export default function Reports() {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card id="ap-aging" className="scroll-mt-6">
         <CardHeader>
           <CardTitle>Accounts Payable Aging</CardTitle>
           {apAging?.asOf && (

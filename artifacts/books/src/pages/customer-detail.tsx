@@ -9,6 +9,7 @@ import { formatCents } from "@/lib/format";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { ArrowLeft } from "lucide-react";
 
 export default function CustomerDetail() {
   const { id } = useParams<{ id: string }>();
@@ -46,6 +47,14 @@ export default function CustomerDetail() {
   return (
     <div className="space-y-8">
       <div>
+        <Link
+          href="/reports#ar-aging"
+          className="inline-flex items-center gap-1 text-sm text-blue-600 hover:underline mb-2"
+          data-testid="link-back-to-aging"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          View in aging report
+        </Link>
         <h1 className="text-3xl font-bold tracking-tight text-slate-900">{customer.name}</h1>
         <p className="text-slate-500 mt-1">
           {[customer.email, customer.phone].filter(Boolean).join(" · ") || "No contact info"}
