@@ -695,6 +695,34 @@ export const CreateTransactionResponse = zod.object({
 
 
 /**
+ * @summary List distinct legacy free-text split account names with transaction counts
+ */
+export const ListLegacySplitAccountsResponseItem = zod.object({
+  "name": zod.string().describe('Legacy free-text split account name'),
+  "count": zod.number().describe('Number of transactions still carrying this legacy name')
+})
+export const ListLegacySplitAccountsResponse = zod.array(ListLegacySplitAccountsResponseItem)
+
+
+/**
+ * @summary Map a legacy split-account name to a real account across all matching transactions
+ */
+
+
+
+export const MapLegacySplitAccountBody = zod.object({
+  "name": zod.string().min(1).describe('Legacy free-text split account name to remap'),
+  "accountId": zod.number().describe('Account to link all matching transactions to')
+})
+
+export const MapLegacySplitAccountResponse = zod.object({
+  "name": zod.string(),
+  "accountId": zod.number(),
+  "updated": zod.number().describe('Number of transactions updated')
+})
+
+
+/**
  * @summary Get a transaction
  */
 export const GetTransactionParams = zod.object({

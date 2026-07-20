@@ -458,6 +458,30 @@ export interface TransactionUpdate {
   amountCents?: number;
 }
 
+export interface LegacySplitAccount {
+  /** Legacy free-text split account name */
+  name: string;
+  /** Number of transactions still carrying this legacy name */
+  count: number;
+}
+
+export interface LegacySplitAccountMapInput {
+  /**
+     * Legacy free-text split account name to remap
+     * @minLength 1
+     */
+  name: string;
+  /** Account to link all matching transactions to */
+  accountId: number;
+}
+
+export interface LegacySplitAccountMapResult {
+  name: string;
+  accountId: number;
+  /** Number of transactions updated */
+  updated: number;
+}
+
 export type AccountTotalType = typeof AccountTotalType[keyof typeof AccountTotalType];
 
 

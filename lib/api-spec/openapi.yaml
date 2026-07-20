@@ -592,6 +592,39 @@ paths:
                 $ref: "#/components/schemas/Transaction"
         "400":
           $ref: "#/components/responses/Error"
+  /transactions/legacy-split-accounts:
+    get:
+      operationId: listLegacySplitAccounts
+      tags: [transactions]
+      summary: List distinct legacy free-text split account names with transaction counts
+      responses:
+        "200":
+          description: Distinct legacy split-account names
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/LegacySplitAccount"
+    post:
+      operationId: mapLegacySplitAccount
+      tags: [transactions]
+      summary: Map a legacy split-account name to a real account across all matching transactions
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LegacySplitAccountMapInput"
+      responses:
+        "200":
+          description: Mapping result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LegacySplitAccountMapResult"
+        "400":
+          $ref: "#/components/responses/Error"
   /transactions/{id}:
     get:
       operationId: getTransaction
@@ -1764,6 +1797,39 @@ components:
           type: ["integer", "null"]
         amountCents:
           type: integer
+
+    LegacySplitAccount:
+      type: object
+      required: [name, count]
+      properties:
+        name:
+          type: string
+          description: Legacy free-text split account name
+        count:
+          type: integer
+          description: Number of transactions still carrying this legacy name
+    LegacySplitAccountMapInput:
+      type: object
+      required: [name, accountId]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          description: Legacy free-text split account name to remap
+        accountId:
+          type: integer
+          description: Account to link all matching transactions to
+    LegacySplitAccountMapResult:
+      type: object
+      required: [name, accountId, updated]
+      properties:
+        name:
+          type: string
+        accountId:
+          type: integer
+        updated:
+          type: integer
+          description: Number of transactions updated
 
     JobCostSummary:
       type: object

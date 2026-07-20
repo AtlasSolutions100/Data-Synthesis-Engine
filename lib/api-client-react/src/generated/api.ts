@@ -57,6 +57,9 @@ import type {
   JobDocumentInput,
   JobInput,
   JobUpdate,
+  LegacySplitAccount,
+  LegacySplitAccountMapInput,
+  LegacySplitAccountMapResult,
   ListBillsParams,
   ListInvoicesParams,
   ListJobsParams,
@@ -2465,6 +2468,153 @@ export const useCreateTransaction = <TError = ErrorType<ErrorResponse>,
         TContext
       > => {
       return useMutation(getCreateTransactionMutationOptions(options));
+    }
+
+export const getListLegacySplitAccountsUrl = () => {
+
+
+
+
+  return `/api/transactions/legacy-split-accounts`
+}
+
+/**
+ * @summary List distinct legacy free-text split account names with transaction counts
+ */
+export const listLegacySplitAccounts = async ( options?: RequestInit): Promise<LegacySplitAccount[]> => {
+
+  return customFetch<LegacySplitAccount[]>(getListLegacySplitAccountsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListLegacySplitAccountsQueryKey = () => {
+    return [
+    `/api/transactions/legacy-split-accounts`
+    ] as const;
+    }
+
+
+export const getListLegacySplitAccountsQueryOptions = <TData = Awaited<ReturnType<typeof listLegacySplitAccounts>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listLegacySplitAccounts>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListLegacySplitAccountsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listLegacySplitAccounts>>> = ({ signal }) => listLegacySplitAccounts({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listLegacySplitAccounts>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListLegacySplitAccountsQueryResult = NonNullable<Awaited<ReturnType<typeof listLegacySplitAccounts>>>
+export type ListLegacySplitAccountsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List distinct legacy free-text split account names with transaction counts
+ */
+
+export function useListLegacySplitAccounts<TData = Awaited<ReturnType<typeof listLegacySplitAccounts>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listLegacySplitAccounts>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListLegacySplitAccountsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getMapLegacySplitAccountUrl = () => {
+
+
+
+
+  return `/api/transactions/legacy-split-accounts`
+}
+
+/**
+ * @summary Map a legacy split-account name to a real account across all matching transactions
+ */
+export const mapLegacySplitAccount = async (legacySplitAccountMapInput: LegacySplitAccountMapInput, options?: RequestInit): Promise<LegacySplitAccountMapResult> => {
+
+  return customFetch<LegacySplitAccountMapResult>(getMapLegacySplitAccountUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(legacySplitAccountMapInput)
+  }
+);}
+
+
+
+
+export const getMapLegacySplitAccountMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof mapLegacySplitAccount>>, TError,{data: BodyType<LegacySplitAccountMapInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof mapLegacySplitAccount>>, TError,{data: BodyType<LegacySplitAccountMapInput>}, TContext> => {
+
+const mutationKey = ['mapLegacySplitAccount'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof mapLegacySplitAccount>>, {data: BodyType<LegacySplitAccountMapInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  mapLegacySplitAccount(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type MapLegacySplitAccountMutationResult = NonNullable<Awaited<ReturnType<typeof mapLegacySplitAccount>>>
+    export type MapLegacySplitAccountMutationBody = BodyType<LegacySplitAccountMapInput>
+    export type MapLegacySplitAccountMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Map a legacy split-account name to a real account across all matching transactions
+ */
+export const useMapLegacySplitAccount = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof mapLegacySplitAccount>>, TError,{data: BodyType<LegacySplitAccountMapInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof mapLegacySplitAccount>>,
+        TError,
+        {data: BodyType<LegacySplitAccountMapInput>},
+        TContext
+      > => {
+      return useMutation(getMapLegacySplitAccountMutationOptions(options));
     }
 
 export const getGetTransactionUrl = (id: number,) => {
