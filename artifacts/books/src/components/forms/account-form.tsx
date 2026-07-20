@@ -17,7 +17,17 @@ import { AccountInput, AccountUpdate, AccountInputType } from "@workspace/api-cl
 const accountSchema = z.object({
   number: z.string().min(1, "Account number is required"),
   name: z.string().min(1, "Name is required"),
-  type: z.enum(["income", "cogs", "expense", "other_income", "other_expense"]),
+  type: z.enum([
+    "income",
+    "cogs",
+    "expense",
+    "other_income",
+    "other_expense",
+    "asset",
+    "bank",
+    "liability",
+    "credit_card",
+  ]),
   parentNumber: z.string().optional(),
 });
 
@@ -99,6 +109,10 @@ export function AccountForm({ defaultValues, onSubmit, isLoading }: AccountFormP
                     <SelectItem value="expense">Expense</SelectItem>
                     <SelectItem value="other_income">Other Income</SelectItem>
                     <SelectItem value="other_expense">Other Expense</SelectItem>
+                    <SelectItem value="asset">Asset</SelectItem>
+                    <SelectItem value="bank">Bank</SelectItem>
+                    <SelectItem value="liability">Liability</SelectItem>
+                    <SelectItem value="credit_card">Credit Card</SelectItem>
                   </SelectContent>
                 </Select>
                 <FormMessage />

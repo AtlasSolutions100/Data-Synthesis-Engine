@@ -15,4 +15,8 @@ export const AccountInputType = {
   expense: 'expense',
   other_income: 'other_income',
   other_expense: 'other_expense',
+  asset: 'asset',
+  bank: 'bank',
+  liability: 'liability',
+  credit_card: 'credit_card',
 } as const;

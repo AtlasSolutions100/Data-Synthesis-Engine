@@ -1380,7 +1380,7 @@ components:
           type: string
         type:
           type: string
-          enum: [income, cogs, expense, other_income, other_expense]
+          enum: [income, cogs, expense, other_income, other_expense, asset, bank, liability, credit_card]
         parentNumber:
           type: ["string", "null"]
     AccountInput:
@@ -1395,7 +1395,7 @@ components:
           minLength: 1
         type:
           type: string
-          enum: [income, cogs, expense, other_income, other_expense]
+          enum: [income, cogs, expense, other_income, other_expense, asset, bank, liability, credit_card]
         parentNumber:
           type: ["string", "null"]
     AccountUpdate:
@@ -1409,7 +1409,7 @@ components:
           minLength: 1
         type:
           type: string
-          enum: [income, cogs, expense, other_income, other_expense]
+          enum: [income, cogs, expense, other_income, other_expense, asset, bank, liability, credit_card]
         parentNumber:
           type: ["string", "null"]
 
@@ -1802,7 +1802,7 @@ components:
           type: string
         type:
           type: string
-          enum: [income, cogs, expense, other_income, other_expense]
+          enum: [income, cogs, expense, other_income, other_expense, asset, bank, liability, credit_card]
         amountCents:
           type: integer
 

@@ -97,6 +97,13 @@ function parseRows(
   return out;
 }
 
+const BALANCE_SHEET_ACCOUNTS = [
+  { number: "10100", name: "Checking", type: "bank" },
+  { number: "11000", name: "Accounts Receivable", type: "asset" },
+  { number: "20000", name: "Accounts Payable", type: "liability" },
+  { number: "20500", name: "Home Depot", type: "credit_card" },
+];
+
 const SECTION_TYPE: Record<string, string> = {
   Income: "income",
   "Cost of Goods Sold": "cogs",
@@ -246,6 +253,10 @@ async function main() {
     name: a.name,
     type: a.type,
   }));
+  // Balance-sheet accounts referenced by transaction split lines. The QuickBooks
+  // export only lists P&L accounts as sections, but detail rows reference these
+  // in their Split column, so create them explicitly.
+  acctRows.push(...BALANCE_SHEET_ACCOUNTS);
   const insertedAccounts = await db
     .insert(accountsTable)
     .values(acctRows)
@@ -324,6 +335,18 @@ async function main() {
       amountCents: t.amountCents,
     };
   });
+  const unmapped = [
+    ...new Set(
+      txnRows
+        .filter((t) => t.splitAccount && t.splitAccountId === null)
+        .map((t) => t.splitAccount as string),
+    ),
+  ];
+  if (unmapped.length > 0) {
+    throw new Error(
+      `Split account names with no matching account: ${unmapped.join(", ")}`,
+    );
+  }
   await db.insert(transactionsTable).values(txnRows);
 
   // Reconciliation.
