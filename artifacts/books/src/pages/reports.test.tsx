@@ -9,6 +9,9 @@ import type {
   ApAging,
 } from "@workspace/api-client-react";
 import Reports from "./reports";
+import { downloadAgingXlsx } from "@/lib/aging-xlsx";
+import { Toaster } from "@/components/ui/toaster";
+import { waitFor } from "@testing-library/react";
 
 // The Export Job Reports button must build the CSV from the same range state
 // that drives the on-screen tables. These tests exercise the partial-range
@@ -24,7 +27,7 @@ vi.mock("@/lib/aging-csv", async (importOriginal) => {
 });
 
 vi.mock("@/lib/aging-xlsx", () => ({
-  downloadAgingXlsx: vi.fn(),
+  downloadAgingXlsx: vi.fn(() => Promise.resolve()),
 }));
 
 // Replace the popover/calendar picker with simple buttons so jsdom can drive
@@ -150,6 +153,7 @@ function renderReports() {
   render(
     <QueryClientProvider client={queryClient}>
       <Reports />
+      <Toaster />
     </QueryClientProvider>,
   );
 }
@@ -160,6 +164,59 @@ function lastDownload(): { csv: string; filename: string } {
     downloadCsv.mock.calls[downloadCsv.mock.calls.length - 1];
   return { csv: csv as string, filename: filename as string };
 }
+
+describe("Export Aging (Excel) failure handling", () => {
+  afterEach(() => {
+    cleanup();
+    vi.mocked(downloadAgingXlsx).mockReset();
+    vi.mocked(downloadAgingXlsx).mockResolvedValue(undefined);
+  });
+
+  it("shows an error toast and re-enables the button when the export fails", async () => {
+    vi.mocked(downloadAgingXlsx).mockRejectedValueOnce(
+      new Error("workbook generation blew up"),
+    );
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+    const user = userEvent.setup();
+    renderReports();
+
+    await user.click(screen.getByTestId("button-export-aging-xlsx"));
+
+    expect(await screen.findByText("Export failed")).toBeTruthy();
+    expect(screen.getByText("workbook generation blew up")).toBeTruthy();
+    await waitFor(() => {
+      const button = screen.getByTestId(
+        "button-export-aging-xlsx",
+      ) as HTMLButtonElement;
+      expect(button.disabled).toBe(false);
+    });
+    consoleError.mockRestore();
+  });
+
+  it("disables the button while the export is in progress", async () => {
+    let resolveExport!: () => void;
+    vi.mocked(downloadAgingXlsx).mockReturnValueOnce(
+      new Promise<void>((resolve) => {
+        resolveExport = resolve;
+      }),
+    );
+    const user = userEvent.setup();
+    renderReports();
+
+    const button = screen.getByTestId(
+      "button-export-aging-xlsx",
+    ) as HTMLButtonElement;
+    await user.click(button);
+    expect(button.disabled).toBe(true);
+    expect(screen.getByText("Exporting…")).toBeTruthy();
+
+    resolveExport();
+    await waitFor(() => expect(button.disabled).toBe(false));
+    expect(downloadAgingXlsx).toHaveBeenCalledTimes(1);
+  });
+});
 
 describe("Export Job Reports CSV with partial date ranges", () => {
   beforeEach(() => {

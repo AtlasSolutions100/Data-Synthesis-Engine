@@ -47,6 +47,7 @@ import {
   type DateRangeValue,
   describeRange,
 } from "@/components/date-range-picker";
+import { useToast } from "@/hooks/use-toast";
 
 function BucketCells({ buckets }: { buckets: AgingBuckets }) {
   return (
@@ -158,7 +159,22 @@ const agingHeaders = (
 );
 
 export default function Reports() {
+  const { toast } = useToast();
   const [range, setRange] = useState<DateRangeValue>({});
+  const [exportingXlsx, setExportingXlsx] = useState(false);
+  const exportWithErrorToast = (title: string, fn: () => void) => {
+    try {
+      fn();
+    } catch (error) {
+      console.error(`${title} failed`, error);
+      toast({
+        title,
+        description:
+          error instanceof Error ? error.message : "Something went wrong.",
+        variant: "destructive",
+      });
+    }
+  };
   const [expandedCustomers, setExpandedCustomers] = useState<Set<string>>(
     new Set(),
   );
@@ -221,10 +237,18 @@ export default function Reports() {
             data-testid="button-export-all"
             onClick={() => {
               if (!report || !payrollByJob || !arAging || !apAging) return;
-              downloadCsv(
-                buildMonthEndCsv(report, payrollByJob, arAging, apAging, range),
-                monthEndCsvFilename(range),
-              );
+              exportWithErrorToast("Export failed", () => {
+                downloadCsv(
+                  buildMonthEndCsv(
+                    report,
+                    payrollByJob,
+                    arAging,
+                    apAging,
+                    range,
+                  ),
+                  monthEndCsvFilename(range),
+                );
+              });
             }}
           >
             <Download className="h-4 w-4 mr-2" />
@@ -236,10 +260,12 @@ export default function Reports() {
             data-testid="button-export-job-reports"
             onClick={() => {
               if (!report || !payrollByJob) return;
-              downloadCsv(
-                buildJobReportsCsv(report, payrollByJob, range),
-                jobReportsCsvFilename(range),
-              );
+              exportWithErrorToast("Export failed", () => {
+                downloadCsv(
+                  buildJobReportsCsv(report, payrollByJob, range),
+                  jobReportsCsvFilename(range),
+                );
+              });
             }}
           >
             <Download className="h-4 w-4 mr-2" />
@@ -250,10 +276,12 @@ export default function Reports() {
             disabled={!arAging || !apAging}
             onClick={() => {
               if (!arAging || !apAging) return;
-              downloadCsv(
-                buildAgingCsv(arAging, apAging),
-                agingCsvFilename(arAging.asOf),
-              );
+              exportWithErrorToast("Export failed", () => {
+                downloadCsv(
+                  buildAgingCsv(arAging, apAging),
+                  agingCsvFilename(arAging.asOf),
+                );
+              });
             }}
           >
             <Download className="h-4 w-4 mr-2" />
@@ -264,10 +292,12 @@ export default function Reports() {
             disabled={!arAging || !apAging}
             onClick={() => {
               if (!arAging || !apAging) return;
-              downloadCsv(
-                buildAgingDetailCsv(arAging, apAging),
-                agingDetailCsvFilename(arAging.asOf),
-              );
+              exportWithErrorToast("Export failed", () => {
+                downloadCsv(
+                  buildAgingDetailCsv(arAging, apAging),
+                  agingDetailCsvFilename(arAging.asOf),
+                );
+              });
             }}
           >
             <Download className="h-4 w-4 mr-2" />
@@ -275,15 +305,28 @@ export default function Reports() {
           </Button>
           <Button
             variant="outline"
-            disabled={!arAging || !apAging}
+            disabled={!arAging || !apAging || exportingXlsx}
             data-testid="button-export-aging-xlsx"
             onClick={() => {
-              if (!arAging || !apAging) return;
-              void downloadAgingXlsx(arAging, apAging);
+              if (!arAging || !apAging || exportingXlsx) return;
+              setExportingXlsx(true);
+              downloadAgingXlsx(arAging, apAging)
+                .catch((error: unknown) => {
+                  console.error("Export failed", error);
+                  toast({
+                    title: "Export failed",
+                    description:
+                      error instanceof Error
+                        ? error.message
+                        : "Something went wrong.",
+                    variant: "destructive",
+                  });
+                })
+                .finally(() => setExportingXlsx(false));
             }}
           >
             <Download className="h-4 w-4 mr-2" />
-            Export Aging (Excel)
+            {exportingXlsx ? "Exporting…" : "Export Aging (Excel)"}
           </Button>
         </div>
       </div>
