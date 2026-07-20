@@ -1,4 +1,6 @@
+import { useEffect } from "react";
 import { useForm } from "react-hook-form";
+import type { FieldPath } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Button } from "@/components/ui/button";
@@ -19,6 +21,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { parseDollars } from "@/lib/format";
+import type { ServerFieldError } from "@/lib/server-field-error";
 
 const paymentSchema = z.object({
   date: z.string().min(1, "Date is required"),
@@ -38,16 +41,26 @@ export interface PaymentSubmit {
   memo: string | null;
 }
 
+const SERVER_FIELD_MAP: Record<string, FieldPath<PaymentFormValues>> = {
+  date: "date",
+  method: "method",
+  referenceNum: "referenceNum",
+  amountCents: "amount",
+  memo: "memo",
+};
+
 interface PaymentFormProps {
   defaultAmount?: string;
   onSubmit: (data: PaymentSubmit) => void;
   isLoading?: boolean;
+  serverError?: ServerFieldError | null;
 }
 
 export function PaymentForm({
   defaultAmount,
   onSubmit,
   isLoading,
+  serverError,
 }: PaymentFormProps) {
   const form = useForm<PaymentFormValues>({
     resolver: zodResolver(paymentSchema),
@@ -59,6 +72,19 @@ export function PaymentForm({
       memo: "",
     },
   });
+
+  const mappedField =
+    serverError?.field != null ? SERVER_FIELD_MAP[serverError.field] : undefined;
+  const fieldError = mappedField ? serverError : null;
+  const formLevelError = serverError && !fieldError ? serverError : null;
+
+  useEffect(() => {
+    if (!fieldError || !mappedField) return;
+    form.setError(mappedField, {
+      type: "server",
+      message: fieldError.message,
+    });
+  }, [fieldError, mappedField, form]);
 
   const handleSubmit = (values: PaymentFormValues) => {
     onSubmit({
@@ -153,6 +179,15 @@ export function PaymentForm({
             </FormItem>
           )}
         />
+        {formLevelError ? (
+          <p
+            role="alert"
+            className="text-sm font-medium text-destructive"
+            data-testid="text-payment-server-error"
+          >
+            {formLevelError.message}
+          </p>
+        ) : null}
         <Button type="submit" disabled={isLoading} className="w-full">
           {isLoading ? "Recording..." : "Record Payment"}
         </Button>

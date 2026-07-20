@@ -34,6 +34,10 @@ import {
 } from "@/components/ui/dialog";
 import { PaymentForm } from "@/components/forms/payment-form";
 import { VendorCreditForm } from "@/components/forms/vendor-credit-form";
+import {
+  toServerFieldError,
+  type ServerFieldError,
+} from "@/lib/server-field-error";
 import { useQueryClient } from "@tanstack/react-query";
 import { Plus, ArrowLeft } from "lucide-react";
 
@@ -49,6 +53,10 @@ export default function BillDetail() {
   const queryClient = useQueryClient();
   const [isPayOpen, setIsPayOpen] = useState(false);
   const [isCreditOpen, setIsCreditOpen] = useState(false);
+  const [paymentError, setPaymentError] = useState<ServerFieldError | null>(
+    null,
+  );
+  const [creditError, setCreditError] = useState<ServerFieldError | null>(null);
 
   const { data: bill, isLoading } = useGetBill(billId, {
     query: { enabled: !!billId, queryKey: getGetBillQueryKey(billId) },
@@ -64,7 +72,16 @@ export default function BillDetail() {
     mutation: {
       onSuccess: () => {
         invalidate();
+        setPaymentError(null);
         setIsPayOpen(false);
+      },
+      onError: (error) => {
+        setPaymentError(
+          toServerFieldError(
+            error,
+            "Failed to record the payment. Please try again.",
+          ),
+        );
       },
     },
   });
@@ -73,7 +90,16 @@ export default function BillDetail() {
     mutation: {
       onSuccess: () => {
         invalidate();
+        setCreditError(null);
         setIsCreditOpen(false);
+      },
+      onError: (error) => {
+        setCreditError(
+          toServerFieldError(
+            error,
+            "Failed to apply the credit. Please try again.",
+          ),
+        );
       },
     },
   });
@@ -210,7 +236,13 @@ export default function BillDetail() {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between border-b">
           <CardTitle>Payments</CardTitle>
-          <Dialog open={isPayOpen} onOpenChange={setIsPayOpen}>
+          <Dialog
+            open={isPayOpen}
+            onOpenChange={(open) => {
+              setIsPayOpen(open);
+              if (!open) setPaymentError(null);
+            }}
+          >
             <DialogTrigger asChild>
               <Button size="sm" className="bg-blue-600 hover:bg-blue-700">
                 <Plus className="mr-2 h-4 w-4" /> Record Payment
@@ -226,8 +258,12 @@ export default function BillDetail() {
                     ? (bill.balanceCents / 100).toString()
                     : ""
                 }
-                onSubmit={(data) => createPayment.mutate({ id: billId, data })}
+                onSubmit={(data) => {
+                  setPaymentError(null);
+                  createPayment.mutate({ id: billId, data });
+                }}
                 isLoading={createPayment.isPending}
+                serverError={paymentError}
               />
             </DialogContent>
           </Dialog>
@@ -276,7 +312,13 @@ export default function BillDetail() {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between border-b">
           <CardTitle>Vendor Credits</CardTitle>
-          <Dialog open={isCreditOpen} onOpenChange={setIsCreditOpen}>
+          <Dialog
+            open={isCreditOpen}
+            onOpenChange={(open) => {
+              setIsCreditOpen(open);
+              if (!open) setCreditError(null);
+            }}
+          >
             <DialogTrigger asChild>
               <Button size="sm" variant="outline">
                 <Plus className="mr-2 h-4 w-4" /> Apply Credit
@@ -287,8 +329,12 @@ export default function BillDetail() {
                 <DialogTitle>Apply Vendor Credit</DialogTitle>
               </DialogHeader>
               <VendorCreditForm
-                onSubmit={(data) => createCredit.mutate({ id: billId, data })}
+                onSubmit={(data) => {
+                  setCreditError(null);
+                  createCredit.mutate({ id: billId, data });
+                }}
                 isLoading={createCredit.isPending}
+                serverError={creditError}
               />
             </DialogContent>
           </Dialog>

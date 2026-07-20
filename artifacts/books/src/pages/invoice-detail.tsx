@@ -56,6 +56,9 @@ export default function InvoiceDetail() {
   const [isPayOpen, setIsPayOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editError, setEditError] = useState<ServerFieldError | null>(null);
+  const [paymentError, setPaymentError] = useState<ServerFieldError | null>(
+    null,
+  );
 
   const { data: invoice, isLoading } = useGetInvoice(invoiceId, {
     query: { enabled: !!invoiceId, queryKey: getGetInvoiceQueryKey(invoiceId) },
@@ -92,7 +95,16 @@ export default function InvoiceDetail() {
     mutation: {
       onSuccess: () => {
         invalidate();
+        setPaymentError(null);
         setIsPayOpen(false);
+      },
+      onError: (error) => {
+        setPaymentError(
+          toServerFieldError(
+            error,
+            "Failed to record the payment. Please try again.",
+          ),
+        );
       },
     },
   });
@@ -287,7 +299,13 @@ export default function InvoiceDetail() {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between border-b">
           <CardTitle>Payments</CardTitle>
-          <Dialog open={isPayOpen} onOpenChange={setIsPayOpen}>
+          <Dialog
+            open={isPayOpen}
+            onOpenChange={(open) => {
+              setIsPayOpen(open);
+              if (!open) setPaymentError(null);
+            }}
+          >
             <DialogTrigger asChild>
               <Button size="sm" className="bg-blue-600 hover:bg-blue-700">
                 <Plus className="mr-2 h-4 w-4" /> Record Payment
@@ -303,10 +321,12 @@ export default function InvoiceDetail() {
                     ? (invoice.balanceCents / 100).toString()
                     : ""
                 }
-                onSubmit={(data) =>
-                  createPayment.mutate({ id: invoiceId, data })
-                }
+                onSubmit={(data) => {
+                  setPaymentError(null);
+                  createPayment.mutate({ id: invoiceId, data });
+                }}
                 isLoading={createPayment.isPending}
+                serverError={paymentError}
               />
             </DialogContent>
           </Dialog>

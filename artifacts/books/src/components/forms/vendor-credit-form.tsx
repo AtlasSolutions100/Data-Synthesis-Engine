@@ -1,4 +1,6 @@
+import { useEffect } from "react";
 import { useForm } from "react-hook-form";
+import type { FieldPath } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Button } from "@/components/ui/button";
@@ -12,6 +14,7 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { parseDollars } from "@/lib/format";
+import type { ServerFieldError } from "@/lib/server-field-error";
 
 const creditSchema = z.object({
   date: z.string().min(1, "Date is required"),
@@ -29,16 +32,25 @@ export interface VendorCreditSubmit {
   memo: string | null;
 }
 
+const SERVER_FIELD_MAP: Record<string, FieldPath<CreditFormValues>> = {
+  date: "date",
+  referenceNum: "referenceNum",
+  amountCents: "amount",
+  memo: "memo",
+};
+
 interface VendorCreditFormProps {
   defaultAmount?: string;
   onSubmit: (data: VendorCreditSubmit) => void;
   isLoading?: boolean;
+  serverError?: ServerFieldError | null;
 }
 
 export function VendorCreditForm({
   defaultAmount,
   onSubmit,
   isLoading,
+  serverError,
 }: VendorCreditFormProps) {
   const form = useForm<CreditFormValues>({
     resolver: zodResolver(creditSchema),
@@ -49,6 +61,19 @@ export function VendorCreditForm({
       memo: "",
     },
   });
+
+  const mappedField =
+    serverError?.field != null ? SERVER_FIELD_MAP[serverError.field] : undefined;
+  const fieldError = mappedField ? serverError : null;
+  const formLevelError = serverError && !fieldError ? serverError : null;
+
+  useEffect(() => {
+    if (!fieldError || !mappedField) return;
+    form.setError(mappedField, {
+      type: "server",
+      message: fieldError.message,
+    });
+  }, [fieldError, mappedField, form]);
 
   const handleSubmit = (values: CreditFormValues) => {
     onSubmit({
@@ -116,6 +141,15 @@ export function VendorCreditForm({
             </FormItem>
           )}
         />
+        {formLevelError ? (
+          <p
+            role="alert"
+            className="text-sm font-medium text-destructive"
+            data-testid="text-credit-server-error"
+          >
+            {formLevelError.message}
+          </p>
+        ) : null}
         <Button type="submit" disabled={isLoading} className="w-full">
           {isLoading ? "Recording..." : "Record Credit"}
         </Button>

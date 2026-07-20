@@ -436,7 +436,10 @@ router.post("/bills/:id/payments", async (req, res): Promise<void> => {
     return;
   }
   if (parsed.data.amountCents <= 0) {
-    res.status(400).json({ error: "Payment amount must be positive" });
+    res.status(400).json({
+      error: "Payment amount must be positive",
+      field: "amountCents",
+    });
     return;
   }
   await db.insert(billPaymentsTable).values({
@@ -471,7 +474,10 @@ router.post("/bills/:id/credits", async (req, res): Promise<void> => {
     return;
   }
   if (parsed.data.amountCents <= 0) {
-    res.status(400).json({ error: "Credit amount must be positive" });
+    res.status(400).json({
+      error: "Credit amount must be positive",
+      field: "amountCents",
+    });
     return;
   }
   await db.insert(vendorCreditsTable).values({
