@@ -219,7 +219,7 @@ describe("Transactions highlight lifecycle", () => {
     expect(row.className).toContain("bg-blue-50");
 
     act(() => {
-      vi.advanceTimersByTime(6100);
+      vi.advanceTimersByTime(5100);
     });
 
     expect(screen.getByTestId("row-transaction-42").className).not.toContain(

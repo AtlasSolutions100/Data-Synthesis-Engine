@@ -16,7 +16,7 @@ import { DateRangePicker, type DateRangeValue } from "@/components/date-range-pi
 import { useQueryClient } from "@tanstack/react-query";
 import { Plus, Edit2, Trash2, ArrowLeft, X } from "lucide-react";
 
-const HIGHLIGHT_FADE_MS = 6000;
+const HIGHLIGHT_FADE_MS = 5000;
 
 export default function Transactions() {
   const queryClient = useQueryClient();
