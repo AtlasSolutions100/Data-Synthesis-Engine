@@ -276,8 +276,10 @@ describe("getJobBillingMap", () => {
     const map = await getJobBillingMap(undefined, fixtureJobIds());
     expect(map.get(jobAId)).toBe(750_00); // 400 + 200 + 150 across two invoices
     expect(map.get(jobBId)).toBe(90_00);
-    // Invoice with no lines contributes nothing (inner join drops it).
-    expect(map.has(jobCId)).toBe(false);
+    // Invoice with no lines counts explicitly as $0 (left join keeps it),
+    // so the job still surfaces in billed-to-date rollups.
+    expect(map.get(jobCId)).toBe(0);
+    // Job with no invoices at all stays absent (callers default to 0).
     expect(map.has(jobEmptyId)).toBe(false);
   });
 

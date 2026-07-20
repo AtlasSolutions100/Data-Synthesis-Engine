@@ -79,8 +79,10 @@ export async function getJobTotalsMap(
 /**
  * Compute total billed-to-date (in integer cents) per job, summed from invoice
  * line items. Jobs with no invoices are absent from the map (callers default to
- * 0). This is the source of truth for progress-billing rollups and is
- * independent of the historical ledger.
+ * 0). Invoices with zero lines (blocked at the API layer, but possible via
+ * direct DB writes) count explicitly as $0 so their job still appears in the
+ * rollup instead of silently vanishing. This is the source of truth for
+ * progress-billing rollups and is independent of the historical ledger.
  */
 export async function getJobBillingMap(
   range?: DateRange,
@@ -95,7 +97,7 @@ export async function getJobBillingMap(
       total: sql<number>`coalesce(sum(${invoiceLinesTable.amountCents}), 0)::bigint`,
     })
     .from(invoicesTable)
-    .innerJoin(
+    .leftJoin(
       invoiceLinesTable,
       eq(invoiceLinesTable.invoiceId, invoicesTable.id),
     )

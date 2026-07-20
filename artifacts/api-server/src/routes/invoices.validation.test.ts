@@ -140,6 +140,15 @@ describe("POST /api/invoices referential validation", () => {
     expect(res.body.field).toBe("customerId");
   });
 
+  it("rejects an empty lines array with a per-field 400", async () => {
+    const res = await request(app)
+      .post("/api/invoices")
+      .send(baseInvoice({ lines: [] }));
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe("Invoice must have at least one line item");
+    expect(res.body.field).toBe("lines");
+  });
+
   it("accepts an invoice whose references all exist", async () => {
     const res = await request(app)
       .post("/api/invoices")
@@ -248,6 +257,21 @@ describe("PATCH /api/invoices/:id header edits", () => {
       .send({ customerId: null });
     expect(res.status).toBe(200);
     expect(res.body.customerId).toBe(customerId);
+  });
+
+  it("rejects deleting all lines with a per-field 400", async () => {
+    const res = await request(app)
+      .patch(`/api/invoices/${patchInvoiceId}`)
+      .send({ lines: [] });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe("Invoice must have at least one line item");
+    expect(res.body.field).toBe("lines");
+
+    // The invoice's existing lines survive the rejected update.
+    const after = await request(app).get(`/api/invoices/${patchInvoiceId}`);
+    expect(after.status).toBe(200);
+    expect(after.body.lines).toHaveLength(1);
+    expect(after.body.totalCents).toBe(1000);
   });
 
   it("leaves job and customer untouched when only header fields change", async () => {

@@ -1,4 +1,4 @@
-import { Router, type IRouter } from "express";
+import { Router, type IRouter, type Response } from "express";
 import { and, desc, eq, sql, type SQL } from "drizzle-orm";
 import {
   db,
@@ -30,6 +30,23 @@ const router: IRouter = Router();
 
 type InvoiceStatus = "open" | "partial" | "paid";
 
+/**
+ * Zero-line invoices would silently disappear from billed-to-date rollups,
+ * so reject them with a clear per-field error before the generic zod parse
+ * (whose message is an unreadable JSON blob).
+ */
+function rejectEmptyLines(body: unknown, res: Response): boolean {
+  const lines = (body as { lines?: unknown } | null)?.lines;
+  if (Array.isArray(lines) && lines.length === 0) {
+    res.status(400).json({
+      error: "Invoice must have at least one line item",
+      field: "lines",
+    });
+    return true;
+  }
+  return false;
+}
+
 function computeStatus(totalCents: number, paidCents: number): InvoiceStatus {
   if (totalCents > 0 && paidCents >= totalCents) return "paid";
   if (paidCents > 0) return "partial";
@@ -43,7 +60,7 @@ async function billedToDateForJob(jobId: number): Promise<number> {
       total: sql<number>`coalesce(sum(${invoiceLinesTable.amountCents}), 0)::bigint`,
     })
     .from(invoicesTable)
-    .innerJoin(
+    .leftJoin(
       invoiceLinesTable,
       eq(invoiceLinesTable.invoiceId, invoicesTable.id),
     )
@@ -192,6 +209,7 @@ router.get("/invoices", async (req, res): Promise<void> => {
 });
 
 router.post("/invoices", async (req, res): Promise<void> => {
+  if (rejectEmptyLines(req.body, res)) return;
   const parsed = CreateInvoiceBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -277,6 +295,7 @@ router.patch("/invoices/:id", async (req, res): Promise<void> => {
     res.status(400).json({ error: params.error.message });
     return;
   }
+  if (rejectEmptyLines(req.body, res)) return;
   const parsed = UpdateInvoiceBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
