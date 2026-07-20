@@ -4,6 +4,7 @@ import type {
   ArAging,
   ApAging,
 } from "@workspace/api-client-react";
+import { zipSync } from "fflate";
 import {
   centsToDollars,
   csvEscape,
@@ -126,4 +127,73 @@ export function monthEndCsvFilename(range: ReportDateRange): string {
     return `month-end-reports-through-${range.endDate}.csv`;
   }
   return "month-end-reports-all-time.csv";
+}
+
+export function rangeSlug(range: ReportDateRange): string {
+  if (range.startDate && range.endDate) {
+    return `${range.startDate}-to-${range.endDate}`;
+  }
+  if (range.startDate) {
+    return `from-${range.startDate}`;
+  }
+  if (range.endDate) {
+    return `through-${range.endDate}`;
+  }
+  return "all-time";
+}
+
+export interface MonthEndZipEntry {
+  filename: string;
+  content: string;
+}
+
+export function buildMonthEndZipEntries(
+  costByAccount: AccountTotal[],
+  payrollByJob: PayrollByJob,
+  arAging: ArAging,
+  apAging: ApAging,
+  range: ReportDateRange,
+): MonthEndZipEntry[] {
+  return [
+    {
+      filename: `job-reports-${rangeSlug(range)}.csv`,
+      content: buildJobReportsCsv(costByAccount, payrollByJob, range),
+    },
+    {
+      filename: `aging-summary-as-of-${arAging.asOf}.csv`,
+      content: buildAgingCsv(arAging, apAging),
+    },
+    {
+      filename: `aging-detail-as-of-${arAging.asOf}.csv`,
+      content: buildAgingDetailCsv(arAging, apAging),
+    },
+  ];
+}
+
+export function monthEndZipFilename(range: ReportDateRange): string {
+  return `month-end-reports-${rangeSlug(range)}.zip`;
+}
+
+export function buildMonthEndZip(entries: MonthEndZipEntry[]): Uint8Array {
+  const files: Record<string, Uint8Array> = {};
+  const encoder = new TextEncoder();
+  for (const entry of entries) {
+    files[entry.filename] = encoder.encode(entry.content);
+  }
+  return zipSync(files, { level: 6 });
+}
+
+export function downloadZip(data: Uint8Array, filename: string): void {
+  const bytes = new Uint8Array(data);
+  const blob = new Blob([bytes.buffer as ArrayBuffer], {
+    type: "application/zip",
+  });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
 }

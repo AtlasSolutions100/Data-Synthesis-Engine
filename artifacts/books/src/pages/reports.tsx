@@ -30,6 +30,10 @@ import {
   jobReportsCsvFilename,
   buildMonthEndCsv,
   monthEndCsvFilename,
+  buildMonthEndZipEntries,
+  buildMonthEndZip,
+  monthEndZipFilename,
+  downloadZip,
 } from "@/lib/reports-csv";
 import { Button } from "@/components/ui/button";
 import { Download } from "lucide-react";
@@ -253,6 +257,29 @@ export default function Reports() {
           >
             <Download className="h-4 w-4 mr-2" />
             Export All
+          </Button>
+          <Button
+            disabled={!report || !payrollByJob || !arAging || !apAging}
+            data-testid="button-export-all-zip"
+            onClick={() => {
+              if (!report || !payrollByJob || !arAging || !apAging) return;
+              exportWithErrorToast("Export failed", () => {
+                const entries = buildMonthEndZipEntries(
+                  report,
+                  payrollByJob,
+                  arAging,
+                  apAging,
+                  range,
+                );
+                downloadZip(
+                  buildMonthEndZip(entries),
+                  monthEndZipFilename(range),
+                );
+              });
+            }}
+          >
+            <Download className="h-4 w-4 mr-2" />
+            Export All (Zip)
           </Button>
           <Button
             variant="outline"

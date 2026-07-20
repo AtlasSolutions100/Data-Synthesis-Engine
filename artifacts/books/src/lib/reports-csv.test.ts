@@ -5,7 +5,11 @@ import {
   describeRangeForCsv,
   buildMonthEndCsv,
   monthEndCsvFilename,
+  buildMonthEndZipEntries,
+  buildMonthEndZip,
+  monthEndZipFilename,
 } from "./reports-csv";
+import { unzipSync, strFromU8 } from "fflate";
 import type {
   AccountTotal,
   PayrollByJob,
@@ -239,6 +243,62 @@ describe("monthEndCsvFilename", () => {
       "month-end-reports-through-2026-06-30.csv",
     );
     expect(monthEndCsvFilename({})).toBe("month-end-reports-all-time.csv");
+  });
+});
+
+describe("buildMonthEndZipEntries", () => {
+  const range = { startDate: "2026-06-01", endDate: "2026-06-30" };
+  const entries = buildMonthEndZipEntries(
+    costByAccount,
+    payrollByJob,
+    arAging,
+    apAging,
+    range,
+  );
+
+  it("produces three clearly named files", () => {
+    expect(entries.map((e) => e.filename)).toEqual([
+      "job-reports-2026-06-01-to-2026-06-30.csv",
+      "aging-summary-as-of-2026-06-30.csv",
+      "aging-detail-as-of-2026-06-30.csv",
+    ]);
+  });
+
+  it("puts each report's content into its own file", () => {
+    expect(entries[0].content).toContain("Costs Across All Jobs");
+    expect(entries[0].content).toContain("Burdened Labor by Job");
+    expect(entries[0].content).not.toContain("Accounts Receivable Aging");
+    expect(entries[1].content).toContain("Accounts Receivable Aging,");
+    expect(entries[1].content).toContain("Accounts Payable Aging,");
+    expect(entries[1].content).not.toContain("Aging Detail");
+    expect(entries[2].content).toContain("Accounts Receivable Aging Detail");
+    expect(entries[2].content).toContain("Accounts Payable Aging Detail");
+  });
+
+  it("zips the entries so they round-trip intact", () => {
+    const zip = buildMonthEndZip(entries);
+    const files = unzipSync(zip);
+    expect(Object.keys(files).sort()).toEqual(
+      entries.map((e) => e.filename).sort(),
+    );
+    for (const entry of entries) {
+      expect(strFromU8(files[entry.filename])).toBe(entry.content);
+    }
+  });
+});
+
+describe("monthEndZipFilename", () => {
+  it("reflects the selected range", () => {
+    expect(
+      monthEndZipFilename({ startDate: "2026-06-01", endDate: "2026-06-30" }),
+    ).toBe("month-end-reports-2026-06-01-to-2026-06-30.zip");
+    expect(monthEndZipFilename({ startDate: "2026-06-01" })).toBe(
+      "month-end-reports-from-2026-06-01.zip",
+    );
+    expect(monthEndZipFilename({ endDate: "2026-06-30" })).toBe(
+      "month-end-reports-through-2026-06-30.zip",
+    );
+    expect(monthEndZipFilename({})).toBe("month-end-reports-all-time.zip");
   });
 });
 
