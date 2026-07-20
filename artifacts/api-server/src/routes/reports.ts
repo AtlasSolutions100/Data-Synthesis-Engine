@@ -43,6 +43,7 @@ import {
   getTopJobIdsByProfit,
   sumByAccountTypes,
   dateRangeConds,
+  COST_TYPES,
   type DateRange,
 } from "../lib/finance";
 
@@ -250,6 +251,13 @@ router.get("/reports/cost-by-account", async (req, res): Promise<void> => {
   };
   const dateConds = dateRangeConds(transactionsTable.date, range);
 
+  // Cost report: only cost-type P&L accounts. Balance-sheet accounts (bank,
+  // asset, liability, credit_card) carry transfers/payments, not spending.
+  const conds = [
+    inArray(accountsTable.type, [...COST_TYPES]),
+    ...dateConds,
+  ];
+
   const rows = await db
     .select({
       accountId: accountsTable.id,
@@ -263,7 +271,7 @@ router.get("/reports/cost-by-account", async (req, res): Promise<void> => {
       transactionsTable,
       eq(transactionsTable.accountId, accountsTable.id),
     )
-    .where(dateConds.length ? and(...dateConds) : undefined)
+    .where(and(...conds))
     .groupBy(
       accountsTable.id,
       accountsTable.number,

@@ -166,6 +166,31 @@ describe("company P&L totals with balance-sheet accounts", () => {
   });
 });
 
+describe("GET /reports/cost-by-account with balance-sheet accounts", () => {
+  it("only returns cost-type accounts; bank/asset/liability/credit_card rows are excluded", async () => {
+    const res = await request(reportsApp).get(
+      `/api/reports/cost-by-account?startDate=${RANGE.startDate}&endDate=${RANGE.endDate}`,
+    );
+    expect(res.status).toBe(200);
+
+    const rows = res.body as Array<{
+      accountId: number;
+      type: string;
+      amountCents: number;
+    }>;
+
+    const mine = rows.filter((r) => accountIds.includes(r.accountId));
+    expect(mine).toHaveLength(1);
+    expect(mine[0].accountId).toBe(cogsAccountId);
+    expect(mine[0].type).toBe("cogs");
+    expect(mine[0].amountCents).toBe(40000);
+
+    for (const r of rows) {
+      expect(["cogs", "expense", "other_expense"]).toContain(r.type);
+    }
+  });
+});
+
 describe("GET /reports/dashboard with balance-sheet accounts", () => {
   it("reports P&L totals and job profit unaffected by balance-sheet postings", async () => {
     const res = await request(reportsApp).get(
