@@ -62,6 +62,14 @@ vi.mock("@/components/date-range-picker", async (importOriginal) => {
           start only
         </button>
         <button
+          data-testid="pick-full-range"
+          onClick={() =>
+            onChange({ startDate: "2026-06-01", endDate: "2026-06-30" })
+          }
+        >
+          full range
+        </button>
+        <button
           data-testid="pick-end-only"
           onClick={() => onChange({ endDate: "2026-06-30" })}
         >
@@ -372,6 +380,40 @@ describe("Export All (Zip) downloads a valid zip with three CSVs", () => {
     const detail = strFromU8(files["aging-detail-as-of-2026-07-17.csv"]);
     expect(detail).toContain("Accounts Receivable Aging Detail,As of 2026-07-17");
     expect(detail).toContain("Accounts Payable Aging Detail,As of 2026-07-17");
+  });
+
+  it("custom start+end range: zip and job-reports CSV carry the full range slug and filtered contents", async () => {
+    const user = userEvent.setup();
+    renderReports();
+
+    await user.click(screen.getByTestId("pick-full-range"));
+    expect(screen.getByText("Jun 1, 2026 – Jun 30, 2026")).toBeTruthy();
+    // On-screen totals come from the full-range mocked dataset.
+    expect(screen.getAllByText("$1,111.00").length).toBeGreaterThan(0);
+
+    await user.click(screen.getByTestId("button-export-all-zip"));
+    const { data, filename } = lastZip();
+
+    expect(filename).toBe("month-end-reports-2026-06-01-to-2026-06-30.zip");
+    const files = unzipSync(new Uint8Array(data));
+    expect(Object.keys(files).sort()).toEqual([
+      "aging-detail-as-of-2026-07-17.csv",
+      "aging-summary-as-of-2026-07-17.csv",
+      "job-reports-2026-06-01-to-2026-06-30.csv",
+    ]);
+    const jobReports = strFromU8(
+      files["job-reports-2026-06-01-to-2026-06-30.csv"],
+    );
+    expectValidCsv(jobReports);
+    expect(jobReports).toContain(
+      "Costs Across All Jobs,2026-06-01 to 2026-06-30",
+    );
+    expect(jobReports).toContain(
+      "Burdened Labor by Job,2026-06-01 to 2026-06-30",
+    );
+    // Totals reflect the range-filtered dataset, not the all-time one.
+    expect(jobReports).toContain("Total,,1111.00");
+    expect(jobReports).toContain("Total,1000.00,0.00,1000.00,250.00,1250.00");
   });
 
   it("selected range: zip and job-reports filenames carry the range slug", async () => {
