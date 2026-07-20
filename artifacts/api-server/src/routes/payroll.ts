@@ -661,7 +661,7 @@ router.post("/payroll-runs/:id/post", async (req, res): Promise<void> => {
     }
     if (allocated > total) {
       res.status(400).json({
-        error: `Allocations for ${l.workerName} exceed the line cost`,
+        error: `Allocations for ${l.workerName} (${allocated}) exceed the line cost (${total}) by ${allocated - total}`,
       });
       return;
     }

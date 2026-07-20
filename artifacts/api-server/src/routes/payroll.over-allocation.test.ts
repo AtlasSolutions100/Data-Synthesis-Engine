@@ -187,6 +187,10 @@ describe("POST /api/payroll-runs/:id/post over-allocation rejection (post handle
     expect(res.status).toBe(400);
     expect(res.body.error).toMatch(/exceed the line cost/i);
     expect(res.body.error).toContain("TEST-OA PostOvershoot");
+    // The message includes the allocated total, the line cost, and the overage.
+    expect(res.body.error).toContain("25000");
+    expect(res.body.error).toContain("10000");
+    expect(res.body.error).toContain("15000");
 
     // The guard must fire before any ledger rows are written.
     const rows = await ledgerRowsForRun(run.id);
