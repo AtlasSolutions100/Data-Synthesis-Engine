@@ -9,3 +9,4 @@
 - [TanStack Virtual in jsdom](tanstack-virtual-jsdom.md) — virtualizer reads offsetHeight/offsetWidth (0 in jsdom); stub HTMLElement.prototype or nothing renders.
 - [Balance-sheet sign convention](balance-sheet-sign-convention.md) — split-line balances flip sign by debit/credit nature; naive split sums inflate bank balances.
 - [PDF range streaming preview](pdf-range-streaming.md) — big-PDF paged viewer needs the object route to keep Accept-Ranges + single-range 206 responses, or pdf.js buffers the whole file.
+- [Split-account prod migration](split-account-prod-migration.md) — keep legacy split_account column in dev schema until prod is backfilled; Publish diffs atomically and prod writes only happen via the deployed app.

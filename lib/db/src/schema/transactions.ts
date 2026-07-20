@@ -29,6 +29,13 @@ export const transactionsTable = pgTable("transactions", {
     () => accountsTable.id,
     { onDelete: "set null" },
   ),
+  // DEPRECATED legacy column: free-text split account name from the old
+  // QuickBooks import. Kept in the schema only so the publish-time diff does
+  // NOT drop it before production rows are backfilled onto split_account_id
+  // (see artifacts/api-server/src/lib/splitAccountBackfill.ts). The API never
+  // reads or writes it. Drop it in the "retire the free-text split account
+  // field" follow-up once production has no rows using it.
+  splitAccount: text("split_account"),
   jobId: integer("job_id").references(() => jobsTable.id, {
     onDelete: "set null",
   }),
@@ -57,6 +64,8 @@ export const insertTransactionSchema = createInsertSchema(
   id: true,
   createdAt: true,
   updatedAt: true,
+  // Legacy free-text column — never accepted as input.
+  splitAccount: true,
 });
 export type InsertTransaction = z.infer<typeof insertTransactionSchema>;
 export type Transaction = typeof transactionsTable.$inferSelect;

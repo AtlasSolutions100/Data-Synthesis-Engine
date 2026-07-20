@@ -1,6 +1,7 @@
 import app from "./app";
 import { logger } from "./lib/logger";
 import { startOrphanCleanupScheduler } from "./lib/storageCleanup";
+import { runSplitAccountBackfillAtStartup } from "./lib/splitAccountBackfill";
 
 const rawPort = process.env["PORT"];
 
@@ -23,6 +24,11 @@ app.listen(port, (err) => {
   }
 
   logger.info({ port }, "Server listening");
+
+  // One-time data migration: link legacy free-text split account names to
+  // real accounts. Idempotent; no-ops once nothing is left to link or the
+  // legacy column has been dropped.
+  void runSplitAccountBackfillAtStartup();
 
   // Periodically reclaim orphaned uploads (objects with no document row).
   // Only meaningful when object storage is configured.
