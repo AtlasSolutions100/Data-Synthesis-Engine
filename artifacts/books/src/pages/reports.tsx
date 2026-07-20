@@ -206,7 +206,15 @@ function AccountBalanceDetailRow({
                     key={`${line.transactionId}-${line.role}-${i}`}
                     data-testid={`row-account-tx-${accountId}-${line.transactionId}-${line.role}`}
                   >
-                    <TableCell className="py-2">{line.date}</TableCell>
+                    <TableCell className="py-2">
+                      <Link
+                        href={`/transactions?highlight=${line.transactionId}&from=reports`}
+                        className="text-blue-600 hover:underline"
+                        data-testid={`link-account-tx-${accountId}-${line.transactionId}-${line.role}`}
+                      >
+                        {line.date}
+                      </Link>
+                    </TableCell>
                     <TableCell className="py-2 capitalize">
                       {line.type.replace("_", " ")}
                     </TableCell>

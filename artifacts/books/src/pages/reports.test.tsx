@@ -196,6 +196,31 @@ vi.mock("@workspace/api-client-react", () => ({
     isLoading: false,
   }),
   getGetAccountBalancesQueryKey: () => ["/api/reports/account-balances"],
+  useGetAccountBalanceTransactions: () => ({
+    data: {
+      accountId: 1,
+      balanceCents: 50000,
+      lines: [
+        {
+          transactionId: 42,
+          role: "primary",
+          date: "2026-07-01",
+          type: "check",
+          num: "1001",
+          partyName: "Volt Supply Co",
+          description: "Wire spools",
+          otherAccountName: "Materials",
+          effectCents: 50000,
+        },
+      ],
+    },
+    isLoading: false,
+    isError: false,
+  }),
+  getGetAccountBalanceTransactionsQueryKey: (id: number, params: unknown) => [
+    `/api/reports/account-balances/${id}/transactions`,
+    params,
+  ],
 }));
 
 function renderReports() {
@@ -332,6 +357,27 @@ describe("Aging summary rows link to customer/vendor pages", () => {
     // Clicking elsewhere on the row still toggles expansion.
     await user.click(screen.getByTestId("row-ar-customer-7"));
     expect(screen.getByText("Invoice #")).toBeTruthy();
+  });
+});
+
+describe("Account balance drill-down lines link to the transaction", () => {
+  afterEach(() => {
+    cleanup();
+  });
+
+  it("links each ledger line to the Transactions page with highlight context", async () => {
+    const user = userEvent.setup();
+    renderReports();
+
+    await user.click(screen.getByTestId("row-account-balance-1"));
+
+    const link = screen.getByTestId(
+      "link-account-tx-1-42-primary",
+    ) as HTMLAnchorElement;
+    expect(link.getAttribute("href")).toBe(
+      "/transactions?highlight=42&from=reports",
+    );
+    expect(link.textContent).toBe("2026-07-01");
   });
 });
 

@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { Link, useSearch } from "wouter";
 import { useListTransactions, useCreateTransaction, useUpdateTransaction, useDeleteTransaction, getListTransactionsQueryKey } from "@workspace/api-client-react";
 import { formatCents } from "@/lib/format";
 import { Card, CardContent } from "@/components/ui/card";
@@ -13,10 +14,17 @@ import {
 } from "@/lib/server-field-error";
 import { DateRangePicker, type DateRangeValue } from "@/components/date-range-picker";
 import { useQueryClient } from "@tanstack/react-query";
-import { Plus, Edit2, Trash2 } from "lucide-react";
+import { Plus, Edit2, Trash2, ArrowLeft } from "lucide-react";
 
 export default function Transactions() {
   const queryClient = useQueryClient();
+  const search = useSearch();
+  const searchParams = new URLSearchParams(search);
+  const highlightParam = searchParams.get("highlight");
+  const parsedHighlight = highlightParam ? Number(highlightParam) : NaN;
+  const highlightId = Number.isFinite(parsedHighlight) ? parsedHighlight : null;
+  const fromReports = searchParams.get("from") === "reports";
+  const highlightRef = useRef<HTMLTableRowElement | null>(null);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [range, setRange] = useState<DateRangeValue>({});
@@ -74,8 +82,39 @@ export default function Transactions() {
     }
   });
 
+  useEffect(() => {
+    if (highlightId != null && transactions && highlightRef.current) {
+      highlightRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [highlightId, transactions]);
+
+  const highlightedVisible =
+    highlightId != null &&
+    (transactions?.some((txn) => txn.id === highlightId) ?? false);
+
   return (
     <div className="space-y-8">
+      {fromReports && (
+        <div
+          className="flex items-center justify-between rounded-md border border-blue-200 bg-blue-50 px-4 py-2"
+          data-testid="banner-from-reports"
+        >
+          <p className="text-sm text-blue-800">
+            {highlightId != null
+              ? highlightedVisible || isLoading
+                ? "Showing the transaction you selected from the report."
+                : "The transaction you selected isn't in the current list. It may have been deleted or filtered out."
+              : "Viewing transactions from the report."}
+          </p>
+          <Link
+            href="/reports"
+            className="inline-flex items-center text-sm font-medium text-blue-700 hover:underline"
+            data-testid="link-back-to-reports"
+          >
+            <ArrowLeft className="mr-1 h-4 w-4" /> Back to report
+          </Link>
+        </div>
+      )}
       <div className="flex justify-between items-end">
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-slate-900">Transactions</h1>
@@ -138,7 +177,16 @@ export default function Transactions() {
                 </TableRow>
               ) : (
                 transactions?.map((txn) => (
-                  <TableRow key={txn.id}>
+                  <TableRow
+                    key={txn.id}
+                    ref={txn.id === highlightId ? highlightRef : undefined}
+                    className={
+                      txn.id === highlightId
+                        ? "bg-blue-50 hover:bg-blue-100"
+                        : undefined
+                    }
+                    data-testid={`row-transaction-${txn.id}`}
+                  >
                     <TableCell className="whitespace-nowrap">{txn.date}</TableCell>
                     <TableCell>
                       <Badge variant="outline" className="capitalize">{txn.type}</Badge>
