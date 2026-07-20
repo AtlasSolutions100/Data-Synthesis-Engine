@@ -3,6 +3,7 @@ import type {
   PayrollByJob,
   ArAging,
   ApAging,
+  AccountBalances,
 } from "@workspace/api-client-react";
 import { zipSync } from "fflate";
 import {
@@ -90,6 +91,22 @@ export function buildJobReportsCsv(
   return lines.map((row) => row.map(csvEscape).join(",")).join("\r\n") + "\r\n";
 }
 
+export function buildAccountBalancesCsv(
+  accountBalances: AccountBalances,
+): string {
+  const lines: string[][] = [];
+  lines.push(["Account Balances", "All transactions"]);
+  lines.push(["Account", "Type", "Balance"]);
+  for (const row of accountBalances.rows) {
+    lines.push([
+      `${row.accountNumber} - ${row.accountName}`,
+      formatType(row.type),
+      centsToDollars(row.balanceCents),
+    ]);
+  }
+  return lines.map((row) => row.map(csvEscape).join(",")).join("\r\n") + "\r\n";
+}
+
 export function jobReportsCsvFilename(range: ReportDateRange): string {
   if (range.startDate && range.endDate) {
     return `job-reports-${range.startDate}-to-${range.endDate}.csv`;
@@ -108,12 +125,14 @@ export function buildMonthEndCsv(
   payrollByJob: PayrollByJob,
   arAging: ArAging,
   apAging: ApAging,
+  accountBalances: AccountBalances,
   range: ReportDateRange,
 ): string {
   const jobReports = buildJobReportsCsv(costByAccount, payrollByJob, range);
   const aging = buildAgingCsv(arAging, apAging);
   const agingDetail = buildAgingDetailCsv(arAging, apAging);
-  return jobReports + "\r\n" + aging + "\r\n" + agingDetail;
+  const balances = buildAccountBalancesCsv(accountBalances);
+  return jobReports + "\r\n" + aging + "\r\n" + agingDetail + "\r\n" + balances;
 }
 
 export function monthEndCsvFilename(range: ReportDateRange): string {
@@ -152,6 +171,7 @@ export function buildMonthEndZipEntries(
   payrollByJob: PayrollByJob,
   arAging: ArAging,
   apAging: ApAging,
+  accountBalances: AccountBalances,
   range: ReportDateRange,
 ): MonthEndZipEntry[] {
   return [
@@ -166,6 +186,10 @@ export function buildMonthEndZipEntries(
     {
       filename: `aging-detail-as-of-${arAging.asOf}.csv`,
       content: buildAgingDetailCsv(arAging, apAging),
+    },
+    {
+      filename: `account-balances-${rangeSlug(range)}.csv`,
+      content: buildAccountBalancesCsv(accountBalances),
     },
   ];
 }

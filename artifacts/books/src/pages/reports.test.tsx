@@ -349,7 +349,7 @@ describe("Export All (Zip) downloads a valid zip with three CSVs", () => {
     expect(rows[0]).toContain(",");
   }
 
-  it("all-time range: builds month-end-reports-all-time.zip containing exactly three date-stamped CSVs", async () => {
+  it("all-time range: builds month-end-reports-all-time.zip containing exactly four date-stamped CSVs", async () => {
     const user = userEvent.setup();
     renderReports();
 
@@ -361,6 +361,7 @@ describe("Export All (Zip) downloads a valid zip with three CSVs", () => {
     const files = unzipSync(new Uint8Array(data));
     const names = Object.keys(files).sort();
     expect(names).toEqual([
+      "account-balances-all-time.csv",
       "aging-detail-as-of-2026-07-17.csv",
       "aging-summary-as-of-2026-07-17.csv",
       "job-reports-all-time.csv",
@@ -380,6 +381,10 @@ describe("Export All (Zip) downloads a valid zip with three CSVs", () => {
     const detail = strFromU8(files["aging-detail-as-of-2026-07-17.csv"]);
     expect(detail).toContain("Accounts Receivable Aging Detail,As of 2026-07-17");
     expect(detail).toContain("Accounts Payable Aging Detail,As of 2026-07-17");
+    const balances = strFromU8(files["account-balances-all-time.csv"]);
+    expect(balances).toContain("Account Balances");
+    expect(balances).toContain("1000 - Checking,Bank,12345.00");
+    expect(balances).toContain("2100 - Home Depot CC,Credit Card,456.00");
   });
 
   it("custom start+end range: zip and job-reports CSV carry the full range slug and filtered contents", async () => {
@@ -427,6 +432,7 @@ describe("Export All (Zip) downloads a valid zip with three CSVs", () => {
     expect(filename).toBe("month-end-reports-from-2026-06-01.zip");
     const files = unzipSync(new Uint8Array(data));
     expect(Object.keys(files).sort()).toEqual([
+      "account-balances-from-2026-06-01.csv",
       "aging-detail-as-of-2026-07-17.csv",
       "aging-summary-as-of-2026-07-17.csv",
       "job-reports-from-2026-06-01.csv",

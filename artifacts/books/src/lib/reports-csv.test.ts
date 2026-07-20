@@ -8,6 +8,7 @@ import {
   buildMonthEndZipEntries,
   buildMonthEndZip,
   monthEndZipFilename,
+  buildAccountBalancesCsv,
 } from "./reports-csv";
 import { unzipSync, strFromU8 } from "fflate";
 import type {
@@ -15,6 +16,7 @@ import type {
   PayrollByJob,
   ArAging,
   ApAging,
+  AccountBalances,
 } from "@workspace/api-client-react";
 
 const costByAccount: AccountTotal[] = [
@@ -167,11 +169,56 @@ const apAging: ApAging = {
   totals: buckets,
 };
 
-describe("buildMonthEndCsv", () => {
-  const csv = buildMonthEndCsv(costByAccount, payrollByJob, arAging, apAging, {
-    startDate: "2026-06-01",
-    endDate: "2026-06-30",
+const accountBalances: AccountBalances = {
+  rows: [
+    {
+      accountId: 1,
+      accountNumber: "1000",
+      accountName: 'Operating, "Main" Checking',
+      type: "bank",
+      balanceCents: 250000,
+    },
+    {
+      accountId: 5,
+      accountNumber: "2100",
+      accountName: "Equipment Loan",
+      type: "loan",
+      balanceCents: -100000,
+    },
+  ],
+};
+
+describe("buildAccountBalancesCsv", () => {
+  const csv = buildAccountBalancesCsv(accountBalances);
+  const rows = csv.trimEnd().split("\r\n");
+
+  it("renders header, column labels, and rows with escaped names", () => {
+    expect(rows[0]).toBe("Account Balances,All transactions");
+    expect(rows[1]).toBe("Account,Type,Balance");
+    expect(rows[2]).toBe('"1000 - Operating, ""Main"" Checking",Bank,2500.00');
+    expect(rows[3]).toBe("2100 - Equipment Loan,Loan,-1000.00");
   });
+
+  it("handles empty balances", () => {
+    const empty = buildAccountBalancesCsv({ rows: [] });
+    expect(empty).toBe(
+      "Account Balances,All transactions\r\nAccount,Type,Balance\r\n",
+    );
+  });
+});
+
+describe("buildMonthEndCsv", () => {
+  const csv = buildMonthEndCsv(
+    costByAccount,
+    payrollByJob,
+    arAging,
+    apAging,
+    accountBalances,
+    {
+      startDate: "2026-06-01",
+      endDate: "2026-06-30",
+    },
+  );
   const rows = csv.trimEnd().split("\r\n");
 
   it("appends aging detail sections after the summary sections", () => {
@@ -206,6 +253,16 @@ describe("buildMonthEndCsv", () => {
     expect(idxPayroll).toBeGreaterThan(idxCost);
     expect(idxAr).toBeGreaterThan(idxPayroll);
     expect(idxAp).toBeGreaterThan(idxAr);
+  });
+
+  it("appends the account balances section after the aging detail", () => {
+    const idxApDetail = rows.indexOf(
+      "Accounts Payable Aging Detail,As of 2026-06-30",
+    );
+    const idxBalances = rows.indexOf("Account Balances,All transactions");
+    expect(idxBalances).toBeGreaterThan(idxApDetail);
+    expect(rows[idxBalances - 1]).toBe("");
+    expect(rows).toContain("2100 - Equipment Loan,Loan,-1000.00");
   });
 
   it("separates the job reports and aging sections with a blank line", () => {
@@ -253,14 +310,16 @@ describe("buildMonthEndZipEntries", () => {
     payrollByJob,
     arAging,
     apAging,
+    accountBalances,
     range,
   );
 
-  it("produces three clearly named files", () => {
+  it("produces four clearly named files", () => {
     expect(entries.map((e) => e.filename)).toEqual([
       "job-reports-2026-06-01-to-2026-06-30.csv",
       "aging-summary-as-of-2026-06-30.csv",
       "aging-detail-as-of-2026-06-30.csv",
+      "account-balances-2026-06-01-to-2026-06-30.csv",
     ]);
   });
 
@@ -273,6 +332,8 @@ describe("buildMonthEndZipEntries", () => {
     expect(entries[1].content).not.toContain("Aging Detail");
     expect(entries[2].content).toContain("Accounts Receivable Aging Detail");
     expect(entries[2].content).toContain("Accounts Payable Aging Detail");
+    expect(entries[3].content).toContain("Account Balances");
+    expect(entries[3].content).toContain("2100 - Equipment Loan,Loan,-1000.00");
   });
 
   it("zips the entries so they round-trip intact", () => {

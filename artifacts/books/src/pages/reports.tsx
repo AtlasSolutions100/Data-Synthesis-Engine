@@ -229,10 +229,23 @@ export default function Reports() {
         <div className="flex items-end gap-3">
           <DateRangePicker value={range} onChange={setRange} />
           <Button
-            disabled={!report || !payrollByJob || !arAging || !apAging}
+            disabled={
+              !report ||
+              !payrollByJob ||
+              !arAging ||
+              !apAging ||
+              !accountBalances
+            }
             data-testid="button-export-all"
             onClick={() => {
-              if (!report || !payrollByJob || !arAging || !apAging) return;
+              if (
+                !report ||
+                !payrollByJob ||
+                !arAging ||
+                !apAging ||
+                !accountBalances
+              )
+                return;
               runExport("Export failed", () => {
                 downloadCsv(
                   buildMonthEndCsv(
@@ -240,6 +253,7 @@ export default function Reports() {
                     payrollByJob,
                     arAging,
                     apAging,
+                    accountBalances,
                     range,
                   ),
                   monthEndCsvFilename(range),
@@ -251,16 +265,30 @@ export default function Reports() {
             Export All
           </Button>
           <Button
-            disabled={!report || !payrollByJob || !arAging || !apAging}
+            disabled={
+              !report ||
+              !payrollByJob ||
+              !arAging ||
+              !apAging ||
+              !accountBalances
+            }
             data-testid="button-export-all-zip"
             onClick={() => {
-              if (!report || !payrollByJob || !arAging || !apAging) return;
+              if (
+                !report ||
+                !payrollByJob ||
+                !arAging ||
+                !apAging ||
+                !accountBalances
+              )
+                return;
               runExport("Export failed", () => {
                 const entries = buildMonthEndZipEntries(
                   report,
                   payrollByJob,
                   arAging,
                   apAging,
+                  accountBalances,
                   range,
                 );
                 downloadZip(
