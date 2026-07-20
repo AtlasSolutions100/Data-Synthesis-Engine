@@ -410,17 +410,21 @@ router.post("/invoices/:id/payments", async (req, res): Promise<void> => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
-  const [inv] = await db
-    .select({ id: invoicesTable.id })
-    .from(invoicesTable)
-    .where(eq(invoicesTable.id, params.data.id));
-  if (!inv) {
+  const existing = await getFullInvoice(params.data.id);
+  if (!existing) {
     res.status(404).json({ error: "Invoice not found" });
     return;
   }
   if (parsed.data.amountCents <= 0) {
     res.status(400).json({
       error: "Payment amount must be positive",
+      field: "amountCents",
+    });
+    return;
+  }
+  if (parsed.data.amountCents > existing.balanceCents) {
+    res.status(400).json({
+      error: `Payment exceeds the outstanding balance of $${(existing.balanceCents / 100).toFixed(2)}`,
       field: "amountCents",
     });
     return;

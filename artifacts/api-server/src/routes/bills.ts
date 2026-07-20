@@ -427,17 +427,21 @@ router.post("/bills/:id/payments", async (req, res): Promise<void> => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
-  const [bill] = await db
-    .select({ id: billsTable.id })
-    .from(billsTable)
-    .where(eq(billsTable.id, params.data.id));
-  if (!bill) {
+  const existing = await getFullBill(params.data.id);
+  if (!existing) {
     res.status(404).json({ error: "Bill not found" });
     return;
   }
   if (parsed.data.amountCents <= 0) {
     res.status(400).json({
       error: "Payment amount must be positive",
+      field: "amountCents",
+    });
+    return;
+  }
+  if (parsed.data.amountCents > existing.balanceCents) {
+    res.status(400).json({
+      error: `Payment exceeds the outstanding balance of $${(existing.balanceCents / 100).toFixed(2)}`,
       field: "amountCents",
     });
     return;
@@ -465,17 +469,21 @@ router.post("/bills/:id/credits", async (req, res): Promise<void> => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
-  const [bill] = await db
-    .select({ id: billsTable.id })
-    .from(billsTable)
-    .where(eq(billsTable.id, params.data.id));
-  if (!bill) {
+  const existing = await getFullBill(params.data.id);
+  if (!existing) {
     res.status(404).json({ error: "Bill not found" });
     return;
   }
   if (parsed.data.amountCents <= 0) {
     res.status(400).json({
       error: "Credit amount must be positive",
+      field: "amountCents",
+    });
+    return;
+  }
+  if (parsed.data.amountCents > existing.balanceCents) {
+    res.status(400).json({
+      error: `Credit exceeds the outstanding balance of $${(existing.balanceCents / 100).toFixed(2)}`,
       field: "amountCents",
     });
     return;
