@@ -16,13 +16,13 @@ import {
 } from "@workspace/db";
 
 /**
- * Locks in server-side referential validation on invoice create: an
- * invoice pointing at a missing job or customer must be rejected with a
- * clear per-field 400 error instead of a foreign-key failure or a
- * silently dangling reference. (Invoice lines carry no account
- * references, and the update endpoint cannot change job/customer, so
- * create is the only surface with referential inputs.) Runs against the
- * real database with uniquely named fixtures torn down afterwards.
+ * Locks in server-side referential validation on invoice create and
+ * update: an invoice pointing at a missing job or customer must be
+ * rejected with a clear per-field 400 error instead of a foreign-key
+ * failure or a silently dangling reference. The PATCH endpoint accepts
+ * jobId/customerId changes and must mirror the create-side checks. Runs
+ * against the real database with uniquely named fixtures torn down
+ * afterwards.
  */
 
 function buildApp(router: IRouter): Express {
@@ -154,6 +154,109 @@ describe("POST /api/invoices referential validation", () => {
     const res = await request(app).post("/api/invoices").send(baseInvoice());
     expect(res.status).toBe(201);
     invoiceIds.push(res.body.id);
+    expect(res.body.customerId).toBe(customerId);
+  });
+});
+
+describe("PATCH /api/invoices/:id header edits", () => {
+  let secondCustomerId: number;
+  let secondJobId: number;
+  let patchInvoiceId: number;
+
+  beforeAll(async () => {
+    const [c2] = await db
+      .insert(customersTable)
+      .values({ name: "TEST-IV Customer 2" })
+      .returning();
+    secondCustomerId = c2.id;
+    const [j2] = await db
+      .insert(jobsTable)
+      .values({
+        jobNumber: "TEST-IV-J3",
+        name: "Test IV Job 2",
+        customerId: secondCustomerId,
+      })
+      .returning();
+    secondJobId = j2.id;
+
+    const res = await request(app)
+      .post("/api/invoices")
+      .send(baseInvoice({ customerId }));
+    patchInvoiceId = res.body.id;
+    invoiceIds.push(patchInvoiceId);
+  });
+
+  afterAll(async () => {
+    await db.delete(jobsTable).where(eq(jobsTable.id, secondJobId));
+    await db
+      .delete(customersTable)
+      .where(eq(customersTable.id, secondCustomerId));
+  });
+
+  it("rejects a missing jobId with a per-field 400", async () => {
+    const res = await request(app)
+      .patch(`/api/invoices/${patchInvoiceId}`)
+      .send({ jobId: missingJobId });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe(`Job ${missingJobId} does not exist`);
+    expect(res.body.field).toBe("jobId");
+  });
+
+  it("rejects a missing customerId with a per-field 400", async () => {
+    const res = await request(app)
+      .patch(`/api/invoices/${patchInvoiceId}`)
+      .send({ customerId: missingCustomerId });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe(
+      `Customer ${missingCustomerId} does not exist`,
+    );
+    expect(res.body.field).toBe("customerId");
+  });
+
+  it("rejects a null customerId when the new job has no customer", async () => {
+    const res = await request(app)
+      .patch(`/api/invoices/${patchInvoiceId}`)
+      .send({ jobId: orphanJobId, customerId: null });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe(
+      "customerId is required (job has no associated customer)",
+    );
+    expect(res.body.field).toBe("customerId");
+  });
+
+  it("updates job and customer together", async () => {
+    const res = await request(app)
+      .patch(`/api/invoices/${patchInvoiceId}`)
+      .send({ jobId: secondJobId, customerId: secondCustomerId });
+    expect(res.status).toBe(200);
+    expect(res.body.jobId).toBe(secondJobId);
+    expect(res.body.customerId).toBe(secondCustomerId);
+  });
+
+  it("resolves a null customerId from the new job's customer", async () => {
+    const res = await request(app)
+      .patch(`/api/invoices/${patchInvoiceId}`)
+      .send({ jobId, customerId: null });
+    expect(res.status).toBe(200);
+    expect(res.body.jobId).toBe(jobId);
+    expect(res.body.customerId).toBe(customerId);
+  });
+
+  it("resolves a null customerId from the existing job when jobId is untouched", async () => {
+    const res = await request(app)
+      .patch(`/api/invoices/${patchInvoiceId}`)
+      .send({ customerId: null });
+    expect(res.status).toBe(200);
+    expect(res.body.customerId).toBe(customerId);
+  });
+
+  it("leaves job and customer untouched when only header fields change", async () => {
+    const res = await request(app)
+      .patch(`/api/invoices/${patchInvoiceId}`)
+      .send({ memo: "updated memo" });
+    expect(res.status).toBe(200);
+    expect(res.body.memo).toBe("updated memo");
+    expect(res.body.jobId).toBe(jobId);
     expect(res.body.customerId).toBe(customerId);
   });
 });

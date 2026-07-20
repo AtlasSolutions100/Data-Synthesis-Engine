@@ -10,6 +10,9 @@ import type { InvoiceLineInput } from './invoiceLineInput';
 export interface InvoiceUpdate {
   /** @minLength 1 */
   invoiceNumber?: string;
+  jobId?: number;
+  /** @nullable */
+  customerId?: number | null;
   /** @minLength 1 */
   date?: string;
   /** @nullable */

@@ -3,11 +3,13 @@ import { useParams, Link } from "wouter";
 import {
   useGetInvoice,
   getGetInvoiceQueryKey,
+  useUpdateInvoice,
   useCreateInvoicePayment,
   useDeleteInvoicePayment,
   getListInvoicesQueryKey,
   getListJobsQueryKey,
   getGetArAgingQueryKey,
+  ApiError,
 } from "@workspace/api-client-react";
 import { formatCents } from "@/lib/format";
 import {
@@ -34,8 +36,9 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { PaymentForm } from "@/components/forms/payment-form";
+import { InvoiceForm } from "@/components/forms/invoice-form";
 import { useQueryClient } from "@tanstack/react-query";
-import { Plus, Trash2, ArrowLeft } from "lucide-react";
+import { Plus, Trash2, ArrowLeft, Pencil } from "lucide-react";
 
 const statusVariant: Record<string, "default" | "secondary" | "outline"> = {
   paid: "secondary",
@@ -48,6 +51,8 @@ export default function InvoiceDetail() {
   const invoiceId = parseInt(id || "0", 10);
   const queryClient = useQueryClient();
   const [isPayOpen, setIsPayOpen] = useState(false);
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
 
   const { data: invoice, isLoading } = useGetInvoice(invoiceId, {
     query: { enabled: !!invoiceId, queryKey: getGetInvoiceQueryKey(invoiceId) },
@@ -61,6 +66,26 @@ export default function InvoiceDetail() {
     queryClient.invalidateQueries({ queryKey: getListJobsQueryKey() });
     queryClient.invalidateQueries({ queryKey: getGetArAgingQueryKey() });
   };
+
+  const updateInvoice = useUpdateInvoice({
+    mutation: {
+      onSuccess: () => {
+        invalidate();
+        setEditError(null);
+        setIsEditOpen(false);
+      },
+      onError: (error) => {
+        if (error instanceof ApiError) {
+          const data = error.data as { error?: string } | null;
+          setEditError(
+            data?.error ?? "Failed to save the invoice. Please try again.",
+          );
+        } else {
+          setEditError("Failed to save the invoice. Please try again.");
+        }
+      },
+    },
+  });
 
   const createPayment = useCreateInvoicePayment({
     mutation: {
@@ -101,6 +126,49 @@ export default function InvoiceDetail() {
           >
             {invoice.status}
           </Badge>
+          <Dialog
+            open={isEditOpen}
+            onOpenChange={(open) => {
+              setIsEditOpen(open);
+              if (!open) setEditError(null);
+            }}
+          >
+            <DialogTrigger asChild>
+              <Button variant="outline" size="sm" data-testid="button-edit-invoice">
+                <Pencil className="mr-2 h-4 w-4" /> Edit
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[640px]">
+              <DialogHeader>
+                <DialogTitle>Edit Invoice</DialogTitle>
+              </DialogHeader>
+              {isEditOpen && (
+                <InvoiceForm
+                  defaultValues={{
+                    invoiceNumber: invoice.invoiceNumber,
+                    jobId: String(invoice.jobId),
+                    customerId:
+                      invoice.customerId != null
+                        ? String(invoice.customerId)
+                        : "",
+                    date: invoice.date,
+                    dueDate: invoice.dueDate ?? "",
+                    memo: invoice.memo ?? "",
+                    lines: invoice.lines.map((l) => ({
+                      description: l.description ?? "",
+                      amount: (l.amountCents / 100).toFixed(2),
+                    })),
+                  }}
+                  onSubmit={(data) => {
+                    setEditError(null);
+                    updateInvoice.mutate({ id: invoiceId, data });
+                  }}
+                  isLoading={updateInvoice.isPending}
+                  serverError={editError}
+                />
+              )}
+            </DialogContent>
+          </Dialog>
         </div>
         <p className="text-slate-500 mt-1">
           {invoice.jobNumber ? (

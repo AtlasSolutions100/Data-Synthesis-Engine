@@ -285,7 +285,11 @@ router.patch("/invoices/:id", async (req, res): Promise<void> => {
   const data = parsed.data;
 
   const [existing] = await db
-    .select({ id: invoicesTable.id })
+    .select({
+      id: invoicesTable.id,
+      jobId: invoicesTable.jobId,
+      customerId: invoicesTable.customerId,
+    })
     .from(invoicesTable)
     .where(eq(invoicesTable.id, params.data.id));
   if (!existing) {
@@ -293,9 +297,64 @@ router.patch("/invoices/:id", async (req, res): Promise<void> => {
     return;
   }
 
+  let job: typeof jobsTable.$inferSelect | undefined;
+  if (data.jobId !== undefined) {
+    [job] = await db
+      .select()
+      .from(jobsTable)
+      .where(eq(jobsTable.id, data.jobId));
+    if (!job) {
+      res.status(400).json({
+        error: `Job ${data.jobId} does not exist`,
+        field: "jobId",
+      });
+      return;
+    }
+  }
+
+  let resolvedCustomerId: number | undefined;
+  if (data.customerId !== undefined) {
+    if (data.customerId === null) {
+      const fallback =
+        job?.customerId ??
+        (data.jobId === undefined
+          ? (
+              await db
+                .select({ customerId: jobsTable.customerId })
+                .from(jobsTable)
+                .where(eq(jobsTable.id, existing.jobId))
+            )[0]?.customerId
+          : job?.customerId) ??
+        null;
+      if (fallback == null) {
+        res.status(400).json({
+          error: "customerId is required (job has no associated customer)",
+          field: "customerId",
+        });
+        return;
+      }
+      resolvedCustomerId = fallback;
+    } else {
+      resolvedCustomerId = data.customerId;
+    }
+    const [customer] = await db
+      .select({ id: customersTable.id })
+      .from(customersTable)
+      .where(eq(customersTable.id, resolvedCustomerId));
+    if (!customer) {
+      res.status(400).json({
+        error: `Customer ${resolvedCustomerId} does not exist`,
+        field: "customerId",
+      });
+      return;
+    }
+  }
+
   await db.transaction(async (tx) => {
     const set: Record<string, unknown> = {};
     if (data.invoiceNumber !== undefined) set.invoiceNumber = data.invoiceNumber;
+    if (data.jobId !== undefined) set.jobId = data.jobId;
+    if (resolvedCustomerId !== undefined) set.customerId = resolvedCustomerId;
     if (data.date !== undefined) set.date = data.date;
     if (data.dueDate !== undefined) set.dueDate = data.dueDate;
     if (data.memo !== undefined) set.memo = data.memo;

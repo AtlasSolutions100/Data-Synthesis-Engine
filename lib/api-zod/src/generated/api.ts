@@ -1107,6 +1107,8 @@ export const UpdateInvoiceParams = zod.object({
 
 export const UpdateInvoiceBody = zod.object({
   "invoiceNumber": zod.string().min(1).optional(),
+  "jobId": zod.number().optional(),
+  "customerId": zod.number().nullish(),
   "date": zod.string().min(1).optional(),
   "dueDate": zod.string().nullish(),
   "memo": zod.string().nullish(),
