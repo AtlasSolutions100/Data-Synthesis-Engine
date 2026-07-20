@@ -44,9 +44,9 @@ vi.mock("@/lib/aging-xlsx", () => ({
 // Replace the popover/calendar picker with simple buttons so jsdom can drive
 // the same onChange contract the real picker uses. Note: with react-day-picker
 // v9 range mode, a single calendar click sets from=to (a one-day range, see
-// "pick-single-day"); start-only and end-only states are NOT reachable through
-// the calendar UI today and are exercised here as synthetic branch coverage.
-// Clearing produces {}.
+// "pick-single-day"); start-only and end-only states are reachable through the
+// picker's explicit From/To date inputs (covered in
+// date-range-picker.test.tsx). Clearing produces {}.
 vi.mock("@/components/date-range-picker", async (importOriginal) => {
   const actual =
     await importOriginal<typeof import("@/components/date-range-picker")>();
@@ -556,7 +556,7 @@ describe("Export All CSV filename with partial date ranges", () => {
     expect(csv).toContain("Costs Across All Jobs,2026-07-01 to 2026-07-01");
   });
 
-  it("start only (synthetic, not UI-reachable): exports month-end-reports-from-<start>.csv", async () => {
+  it("start only (via From/To inputs): exports month-end-reports-from-<start>.csv", async () => {
     const user = userEvent.setup();
     renderReports();
 
@@ -568,7 +568,7 @@ describe("Export All CSV filename with partial date ranges", () => {
     expect(csv).toContain("Costs Across All Jobs,From 2026-06-01");
   });
 
-  it("end only (synthetic, not UI-reachable): exports month-end-reports-through-<end>.csv", async () => {
+  it("end only (via From/To inputs): exports month-end-reports-through-<end>.csv", async () => {
     const user = userEvent.setup();
     renderReports();
 

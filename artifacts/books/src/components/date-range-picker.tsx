@@ -141,6 +141,38 @@ export function DateRangePicker({
               </Button>
             </div>
             <div>
+              <div className="flex items-center gap-2 border-b p-2">
+                <label className="flex items-center gap-1.5 text-sm text-slate-600">
+                  From
+                  <input
+                    type="date"
+                    aria-label="Start date"
+                    className="rounded-md border border-input bg-background px-2 py-1 text-sm"
+                    value={value.startDate ?? ""}
+                    onChange={(e) =>
+                      onChange({
+                        ...value,
+                        startDate: e.target.value || undefined,
+                      })
+                    }
+                  />
+                </label>
+                <label className="flex items-center gap-1.5 text-sm text-slate-600">
+                  To
+                  <input
+                    type="date"
+                    aria-label="End date"
+                    className="rounded-md border border-input bg-background px-2 py-1 text-sm"
+                    value={value.endDate ?? ""}
+                    onChange={(e) =>
+                      onChange({
+                        ...value,
+                        endDate: e.target.value || undefined,
+                      })
+                    }
+                  />
+                </label>
+              </div>
               <Calendar
                 mode="range"
                 selected={selected}
