@@ -870,21 +870,44 @@ describe("JobDocuments preview affordances", () => {
     );
 
     // Page navigation works: starts at page 1, Next advances, Previous returns.
+    const pageInput = () =>
+      within(dialog).getByTestId("pdf-page-input") as HTMLInputElement;
     expect(
       within(dialog).getByTestId("pdf-page-indicator").textContent,
-    ).toMatch(/Page 1 of 120/);
+    ).toMatch(/of 120/);
+    expect(pageInput().value).toBe("1");
     fireEvent.click(within(dialog).getByRole("button", { name: /next/i }));
-    await waitFor(() =>
-      expect(
-        within(dialog).getByTestId("pdf-page-indicator").textContent,
-      ).toMatch(/Page 2 of 120/),
-    );
+    await waitFor(() => expect(pageInput().value).toBe("2"));
     fireEvent.click(within(dialog).getByRole("button", { name: /previous/i }));
-    await waitFor(() =>
-      expect(
-        within(dialog).getByTestId("pdf-page-indicator").textContent,
-      ).toMatch(/Page 1 of 120/),
-    );
+    await waitFor(() => expect(pageInput().value).toBe("1"));
+
+    // Typing a page number and pressing Enter jumps straight to it.
+    fireEvent.change(pageInput(), { target: { value: "57" } });
+    fireEvent.keyDown(pageInput(), { key: "Enter" });
+    await waitFor(() => expect(pageInput().value).toBe("57"));
+
+    // Out-of-range values are clamped to the valid page range.
+    fireEvent.change(pageInput(), { target: { value: "9999" } });
+    fireEvent.keyDown(pageInput(), { key: "Enter" });
+    await waitFor(() => expect(pageInput().value).toBe("120"));
+    fireEvent.change(pageInput(), { target: { value: "0" } });
+    fireEvent.keyDown(pageInput(), { key: "Enter" });
+    await waitFor(() => expect(pageInput().value).toBe("1"));
+
+    // Non-numeric input is restored to the current page on blur.
+    fireEvent.change(pageInput(), { target: { value: "abc" } });
+    fireEvent.blur(pageInput());
+    await waitFor(() => expect(pageInput().value).toBe("1"));
+
+    // Zoom controls adjust the displayed zoom level and stay clamped.
+    const zoomLevel = () =>
+      within(dialog).getByTestId("pdf-zoom-level").textContent;
+    expect(zoomLevel()).toBe("100%");
+    fireEvent.click(within(dialog).getByRole("button", { name: /zoom in/i }));
+    await waitFor(() => expect(zoomLevel()).toBe("117%"));
+    fireEvent.click(within(dialog).getByRole("button", { name: /zoom out/i }));
+    fireEvent.click(within(dialog).getByRole("button", { name: /zoom out/i }));
+    await waitFor(() => expect(zoomLevel()).toBe("83%"));
 
     // The Download link is still available as a fallback with the tokenized href.
     const download = within(dialog).getByRole("link", { name: /download/i });

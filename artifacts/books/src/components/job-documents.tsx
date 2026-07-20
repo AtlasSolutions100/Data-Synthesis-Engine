@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -494,6 +495,8 @@ type PagedPdfState =
 export function PagedPdfViewer({ href }: { href: string }) {
   const [state, setState] = useState<PagedPdfState>({ status: "loading" });
   const [pageNum, setPageNum] = useState(1);
+  const [pageInput, setPageInput] = useState("1");
+  const [scale, setScale] = useState(1.5);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const docRef = useRef<PagedPdfDoc | null>(null);
   const renderTaskRef = useRef<{ cancel(): void } | null>(null);
@@ -502,6 +505,7 @@ export function PagedPdfViewer({ href }: { href: string }) {
     let cancelled = false;
     setState({ status: "loading" });
     setPageNum(1);
+    setPageInput("1");
 
     async function load() {
       try {
@@ -553,7 +557,7 @@ export function PagedPdfViewer({ href }: { href: string }) {
         const canvas = canvasRef.current;
         const ctx = canvas?.getContext("2d");
         if (!canvas || !ctx) return;
-        const viewport = page.getViewport({ scale: 1.5 });
+        const viewport = page.getViewport({ scale });
         canvas.width = viewport.width;
         canvas.height = viewport.height;
         renderTaskRef.current?.cancel();
@@ -571,7 +575,7 @@ export function PagedPdfViewer({ href }: { href: string }) {
     return () => {
       cancelled = true;
     };
-  }, [state, pageNum]);
+  }, [state, pageNum, scale]);
 
   if (state.status === "loading") {
     return (
@@ -594,28 +598,86 @@ export function PagedPdfViewer({ href }: { href: string }) {
 
   const { numPages } = state;
 
+  const goToPage = (target: number) => {
+    const clamped = Math.min(numPages, Math.max(1, target));
+    setPageNum(clamped);
+    setPageInput(String(clamped));
+  };
+
+  const jumpToInput = () => {
+    const parsed = Number.parseInt(pageInput, 10);
+    if (Number.isNaN(parsed)) {
+      // Restore the current page when the input isn't a number.
+      setPageInput(String(pageNum));
+      return;
+    }
+    goToPage(parsed);
+  };
+
   return (
     <div data-testid="paged-pdf-viewer">
-      <div className="mb-2 flex items-center justify-center gap-3">
+      <div className="mb-2 flex flex-wrap items-center justify-center gap-3">
         <Button
           size="sm"
           variant="outline"
           disabled={pageNum <= 1}
-          onClick={() => setPageNum((p) => Math.max(1, p - 1))}
+          onClick={() => goToPage(pageNum - 1)}
         >
           Previous
         </Button>
-        <span className="text-sm text-slate-600" data-testid="pdf-page-indicator">
-          Page {pageNum.toLocaleString()} of {numPages.toLocaleString()}
+        <span className="flex items-center gap-1.5 text-sm text-slate-600">
+          Page
+          <Input
+            type="text"
+            inputMode="numeric"
+            aria-label="Page number"
+            data-testid="pdf-page-input"
+            className="h-8 w-16 text-center"
+            value={pageInput}
+            onChange={(e) => setPageInput(e.target.value)}
+            onBlur={jumpToInput}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                jumpToInput();
+              }
+            }}
+          />
+          <span data-testid="pdf-page-indicator">
+            of {numPages.toLocaleString()}
+          </span>
         </span>
         <Button
           size="sm"
           variant="outline"
           disabled={pageNum >= numPages}
-          onClick={() => setPageNum((p) => Math.min(numPages, p + 1))}
+          onClick={() => goToPage(pageNum + 1)}
         >
           Next
         </Button>
+        <span className="flex items-center gap-1.5">
+          <Button
+            size="sm"
+            variant="outline"
+            aria-label="Zoom out"
+            disabled={scale <= 0.5}
+            onClick={() => setScale((s) => Math.max(0.5, Math.round((s - 0.25) * 100) / 100))}
+          >
+            −
+          </Button>
+          <span className="w-12 text-center text-xs text-slate-500" data-testid="pdf-zoom-level">
+            {Math.round((scale / 1.5) * 100)}%
+          </span>
+          <Button
+            size="sm"
+            variant="outline"
+            aria-label="Zoom in"
+            disabled={scale >= 3}
+            onClick={() => setScale((s) => Math.min(3, Math.round((s + 0.25) * 100) / 100))}
+          >
+            +
+          </Button>
+        </span>
       </div>
       <div className="flex max-h-[70vh] justify-center overflow-auto rounded-md border border-slate-200 bg-slate-50">
         <canvas ref={canvasRef} data-testid="pdf-page-canvas" />
