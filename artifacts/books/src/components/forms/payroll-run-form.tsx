@@ -662,6 +662,23 @@ function ImportHoursDialog({ form }: { form: UseFormReturn<RunFormValues> }) {
                   "e.g.\nJohn Smith — 40 reg, 5 OT\nJane Doe 38 hours"
                 }
               />
+              <p
+                className={`text-xs ${
+                  text.length > MAX_EXTRACT_TEXT_LENGTH
+                    ? "text-red-600"
+                    : text.length > MAX_EXTRACT_TEXT_LENGTH * 0.9
+                      ? "text-amber-600"
+                      : "text-slate-500"
+                }`}
+              >
+                {text.length.toLocaleString()} /{" "}
+                {MAX_EXTRACT_TEXT_LENGTH.toLocaleString()} characters
+                {text.length > MAX_EXTRACT_TEXT_LENGTH
+                  ? " — too long to import. Shorten the text or split it into smaller pastes."
+                  : text.length > MAX_EXTRACT_TEXT_LENGTH * 0.9
+                    ? " — approaching the limit."
+                    : ""}
+              </p>
             </div>
             <div className="flex items-center gap-3">
               <Label
@@ -686,7 +703,9 @@ function ImportHoursDialog({ form }: { form: UseFormReturn<RunFormValues> }) {
               <Button
                 type="button"
                 onClick={handleExtract}
-                disabled={extract.isPending}
+                disabled={
+                  extract.isPending || text.length > MAX_EXTRACT_TEXT_LENGTH
+                }
               >
                 {extract.isPending ? "Extracting…" : "Extract hours"}
               </Button>

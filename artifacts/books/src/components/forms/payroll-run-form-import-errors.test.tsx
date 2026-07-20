@@ -197,14 +197,39 @@ describe("ImportHoursDialog AI-service error handling", () => {
     const huge = "x".repeat(MAX_EXTRACT_TEXT_LENGTH + 1);
     const textarea = await openDialogAndPaste(huge);
 
-    fireEvent.click(screen.getByRole("button", { name: /extract hours/i }));
+    // Live warning appears immediately and the button is disabled.
+    expect(screen.getByText(/too long to import/i)).toBeTruthy();
+    const extractButton = screen.getByRole("button", {
+      name: /extract hours/i,
+    }) as HTMLButtonElement;
+    expect(extractButton.disabled).toBe(true);
 
-    await waitFor(() =>
-      expect(screen.getByText(/too large to import/i)).toBeTruthy(),
-    );
+    fireEvent.click(extractButton);
     expect(mutateAsync).not.toHaveBeenCalled();
     // Text is preserved so the user can trim it down.
     expect(textarea.value).toBe(huge);
+  });
+
+  it("shows a live character count that warns when approaching the limit", async () => {
+    const { MAX_EXTRACT_TEXT_LENGTH } = await import("@workspace/api-zod");
+    render(<PayrollRunForm onSubmit={vi.fn()} defaultValues={defaults} />);
+
+    const nearLimit = "x".repeat(Math.ceil(MAX_EXTRACT_TEXT_LENGTH * 0.95));
+    await openDialogAndPaste(nearLimit);
+
+    expect(
+      screen.getByText(
+        new RegExp(
+          `${nearLimit.length.toLocaleString()} / ${MAX_EXTRACT_TEXT_LENGTH.toLocaleString()} characters`,
+        ),
+      ),
+    ).toBeTruthy();
+    expect(screen.getByText(/approaching the limit/i)).toBeTruthy();
+
+    const extractButton = screen.getByRole("button", {
+      name: /extract hours/i,
+    }) as HTMLButtonElement;
+    expect(extractButton.disabled).toBe(false);
   });
 
   it("falls back to a friendly generic message when the error has no server body", async () => {
