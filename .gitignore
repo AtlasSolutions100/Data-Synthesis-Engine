@@ -47,3 +47,4 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+lib/api-spec/orval.codegen-check.*.config.ts
