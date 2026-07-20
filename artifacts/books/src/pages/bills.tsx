@@ -27,6 +27,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { BillForm } from "@/components/forms/bill-form";
+import type { ServerFieldError } from "@/components/forms/bill-form";
 import { ApiError } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Plus, Trash2 } from "lucide-react";
@@ -45,7 +46,9 @@ export default function Bills() {
     query: { queryKey: getListBillsQueryKey() },
   });
 
-  const [createError, setCreateError] = useState<string | null>(null);
+  const [createError, setCreateError] = useState<ServerFieldError | null>(
+    null,
+  );
 
   const createBill = useCreateBill({
     mutation: {
@@ -57,12 +60,19 @@ export default function Bills() {
       },
       onError: (error) => {
         if (error instanceof ApiError) {
-          const data = error.data as { error?: string } | null;
-          setCreateError(
-            data?.error ?? "Failed to save the bill. Please try again.",
-          );
+          const data = error.data as {
+            error?: string;
+            field?: string;
+          } | null;
+          setCreateError({
+            message:
+              data?.error ?? "Failed to save the bill. Please try again.",
+            field: data?.field ?? null,
+          });
         } else {
-          setCreateError("Failed to save the bill. Please try again.");
+          setCreateError({
+            message: "Failed to save the bill. Please try again.",
+          });
         }
       },
     },

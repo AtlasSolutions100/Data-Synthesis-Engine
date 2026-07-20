@@ -1,4 +1,6 @@
+import { useEffect } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
+import type { FieldPath } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Button } from "@/components/ui/button";
@@ -42,11 +44,18 @@ const billSchema = z.object({
 
 type BillFormValues = z.infer<typeof billSchema>;
 
+export interface ServerFieldError {
+  field?: string | null;
+  message: string;
+}
+
+const SERVER_FIELD_PATTERN = /^(vendorId|jobId|lines\.\d+\.accountId)$/;
+
 interface BillFormProps {
   defaultValues?: Partial<BillFormValues>;
   onSubmit: (data: BillInput) => void;
   isLoading?: boolean;
-  serverError?: string | null;
+  serverError?: ServerFieldError | null;
 }
 
 export function BillForm({
@@ -84,6 +93,23 @@ export function BillForm({
     control: form.control,
     name: "lines",
   });
+
+  const fieldError =
+    serverError?.field &&
+    SERVER_FIELD_PATTERN.test(serverError.field) &&
+    (!serverError.field.startsWith("lines.") ||
+      parseInt(serverError.field.split(".")[1], 10) < fields.length)
+      ? serverError
+      : null;
+  const formLevelError = serverError && !fieldError ? serverError : null;
+
+  useEffect(() => {
+    if (!fieldError?.field) return;
+    form.setError(fieldError.field as FieldPath<BillFormValues>, {
+      type: "server",
+      message: fieldError.message,
+    });
+  }, [fieldError, form]);
 
   const watchedLines = form.watch("lines");
   const totalCents = (watchedLines ?? []).reduce(
@@ -337,13 +363,13 @@ export function BillForm({
             </FormItem>
           )}
         />
-        {serverError ? (
+        {formLevelError ? (
           <p
             role="alert"
             className="text-sm font-medium text-destructive"
             data-testid="text-bill-server-error"
           >
-            {serverError}
+            {formLevelError.message}
           </p>
         ) : null}
         <Button type="submit" disabled={isLoading} className="w-full">

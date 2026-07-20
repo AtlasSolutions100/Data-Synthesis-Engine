@@ -1400,6 +1400,11 @@ components:
       properties:
         error:
           type: string
+        field:
+          type: string
+          description: >-
+            Machine-readable path of the form field the error relates to,
+            e.g. "vendorId", "jobId", or "lines.1.accountId".
 
     Account:
       type: object

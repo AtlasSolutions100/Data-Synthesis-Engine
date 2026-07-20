@@ -8,4 +8,6 @@
 
 export interface Error {
   error: string;
+  /** Machine-readable path of the form field the error relates to, e.g. "vendorId", "jobId", or "lines.1.accountId". */
+  field?: string;
 }

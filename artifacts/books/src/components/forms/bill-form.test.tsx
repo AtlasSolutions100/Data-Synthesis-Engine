@@ -259,6 +259,113 @@ describe("BillForm dangling id validation", () => {
     expect(onSubmit).not.toHaveBeenCalled();
   });
 
+  it("attaches a server error with field 'vendorId' to the vendor input", async () => {
+    render(
+      <BillForm
+        onSubmit={vi.fn()}
+        serverError={{
+          field: "vendorId",
+          message: "Vendor 999 does not exist",
+        }}
+        defaultValues={{
+          vendorId: "999",
+          date: "2026-07-16",
+          lines: [{ accountId: "", description: "", amount: "10" }],
+        }}
+      />,
+    );
+
+    await waitFor(() =>
+      expect(screen.getByText("Vendor 999 does not exist")).toBeTruthy(),
+    );
+    // Not shown as a form-level message.
+    expect(screen.queryByTestId("text-bill-server-error")).toBeNull();
+  });
+
+  it("attaches a server error with field 'lines.1.accountId' to the second line's account", async () => {
+    render(
+      <BillForm
+        onSubmit={vi.fn()}
+        serverError={{
+          field: "lines.1.accountId",
+          message: "Account 888 does not exist",
+        }}
+        defaultValues={{
+          vendorId: "1",
+          date: "2026-07-16",
+          lines: [
+            { accountId: "501", description: "", amount: "10" },
+            { accountId: "888", description: "", amount: "5" },
+          ],
+        }}
+      />,
+    );
+
+    await waitFor(() =>
+      expect(screen.getByText("Account 888 does not exist")).toBeTruthy(),
+    );
+    expect(screen.queryByTestId("text-bill-server-error")).toBeNull();
+  });
+
+  it("falls back to the form-level message when the server field is unknown", async () => {
+    render(
+      <BillForm
+        onSubmit={vi.fn()}
+        serverError={{
+          field: "somethingElse",
+          message: "Something went wrong",
+        }}
+        defaultValues={{
+          vendorId: "1",
+          date: "2026-07-16",
+          lines: [{ accountId: "", description: "", amount: "10" }],
+        }}
+      />,
+    );
+
+    const formError = await screen.findByTestId("text-bill-server-error");
+    expect(formError.textContent).toBe("Something went wrong");
+  });
+
+  it("falls back to the form-level message when no field is provided", async () => {
+    render(
+      <BillForm
+        onSubmit={vi.fn()}
+        serverError={{ message: "Failed to save the bill. Please try again." }}
+        defaultValues={{
+          vendorId: "1",
+          date: "2026-07-16",
+          lines: [{ accountId: "", description: "", amount: "10" }],
+        }}
+      />,
+    );
+
+    const formError = await screen.findByTestId("text-bill-server-error");
+    expect(formError.textContent).toBe(
+      "Failed to save the bill. Please try again.",
+    );
+  });
+
+  it("falls back to the form-level message when the line index is out of range", async () => {
+    render(
+      <BillForm
+        onSubmit={vi.fn()}
+        serverError={{
+          field: "lines.5.accountId",
+          message: "Account 888 does not exist",
+        }}
+        defaultValues={{
+          vendorId: "1",
+          date: "2026-07-16",
+          lines: [{ accountId: "", description: "", amount: "10" }],
+        }}
+      />,
+    );
+
+    const formError = await screen.findByTestId("text-bill-server-error");
+    expect(formError.textContent).toBe("Account 888 does not exist");
+  });
+
   it("still submits normally once the dangling vendor is replaced with a valid one", async () => {
     const onSubmit = vi.fn();
     render(
