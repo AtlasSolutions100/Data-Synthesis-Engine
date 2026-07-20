@@ -879,6 +879,41 @@ export const GetAccountBalancesResponse = zod.object({
 
 
 /**
+ * Every transaction line (primary and split) contributing to the account's balance, each with its signed effect. The effects sum exactly to the balance reported by getAccountBalances for the same asOf value. When asOf is provided, only transactions dated on or before asOf are included; omitted = all-time.
+ * @summary Ledger lines behind one balance-sheet account balance
+ */
+export const GetAccountBalanceTransactionsParams = zod.object({
+  "accountId": zod.coerce.number()
+})
+
+export const getAccountBalanceTransactionsQueryAsOfRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+
+
+export const GetAccountBalanceTransactionsQueryParams = zod.object({
+  "asOf": zod.coerce.string().regex(getAccountBalanceTransactionsQueryAsOfRegExp).optional().describe('Report balances as of this date, inclusive (YYYY-MM-DD). When omitted, all transactions count regardless of date; aging buckets are computed relative to today.')
+})
+
+export const GetAccountBalanceTransactionsResponse = zod.object({
+  "accountId": zod.number(),
+  "accountNumber": zod.string(),
+  "accountName": zod.string(),
+  "type": zod.enum(['asset', 'bank', 'liability', 'credit_card']),
+  "balanceCents": zod.number().describe('Sum of all line effects; matches getAccountBalances for this account.'),
+  "lines": zod.array(zod.object({
+  "transactionId": zod.number(),
+  "date": zod.string(),
+  "type": zod.string(),
+  "num": zod.string().nullable(),
+  "partyName": zod.string().nullable(),
+  "description": zod.string().nullable(),
+  "role": zod.enum(['primary', 'split']).describe('Whether this account is the transaction\'s primary account or its split (offset) account.'),
+  "otherAccountName": zod.string().nullable().describe('The account on the other side of the entry (split account for primary rows, primary account for split rows).'),
+  "effectCents": zod.number().describe('Signed effect of this line on the account\'s natural balance.')
+}))
+})
+
+
+/**
  * Outstanding customer invoice balances grouped by customer and age bucket, as of an optional date (defaults to today).
  * @summary Accounts receivable aging
  */

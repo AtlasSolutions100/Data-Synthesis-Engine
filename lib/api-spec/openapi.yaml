@@ -688,6 +688,32 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/AccountBalances"
+  /reports/account-balances/{accountId}/transactions:
+    get:
+      operationId: getAccountBalanceTransactions
+      tags: [reports]
+      summary: Ledger lines behind one balance-sheet account balance
+      description: Every transaction line (primary and split) contributing to the account's balance, each with its signed effect. The effects sum exactly to the balance reported by getAccountBalances for the same asOf value. When asOf is provided, only transactions dated on or before asOf are included; omitted = all-time.
+      parameters:
+        - name: accountId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - $ref: "#/components/parameters/AsOfDateParam"
+      responses:
+        "200":
+          description: Contributing ledger lines
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccountBalanceTransactions"
+        "404":
+          description: Account not found or not a balance-sheet account
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
   /reports/ar-aging:
     get:
       operationId: getArAging
@@ -1844,6 +1870,53 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/AccountBalance"
+
+    AccountBalanceTransactionLine:
+      type: object
+      required: [transactionId, date, type, num, partyName, description, role, otherAccountName, effectCents]
+      properties:
+        transactionId:
+          type: integer
+        date:
+          type: string
+        type:
+          type: string
+        num:
+          type: ["string", "null"]
+        partyName:
+          type: ["string", "null"]
+        description:
+          type: ["string", "null"]
+        role:
+          type: string
+          enum: [primary, split]
+          description: Whether this account is the transaction's primary account or its split (offset) account.
+        otherAccountName:
+          type: ["string", "null"]
+          description: The account on the other side of the entry (split account for primary rows, primary account for split rows).
+        effectCents:
+          type: integer
+          description: Signed effect of this line on the account's natural balance.
+    AccountBalanceTransactions:
+      type: object
+      required: [accountId, accountNumber, accountName, type, balanceCents, lines]
+      properties:
+        accountId:
+          type: integer
+        accountNumber:
+          type: string
+        accountName:
+          type: string
+        type:
+          type: string
+          enum: [asset, bank, liability, credit_card]
+        balanceCents:
+          type: integer
+          description: Sum of all line effects; matches getAccountBalances for this account.
+        lines:
+          type: array
+          items:
+            $ref: "#/components/schemas/AccountBalanceTransactionLine"
 
     DashboardSummary:
       type: object

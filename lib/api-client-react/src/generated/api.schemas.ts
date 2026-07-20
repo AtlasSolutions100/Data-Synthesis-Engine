@@ -508,6 +508,58 @@ export interface AccountBalances {
   rows: AccountBalance[];
 }
 
+/**
+ * Whether this account is the transaction's primary account or its split (offset) account.
+ */
+export type AccountBalanceTransactionLineRole = typeof AccountBalanceTransactionLineRole[keyof typeof AccountBalanceTransactionLineRole];
+
+
+export const AccountBalanceTransactionLineRole = {
+  primary: 'primary',
+  split: 'split',
+} as const;
+
+export interface AccountBalanceTransactionLine {
+  transactionId: number;
+  date: string;
+  type: string;
+  /** @nullable */
+  num: string | null;
+  /** @nullable */
+  partyName: string | null;
+  /** @nullable */
+  description: string | null;
+  /** Whether this account is the transaction's primary account or its split (offset) account. */
+  role: AccountBalanceTransactionLineRole;
+  /**
+     * The account on the other side of the entry (split account for primary rows, primary account for split rows).
+     * @nullable
+     */
+  otherAccountName: string | null;
+  /** Signed effect of this line on the account's natural balance. */
+  effectCents: number;
+}
+
+export type AccountBalanceTransactionsType = typeof AccountBalanceTransactionsType[keyof typeof AccountBalanceTransactionsType];
+
+
+export const AccountBalanceTransactionsType = {
+  asset: 'asset',
+  bank: 'bank',
+  liability: 'liability',
+  credit_card: 'credit_card',
+} as const;
+
+export interface AccountBalanceTransactions {
+  accountId: number;
+  accountNumber: string;
+  accountName: string;
+  type: AccountBalanceTransactionsType;
+  /** Sum of all line effects; matches getAccountBalances for this account. */
+  balanceCents: number;
+  lines: AccountBalanceTransactionLine[];
+}
+
 export interface DashboardSummary {
   totalIncomeCents: number;
   totalCogsCents: number;
@@ -1252,6 +1304,14 @@ endDate?: EndDateParamParameter;
 };
 
 export type GetAccountBalancesParams = {
+/**
+ * Report balances as of this date, inclusive (YYYY-MM-DD). When omitted, all transactions count regardless of date; aging buckets are computed relative to today.
+ * @pattern ^\d{4}-\d{2}-\d{2}$
+ */
+asOf?: AsOfDateParamParameter;
+};
+
+export type GetAccountBalanceTransactionsParams = {
 /**
  * Report balances as of this date, inclusive (YYYY-MM-DD). When omitted, all transactions count regardless of date; aging buckets are computed relative to today.
  * @pattern ^\d{4}-\d{2}-\d{2}$

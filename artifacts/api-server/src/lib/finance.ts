@@ -1,5 +1,5 @@
 import { and, eq, gte, inArray, isNotNull, lte, sql, type SQL } from "drizzle-orm";
-import type { PgColumn } from "drizzle-orm/pg-core";
+import { alias, type PgColumn } from "drizzle-orm/pg-core";
 import {
   db,
   transactionsTable,
@@ -258,6 +258,122 @@ export async function getBalanceSheetBalances(
         (primaryMap.get(a.id) ?? 0) + (splitDeltaMap.get(a.id) ?? 0),
     }))
     .sort((x, y) => x.accountNumber.localeCompare(y.accountNumber));
+}
+
+export type AccountLedgerLine = {
+  transactionId: number;
+  date: string;
+  type: string;
+  num: string | null;
+  partyName: string | null;
+  description: string | null;
+  role: "primary" | "split";
+  otherAccountName: string | null;
+  effectCents: number;
+};
+
+export type AccountLedger = AccountBalanceRow & { lines: AccountLedgerLine[] };
+
+/**
+ * List every transaction line contributing to one balance-sheet account's
+ * balance, with its signed effect on that balance. Uses the exact same sign
+ * convention as getBalanceSheetBalances (see its doc comment): primary rows
+ * contribute +amount; split rows contribute -amount when the primary account
+ * shares the account's debit/credit nature, +amount otherwise. The returned
+ * lines therefore sum exactly to the balance reported there. When `asOf`
+ * (YYYY-MM-DD) is provided, only transactions dated on or before that date
+ * are included, matching getBalanceSheetBalances(asOf). Returns null if
+ * the account does not exist or is not a balance-sheet account.
+ */
+export async function getAccountLedger(
+  accountId: number,
+  asOf?: string,
+): Promise<AccountLedger | null> {
+  const [account] = await db
+    .select()
+    .from(accountsTable)
+    .where(
+      and(
+        eq(accountsTable.id, accountId),
+        inArray(accountsTable.type, [...BALANCE_SHEET_TYPES]),
+      ),
+    );
+  if (!account) return null;
+
+  const primaryAccounts = alias(accountsTable, "primary_accounts");
+  const splitAccountsAlias = alias(accountsTable, "ledger_split_accounts");
+  const rows = await db
+    .select({
+      t: transactionsTable,
+      primaryType: primaryAccounts.type,
+      primaryName: primaryAccounts.name,
+      splitName: splitAccountsAlias.name,
+    })
+    .from(transactionsTable)
+    .innerJoin(
+      primaryAccounts,
+      eq(primaryAccounts.id, transactionsTable.accountId),
+    )
+    .leftJoin(
+      splitAccountsAlias,
+      eq(splitAccountsAlias.id, transactionsTable.splitAccountId),
+    )
+    .where(
+      and(
+        sql`(${transactionsTable.accountId} = ${accountId} or ${transactionsTable.splitAccountId} = ${accountId})`,
+        ...(asOf ? [lte(transactionsTable.date, asOf)] : []),
+      ),
+    )
+    .orderBy(transactionsTable.date, transactionsTable.id);
+
+  const isDebitNatured = (type: string): boolean =>
+    (DEBIT_NATURED_TYPES as readonly string[]).includes(type);
+  const accountDebit = isDebitNatured(account.type);
+
+  const lines: AccountLedgerLine[] = [];
+  let balanceCents = 0;
+  for (const r of rows) {
+    const amount = Number(r.t.amountCents);
+    if (r.t.accountId === accountId) {
+      balanceCents += amount;
+      lines.push({
+        transactionId: r.t.id,
+        date: r.t.date,
+        type: r.t.type,
+        num: r.t.num,
+        partyName: r.t.partyName,
+        description: r.t.description,
+        role: "primary",
+        otherAccountName: r.t.splitAccountId != null ? r.splitName : null,
+        effectCents: amount,
+      });
+    }
+    if (r.t.splitAccountId === accountId) {
+      const sameNature = isDebitNatured(r.primaryType) === accountDebit;
+      const effect = sameNature ? -amount : amount;
+      balanceCents += effect;
+      lines.push({
+        transactionId: r.t.id,
+        date: r.t.date,
+        type: r.t.type,
+        num: r.t.num,
+        partyName: r.t.partyName,
+        description: r.t.description,
+        role: "split",
+        otherAccountName: r.primaryName,
+        effectCents: effect,
+      });
+    }
+  }
+
+  return {
+    accountId: account.id,
+    accountNumber: account.number,
+    accountName: account.name,
+    type: account.type,
+    balanceCents,
+    lines,
+  };
 }
 
 /** Sum of amounts (cents) for transactions posted to accounts of the given types. */

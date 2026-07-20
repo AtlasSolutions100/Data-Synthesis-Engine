@@ -32,9 +32,12 @@ import {
   GetPayrollByJobQueryParams,
   GetAccountBalancesResponse,
   GetAccountBalancesQueryParams,
+  GetAccountBalanceTransactionsResponse,
+  GetAccountBalanceTransactionsQueryParams,
 } from "@workspace/api-zod";
 import {
   getBalanceSheetBalances,
+  getAccountLedger,
   getJobTotalsMap,
   getJobBillingMap,
   getTopJobIdsByProfit,
@@ -291,6 +294,30 @@ router.get("/reports/account-balances", async (req, res): Promise<void> => {
   const rows = await getBalanceSheetBalances(query.data.asOf);
   res.json(GetAccountBalancesResponse.parse({ rows }));
 });
+
+router.get(
+  "/reports/account-balances/:accountId/transactions",
+  async (req, res): Promise<void> => {
+    const accountId = Number(req.params.accountId);
+    if (!Number.isInteger(accountId) || accountId <= 0) {
+      res.status(400).json({ error: "Invalid account id" });
+      return;
+    }
+    const query = GetAccountBalanceTransactionsQueryParams.safeParse(req.query);
+    if (!query.success) {
+      res.status(400).json({ error: query.error.message });
+      return;
+    }
+    const ledger = await getAccountLedger(accountId, query.data.asOf);
+    if (!ledger) {
+      res
+        .status(404)
+        .json({ error: "Account not found or not a balance-sheet account" });
+      return;
+    }
+    res.json(GetAccountBalanceTransactionsResponse.parse(ledger));
+  },
+);
 
 router.get("/reports/ar-aging", async (req, res): Promise<void> => {
   const query = GetArAgingQueryParams.safeParse(req.query);

@@ -21,6 +21,7 @@ import type {
 
 import type {
   Account,
+  AccountBalanceTransactions,
   AccountBalances,
   AccountInput,
   AccountTotal,
@@ -39,9 +40,11 @@ import type {
   Employee,
   EmployeeInput,
   EmployeeUpdate,
+  Error,
   ErrorResponse,
   ExtractPayrollHoursInput,
   ExtractPayrollHoursResult,
+  GetAccountBalanceTransactionsParams,
   GetAccountBalancesParams,
   GetApAgingParams,
   GetArAgingParams,
@@ -2928,6 +2931,96 @@ export function useGetAccountBalances<TData = Awaited<ReturnType<typeof getAccou
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetAccountBalancesQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetAccountBalanceTransactionsUrl = (accountId: number,
+    params?: GetAccountBalanceTransactionsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/reports/account-balances/${accountId}/transactions?${stringifiedParams}` : `/api/reports/account-balances/${accountId}/transactions`
+}
+
+/**
+ * Every transaction line (primary and split) contributing to the account's balance, each with its signed effect. The effects sum exactly to the balance reported by getAccountBalances for the same asOf value. When asOf is provided, only transactions dated on or before asOf are included; omitted = all-time.
+ * @summary Ledger lines behind one balance-sheet account balance
+ */
+export const getAccountBalanceTransactions = async (accountId: number,
+    params?: GetAccountBalanceTransactionsParams, options?: RequestInit): Promise<AccountBalanceTransactions> => {
+
+  return customFetch<AccountBalanceTransactions>(getGetAccountBalanceTransactionsUrl(accountId,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetAccountBalanceTransactionsQueryKey = (accountId: number,
+    params?: GetAccountBalanceTransactionsParams,) => {
+    return [
+    `/api/reports/account-balances/${accountId}/transactions`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetAccountBalanceTransactionsQueryOptions = <TData = Awaited<ReturnType<typeof getAccountBalanceTransactions>>, TError = ErrorType<Error>>(accountId: number,
+    params?: GetAccountBalanceTransactionsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAccountBalanceTransactions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetAccountBalanceTransactionsQueryKey(accountId,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getAccountBalanceTransactions>>> = ({ signal }) => getAccountBalanceTransactions(accountId,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: accountId !== null && accountId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getAccountBalanceTransactions>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetAccountBalanceTransactionsQueryResult = NonNullable<Awaited<ReturnType<typeof getAccountBalanceTransactions>>>
+export type GetAccountBalanceTransactionsQueryError = ErrorType<Error>
+
+
+/**
+ * @summary Ledger lines behind one balance-sheet account balance
+ */
+
+export function useGetAccountBalanceTransactions<TData = Awaited<ReturnType<typeof getAccountBalanceTransactions>>, TError = ErrorType<Error>>(
+ accountId: number,
+    params?: GetAccountBalanceTransactionsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAccountBalanceTransactions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetAccountBalanceTransactionsQueryOptions(accountId,params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

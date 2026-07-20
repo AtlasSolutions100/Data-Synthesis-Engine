@@ -12,6 +12,8 @@ import {
   getGetPayrollByJobQueryKey,
   useGetAccountBalances,
   getGetAccountBalancesQueryKey,
+  useGetAccountBalanceTransactions,
+  getGetAccountBalanceTransactionsQueryKey,
 } from "@workspace/api-client-react";
 import type {
   AgingBuckets,
@@ -152,6 +154,97 @@ function AgingDetailRow({
   );
 }
 
+function AccountBalanceDetailRow({
+  accountId,
+  asOf,
+}: {
+  accountId: number;
+  asOf?: string;
+}) {
+  const params = { asOf };
+  const { data, isLoading, isError } = useGetAccountBalanceTransactions(
+    accountId,
+    params,
+    {
+      query: {
+        queryKey: getGetAccountBalanceTransactionsQueryKey(accountId, params),
+      },
+    },
+  );
+  return (
+    <TableRow className="bg-slate-50/70 hover:bg-slate-50/70">
+      <TableCell colSpan={3} className="p-0">
+        <div className="px-8 py-3">
+          {isLoading ? (
+            <p className="text-sm text-slate-500 py-2">
+              Loading transactions...
+            </p>
+          ) : isError || !data ? (
+            <p className="text-sm text-red-600 py-2">
+              Failed to load transactions for this account.
+            </p>
+          ) : data.lines.length === 0 ? (
+            <p className="text-sm text-slate-500 py-2">
+              No transactions touch this account.
+            </p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="h-8">Date</TableHead>
+                  <TableHead className="h-8">Type</TableHead>
+                  <TableHead className="h-8">Num</TableHead>
+                  <TableHead className="h-8">Name</TableHead>
+                  <TableHead className="h-8">Description</TableHead>
+                  <TableHead className="h-8">Other Account</TableHead>
+                  <TableHead className="h-8 text-right">Effect</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {data.lines.map((line, i) => (
+                  <TableRow
+                    key={`${line.transactionId}-${line.role}-${i}`}
+                    data-testid={`row-account-tx-${accountId}-${line.transactionId}-${line.role}`}
+                  >
+                    <TableCell className="py-2">{line.date}</TableCell>
+                    <TableCell className="py-2 capitalize">
+                      {line.type.replace("_", " ")}
+                    </TableCell>
+                    <TableCell className="py-2">{line.num || "—"}</TableCell>
+                    <TableCell className="py-2">
+                      {line.partyName || "—"}
+                    </TableCell>
+                    <TableCell className="py-2">
+                      {line.description || "—"}
+                    </TableCell>
+                    <TableCell className="py-2">
+                      {line.otherAccountName || "—"}
+                    </TableCell>
+                    <TableCell className="py-2 text-right">
+                      {formatCents(line.effectCents)}
+                    </TableCell>
+                  </TableRow>
+                ))}
+                <TableRow className="font-semibold">
+                  <TableCell colSpan={6} className="py-2 text-right">
+                    Total
+                  </TableCell>
+                  <TableCell
+                    className="py-2 text-right"
+                    data-testid={`text-account-tx-total-${accountId}`}
+                  >
+                    {formatCents(data.balanceCents)}
+                  </TableCell>
+                </TableRow>
+              </TableBody>
+            </Table>
+          )}
+        </div>
+      </TableCell>
+    </TableRow>
+  );
+}
+
 const agingHeaders = (
   <TableRow>
     <TableHead></TableHead>
@@ -171,6 +264,9 @@ export default function Reports() {
     new Set(),
   );
   const [expandedVendors, setExpandedVendors] = useState<Set<string>>(
+    new Set(),
+  );
+  const [expandedAccounts, setExpandedAccounts] = useState<Set<string>>(
     new Set(),
   );
   const toggle = (
@@ -403,22 +499,42 @@ export default function Reports() {
                   </TableCell>
                 </TableRow>
               ) : (
-                accountBalances.rows.map((row) => (
-                  <TableRow
-                    key={row.accountId}
-                    data-testid={`row-account-balance-${row.accountId}`}
-                  >
-                    <TableCell className="font-medium">
-                      {row.accountNumber} - {row.accountName}
-                    </TableCell>
-                    <TableCell className="capitalize">
-                      {row.type.replace("_", " ")}
-                    </TableCell>
-                    <TableCell className="text-right font-medium">
-                      {formatCents(row.balanceCents)}
-                    </TableCell>
-                  </TableRow>
-                ))
+                accountBalances.rows.map((row) => {
+                  const key = String(row.accountId);
+                  const expanded = expandedAccounts.has(key);
+                  return (
+                    <Fragment key={row.accountId}>
+                      <TableRow
+                        className="cursor-pointer"
+                        onClick={() => toggle(setExpandedAccounts, key)}
+                        data-testid={`row-account-balance-${row.accountId}`}
+                      >
+                        <TableCell className="font-medium">
+                          <span className="inline-flex items-center gap-1">
+                            {expanded ? (
+                              <ChevronDown className="h-4 w-4 text-slate-400" />
+                            ) : (
+                              <ChevronRight className="h-4 w-4 text-slate-400" />
+                            )}
+                            {row.accountNumber} - {row.accountName}
+                          </span>
+                        </TableCell>
+                        <TableCell className="capitalize">
+                          {row.type.replace("_", " ")}
+                        </TableCell>
+                        <TableCell className="text-right font-medium">
+                          {formatCents(row.balanceCents)}
+                        </TableCell>
+                      </TableRow>
+                      {expanded && (
+                        <AccountBalanceDetailRow
+                          accountId={row.accountId}
+                          asOf={range.endDate}
+                        />
+                      )}
+                    </Fragment>
+                  );
+                })
               )}
             </TableBody>
           </Table>
