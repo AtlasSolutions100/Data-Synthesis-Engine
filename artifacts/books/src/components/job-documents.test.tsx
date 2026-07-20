@@ -1,4 +1,12 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import {
+  describe,
+  it,
+  expect,
+  vi,
+  beforeEach,
+  afterEach,
+  beforeAll,
+} from "vitest";
 import {
   render,
   screen,
@@ -76,6 +84,21 @@ function stubPdfDocument(numPages: number) {
   return doc;
 }
 import readXlsxFile, { readSheetNames } from "read-excel-file";
+
+// jsdom has no layout, so every element measures 0x0 — which would make the
+// row virtualizer render nothing. Give elements a fixed viewport-sized rect
+// so the virtualizer mounts a realistic window of rows.
+const VIRTUAL_VIEWPORT_HEIGHT = 600;
+beforeAll(() => {
+  Object.defineProperty(HTMLElement.prototype, "offsetHeight", {
+    configurable: true,
+    get: () => VIRTUAL_VIEWPORT_HEIGHT,
+  });
+  Object.defineProperty(HTMLElement.prototype, "offsetWidth", {
+    configurable: true,
+    get: () => 800,
+  });
+});
 
 const mockedReadXlsx = readXlsxFile as unknown as ReturnType<typeof vi.fn>;
 const mockedReadSheetNames = readSheetNames as unknown as ReturnType<
@@ -241,7 +264,7 @@ describe("SpreadsheetPreview (csv)", () => {
     expect(screen.getByText("Acme Co")).toBeTruthy();
   });
 
-  it("lazily renders large files in chunks and can load every row", async () => {
+  it("virtualizes large files: only rows near the viewport are mounted", async () => {
     const header = "col\n";
     const body = Array.from({ length: 250 }, (_, i) => `row${i}`).join("\n");
     const csv = header + body + "\n";
@@ -249,29 +272,17 @@ describe("SpreadsheetPreview (csv)", () => {
 
     render(<SpreadsheetPreview href="/big.csv" kind="csv" sizeBytes={csv.length} />);
 
-    // First chunk mounts; later rows are not yet in the DOM.
-    await waitFor(() =>
-      expect(screen.getByText(/Showing 100 of 250 rows/i)).toBeTruthy(),
-    );
-    expect(screen.getByText("row0")).toBeTruthy();
-    expect(screen.getByText("row99")).toBeTruthy();
+    // The first window of rows mounts; distant rows are not in the DOM.
+    await waitFor(() => expect(screen.getByText("row0")).toBeTruthy());
     expect(screen.queryByText("row100")).toBeNull();
+    expect(screen.queryByText("row249")).toBeNull();
+    // The footer reports the true total.
+    expect(screen.getByText(/250 rows/i)).toBeTruthy();
     // The old dead-end note is gone — no download prompt for viewable files.
     expect(screen.queryByText(/Download the file to see everything/i)).toBeNull();
-
-    // "Load more rows" mounts the next chunk...
-    fireEvent.click(screen.getByRole("button", { name: /Load more rows/i }));
-    expect(screen.getByText("row199")).toBeTruthy();
-    expect(screen.queryByText("row249")).toBeNull();
-    expect(screen.getByText(/Showing 200 of 250 rows/i)).toBeTruthy();
-
-    // ...and the final chunk exposes every row and removes the note.
-    fireEvent.click(screen.getByRole("button", { name: /Load more rows/i }));
-    expect(screen.getByText("row249")).toBeTruthy();
-    expect(screen.queryByText(/Scroll to load more/i)).toBeNull();
   });
 
-  it("loads the next chunk when the user scrolls near the bottom", async () => {
+  it("scrolling to the bottom mounts the last rows and unmounts the first", async () => {
     const header = "col\n";
     const body = Array.from({ length: 150 }, (_, i) => `row${i}`).join("\n");
     const csv = header + body + "\n";
@@ -279,16 +290,16 @@ describe("SpreadsheetPreview (csv)", () => {
 
     render(<SpreadsheetPreview href="/big.csv" kind="csv" sizeBytes={csv.length} />);
     await waitFor(() => expect(screen.getByText("row0")).toBeTruthy());
-    expect(screen.queryByText("row100")).toBeNull();
+    expect(screen.queryByText("row149")).toBeNull();
 
-    // jsdom has no layout, so fake the scroll geometry of a near-bottom state.
+    // Scroll all the way down: the virtualizer swaps the rendered window, so
+    // the last rows mount and the first rows leave the DOM (no cumulative
+    // growth).
     const scroller = screen.getByTestId("spreadsheet-scroll");
-    Object.defineProperty(scroller, "scrollHeight", { value: 1000, configurable: true });
-    Object.defineProperty(scroller, "clientHeight", { value: 400, configurable: true });
-    fireEvent.scroll(scroller, { target: { scrollTop: 500 } });
+    fireEvent.scroll(scroller, { target: { scrollTop: 150 * 33 } });
 
-    expect(screen.getByText("row100")).toBeTruthy();
     expect(screen.getByText("row149")).toBeTruthy();
+    expect(screen.queryByText("row0")).toBeNull();
   });
 
   it("shows an empty-state for an empty file", async () => {
@@ -612,7 +623,7 @@ describe("SpreadsheetPreview (multi-sheet xlsx switching)", () => {
     expect(active.className).toContain("emerald");
   });
 
-  it("chunks rows per sheet after switching, with all rows reachable", async () => {
+  it("virtualizes rows per sheet after switching, with all rows reachable", async () => {
     bridgeXlsxMockToRealParser();
     const buffer = readFileSync(MULTI_XLSX);
     global.fetch = vi.fn(async () =>
@@ -626,15 +637,15 @@ describe("SpreadsheetPreview (multi-sheet xlsx switching)", () => {
 
     // Transactions (150 data rows) renders its own header + early rows...
     await waitFor(() => expect(screen.getByText("Vendor-0")).toBeTruthy());
-    // ...only the first chunk mounts, with a note showing the true total.
-    expect(screen.getByText(/Showing 100 of 150 rows/i)).toBeTruthy();
+    // ...only the visible window mounts, with a footer showing the true total.
+    expect(screen.getByText(/150 rows/i)).toBeTruthy();
     expect(screen.queryByText("Vendor-100")).toBeNull();
 
-    // Loading more reaches the final row — no download required.
-    fireEvent.click(screen.getByRole("button", { name: /Load more rows/i }));
-    expect(screen.getByText("Vendor-100")).toBeTruthy();
+    // Scrolling to the bottom reaches the final row — no download required.
+    const scroller = screen.getByTestId("spreadsheet-scroll");
+    fireEvent.scroll(scroller, { target: { scrollTop: 150 * 33 } });
     expect(screen.getByText("Vendor-149")).toBeTruthy();
-    expect(screen.queryByText(/Scroll to load more/i)).toBeNull();
+    expect(screen.queryByText("Vendor-0")).toBeNull();
   });
 });
 

@@ -6,4 +6,5 @@
 - [Race regression tests](race-regression-test-flush.md) — waitFor(stale is absent) passes before the stale microtask lands; flush the stale resolve inside act, and verify the test fails with the guard disabled.
 - [Aging asOf semantics](aging-asof-semantics.md) — AR/AP aging date-filters only when asOf is explicitly passed; default keeps legacy all-time behavior (future-dated rows included).
 - [write-excel-file v4 quirks](write-excel-file-quirks.md) — must import "write-excel-file/browser" (no "." export); sheet prop is `sheet`; download via result.toFile(name).
+- [TanStack Virtual in jsdom](tanstack-virtual-jsdom.md) — virtualizer reads offsetHeight/offsetWidth (0 in jsdom); stub HTMLElement.prototype or nothing renders.
 - [PDF range streaming preview](pdf-range-streaming.md) — big-PDF paged viewer needs the object route to keep Accept-Ranges + single-range 206 responses, or pdf.js buffers the whole file.

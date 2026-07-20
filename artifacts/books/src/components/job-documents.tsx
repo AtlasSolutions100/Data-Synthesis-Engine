@@ -7,6 +7,7 @@ import {
 } from "@workspace/api-client-react";
 import { useUpload } from "@workspace/object-storage-web";
 import { useQueryClient } from "@tanstack/react-query";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
@@ -150,10 +151,12 @@ export function fileKind(
 
 const MAX_PREVIEW_BYTES = 5 * 1024 * 1024;
 const MAX_PDF_PREVIEW_BYTES = 50 * 1024 * 1024;
-// Rows are rendered in chunks so very large sheets stay responsive: the
-// full file is parsed (bounded by MAX_PREVIEW_BYTES) but only this many
-// rows hit the DOM at first, and more mount as the user scrolls.
-export const PREVIEW_ROW_CHUNK = 100;
+// Estimated pixel height of one rendered spreadsheet row (used by the row
+// virtualizer; rows are fixed-height so this stays accurate).
+const PREVIEW_ROW_HEIGHT = 33;
+// Extra rows rendered above/below the viewport so fast scrolling never shows
+// a blank gap.
+const PREVIEW_OVERSCAN = 10;
 
 // Minimal RFC-4180-ish CSV parser: handles quoted fields, escaped quotes ("")
 // and both \n and \r\n line endings. Stops once `maxRows` rows are collected.
@@ -393,31 +396,35 @@ export function SpreadsheetPreview({
   );
 }
 
-// Renders parsed rows in chunks: the first PREVIEW_ROW_CHUNK body rows mount
-// immediately and more mount as the user scrolls near the bottom, so even
-// multi-thousand-row sheets stay responsive while every row remains viewable.
+// Virtualized row rendering: only the rows near the viewport are mounted
+// (via @tanstack/react-virtual), so even a multi-thousand-row sheet scrolled
+// to the bottom keeps a small, constant DOM. Spacer rows above and below the
+// rendered window preserve the scrollbar size and table column layout.
 function SpreadsheetTable({ rows }: { rows: string[][] }) {
-  const [visibleCount, setVisibleCount] = useState(PREVIEW_ROW_CHUNK);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   const [headerRow, ...bodyRows] = rows;
   const columnCount = rows.reduce((max, r) => Math.max(max, r.length), 0);
-  const shownRows = bodyRows.slice(0, visibleCount);
-  const hasMore = bodyRows.length > visibleCount;
 
-  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
-    if (!hasMore) return;
-    const el = e.currentTarget;
-    if (el.scrollTop + el.clientHeight >= el.scrollHeight - 200) {
-      setVisibleCount((c) =>
-        Math.min(c + PREVIEW_ROW_CHUNK, bodyRows.length),
-      );
-    }
-  };
+  const virtualizer = useVirtualizer({
+    count: bodyRows.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => PREVIEW_ROW_HEIGHT,
+    overscan: PREVIEW_OVERSCAN,
+  });
+
+  const virtualItems = virtualizer.getVirtualItems();
+  const totalSize = virtualizer.getTotalSize();
+  const paddingTop = virtualItems.length > 0 ? virtualItems[0].start : 0;
+  const paddingBottom =
+    virtualItems.length > 0
+      ? totalSize - virtualItems[virtualItems.length - 1].end
+      : 0;
 
   return (
     <div
+      ref={scrollRef}
       className="max-h-[75vh] overflow-auto rounded-md border border-slate-200"
-      onScroll={handleScroll}
       data-testid="spreadsheet-scroll"
     >
       <table className="w-full border-collapse text-sm">
@@ -434,39 +441,41 @@ function SpreadsheetTable({ rows }: { rows: string[][] }) {
           </tr>
         </thead>
         <tbody>
-          {shownRows.map((r, ri) => (
-            <tr key={ri} className="even:bg-slate-50">
-              {Array.from({ length: columnCount }).map((_, c) => (
-                <td
-                  key={c}
-                  className="border-b border-r border-slate-100 px-3 py-1.5 text-slate-700 whitespace-nowrap"
-                >
-                  {r[c] ?? ""}
-                </td>
-              ))}
+          {paddingTop > 0 && (
+            <tr aria-hidden="true">
+              <td colSpan={columnCount} style={{ height: paddingTop, padding: 0, border: 0 }} />
             </tr>
-          ))}
+          )}
+          {virtualItems.map((vi) => {
+            const r = bodyRows[vi.index];
+            return (
+              <tr
+                key={vi.key}
+                className={vi.index % 2 === 1 ? "bg-slate-50" : undefined}
+                style={{ height: PREVIEW_ROW_HEIGHT }}
+              >
+                {Array.from({ length: columnCount }).map((_, c) => (
+                  <td
+                    key={c}
+                    className="border-b border-r border-slate-100 px-3 py-1.5 text-slate-700 whitespace-nowrap"
+                  >
+                    {r[c] ?? ""}
+                  </td>
+                ))}
+              </tr>
+            );
+          })}
+          {paddingBottom > 0 && (
+            <tr aria-hidden="true">
+              <td colSpan={columnCount} style={{ height: paddingBottom, padding: 0, border: 0 }} />
+            </tr>
+          )}
         </tbody>
       </table>
-      {hasMore && (
-        <div className="flex items-center justify-between gap-3 bg-slate-50 px-3 py-2 text-xs text-slate-500">
-          <span>
-            Showing {shownRows.length.toLocaleString()} of{" "}
-            {bodyRows.length.toLocaleString()} rows. Scroll to load more.
-          </span>
-          <button
-            type="button"
-            onClick={() =>
-              setVisibleCount((c) =>
-                Math.min(c + PREVIEW_ROW_CHUNK, bodyRows.length),
-              )
-            }
-            className="shrink-0 rounded-md border border-slate-200 bg-white px-2.5 py-1 font-medium text-slate-600 hover:border-slate-300 hover:bg-slate-100"
-          >
-            Load more rows
-          </button>
-        </div>
-      )}
+      <div className="bg-slate-50 px-3 py-2 text-xs text-slate-500">
+        {bodyRows.length.toLocaleString()}{" "}
+        {bodyRows.length === 1 ? "row" : "rows"}
+      </div>
     </div>
   );
 }
