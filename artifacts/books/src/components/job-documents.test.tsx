@@ -58,16 +58,19 @@ vi.mock("read-excel-file", () => ({
   readSheetNames: vi.fn(),
 }));
 
-// The dynamic `import("pdfjs-dist")` inside PagedPdfViewer is replaced with a
-// controllable stub: jsdom can't run the real pdf.js worker/canvas pipeline,
-// so tests drive the paged-viewer states (document loaded, page count, load
-// failure) directly.
+// The dynamic `import("pdfjs-dist/legacy/build/pdf.mjs")` inside
+// PagedPdfViewer is replaced with a controllable stub: jsdom can't run the
+// real pdf.js worker/canvas pipeline, so tests drive the paged-viewer states
+// (document loaded, page count, load failure) directly.
 const pdfjsMocks = vi.hoisted(() => ({
   getDocument: vi.fn(),
 }));
-vi.mock("pdfjs-dist", () => ({
+vi.mock("pdfjs-dist/legacy/build/pdf.mjs", () => ({
   getDocument: pdfjsMocks.getDocument,
   GlobalWorkerOptions: { workerSrc: "test-worker" },
+}));
+vi.mock("pdfjs-dist/legacy/build/pdf.worker.min.mjs?url", () => ({
+  default: "test-worker-url",
 }));
 
 function stubPdfDocument(numPages: number) {

@@ -542,17 +542,27 @@ export function PagedPdfViewer({ href }: { href: string }) {
 
     async function load() {
       try {
-        const pdfjs = await import("pdfjs-dist");
+        // Use the legacy build: the modern build assumes bleeding-edge JS
+        // features (e.g. Map.prototype.getOrInsertComputed in the range
+        // loader) that break in browsers without them. The `?url` import is
+        // required — a bare package specifier inside
+        // `new URL(..., import.meta.url)` is NOT rewritten by Vite, which
+        // 404s the worker and breaks the viewer.
+        const [pdfjs, worker] = await Promise.all([
+          import("pdfjs-dist/legacy/build/pdf.mjs"),
+          import("pdfjs-dist/legacy/build/pdf.worker.min.mjs?url"),
+        ]);
         if (!pdfjs.GlobalWorkerOptions.workerSrc) {
-          pdfjs.GlobalWorkerOptions.workerSrc = new URL(
-            "pdfjs-dist/build/pdf.worker.min.mjs",
-            import.meta.url,
-          ).toString();
+          pdfjs.GlobalWorkerOptions.workerSrc = worker.default;
         }
         const loadingTask = pdfjs.getDocument({
           url: href,
           // Never prefetch the whole file — fetch ranges on demand only.
+          // disableStream is required too: without it pdf.js keeps the
+          // initial full-file request streaming in the background and ends
+          // up downloading the entire file.
           disableAutoFetch: true,
+          disableStream: true,
           rangeChunkSize: 256 * 1024,
         });
         const doc = (await loadingTask.promise) as unknown as PagedPdfDoc;
@@ -562,7 +572,8 @@ export function PagedPdfViewer({ href }: { href: string }) {
         }
         docRef.current = doc;
         setState({ status: "ready", numPages: doc.numPages });
-      } catch {
+      } catch (err) {
+        console.error("PagedPdfViewer failed to load document:", err);
         if (!cancelled) setState({ status: "error" });
       }
     }
