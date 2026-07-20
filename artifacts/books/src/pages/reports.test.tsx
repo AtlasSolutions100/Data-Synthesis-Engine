@@ -607,7 +607,7 @@ describe("Export Job Reports CSV with partial date ranges", () => {
     const user = userEvent.setup();
     renderReports();
 
-    expect(screen.getByText("All time")).toBeTruthy();
+    expect(screen.getAllByText("All time").length).toBeGreaterThan(0);
     // On-screen all-time totals rendered from the same mocked data.
     expect(screen.getAllByText("$4,444.00").length).toBeGreaterThan(0);
 
@@ -668,5 +668,42 @@ describe("Export Job Reports CSV with partial date ranges", () => {
     const { csv, filename } = lastDownload();
     expect(filename).toBe("job-reports-all-time.csv");
     expect(csv).toContain("Costs Across All Jobs,All time");
+  });
+});
+
+describe("Account Balances as-of label", () => {
+  afterEach(() => {
+    cleanup();
+  });
+
+  it("shows All time when no range is selected", () => {
+    renderReports();
+    expect(screen.getByTestId("text-balances-as-of").textContent).toBe(
+      "All time",
+    );
+  });
+
+  it("shows As of the end date when a range with an end date is picked", async () => {
+    const user = userEvent.setup();
+    renderReports();
+
+    await user.click(screen.getByTestId("pick-full-range"));
+    expect(screen.getByTestId("text-balances-as-of").textContent).toBe(
+      "As of 2026-06-30",
+    );
+  });
+
+  it("returns to All time when the range is cleared", async () => {
+    const user = userEvent.setup();
+    renderReports();
+
+    await user.click(screen.getByTestId("pick-end-only"));
+    expect(screen.getByTestId("text-balances-as-of").textContent).toBe(
+      "As of 2026-06-30",
+    );
+    await user.click(screen.getByTestId("pick-clear"));
+    expect(screen.getByTestId("text-balances-as-of").textContent).toBe(
+      "All time",
+    );
   });
 });

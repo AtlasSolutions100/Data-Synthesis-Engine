@@ -479,6 +479,9 @@ export default function Reports() {
               ? `Balance-sheet accounts as of ${range.endDate}`
               : "Balance-sheet accounts computed from all linked transactions"}
           </p>
+          <p className="text-sm text-slate-500" data-testid="text-balances-as-of">
+            {range.endDate ? `As of ${range.endDate}` : "All time"}
+          </p>
         </CardHeader>
         <CardContent className="p-0">
           <Table>
