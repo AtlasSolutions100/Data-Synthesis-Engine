@@ -547,7 +547,18 @@ export default function Reports() {
                               ) : (
                                 <ChevronRight className="h-4 w-4 text-slate-400" />
                               )}
-                              {c.customerName || "Unassigned"}
+                              {c.customerId != null ? (
+                                <Link
+                                  href={`/customers/${c.customerId}`}
+                                  className="text-blue-600 hover:underline"
+                                  onClick={(e) => e.stopPropagation()}
+                                  data-testid={`link-ar-customer-${key}`}
+                                >
+                                  {c.customerName || "Unassigned"}
+                                </Link>
+                              ) : (
+                                c.customerName || "Unassigned"
+                              )}
                             </span>
                           </TableCell>
                           <BucketCells buckets={c.buckets} />
@@ -622,7 +633,18 @@ export default function Reports() {
                               ) : (
                                 <ChevronRight className="h-4 w-4 text-slate-400" />
                               )}
-                              {v.vendorName || "Unassigned"}
+                              {v.vendorId != null ? (
+                                <Link
+                                  href={`/vendors/${v.vendorId}`}
+                                  className="text-blue-600 hover:underline"
+                                  onClick={(e) => e.stopPropagation()}
+                                  data-testid={`link-ap-vendor-${key}`}
+                                >
+                                  {v.vendorName || "Unassigned"}
+                                </Link>
+                              ) : (
+                                v.vendorName || "Unassigned"
+                              )}
                             </span>
                           </TableCell>
                           <BucketCells buckets={v.buckets} />

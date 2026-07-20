@@ -218,6 +218,71 @@ describe("Export Aging (Excel) failure handling", () => {
   });
 });
 
+describe("Aging summary rows link to customer/vendor pages", () => {
+  beforeEach(() => {
+    arAging.customers = [
+      {
+        customerId: 7,
+        customerName: "Acme Utilities",
+        buckets: emptyBuckets,
+        invoices: [],
+      },
+      {
+        customerId: null,
+        customerName: "",
+        buckets: emptyBuckets,
+        invoices: [],
+      },
+    ] as ArAging["customers"];
+    apAging.vendors = [
+      {
+        vendorId: 9,
+        vendorName: "Volt Supply Co",
+        buckets: emptyBuckets,
+        bills: [],
+      },
+    ] as ApAging["vendors"];
+  });
+
+  afterEach(() => {
+    arAging.customers = [];
+    apAging.vendors = [];
+    cleanup();
+  });
+
+  it("renders customer and vendor names as links to their detail pages", () => {
+    renderReports();
+
+    const customerLink = screen.getByTestId(
+      "link-ar-customer-7",
+    ) as HTMLAnchorElement;
+    expect(customerLink.getAttribute("href")).toBe("/customers/7");
+    expect(customerLink.textContent).toBe("Acme Utilities");
+
+    const vendorLink = screen.getByTestId(
+      "link-ap-vendor-9",
+    ) as HTMLAnchorElement;
+    expect(vendorLink.getAttribute("href")).toBe("/vendors/9");
+    expect(vendorLink.textContent).toBe("Volt Supply Co");
+  });
+
+  it("does not link unassigned rows and clicking the name doesn't toggle expansion", async () => {
+    const user = userEvent.setup();
+    renderReports();
+
+    expect(screen.queryByTestId("link-ar-customer-none")).toBeNull();
+    expect(screen.getByText("Unassigned")).toBeTruthy();
+
+    // Clicking the linked name must not expand the detail row.
+    await user.click(screen.getByTestId("link-ar-customer-7"));
+    expect(screen.queryByText("Invoice #")).toBeNull();
+
+    // Clicking elsewhere on the row still toggles expansion.
+    await user.click(screen.getByTestId("row-ar-customer-7"));
+    expect(screen.getByText("Invoice #")).toBeTruthy();
+  });
+});
+
 describe("Export Job Reports CSV with partial date ranges", () => {
   beforeEach(() => {
     downloadCsv.mockClear();
