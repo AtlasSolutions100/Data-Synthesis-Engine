@@ -53,7 +53,7 @@ import {
   type DateRangeValue,
   describeRange,
 } from "@/components/date-range-picker";
-import { useToast } from "@/hooks/use-toast";
+import { useExportToast } from "@/lib/export-toast";
 
 function BucketCells({ buckets }: { buckets: AgingBuckets }) {
   return (
@@ -165,22 +165,8 @@ const agingHeaders = (
 );
 
 export default function Reports() {
-  const { toast } = useToast();
   const [range, setRange] = useState<DateRangeValue>({});
-  const [exportingXlsx, setExportingXlsx] = useState(false);
-  const exportWithErrorToast = (title: string, fn: () => void) => {
-    try {
-      fn();
-    } catch (error) {
-      console.error(`${title} failed`, error);
-      toast({
-        title,
-        description:
-          error instanceof Error ? error.message : "Something went wrong.",
-        variant: "destructive",
-      });
-    }
-  };
+  const { exporting: exportingXlsx, runExport } = useExportToast();
   const [expandedCustomers, setExpandedCustomers] = useState<Set<string>>(
     new Set(),
   );
@@ -247,7 +233,7 @@ export default function Reports() {
             data-testid="button-export-all"
             onClick={() => {
               if (!report || !payrollByJob || !arAging || !apAging) return;
-              exportWithErrorToast("Export failed", () => {
+              runExport("Export failed", () => {
                 downloadCsv(
                   buildMonthEndCsv(
                     report,
@@ -269,7 +255,7 @@ export default function Reports() {
             data-testid="button-export-all-zip"
             onClick={() => {
               if (!report || !payrollByJob || !arAging || !apAging) return;
-              exportWithErrorToast("Export failed", () => {
+              runExport("Export failed", () => {
                 const entries = buildMonthEndZipEntries(
                   report,
                   payrollByJob,
@@ -293,7 +279,7 @@ export default function Reports() {
             data-testid="button-export-job-reports"
             onClick={() => {
               if (!report || !payrollByJob) return;
-              exportWithErrorToast("Export failed", () => {
+              runExport("Export failed", () => {
                 downloadCsv(
                   buildJobReportsCsv(report, payrollByJob, range),
                   jobReportsCsvFilename(range),
@@ -309,7 +295,7 @@ export default function Reports() {
             disabled={!arAging || !apAging}
             onClick={() => {
               if (!arAging || !apAging) return;
-              exportWithErrorToast("Export failed", () => {
+              runExport("Export failed", () => {
                 downloadCsv(
                   buildAgingCsv(arAging, apAging),
                   agingCsvFilename(arAging.asOf),
@@ -325,7 +311,7 @@ export default function Reports() {
             disabled={!arAging || !apAging}
             onClick={() => {
               if (!arAging || !apAging) return;
-              exportWithErrorToast("Export failed", () => {
+              runExport("Export failed", () => {
                 downloadCsv(
                   buildAgingDetailCsv(arAging, apAging),
                   agingDetailCsvFilename(arAging.asOf),
@@ -342,20 +328,9 @@ export default function Reports() {
             data-testid="button-export-aging-xlsx"
             onClick={() => {
               if (!arAging || !apAging || exportingXlsx) return;
-              setExportingXlsx(true);
-              downloadAgingXlsx(arAging, apAging)
-                .catch((error: unknown) => {
-                  console.error("Export failed", error);
-                  toast({
-                    title: "Export failed",
-                    description:
-                      error instanceof Error
-                        ? error.message
-                        : "Something went wrong.",
-                    variant: "destructive",
-                  });
-                })
-                .finally(() => setExportingXlsx(false));
+              runExport("Export failed", () =>
+                downloadAgingXlsx(arAging, apAging),
+              );
             }}
           >
             <Download className="h-4 w-4 mr-2" />
