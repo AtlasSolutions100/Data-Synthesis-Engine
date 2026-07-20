@@ -381,7 +381,7 @@ describe("Account balance drill-down lines link to the transaction", () => {
   });
 });
 
-describe("Export All (Zip) downloads a valid zip with three CSVs", () => {
+describe("Export All (Zip) downloads a valid zip with four CSVs", () => {
   beforeEach(() => {
     downloadZip.mockClear();
   });
@@ -483,7 +483,7 @@ describe("Export All (Zip) downloads a valid zip with three CSVs", () => {
     expect(balances).toContain("Account Balances,As of 2026-06-30");
   });
 
-  it("selected range: zip and job-reports filenames carry the range slug", async () => {
+  it("start only (synthetic, not UI-reachable): zip and job-reports filenames carry the from-<start> slug", async () => {
     const user = userEvent.setup();
     renderReports();
 
@@ -500,8 +500,35 @@ describe("Export All (Zip) downloads a valid zip with three CSVs", () => {
       "job-reports-from-2026-06-01.csv",
     ]);
     const jobReports = strFromU8(files["job-reports-from-2026-06-01.csv"]);
+    expectValidCsv(jobReports);
     expect(jobReports).toContain("Costs Across All Jobs,From 2026-06-01");
     expect(jobReports).toContain("Total,,2222.00");
+  });
+
+  it("end only (synthetic, not UI-reachable): zip and job-reports filenames carry the through-<end> slug", async () => {
+    const user = userEvent.setup();
+    renderReports();
+
+    await user.click(screen.getByTestId("pick-end-only"));
+    expect(screen.getByText("Until Jun 30, 2026")).toBeTruthy();
+
+    await user.click(screen.getByTestId("button-export-all-zip"));
+    const { data, filename } = lastZip();
+
+    expect(filename).toBe("month-end-reports-through-2026-06-30.zip");
+    const files = unzipSync(new Uint8Array(data));
+    expect(Object.keys(files).sort()).toEqual([
+      "account-balances-through-2026-06-30.csv",
+      "aging-detail-as-of-2026-07-17.csv",
+      "aging-summary-as-of-2026-07-17.csv",
+      "job-reports-through-2026-06-30.csv",
+    ]);
+    const jobReports = strFromU8(files["job-reports-through-2026-06-30.csv"]);
+    expectValidCsv(jobReports);
+    expect(jobReports).toContain("Costs Across All Jobs,Through 2026-06-30");
+    expect(jobReports).toContain("Burdened Labor by Job,Through 2026-06-30");
+    expect(jobReports).toContain("Total,,3333.00");
+    expect(jobReports).toContain("Total,3000.00,0.00,3000.00,750.00,3750.00");
   });
 });
 
