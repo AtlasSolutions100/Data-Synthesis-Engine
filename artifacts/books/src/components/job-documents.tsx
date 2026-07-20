@@ -411,6 +411,11 @@ function SpreadsheetTable({ rows }: { rows: string[][] }) {
     getScrollElement: () => scrollRef.current,
     estimateSize: () => PREVIEW_ROW_HEIGHT,
     overscan: PREVIEW_OVERSCAN,
+    // Rows with multi-line cell content (quoted CSV fields with embedded
+    // newlines) render taller than the estimate, so measure real heights to
+    // keep scroll positions exact. Fall back to the estimate in environments
+    // without layout (e.g. jsdom reports 0-height rects).
+    measureElement: (el) => el.getBoundingClientRect().height || PREVIEW_ROW_HEIGHT,
   });
 
   const virtualItems = virtualizer.getVirtualItems();
@@ -451,13 +456,14 @@ function SpreadsheetTable({ rows }: { rows: string[][] }) {
             return (
               <tr
                 key={vi.key}
+                ref={virtualizer.measureElement}
+                data-index={vi.index}
                 className={vi.index % 2 === 1 ? "bg-slate-50" : undefined}
-                style={{ height: PREVIEW_ROW_HEIGHT }}
               >
                 {Array.from({ length: columnCount }).map((_, c) => (
                   <td
                     key={c}
-                    className="border-b border-r border-slate-100 px-3 py-1.5 text-slate-700 whitespace-nowrap"
+                    className="border-b border-r border-slate-100 px-3 py-1.5 text-slate-700 whitespace-pre-wrap"
                   >
                     {r[c] ?? ""}
                   </td>
