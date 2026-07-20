@@ -501,11 +501,29 @@ type PagedPdfState =
 // configured with disableAutoFetch + range requests, so only the byte ranges
 // needed for the visible page are downloaded — memory stays bounded no matter
 // how big the file is. Rendered pages are cleaned up as the user navigates.
+const DEFAULT_PDF_SCALE = 1.5;
+
+// Session-scoped memory of the last-used zoom level so that flipping between
+// documents doesn't reset the zoom. Deliberately a module variable (not
+// sessionStorage) so a fresh page load starts back at the 100% default.
+let lastUsedPdfScale = DEFAULT_PDF_SCALE;
+
+export function resetPagedPdfZoomForTests() {
+  lastUsedPdfScale = DEFAULT_PDF_SCALE;
+}
+
 export function PagedPdfViewer({ href }: { href: string }) {
   const [state, setState] = useState<PagedPdfState>({ status: "loading" });
   const [pageNum, setPageNum] = useState(1);
   const [pageInput, setPageInput] = useState("1");
-  const [scale, setScale] = useState(1.5);
+  const [scale, setScaleState] = useState(lastUsedPdfScale);
+  const setScale = (update: (s: number) => number) => {
+    setScaleState((s) => {
+      const next = update(s);
+      lastUsedPdfScale = next;
+      return next;
+    });
+  };
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const docRef = useRef<PagedPdfDoc | null>(null);
   const renderTaskRef = useRef<{ cancel(): void } | null>(null);

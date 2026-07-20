@@ -28,6 +28,7 @@ import {
   fileKind,
   SpreadsheetPreview,
   JobDocuments,
+  resetPagedPdfZoomForTests,
 } from "./job-documents";
 
 // JobDocuments pulls in generated react-query hooks and the upload hook; mock
@@ -165,6 +166,7 @@ afterEach(() => {
   mockedReadXlsx.mockReset();
   mockedReadSheetNames.mockReset();
   pdfjsMocks.getDocument.mockReset();
+  resetPagedPdfZoomForTests();
 });
 
 describe("parseCsv", () => {
@@ -924,6 +926,58 @@ describe("JobDocuments preview affordances", () => {
     const download = within(dialog).getByRole("link", { name: /download/i });
     expect(download.getAttribute("href")).toBe(
       "/api/storage/objects/uploads/contract.pdf?token=pdftok",
+    );
+  });
+
+  it("remembers the zoom level when opening another PDF in the same session", async () => {
+    global.fetch = vi.fn() as unknown as typeof fetch;
+    stubPdfDocument(10);
+
+    renderJobDocuments([
+      makeDoc({
+        id: 2,
+        fileName: "contract-a.pdf",
+        objectPath: "/objects/uploads/contract-a.pdf",
+        downloadToken: "tokA",
+        contentType: "application/pdf",
+        sizeBytes: 200 * 1024 * 1024,
+      }),
+      makeDoc({
+        id: 3,
+        fileName: "contract-b.pdf",
+        objectPath: "/objects/uploads/contract-b.pdf",
+        downloadToken: "tokB",
+        contentType: "application/pdf",
+        sizeBytes: 200 * 1024 * 1024,
+      }),
+    ]);
+
+    // Open the first PDF and zoom in twice (100% -> 133%).
+    fireEvent.click(screen.getByRole("button", { name: /contract-a\.pdf/ }));
+    let dialog = await screen.findByRole("dialog");
+    await waitFor(() =>
+      expect(within(dialog).getByTestId("pdf-zoom-level").textContent).toBe(
+        "100%",
+      ),
+    );
+    fireEvent.click(within(dialog).getByRole("button", { name: /zoom in/i }));
+    fireEvent.click(within(dialog).getByRole("button", { name: /zoom in/i }));
+    await waitFor(() =>
+      expect(within(dialog).getByTestId("pdf-zoom-level").textContent).toBe(
+        "133%",
+      ),
+    );
+
+    // Close and open the second PDF — the zoom carries over.
+    fireEvent.keyDown(dialog, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+
+    fireEvent.click(screen.getByRole("button", { name: /contract-b\.pdf/ }));
+    dialog = await screen.findByRole("dialog");
+    await waitFor(() =>
+      expect(within(dialog).getByTestId("pdf-zoom-level").textContent).toBe(
+        "133%",
+      ),
     );
   });
 
