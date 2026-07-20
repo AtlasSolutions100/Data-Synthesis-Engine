@@ -56,27 +56,39 @@ async function validateReferences(data: {
   jobId?: number | null;
   customerId?: number | null;
   vendorId?: number | null;
-}): Promise<string | null> {
+}): Promise<{ field: string; error: string } | null> {
   if (data.accountId != null && !(await refExists("account", data.accountId))) {
-    return `Account ${data.accountId} does not exist`;
+    return {
+      field: "accountId",
+      error: `Account ${data.accountId} does not exist`,
+    };
   }
   if (
     data.splitAccountId != null &&
     !(await refExists("account", data.splitAccountId))
   ) {
-    return `Split account ${data.splitAccountId} does not exist`;
+    return {
+      field: "splitAccountId",
+      error: `Split account ${data.splitAccountId} does not exist`,
+    };
   }
   if (data.jobId != null && !(await refExists("job", data.jobId))) {
-    return `Job ${data.jobId} does not exist`;
+    return { field: "jobId", error: `Job ${data.jobId} does not exist` };
   }
   if (
     data.customerId != null &&
     !(await refExists("customer", data.customerId))
   ) {
-    return `Customer ${data.customerId} does not exist`;
+    return {
+      field: "customerId",
+      error: `Customer ${data.customerId} does not exist`,
+    };
   }
   if (data.vendorId != null && !(await refExists("vendor", data.vendorId))) {
-    return `Vendor ${data.vendorId} does not exist`;
+    return {
+      field: "vendorId",
+      error: `Vendor ${data.vendorId} does not exist`,
+    };
   }
   return null;
 }
@@ -199,7 +211,7 @@ router.post("/transactions", async (req, res): Promise<void> => {
   }
   const refError = await validateReferences(parsed.data);
   if (refError) {
-    res.status(400).json({ error: refError });
+    res.status(400).json(refError);
     return;
   }
   const [tx] = await db
@@ -237,7 +249,7 @@ router.patch("/transactions/:id", async (req, res): Promise<void> => {
   }
   const refError = await validateReferences(parsed.data);
   if (refError) {
-    res.status(400).json({ error: refError });
+    res.status(400).json(refError);
     return;
   }
   const [tx] = await db

@@ -114,6 +114,7 @@ describe("POST /api/bills referential validation", () => {
       .send(baseBill({ vendorId: missingVendorId }));
     expect(res.status).toBe(400);
     expect(res.body.error).toBe(`Vendor ${missingVendorId} does not exist`);
+    expect(res.body.field).toBe("vendorId");
   });
 
   it("rejects a missing jobId with a clear 400", async () => {
@@ -122,6 +123,7 @@ describe("POST /api/bills referential validation", () => {
       .send(baseBill({ jobId: missingJobId }));
     expect(res.status).toBe(400);
     expect(res.body.error).toBe(`Job ${missingJobId} does not exist`);
+    expect(res.body.field).toBe("jobId");
   });
 
   it("rejects a missing line accountId with a clear 400", async () => {
@@ -137,6 +139,7 @@ describe("POST /api/bills referential validation", () => {
       );
     expect(res.status).toBe(400);
     expect(res.body.error).toBe(`Account ${missingAcctId} does not exist`);
+    expect(res.body.field).toBe("lines.1.accountId");
   });
 
   it("accepts a bill whose references all exist", async () => {
@@ -166,6 +169,7 @@ describe("PATCH /api/bills/:id referential validation", () => {
       .send({ vendorId: missingVendorId });
     expect(res.status).toBe(400);
     expect(res.body.error).toBe(`Vendor ${missingVendorId} does not exist`);
+    expect(res.body.field).toBe("vendorId");
   });
 
   it("rejects updating to a missing jobId", async () => {
@@ -174,6 +178,7 @@ describe("PATCH /api/bills/:id referential validation", () => {
       .send({ jobId: missingJobId });
     expect(res.status).toBe(400);
     expect(res.body.error).toBe(`Job ${missingJobId} does not exist`);
+    expect(res.body.field).toBe("jobId");
   });
 
   it("rejects updated lines with a missing accountId", async () => {
@@ -184,6 +189,7 @@ describe("PATCH /api/bills/:id referential validation", () => {
       });
     expect(res.status).toBe(400);
     expect(res.body.error).toBe(`Account ${missingAcctId} does not exist`);
+    expect(res.body.field).toBe("lines.0.accountId");
   });
 
   it("accepts an update whose references all exist", async () => {

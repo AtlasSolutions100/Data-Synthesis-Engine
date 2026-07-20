@@ -204,7 +204,10 @@ router.post("/invoices", async (req, res): Promise<void> => {
     .from(jobsTable)
     .where(eq(jobsTable.id, data.jobId));
   if (!job) {
-    res.status(400).json({ error: `Job ${data.jobId} does not exist` });
+    res.status(400).json({
+      error: `Job ${data.jobId} does not exist`,
+      field: "jobId",
+    });
     return;
   }
 
@@ -212,6 +215,7 @@ router.post("/invoices", async (req, res): Promise<void> => {
   if (customerId == null) {
     res.status(400).json({
       error: "customerId is required (job has no associated customer)",
+      field: "customerId",
     });
     return;
   }
@@ -220,7 +224,10 @@ router.post("/invoices", async (req, res): Promise<void> => {
     .from(customersTable)
     .where(eq(customersTable.id, customerId));
   if (!customer) {
-    res.status(400).json({ error: `Customer ${customerId} does not exist` });
+    res.status(400).json({
+      error: `Customer ${customerId} does not exist`,
+      field: "customerId",
+    });
     return;
   }
 

@@ -32,12 +32,12 @@ import {
 const router: IRouter = Router();
 
 /**
- * Return the first line accountId that doesn't exist, or null when all
- * referenced accounts are present.
+ * Return the first line whose accountId doesn't exist (with its index for a
+ * per-field error), or null when all referenced accounts are present.
  */
-async function findMissingAccountId(
+async function findMissingAccount(
   lines: Array<{ accountId?: number | null }>,
-): Promise<number | null> {
+): Promise<{ index: number; accountId: number } | null> {
   const ids = [
     ...new Set(
       lines
@@ -51,7 +51,11 @@ async function findMissingAccountId(
     .from(accountsTable)
     .where(inArray(accountsTable.id, ids));
   const foundSet = new Set(found.map((r) => r.id));
-  return ids.find((id) => !foundSet.has(id)) ?? null;
+  const index = lines.findIndex(
+    (l) => l.accountId != null && !foundSet.has(l.accountId),
+  );
+  if (index === -1) return null;
+  return { index, accountId: lines[index].accountId as number };
 }
 
 type BillStatus = "open" | "partial" | "paid";
@@ -235,7 +239,10 @@ router.post("/bills", async (req, res): Promise<void> => {
     .from(vendorsTable)
     .where(eq(vendorsTable.id, data.vendorId));
   if (!vendor) {
-    res.status(400).json({ error: `Vendor ${data.vendorId} does not exist` });
+    res.status(400).json({
+      error: `Vendor ${data.vendorId} does not exist`,
+      field: "vendorId",
+    });
     return;
   }
   if (data.jobId != null) {
@@ -244,15 +251,19 @@ router.post("/bills", async (req, res): Promise<void> => {
       .from(jobsTable)
       .where(eq(jobsTable.id, data.jobId));
     if (!job) {
-      res.status(400).json({ error: `Job ${data.jobId} does not exist` });
+      res.status(400).json({
+        error: `Job ${data.jobId} does not exist`,
+        field: "jobId",
+      });
       return;
     }
   }
-  const missingAccountId = await findMissingAccountId(data.lines);
-  if (missingAccountId != null) {
-    res
-      .status(400)
-      .json({ error: `Account ${missingAccountId} does not exist` });
+  const missingAccount = await findMissingAccount(data.lines);
+  if (missingAccount != null) {
+    res.status(400).json({
+      error: `Account ${missingAccount.accountId} does not exist`,
+      field: `lines.${missingAccount.index}.accountId`,
+    });
     return;
   }
 
@@ -324,7 +335,10 @@ router.patch("/bills/:id", async (req, res): Promise<void> => {
       .from(vendorsTable)
       .where(eq(vendorsTable.id, data.vendorId));
     if (!vendor) {
-      res.status(400).json({ error: `Vendor ${data.vendorId} does not exist` });
+      res.status(400).json({
+        error: `Vendor ${data.vendorId} does not exist`,
+        field: "vendorId",
+      });
       return;
     }
   }
@@ -334,16 +348,20 @@ router.patch("/bills/:id", async (req, res): Promise<void> => {
       .from(jobsTable)
       .where(eq(jobsTable.id, data.jobId));
     if (!job) {
-      res.status(400).json({ error: `Job ${data.jobId} does not exist` });
+      res.status(400).json({
+        error: `Job ${data.jobId} does not exist`,
+        field: "jobId",
+      });
       return;
     }
   }
   if (data.lines !== undefined) {
-    const missingAccountId = await findMissingAccountId(data.lines);
-    if (missingAccountId != null) {
-      res
-        .status(400)
-        .json({ error: `Account ${missingAccountId} does not exist` });
+    const missingAccount = await findMissingAccount(data.lines);
+    if (missingAccount != null) {
+      res.status(400).json({
+        error: `Account ${missingAccount.accountId} does not exist`,
+        field: `lines.${missingAccount.index}.accountId`,
+      });
       return;
     }
   }
