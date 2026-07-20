@@ -331,7 +331,6 @@ export default function JobDetail() {
                                       description: txn.description || "",
                                       accountId: txn.accountId.toString(),
                                       splitAccountId: txn.splitAccountId?.toString() || "",
-                                      splitAccount: txn.splitAccountId ? "" : txn.splitAccount || "",
                                       jobId: txn.jobId?.toString() || "",
                                       customerId: txn.customerId?.toString() || "",
                                       vendorId: txn.vendorId?.toString() || "",

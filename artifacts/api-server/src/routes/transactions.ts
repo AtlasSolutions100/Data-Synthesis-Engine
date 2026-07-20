@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { and, desc, eq, isNull, ne, sql, type SQL } from "drizzle-orm";
+import { and, desc, eq, type SQL } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import {
   db,
@@ -18,9 +18,6 @@ import {
   UpdateTransactionParams,
   UpdateTransactionBody,
   DeleteTransactionParams,
-  ListLegacySplitAccountsResponse,
-  MapLegacySplitAccountBody,
-  MapLegacySplitAccountResponse,
 } from "@workspace/api-zod";
 import { dateRangeConds } from "../lib/finance";
 
@@ -116,7 +113,7 @@ function serializeTx(
     accountNumber,
     accountName,
     splitAccountId: t.splitAccountId,
-    splitAccount: t.splitAccountId != null ? splitAccountName : t.splitAccount,
+    splitAccount: t.splitAccountId != null ? splitAccountName : null,
     jobId: t.jobId,
     jobNumber,
     customerId: t.customerId,
@@ -223,59 +220,6 @@ router.post("/transactions", async (req, res): Promise<void> => {
     .returning();
   const enriched = await fetchEnrichedTx(tx.id);
   res.status(201).json(GetTransactionResponse.parse(enriched));
-});
-
-// Must be registered before /transactions/:id so "legacy-split-accounts" is
-// not captured as an id parameter.
-router.get("/transactions/legacy-split-accounts", async (_req, res): Promise<void> => {
-  const rows = await db
-    .select({
-      name: transactionsTable.splitAccount,
-      count: sql<number>`count(*)::int`,
-    })
-    .from(transactionsTable)
-    .where(
-      and(
-        isNull(transactionsTable.splitAccountId),
-        sql`${transactionsTable.splitAccount} is not null`,
-        ne(transactionsTable.splitAccount, ""),
-      ),
-    )
-    .groupBy(transactionsTable.splitAccount)
-    .orderBy(sql`count(*) desc`, transactionsTable.splitAccount);
-
-  res.json(ListLegacySplitAccountsResponse.parse(rows));
-});
-
-router.post("/transactions/legacy-split-accounts", async (req, res): Promise<void> => {
-  const parsed = MapLegacySplitAccountBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
-    return;
-  }
-  const { name, accountId } = parsed.data;
-  if (!(await refExists("account", accountId))) {
-    res.status(400).json({ error: `Account ${accountId} does not exist` });
-    return;
-  }
-  const updated = await db
-    .update(transactionsTable)
-    .set({ splitAccountId: accountId, splitAccount: null })
-    .where(
-      and(
-        isNull(transactionsTable.splitAccountId),
-        eq(transactionsTable.splitAccount, name),
-      ),
-    )
-    .returning({ id: transactionsTable.id });
-
-  res.json(
-    MapLegacySplitAccountResponse.parse({
-      name,
-      accountId,
-      updated: updated.length,
-    }),
-  );
 });
 
 router.get("/transactions/:id", async (req, res): Promise<void> => {

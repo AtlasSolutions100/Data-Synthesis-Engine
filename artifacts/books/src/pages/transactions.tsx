@@ -7,7 +7,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { TransactionForm } from "@/components/forms/transaction-form";
-import { LegacySplitCleanup } from "@/components/legacy-split-cleanup";
 import { DateRangePicker, type DateRangeValue } from "@/components/date-range-picker";
 import { useQueryClient } from "@tanstack/react-query";
 import { Plus, Edit2, Trash2 } from "lucide-react";
@@ -58,7 +57,6 @@ export default function Transactions() {
         </div>
         <div className="flex items-center gap-3">
         <DateRangePicker value={range} onChange={setRange} />
-        <LegacySplitCleanup />
         <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
           <DialogTrigger asChild>
             <Button className="bg-blue-600 hover:bg-blue-700">
@@ -138,7 +136,6 @@ export default function Transactions() {
                                 description: txn.description || "",
                                 accountId: txn.accountId.toString(),
                                 splitAccountId: txn.splitAccountId?.toString() || "",
-                                splitAccount: txn.splitAccountId ? "" : txn.splitAccount || "",
                                 jobId: txn.jobId?.toString() || "",
                                 customerId: txn.customerId?.toString() || "",
                                 vendorId: txn.vendorId?.toString() || "",

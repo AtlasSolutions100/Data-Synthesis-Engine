@@ -46,7 +46,6 @@ const transactionSchema = z.object({
   description: z.string().optional(),
   accountId: z.string().min(1, "Account is required"),
   splitAccountId: z.string().optional(),
-  splitAccount: z.string().optional(),
   jobId: z.string().optional(),
   customerId: z.string().optional(),
   vendorId: z.string().optional(),
@@ -90,7 +89,6 @@ export function TransactionForm({ defaultValues, onSubmit, isLoading }: Transact
       description: defaultValues?.description || "",
       accountId: defaultValues?.accountId || "",
       splitAccountId: defaultValues?.splitAccountId || "",
-      splitAccount: defaultValues?.splitAccount || "",
       jobId: defaultValues?.jobId || "",
       customerId: defaultValues?.customerId || "",
       vendorId: defaultValues?.vendorId || "",
@@ -167,7 +165,6 @@ export function TransactionForm({ defaultValues, onSubmit, isLoading }: Transact
       splitAccountId: values.splitAccountId
         ? parseInt(values.splitAccountId, 10)
         : null,
-      splitAccount: values.splitAccountId ? null : values.splitAccount || null,
       jobId: values.jobId ? parseInt(values.jobId, 10) : null,
       customerId: values.customerId ? parseInt(values.customerId, 10) : null,
       vendorId: values.vendorId ? parseInt(values.vendorId, 10) : null,
@@ -353,39 +350,22 @@ export function TransactionForm({ defaultValues, onSubmit, isLoading }: Transact
         <FormField
           control={form.control}
           name="splitAccountId"
-          render={({ field }) => {
-            const legacyName = form.watch("splitAccount");
-            const hasLegacyValue = !field.value && Boolean(legacyName);
-            const options = hasLegacyValue
-              ? [{ id: -1, label: legacyName! }, ...accountOptions]
-              : accountOptions;
-            return (
-              <FormItem>
-                <FormLabel>Split Account (Optional)</FormLabel>
-                <FormControl>
-                  <EntityCombobox
-                    options={options}
-                    value={field.value || (hasLegacyValue ? "-1" : "")}
-                    onChange={(v) => {
-                      if (!v) {
-                        field.onChange("");
-                        form.setValue("splitAccount", "");
-                      } else if (v === "-1") {
-                        field.onChange("");
-                      } else {
-                        field.onChange(v);
-                        form.setValue("splitAccount", "");
-                      }
-                    }}
-                    placeholder="Select split account"
-                    searchPlaceholder="Search accounts..."
-                    emptyText="No accounts found."
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            );
-          }}
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Split Account (Optional)</FormLabel>
+              <FormControl>
+                <EntityCombobox
+                  options={accountOptions}
+                  value={field.value ?? ""}
+                  onChange={field.onChange}
+                  placeholder="Select split account"
+                  searchPlaceholder="Search accounts..."
+                  emptyText="No accounts found."
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
         />
         <FormField
           control={form.control}

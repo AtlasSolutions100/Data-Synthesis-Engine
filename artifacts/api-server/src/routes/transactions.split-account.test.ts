@@ -13,9 +13,10 @@ import { db, accountsTable, transactionsTable } from "@workspace/db";
 /**
  * Locks in the split-account-by-id behavior: transactions reference the split
  * account via a nullable FK (splitAccountId) so renaming an account cannot
- * break old transactions. Legacy free-text names are preserved for display
- * when no id is set. Runs against the real database with fixtures dated in
- * 2098 and torn down afterwards.
+ * break old transactions. The legacy free-text splitAccount field is retired:
+ * it is ignored on input and only ever returned as the joined account name.
+ * Runs against the real database with fixtures dated in 2098 and torn down
+ * afterwards.
  */
 
 function buildApp(router: IRouter): Express {
@@ -97,7 +98,7 @@ describe("split account id", () => {
     expect(res.body.error).toMatch(/Split account/);
   });
 
-  it("preserves a legacy free-text split name when no id is given", async () => {
+  it("ignores free-text splitAccount on create; name comes from the link only", async () => {
     const res = await request(app).post("/api/transactions").send({
       date: "2098-02-03",
       type: "expense",
@@ -109,14 +110,13 @@ describe("split account id", () => {
     expect(res.status).toBe(201);
     txnIds.push(res.body.id);
     expect(res.body.splitAccountId).toBeNull();
-    expect(res.body.splitAccount).toBe("Old Ledger Acct");
+    expect(res.body.splitAccount).toBeNull();
   });
 
-  it("updates a legacy transaction to a real split account id", async () => {
-    const legacyId = txnIds[1];
+  it("ignores free-text splitAccount on update too", async () => {
     const res = await request(app)
-      .patch(`/api/transactions/${legacyId}`)
-      .send({ splitAccountId: splitAcctId, splitAccount: null });
+      .patch(`/api/transactions/${txnIds[1]}`)
+      .send({ splitAccountId: splitAcctId, splitAccount: "Stale Text Name" });
     expect(res.status).toBe(200);
     expect(res.body.splitAccountId).toBe(splitAcctId);
     expect(res.body.splitAccount).toBe("Test SA Split Renamed");

@@ -208,8 +208,7 @@ router.get("/reports/dashboard", async (req, res): Promise<void> => {
     accountNumber: r.accountNumber,
     accountName: r.accountName,
     splitAccountId: r.t.splitAccountId,
-    splitAccount:
-      r.t.splitAccountId != null ? r.splitAccountName : r.t.splitAccount,
+    splitAccount: r.t.splitAccountId != null ? r.splitAccountName : null,
     jobId: r.t.jobId,
     jobNumber: r.jobNumber,
     customerId: r.t.customerId,

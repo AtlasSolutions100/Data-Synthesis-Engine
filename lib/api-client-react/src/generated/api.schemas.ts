@@ -360,7 +360,7 @@ export interface Transaction {
      */
   splitAccountId?: number | null;
   /**
-     * Offsetting account display name (resolved from splitAccountId when set, otherwise legacy free text)
+     * Offsetting account display name, resolved from splitAccountId (read-only)
      * @nullable
      */
   splitAccount?: string | null;
@@ -404,11 +404,6 @@ export interface TransactionInput {
   accountId: number;
   /** @nullable */
   splitAccountId?: number | null;
-  /**
-     * Legacy free-text split account name; only used when splitAccountId is null
-     * @nullable
-     */
-  splitAccount?: string | null;
   /** @nullable */
   jobId?: number | null;
   /** @nullable */
@@ -446,11 +441,6 @@ export interface TransactionUpdate {
   accountId?: number;
   /** @nullable */
   splitAccountId?: number | null;
-  /**
-     * Legacy free-text split account name; only used when splitAccountId is null
-     * @nullable
-     */
-  splitAccount?: string | null;
   /** @nullable */
   jobId?: number | null;
   /** @nullable */
@@ -458,30 +448,6 @@ export interface TransactionUpdate {
   /** @nullable */
   vendorId?: number | null;
   amountCents?: number;
-}
-
-export interface LegacySplitAccount {
-  /** Legacy free-text split account name */
-  name: string;
-  /** Number of transactions still carrying this legacy name */
-  count: number;
-}
-
-export interface LegacySplitAccountMapInput {
-  /**
-     * Legacy free-text split account name to remap
-     * @minLength 1
-     */
-  name: string;
-  /** Account to link all matching transactions to */
-  accountId: number;
-}
-
-export interface LegacySplitAccountMapResult {
-  name: string;
-  accountId: number;
-  /** Number of transactions updated */
-  updated: number;
 }
 
 export type AccountTotalType = typeof AccountTotalType[keyof typeof AccountTotalType];

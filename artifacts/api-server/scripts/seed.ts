@@ -328,7 +328,6 @@ async function main() {
       splitAccountId: t.splitAccount
         ? acctIdByName.get(t.splitAccount) ?? null
         : null,
-      splitAccount: t.splitAccount,
       jobId: job.id,
       customerId: isIncome ? customer.id : null,
       vendorId,

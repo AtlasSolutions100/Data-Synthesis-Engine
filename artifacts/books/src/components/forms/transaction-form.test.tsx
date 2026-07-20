@@ -106,7 +106,7 @@ describe("TransactionForm account selection", () => {
     expect(payload.accountId).toBe(502);
     expect(payload.amountCents).toBe(12550);
     expect(payload.splitAccountId).toBeNull();
-    expect(payload.splitAccount).toBeNull();
+    expect("splitAccount" in payload).toBe(false);
   });
 });
 
@@ -125,7 +125,7 @@ describe("TransactionForm split account", () => {
     const payload = onSubmit.mock.calls[0][0];
     expect(payload.accountId).toBe(501);
     expect(payload.splitAccountId).toBe(503);
-    expect(payload.splitAccount).toBeNull();
+    expect("splitAccount" in payload).toBe(false);
   });
 
   it("filtering the split dropdown by name still saves the matching account id", async () => {
@@ -145,7 +145,7 @@ describe("TransactionForm split account", () => {
     await submit();
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
     expect(onSubmit.mock.calls[0][0].splitAccountId).toBe(503);
-    expect(onSubmit.mock.calls[0][0].splitAccount).toBeNull();
+    expect("splitAccount" in onSubmit.mock.calls[0][0]).toBe(false);
   });
 
   it("displays an existing split account by id", async () => {
@@ -183,7 +183,7 @@ describe("TransactionForm split account", () => {
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
     const payload = onSubmit.mock.calls[0][0];
     expect(payload.splitAccountId).toBeNull();
-    expect(payload.splitAccount).toBeNull();
+    expect("splitAccount" in payload).toBe(false);
     expect(payload.accountId).toBe(501);
     expect(payload.amountCents).toBe(12550);
   });
@@ -216,27 +216,9 @@ describe("TransactionForm split account", () => {
     const payload = onSubmit.mock.calls[0][0];
     expect(payload.accountId).toBe(503);
     expect(payload.splitAccountId).toBe(501);
-    expect(payload.splitAccount).toBeNull();
+    expect("splitAccount" in payload).toBe(false);
     expect(payload.description).toBe("updated description");
     expect(payload.amountCents).toBe(10000);
-  });
-
-  it("preserves a legacy split name not matching any account when untouched", async () => {
-    const onSubmit = vi.fn();
-    render(
-      <TransactionForm
-        onSubmit={onSubmit}
-        defaultValues={{ ...baseDefaults, splitAccount: "Old Imported Account" }}
-      />,
-    );
-
-    // The legacy value is surfaced as the trigger label.
-    await triggerShowing(/Old Imported Account/);
-
-    await submit();
-    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
-    expect(onSubmit.mock.calls[0][0].splitAccountId).toBeNull();
-    expect(onSubmit.mock.calls[0][0].splitAccount).toBe("Old Imported Account");
   });
 
   it("blocks submit when the split account id references a deleted account", async () => {
@@ -255,22 +237,5 @@ describe("TransactionForm split account", () => {
       expect(screen.getByText(/account no longer exists/i)).toBeTruthy(),
     );
     expect(onSubmit).not.toHaveBeenCalled();
-  });
-
-  it("replaces a legacy name with a real account id when reselected", async () => {
-    const onSubmit = vi.fn();
-    render(
-      <TransactionForm
-        onSubmit={onSubmit}
-        defaultValues={{ ...baseDefaults, splitAccount: "Old Imported Account" }}
-      />,
-    );
-
-    await pickOption(/Old Imported Account/, /6000 — Office Supplies/);
-
-    await submit();
-    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
-    expect(onSubmit.mock.calls[0][0].splitAccountId).toBe(503);
-    expect(onSubmit.mock.calls[0][0].splitAccount).toBeNull();
   });
 });

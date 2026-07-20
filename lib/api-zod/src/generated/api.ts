@@ -643,7 +643,7 @@ export const ListTransactionsResponseItem = zod.object({
   "accountNumber": zod.string().nullish(),
   "accountName": zod.string().nullish(),
   "splitAccountId": zod.number().nullish().describe('Offsetting account id (FK to accounts)'),
-  "splitAccount": zod.string().nullish().describe('Offsetting account display name (resolved from splitAccountId when set, otherwise legacy free text)'),
+  "splitAccount": zod.string().nullish().describe('Offsetting account display name, resolved from splitAccountId (read-only)'),
   "jobId": zod.number().nullish(),
   "jobNumber": zod.string().nullish(),
   "customerId": zod.number().nullish(),
@@ -667,7 +667,6 @@ export const CreateTransactionBody = zod.object({
   "description": zod.string().nullish(),
   "accountId": zod.number(),
   "splitAccountId": zod.number().nullish(),
-  "splitAccount": zod.string().nullish().describe('Legacy free-text split account name; only used when splitAccountId is null'),
   "jobId": zod.number().nullish(),
   "customerId": zod.number().nullish(),
   "vendorId": zod.number().nullish(),
@@ -685,40 +684,12 @@ export const CreateTransactionResponse = zod.object({
   "accountNumber": zod.string().nullish(),
   "accountName": zod.string().nullish(),
   "splitAccountId": zod.number().nullish().describe('Offsetting account id (FK to accounts)'),
-  "splitAccount": zod.string().nullish().describe('Offsetting account display name (resolved from splitAccountId when set, otherwise legacy free text)'),
+  "splitAccount": zod.string().nullish().describe('Offsetting account display name, resolved from splitAccountId (read-only)'),
   "jobId": zod.number().nullish(),
   "jobNumber": zod.string().nullish(),
   "customerId": zod.number().nullish(),
   "vendorId": zod.number().nullish(),
   "amountCents": zod.number().describe('Signed amount in integer cents')
-})
-
-
-/**
- * @summary List distinct legacy free-text split account names with transaction counts
- */
-export const ListLegacySplitAccountsResponseItem = zod.object({
-  "name": zod.string().describe('Legacy free-text split account name'),
-  "count": zod.number().describe('Number of transactions still carrying this legacy name')
-})
-export const ListLegacySplitAccountsResponse = zod.array(ListLegacySplitAccountsResponseItem)
-
-
-/**
- * @summary Map a legacy split-account name to a real account across all matching transactions
- */
-
-
-
-export const MapLegacySplitAccountBody = zod.object({
-  "name": zod.string().min(1).describe('Legacy free-text split account name to remap'),
-  "accountId": zod.number().describe('Account to link all matching transactions to')
-})
-
-export const MapLegacySplitAccountResponse = zod.object({
-  "name": zod.string(),
-  "accountId": zod.number(),
-  "updated": zod.number().describe('Number of transactions updated')
 })
 
 
@@ -740,7 +711,7 @@ export const GetTransactionResponse = zod.object({
   "accountNumber": zod.string().nullish(),
   "accountName": zod.string().nullish(),
   "splitAccountId": zod.number().nullish().describe('Offsetting account id (FK to accounts)'),
-  "splitAccount": zod.string().nullish().describe('Offsetting account display name (resolved from splitAccountId when set, otherwise legacy free text)'),
+  "splitAccount": zod.string().nullish().describe('Offsetting account display name, resolved from splitAccountId (read-only)'),
   "jobId": zod.number().nullish(),
   "jobNumber": zod.string().nullish(),
   "customerId": zod.number().nullish(),
@@ -767,7 +738,6 @@ export const UpdateTransactionBody = zod.object({
   "description": zod.string().nullish(),
   "accountId": zod.number().optional(),
   "splitAccountId": zod.number().nullish(),
-  "splitAccount": zod.string().nullish().describe('Legacy free-text split account name; only used when splitAccountId is null'),
   "jobId": zod.number().nullish(),
   "customerId": zod.number().nullish(),
   "vendorId": zod.number().nullish(),
@@ -785,7 +755,7 @@ export const UpdateTransactionResponse = zod.object({
   "accountNumber": zod.string().nullish(),
   "accountName": zod.string().nullish(),
   "splitAccountId": zod.number().nullish().describe('Offsetting account id (FK to accounts)'),
-  "splitAccount": zod.string().nullish().describe('Offsetting account display name (resolved from splitAccountId when set, otherwise legacy free text)'),
+  "splitAccount": zod.string().nullish().describe('Offsetting account display name, resolved from splitAccountId (read-only)'),
   "jobId": zod.number().nullish(),
   "jobNumber": zod.string().nullish(),
   "customerId": zod.number().nullish(),
@@ -854,7 +824,7 @@ export const GetDashboardSummaryResponse = zod.object({
   "accountNumber": zod.string().nullish(),
   "accountName": zod.string().nullish(),
   "splitAccountId": zod.number().nullish().describe('Offsetting account id (FK to accounts)'),
-  "splitAccount": zod.string().nullish().describe('Offsetting account display name (resolved from splitAccountId when set, otherwise legacy free text)'),
+  "splitAccount": zod.string().nullish().describe('Offsetting account display name, resolved from splitAccountId (read-only)'),
   "jobId": zod.number().nullish(),
   "jobNumber": zod.string().nullish(),
   "customerId": zod.number().nullish(),

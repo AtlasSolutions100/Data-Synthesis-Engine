@@ -32,7 +32,7 @@ export interface Transaction {
      */
   splitAccountId?: number | null;
   /**
-     * Offsetting account display name (resolved from splitAccountId when set, otherwise legacy free text)
+     * Offsetting account display name, resolved from splitAccountId (read-only)
      * @nullable
      */
   splitAccount?: string | null;
