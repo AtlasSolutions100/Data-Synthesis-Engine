@@ -99,6 +99,64 @@ export function TransactionForm({ defaultValues, onSubmit, isLoading }: Transact
   });
 
   const handleSubmit = (values: TransactionFormValues) => {
+    let hasError = false;
+    if (accounts && !accounts.some((a) => String(a.id) === values.accountId)) {
+      form.setError("accountId", {
+        type: "manual",
+        message:
+          "This account no longer exists. Please select a different account.",
+      });
+      hasError = true;
+    }
+    if (
+      values.splitAccountId &&
+      accounts &&
+      !accounts.some((a) => String(a.id) === values.splitAccountId)
+    ) {
+      form.setError("splitAccountId", {
+        type: "manual",
+        message:
+          "This account no longer exists. Please select a different account.",
+      });
+      hasError = true;
+    }
+    if (
+      values.jobId &&
+      jobs &&
+      !jobs.some((j) => String(j.id) === values.jobId)
+    ) {
+      form.setError("jobId", {
+        type: "manual",
+        message: "This job no longer exists. Please select a different job.",
+      });
+      hasError = true;
+    }
+    if (
+      values.customerId &&
+      customers &&
+      !customers.some((c) => String(c.id) === values.customerId)
+    ) {
+      form.setError("customerId", {
+        type: "manual",
+        message:
+          "This customer no longer exists. Please select a different customer.",
+      });
+      hasError = true;
+    }
+    if (
+      values.vendorId &&
+      vendors &&
+      !vendors.some((v) => String(v.id) === values.vendorId)
+    ) {
+      form.setError("vendorId", {
+        type: "manual",
+        message:
+          "This vendor no longer exists. Please select a different vendor.",
+      });
+      hasError = true;
+    }
+    if (hasError) return;
+
     onSubmit({
       date: values.date,
       type: values.type as TransactionInputType,

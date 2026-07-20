@@ -239,6 +239,24 @@ describe("TransactionForm split account", () => {
     expect(onSubmit.mock.calls[0][0].splitAccount).toBe("Old Imported Account");
   });
 
+  it("blocks submit when the split account id references a deleted account", async () => {
+    const onSubmit = vi.fn();
+    render(
+      <TransactionForm
+        onSubmit={onSubmit}
+        defaultValues={{ ...baseDefaults, splitAccountId: "888" }}
+      />,
+    );
+
+    await triggerShowing(/Unknown \(#888\)/);
+
+    await submit();
+    await waitFor(() =>
+      expect(screen.getByText(/account no longer exists/i)).toBeTruthy(),
+    );
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
   it("replaces a legacy name with a real account id when reselected", async () => {
     const onSubmit = vi.fn();
     render(

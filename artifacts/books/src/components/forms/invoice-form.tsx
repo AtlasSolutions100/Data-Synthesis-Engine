@@ -84,6 +84,28 @@ export function InvoiceForm({
   );
 
   const handleSubmit = (values: InvoiceFormValues) => {
+    let hasError = false;
+    if (jobs && !jobs.some((j) => String(j.id) === values.jobId)) {
+      form.setError("jobId", {
+        type: "manual",
+        message: "This job no longer exists. Please select a different job.",
+      });
+      hasError = true;
+    }
+    if (
+      values.customerId &&
+      customers &&
+      !customers.some((c) => String(c.id) === values.customerId)
+    ) {
+      form.setError("customerId", {
+        type: "manual",
+        message:
+          "This customer no longer exists. Please select a different customer.",
+      });
+      hasError = true;
+    }
+    if (hasError) return;
+
     onSubmit({
       invoiceNumber: values.invoiceNumber,
       jobId: parseInt(values.jobId, 10),
