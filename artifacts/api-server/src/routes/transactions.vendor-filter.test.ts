@@ -72,7 +72,7 @@ beforeAll(async () => {
     .insert(transactionsTable)
     .values([
       {
-        date: "2098-01-10",
+        date: "2098-11-10",
         type: "bill",
         accountId: acctId,
         jobId: jobOneId,
@@ -80,7 +80,7 @@ beforeAll(async () => {
         amountCents: 10_00,
       },
       {
-        date: "2098-01-11",
+        date: "2098-11-11",
         type: "bill",
         accountId: acctId,
         jobId: jobTwoId,
@@ -88,7 +88,7 @@ beforeAll(async () => {
         amountCents: 20_00,
       },
       {
-        date: "2098-01-12",
+        date: "2098-11-12",
         type: "bill",
         accountId: acctId,
         jobId: jobOneId,
@@ -128,7 +128,12 @@ describe("GET /api/transactions?vendorId", () => {
   });
 
   it("omitting vendorId returns transactions for all vendors", async () => {
-    const res = await request(app).get("/api/transactions");
+    // Date-scoped to this suite's 2098 fixtures: other suites running in
+    // parallel insert fixture rows with non-enum types (e.g. "TEST-LEDGER")
+    // that would make the unscoped response fail zod parsing with a 500.
+    const res = await request(app)
+      .get("/api/transactions")
+      .query({ startDate: "2098-11-01", endDate: "2098-11-30" });
     expect(res.status).toBe(200);
     const mine = res.body.filter((t: { id: number }) => txnIds.includes(t.id));
     expect(mine).toHaveLength(3);
