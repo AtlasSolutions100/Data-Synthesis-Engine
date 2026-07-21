@@ -56,7 +56,7 @@ async function addTx(values: {
     .insert(transactionsTable)
     .values({
       date: values.date ?? "2097-03-15",
-      type: "TEST-LEDGER",
+      type: "journal",
       description: "TEST-LEDGER fixture",
       accountId: values.accountId,
       splitAccountId: values.splitAccountId ?? null,
