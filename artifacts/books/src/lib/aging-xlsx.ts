@@ -5,7 +5,13 @@ import type {
   ArAging,
   ApAging,
   AccountBalances,
+  AccountTotal,
+  PayrollByJob,
 } from "@workspace/api-client-react";
+import {
+  describeRangeForCsv,
+  type ReportDateRange,
+} from "./reports-csv";
 
 const CURRENCY_FORMAT = "$#,##0.00";
 
@@ -213,6 +219,73 @@ export function buildAccountBalancesSheetData(
   return rows;
 }
 
+export function buildJobCostsSheetData(
+  costByAccount: AccountTotal[],
+  range: ReportDateRange,
+): SheetData {
+  const rows: SheetData = [];
+  rows.push([
+    titleCell("Costs Across All Jobs"),
+    null,
+    textCell(describeRangeForCsv(range)),
+  ]);
+  rows.push([
+    headerCell("Account"),
+    headerCell("Type"),
+    headerCell("Total Cost"),
+  ]);
+  let costTotalCents = 0;
+  for (const row of costByAccount) {
+    costTotalCents += row.amountCents;
+    rows.push([
+      textCell(`${row.accountNumber} - ${row.accountName}`),
+      textCell(formatAccountType(row.type)),
+      currencyCell(row.amountCents),
+    ]);
+  }
+  rows.push([headerCell("Total"), null, currencyCell(costTotalCents, true)]);
+  return rows;
+}
+
+export function buildPayrollByJobSheetData(
+  payrollByJob: PayrollByJob,
+  range: ReportDateRange,
+): SheetData {
+  const rows: SheetData = [];
+  rows.push([
+    titleCell("Burdened Labor by Job"),
+    null,
+    textCell(describeRangeForCsv(range)),
+  ]);
+  rows.push([
+    headerCell("Job"),
+    headerCell("Regular"),
+    headerCell("Overtime"),
+    headerCell("Gross"),
+    headerCell("Burden"),
+    headerCell("Total Cost"),
+  ]);
+  for (const row of payrollByJob.rows) {
+    rows.push([
+      textCell(`${row.jobNumber} - ${row.jobName}`),
+      currencyCell(row.regularWagesCents),
+      currencyCell(row.overtimeWagesCents),
+      currencyCell(row.grossWagesCents),
+      currencyCell(row.burdenCents),
+      currencyCell(row.totalCostCents),
+    ]);
+  }
+  rows.push([
+    headerCell("Total"),
+    currencyCell(payrollByJob.totals.regularWagesCents, true),
+    currencyCell(payrollByJob.totals.overtimeWagesCents, true),
+    currencyCell(payrollByJob.totals.grossWagesCents, true),
+    currencyCell(payrollByJob.totals.burdenCents, true),
+    currencyCell(payrollByJob.totals.totalCostCents, true),
+  ]);
+  return rows;
+}
+
 const DETAIL_COLUMNS = [
   { width: 28 },
   { width: 16 },
@@ -239,10 +312,24 @@ export function agingXlsxFilename(asOf: string): string {
 
 const BALANCES_COLUMNS = [{ width: 28 }, { width: 18 }, { width: 14 }];
 
+const JOB_COSTS_COLUMNS = [{ width: 28 }, { width: 18 }, { width: 14 }];
+
+const PAYROLL_COLUMNS = [
+  { width: 28 },
+  { width: 13 },
+  { width: 13 },
+  { width: 13 },
+  { width: 13 },
+  { width: 14 },
+];
+
 export async function downloadAgingXlsx(
   arAging: ArAging,
   apAging: ApAging,
   accountBalances: AccountBalances,
+  costByAccount: AccountTotal[],
+  payrollByJob: PayrollByJob,
+  range: ReportDateRange,
   asOf?: string,
 ): Promise<void> {
   const result = writeXlsxFile(
@@ -266,6 +353,16 @@ export async function downloadAgingXlsx(
         sheet: "Account Balances",
         data: buildAccountBalancesSheetData(accountBalances, asOf),
         columns: BALANCES_COLUMNS,
+      },
+      {
+        sheet: "Job Costs",
+        data: buildJobCostsSheetData(costByAccount, range),
+        columns: JOB_COSTS_COLUMNS,
+      },
+      {
+        sheet: "Payroll by Job",
+        data: buildPayrollByJobSheetData(payrollByJob, range),
+        columns: PAYROLL_COLUMNS,
       },
     ],
   );

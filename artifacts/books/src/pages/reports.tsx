@@ -465,13 +465,35 @@ export default function Reports() {
           </Button>
           <Button
             variant="outline"
-            disabled={!arAging || !apAging || !accountBalances || exportingXlsx}
+            disabled={
+              !arAging ||
+              !apAging ||
+              !accountBalances ||
+              !report ||
+              !payrollByJob ||
+              exportingXlsx
+            }
             data-testid="button-export-aging-xlsx"
             onClick={() => {
-              if (!arAging || !apAging || !accountBalances || exportingXlsx)
+              if (
+                !arAging ||
+                !apAging ||
+                !accountBalances ||
+                !report ||
+                !payrollByJob ||
+                exportingXlsx
+              )
                 return;
               runExport("Export failed", () =>
-                downloadAgingXlsx(arAging, apAging, accountBalances, range.endDate),
+                downloadAgingXlsx(
+                  arAging,
+                  apAging,
+                  accountBalances,
+                  report,
+                  payrollByJob,
+                  range,
+                  range.endDate,
+                ),
               );
             }}
           >

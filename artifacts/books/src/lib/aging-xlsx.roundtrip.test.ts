@@ -9,6 +9,8 @@ import type {
   ArAging,
   ApAging,
   AccountBalances,
+  AccountTotal,
+  PayrollByJob,
 } from "@workspace/api-client-react";
 
 function buckets(
@@ -140,6 +142,58 @@ const accountBalances: AccountBalances = {
 
 const emptyBalances: AccountBalances = { rows: [] };
 
+const costByAccount: AccountTotal[] = [
+  {
+    accountId: 10,
+    accountNumber: "5000",
+    accountName: "Materials",
+    type: "cost_of_goods_sold",
+    amountCents: 250000,
+  },
+  {
+    accountId: 11,
+    accountNumber: "5100",
+    accountName: "Subcontractors",
+    type: "expense",
+    amountCents: 125050,
+  },
+];
+
+const payrollByJob: PayrollByJob = {
+  rows: [
+    {
+      jobId: 5,
+      jobNumber: "JOB-42",
+      jobName: "Substation Retrofit",
+      regularWagesCents: 400000,
+      overtimeWagesCents: 50000,
+      grossWagesCents: 450000,
+      burdenCents: 90000,
+      totalCostCents: 540000,
+    },
+  ],
+  totals: {
+    regularWagesCents: 400000,
+    overtimeWagesCents: 50000,
+    grossWagesCents: 450000,
+    burdenCents: 90000,
+    totalCostCents: 540000,
+  },
+};
+
+const emptyCosts: AccountTotal[] = [];
+
+const emptyPayroll: PayrollByJob = {
+  rows: [],
+  totals: {
+    regularWagesCents: 0,
+    overtimeWagesCents: 0,
+    grossWagesCents: 0,
+    burdenCents: 0,
+    totalCostCents: 0,
+  },
+};
+
 // Minimal ZIP local-file-header reader: extracts a named entry from an
 // in-memory .xlsx (entries are either stored or raw-deflate compressed).
 function readZipEntry(zip: Buffer, entryName: string): Buffer {
@@ -179,6 +233,12 @@ async function captureWorkbook(
   ap: ApAging,
   balances: AccountBalances = accountBalances,
   asOf?: string,
+  costs: AccountTotal[] = costByAccount,
+  payroll: PayrollByJob = payrollByJob,
+  range: { startDate?: string; endDate?: string } = {
+    startDate: "2026-06-01",
+    endDate: "2026-06-30",
+  },
 ) {
   const captured: { blob: globalThis.Blob | null; filename: string | null } = {
     blob: null,
@@ -198,7 +258,7 @@ async function captureWorkbook(
       captured.filename = this.download;
     });
   try {
-    await downloadAgingXlsx(ar, ap, balances, asOf);
+    await downloadAgingXlsx(ar, ap, balances, costs, payroll, range, asOf);
     // write-excel-file's download helper schedules DOM cleanup with
     // setTimeout(..., 100); wait it out so it runs before jsdom teardown.
     await new Promise((resolve) => setTimeout(resolve, 150));
@@ -232,7 +292,7 @@ afterAll(() => {
 });
 
 describe("aging xlsx roundtrip", () => {
-  it("downloads a valid workbook with four named sheets", async () => {
+  it("downloads a valid workbook with six named sheets", async () => {
     const { buffer, filename } = await captureWorkbook(arAging, apAging);
     expect(filename).toBe("aging-report-2026-06-30.xlsx");
     // Valid xlsx starts with the ZIP local file header signature.
@@ -246,7 +306,69 @@ describe("aging xlsx roundtrip", () => {
       "AR Aging Detail",
       "AP Aging Detail",
       "Account Balances",
+      "Job Costs",
+      "Payroll by Job",
     ]);
+  });
+
+  it("roundtrips the Job Costs sheet with the date range label", async () => {
+    const { buffer } = await captureWorkbook(arAging, apAging);
+    const rows = await parseSheet(buffer, "Job Costs");
+    expect(rows[0]).toEqual([
+      "Costs Across All Jobs",
+      null,
+      "2026-06-01 to 2026-06-30",
+    ]);
+    expect(rows[1]).toEqual(["Account", "Type", "Total Cost"]);
+    expect(rows[2]).toEqual(["5000 - Materials", "Cost Of Goods Sold", 2500]);
+    expect(rows[3]).toEqual(["5100 - Subcontractors", "Expense", 1250.5]);
+    expect(rows[4]).toEqual(["Total", null, 3750.5]);
+  });
+
+  it("roundtrips the Payroll by Job sheet with rows and totals", async () => {
+    const { buffer } = await captureWorkbook(arAging, apAging);
+    const rows = await parseSheet(buffer, "Payroll by Job");
+    expect(rows[0]).toEqual([
+      "Burdened Labor by Job",
+      null,
+      "2026-06-01 to 2026-06-30",
+      null,
+      null,
+      null,
+    ]);
+    expect(rows[1]).toEqual([
+      "Job",
+      "Regular",
+      "Overtime",
+      "Gross",
+      "Burden",
+      "Total Cost",
+    ]);
+    expect(rows[2]).toEqual([
+      "JOB-42 - Substation Retrofit",
+      4000,
+      500,
+      4500,
+      900,
+      5400,
+    ]);
+    expect(rows[3]).toEqual(["Total", 4000, 500, 4500, 900, 5400]);
+  });
+
+  it("uses 'All time' as the range label when no dates are set", async () => {
+    const { buffer } = await captureWorkbook(
+      arAging,
+      apAging,
+      accountBalances,
+      undefined,
+      costByAccount,
+      payrollByJob,
+      {},
+    );
+    const rows = await parseSheet(buffer, "Job Costs");
+    expect(rows[0]).toEqual(["Costs Across All Jobs", null, "All time"]);
+    const payroll = await parseSheet(buffer, "Payroll by Job");
+    expect(payroll[0][2]).toBe("All time");
   });
 
   it("roundtrips the Account Balances sheet with an as-of label", async () => {
@@ -383,7 +505,14 @@ describe("aging xlsx roundtrip", () => {
   });
 
   it("produces a valid non-empty workbook when AR and AP have zero rows", async () => {
-    const { buffer } = await captureWorkbook(emptyAr, emptyAp, emptyBalances);
+    const { buffer } = await captureWorkbook(
+      emptyAr,
+      emptyAp,
+      emptyBalances,
+      undefined,
+      emptyCosts,
+      emptyPayroll,
+    );
     expect(buffer.subarray(0, 4)).toEqual(
       Buffer.from([0x50, 0x4b, 0x03, 0x04]),
     );
@@ -393,7 +522,14 @@ describe("aging xlsx roundtrip", () => {
       "AR Aging Detail",
       "AP Aging Detail",
       "Account Balances",
+      "Job Costs",
+      "Payroll by Job",
     ]);
+
+    const jobCosts = await parseSheet(buffer, "Job Costs");
+    expect(jobCosts[jobCosts.length - 1]).toEqual(["Total", null, 0]);
+    const payroll = await parseSheet(buffer, "Payroll by Job");
+    expect(payroll[payroll.length - 1]).toEqual(["Total", 0, 0, 0, 0, 0]);
 
     const summary = await parseSheet(buffer, "Summary");
     expect(summary[2]).toEqual(["Total", 0, 0, 0, 0, 0, 0]);
