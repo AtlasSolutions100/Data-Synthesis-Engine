@@ -71,7 +71,7 @@ export function buildJobReportsCsv(
   ]);
   for (const row of payrollByJob.rows) {
     lines.push([
-      `${row.jobNumber} - ${row.jobName}`,
+      row.jobName,
       centsToDollars(row.regularWagesCents),
       centsToDollars(row.overtimeWagesCents),
       centsToDollars(row.grossWagesCents),

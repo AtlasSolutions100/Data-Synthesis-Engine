@@ -79,7 +79,6 @@ export default function Jobs() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Job Number</TableHead>
                 <TableHead>Job Name</TableHead>
                 <TableHead>PO Number</TableHead>
                 <TableHead>Customer</TableHead>
@@ -88,7 +87,6 @@ export default function Jobs() {
                 <TableHead className="text-right">Billed</TableHead>
                 <TableHead className="text-right">Unbilled</TableHead>
                 <TableHead className="text-right">Cost to Date</TableHead>
-                <TableHead className="text-right">Over/Under Billing</TableHead>
                 <TableHead className="text-right">Profit</TableHead>
                 <TableHead className="w-[100px]"></TableHead>
               </TableRow>
@@ -96,21 +94,20 @@ export default function Jobs() {
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={12} className="text-center py-8 text-slate-500">Loading jobs...</TableCell>
+                  <TableCell colSpan={10} className="text-center py-8 text-slate-500">Loading jobs...</TableCell>
                 </TableRow>
               ) : jobs?.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={12} className="text-center py-8 text-slate-500">No jobs found.</TableCell>
+                  <TableCell colSpan={10} className="text-center py-8 text-slate-500">No jobs found.</TableCell>
                 </TableRow>
               ) : (
                 jobs?.map((job) => (
                   <TableRow key={job.id} className="hover:bg-slate-50 group">
                     <TableCell className="font-medium">
                       <Link href={`/jobs/${job.id}`} className="text-blue-600 hover:underline">
-                        {job.jobNumber}
+                        {job.name}
                       </Link>
                     </TableCell>
-                    <TableCell>{job.name}</TableCell>
                     <TableCell>{job.poNumber || "-"}</TableCell>
                     <TableCell>
                       {job.customerId ? (
@@ -132,9 +129,6 @@ export default function Jobs() {
                       {formatCents(job.remainingContractCents)}
                     </TableCell>
                     <TableCell className="text-right">{formatCents(job.costCents)}</TableCell>
-                    <TableCell className={`text-right ${job.overUnderBillingCents >= 0 ? "text-emerald-600" : "text-amber-600"}`}>
-                      {formatCents(job.overUnderBillingCents)}
-                    </TableCell>
                     <TableCell className={`text-right font-medium ${job.profitCents >= 0 ? "text-emerald-600" : "text-red-600"}`}>
                       {formatCents(job.profitCents)}
                     </TableCell>
@@ -152,7 +146,6 @@ export default function Jobs() {
                             </DialogHeader>
                             <JobForm 
                               defaultValues={{
-                                jobNumber: job.jobNumber,
                                 name: job.name,
                                 poNumber: job.poNumber || "",
                                 customerId: job.customerId?.toString() || "",

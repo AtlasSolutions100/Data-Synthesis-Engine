@@ -164,7 +164,7 @@ export default function Bills() {
                       </Link>
                     </TableCell>
                     <TableCell>{bill.vendorName || "-"}</TableCell>
-                    <TableCell>{bill.jobNumber || "-"}</TableCell>
+                    <TableCell>{bill.jobName || "-"}</TableCell>
                     <TableCell className="whitespace-nowrap">
                       {bill.date}
                     </TableCell>

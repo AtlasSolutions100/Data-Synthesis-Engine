@@ -175,7 +175,7 @@ export default function Invoices() {
                         {inv.invoiceNumber}
                       </Link>
                     </TableCell>
-                    <TableCell>{inv.jobNumber || "-"}</TableCell>
+                    <TableCell>{inv.jobName || "-"}</TableCell>
                     <TableCell>{inv.customerName || "-"}</TableCell>
                     <TableCell className="whitespace-nowrap">
                       {inv.date}

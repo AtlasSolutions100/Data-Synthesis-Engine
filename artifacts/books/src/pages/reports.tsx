@@ -131,7 +131,7 @@ function AgingDetailRow({
                     </Link>
                   </TableCell>
                   <TableCell className="py-2">
-                    {item.jobNumber || "—"}
+                    {item.jobName || "—"}
                   </TableCell>
                   <TableCell className="py-2">{item.date}</TableCell>
                   <TableCell className="py-2">{item.dueDate || "—"}</TableCell>
@@ -681,7 +681,7 @@ export default function Reports() {
                   {payrollByJob.rows.map((row) => (
                     <TableRow key={row.jobId}>
                       <TableCell className="font-medium">
-                        {row.jobNumber} - {row.jobName}
+                        {row.jobName}
                       </TableCell>
                       <TableCell className="text-right">
                         {formatCents(row.regularWagesCents)}

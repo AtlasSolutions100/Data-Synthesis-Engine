@@ -171,7 +171,7 @@ export default function JobDetail() {
       <div className="flex justify-between items-start">
         <div>
           <div className="flex items-center gap-3">
-            <h1 className="text-3xl font-bold tracking-tight text-slate-900">{job.jobNumber} - {job.name}</h1>
+            <h1 className="text-3xl font-bold tracking-tight text-slate-900">{job.name}</h1>
             <Badge variant={job.status === "active" ? "default" : "secondary"}>{job.status}</Badge>
           </div>
           <p className="text-slate-500 mt-1">
@@ -246,19 +246,6 @@ export default function JobDetail() {
             </div>
           </CardContent>
         </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-slate-500">Over / Under Billing</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className={`text-2xl font-bold ${job.overUnderBillingCents >= 0 ? "text-emerald-600" : "text-amber-600"}`}>
-              {formatCents(job.overUnderBillingCents)}
-            </div>
-            <div className="text-xs text-slate-500 mt-1">
-              {job.overUnderBillingCents >= 0 ? "Billed ahead of cost" : "Costs exceed billings"}
-            </div>
-          </CardContent>
-        </Card>
       </div>
 
       <Card>
@@ -283,7 +270,7 @@ export default function JobDetail() {
             </DialogTrigger>
             <DialogContent className="sm:max-w-[600px]">
               <DialogHeader>
-                <DialogTitle>Create Transaction for Job {job.jobNumber}</DialogTitle>
+                <DialogTitle>Create Transaction for {job.name}</DialogTitle>
               </DialogHeader>
               <TransactionForm
                 defaultValues={{ jobId: jobId.toString() }}

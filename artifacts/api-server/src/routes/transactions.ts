@@ -105,6 +105,7 @@ function serializeTx(
   accountNumber: string | null,
   accountName: string | null,
   jobNumber: string | null,
+  jobName: string | null,
   splitAccountName: string | null,
 ) {
   return {
@@ -121,6 +122,7 @@ function serializeTx(
     splitAccount: t.splitAccountId != null ? splitAccountName : null,
     jobId: t.jobId,
     jobNumber,
+    jobName,
     customerId: t.customerId,
     vendorId: t.vendorId,
     amountCents: t.amountCents,
@@ -134,6 +136,7 @@ async function fetchEnrichedTx(id: number) {
       accountNumber: accountsTable.number,
       accountName: accountsTable.name,
       jobNumber: jobsTable.jobNumber,
+      jobName: jobsTable.name,
       splitAccountName: splitAccounts.name,
     })
     .from(transactionsTable)
@@ -150,6 +153,7 @@ async function fetchEnrichedTx(id: number) {
     row.accountNumber,
     row.accountName,
     row.jobNumber,
+    row.jobName,
     row.splitAccountName,
   );
 }
@@ -181,6 +185,7 @@ router.get("/transactions", async (req, res): Promise<void> => {
       accountNumber: accountsTable.number,
       accountName: accountsTable.name,
       jobNumber: jobsTable.jobNumber,
+      jobName: jobsTable.name,
       splitAccountName: splitAccounts.name,
     })
     .from(transactionsTable)
@@ -201,6 +206,7 @@ router.get("/transactions", async (req, res): Promise<void> => {
           r.accountNumber,
           r.accountName,
           r.jobNumber,
+          r.jobName,
           r.splitAccountName,
         ),
       ),

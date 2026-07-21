@@ -108,7 +108,6 @@ export default function CustomerDetail() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Job Number</TableHead>
                 <TableHead>Job Name</TableHead>
                 <TableHead>PO Number</TableHead>
                 <TableHead>Status</TableHead>
@@ -121,21 +120,16 @@ export default function CustomerDetail() {
             <TableBody>
               {jobsLoading ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center py-8 text-slate-500">Loading jobs...</TableCell>
+                  <TableCell colSpan={7} className="text-center py-8 text-slate-500">Loading jobs...</TableCell>
                 </TableRow>
               ) : customerJobs.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center py-8 text-slate-500">No jobs for this customer yet.</TableCell>
+                  <TableCell colSpan={7} className="text-center py-8 text-slate-500">No jobs for this customer yet.</TableCell>
                 </TableRow>
               ) : (
                 customerJobs.map((job) => (
                   <TableRow key={job.id} className="hover:bg-slate-50">
                     <TableCell className="font-medium">
-                      <Link href={`/jobs/${job.id}`} className="text-blue-600 hover:underline">
-                        {job.jobNumber}
-                      </Link>
-                    </TableCell>
-                    <TableCell>
                       <Link href={`/jobs/${job.id}`} className="text-blue-600 hover:underline">
                         {job.name}
                       </Link>

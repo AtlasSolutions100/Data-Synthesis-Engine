@@ -76,6 +76,7 @@ async function getFullInvoice(id: number) {
       inv: invoicesTable,
       customerName: customersTable.name,
       jobNumber: jobsTable.jobNumber,
+      jobName: jobsTable.name,
       contractAmountCents: jobsTable.contractAmountCents,
     })
     .from(invoicesTable)
@@ -105,6 +106,7 @@ async function getFullInvoice(id: number) {
     invoiceNumber: row.inv.invoiceNumber,
     jobId: row.inv.jobId,
     jobNumber: row.jobNumber,
+    jobName: row.jobName,
     customerId: row.inv.customerId,
     customerName: row.customerName,
     date: row.inv.date,
@@ -156,6 +158,7 @@ router.get("/invoices", async (req, res): Promise<void> => {
       inv: invoicesTable,
       customerName: customersTable.name,
       jobNumber: jobsTable.jobNumber,
+      jobName: jobsTable.name,
       contractAmountCents: jobsTable.contractAmountCents,
     })
     .from(invoicesTable)
@@ -191,6 +194,7 @@ router.get("/invoices", async (req, res): Promise<void> => {
         invoiceNumber: r.inv.invoiceNumber,
         jobId: r.inv.jobId,
         jobNumber: r.jobNumber,
+        jobName: r.jobName,
         customerId: r.inv.customerId,
         customerName: r.customerName,
         date: r.inv.date,

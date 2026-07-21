@@ -197,7 +197,6 @@ export default function Customers() {
                     <TableHeader>
                       <TableRow>
                         <TableHead>Job Name</TableHead>
-                        <TableHead>Job #</TableHead>
                         <TableHead>PO Number</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead className="text-right">Contract</TableHead>
@@ -212,7 +211,6 @@ export default function Customers() {
                               {job.name}
                             </Link>
                           </TableCell>
-                          <TableCell className="text-slate-500">{job.jobNumber}</TableCell>
                           <TableCell className="text-slate-500">{job.poNumber || "-"}</TableCell>
                           <TableCell>
                             <Badge variant={job.status === "active" ? "default" : "secondary"} className="capitalize">

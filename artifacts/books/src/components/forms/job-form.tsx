@@ -23,7 +23,6 @@ import {
 import { EntityCombobox } from "@/components/forms/entity-combobox";
 
 const jobSchema = z.object({
-  jobNumber: z.string().min(1, "Job number is required"),
   name: z.string().min(1, "Job name is required"),
   poNumber: z.string().optional(),
   customerId: z.string().optional(),
@@ -48,7 +47,6 @@ export function JobForm({ defaultValues, onSubmit, isLoading }: JobFormProps) {
   const form = useForm<JobFormValues>({
     resolver: zodResolver(jobSchema),
     defaultValues: {
-      jobNumber: defaultValues?.jobNumber || "",
       name: defaultValues?.name || "",
       poNumber: defaultValues?.poNumber || "",
       customerId: defaultValues?.customerId || "",
@@ -60,7 +58,6 @@ export function JobForm({ defaultValues, onSubmit, isLoading }: JobFormProps) {
 
   const handleSubmit = (values: JobFormValues) => {
     onSubmit({
-      jobNumber: values.jobNumber,
       name: values.name,
       poNumber: values.poNumber || null,
       customerId: values.customerId ? parseInt(values.customerId, 10) : null,
@@ -73,34 +70,19 @@ export function JobForm({ defaultValues, onSubmit, isLoading }: JobFormProps) {
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
-        <div className="grid grid-cols-2 gap-4">
-          <FormField
-            control={form.control}
-            name="jobNumber"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Job Number</FormLabel>
-                <FormControl>
-                  <Input {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="name"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Job Name</FormLabel>
-                <FormControl>
-                  <Input {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        </div>
+        <FormField
+          control={form.control}
+          name="name"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Job Name</FormLabel>
+              <FormControl>
+                <Input {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
         <div className="grid grid-cols-2 gap-4">
           <FormField
             control={form.control}

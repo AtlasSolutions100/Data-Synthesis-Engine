@@ -62,7 +62,7 @@ function bucketCells(buckets: AgingBuckets, bold = false): Cell[] {
 
 interface DetailDoc {
   number: string;
-  jobNumber?: string | null;
+  jobName?: string | null;
   date: string;
   dueDate?: string | null;
   daysOverdue: number;
@@ -91,7 +91,7 @@ function detailRows(name: string, docs: DetailDoc[]): Row[] {
     rows.push([
       textCell(name),
       textCell(d.number),
-      textCell(d.jobNumber ?? ""),
+      textCell(d.jobName ?? ""),
       textCell(d.date),
       textCell(d.dueDate ?? ""),
       numberCell(d.daysOverdue),
@@ -127,7 +127,7 @@ export function buildArDetailSheetData(arAging: ArAging): SheetData {
         c.customerName || "Unassigned",
         c.invoices.map((inv) => ({
           number: inv.invoiceNumber,
-          jobNumber: inv.jobNumber,
+          jobName: inv.jobName,
           date: inv.date,
           dueDate: inv.dueDate,
           daysOverdue: inv.daysOverdue,
@@ -150,7 +150,7 @@ export function buildApDetailSheetData(apAging: ApAging): SheetData {
         v.vendorName || "Unassigned",
         v.bills.map((b) => ({
           number: b.billNumber ?? "",
-          jobNumber: b.jobNumber,
+          jobName: b.jobName,
           date: b.date,
           dueDate: b.dueDate,
           daysOverdue: b.daysOverdue,
@@ -267,7 +267,7 @@ export function buildPayrollByJobSheetData(
   ]);
   for (const row of payrollByJob.rows) {
     rows.push([
-      textCell(`${row.jobNumber} - ${row.jobName}`),
+      textCell(row.jobName),
       currencyCell(row.regularWagesCents),
       currencyCell(row.overtimeWagesCents),
       currencyCell(row.grossWagesCents),

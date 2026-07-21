@@ -83,7 +83,7 @@ router.get("/jobs", async (req, res): Promise<void> => {
   const rows = await (query.data.customerId != null
     ? baseQuery.where(eq(jobsTable.customerId, query.data.customerId))
     : baseQuery
-  ).orderBy(jobsTable.jobNumber);
+  ).orderBy(jobsTable.name);
   const jobIds =
     query.data.customerId != null ? rows.map((r) => r.job.id) : undefined;
   const [totals, billing] = await Promise.all([
@@ -110,7 +110,13 @@ router.post("/jobs", async (req, res): Promise<void> => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
-  const [job] = await db.insert(jobsTable).values(parsed.data).returning();
+  const jobNumber =
+    parsed.data.jobNumber ??
+    `JOB-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+  const [job] = await db
+    .insert(jobsTable)
+    .values({ ...parsed.data, jobNumber })
+    .returning();
   const customerName = await fetchCustomerName(job.customerId);
   res
     .status(201)

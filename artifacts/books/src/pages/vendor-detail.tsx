@@ -129,7 +129,7 @@ export default function VendorDetail() {
                       <TableCell>
                         {txn.jobId ? (
                           <Link href={`/jobs/${txn.jobId}`} className="text-blue-600 hover:underline">
-                            {txn.jobNumber || `Job ${txn.jobId}`}
+                            {txn.jobName || `Job ${txn.jobId}`}
                           </Link>
                         ) : (
                           "-"

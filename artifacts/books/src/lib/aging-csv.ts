@@ -72,7 +72,7 @@ const DETAIL_HEADERS = [
 
 interface DetailDoc {
   number: string;
-  jobNumber?: string | null;
+  jobName?: string | null;
   date: string;
   dueDate?: string | null;
   daysOverdue: number;
@@ -87,7 +87,7 @@ function detailRows(name: string, docs: DetailDoc[]): string[][] {
     rows.push([
       name,
       d.number,
-      d.jobNumber ?? "",
+      d.jobName ?? "",
       d.date,
       d.dueDate ?? "",
       String(d.daysOverdue),
@@ -109,7 +109,7 @@ export function buildAgingDetailCsv(arAging: ArAging, apAging: ApAging): string 
         c.customerName || "Unassigned",
         c.invoices.map((inv) => ({
           number: inv.invoiceNumber,
-          jobNumber: inv.jobNumber,
+          jobName: inv.jobName,
           date: inv.date,
           dueDate: inv.dueDate,
           daysOverdue: inv.daysOverdue,
@@ -130,7 +130,7 @@ export function buildAgingDetailCsv(arAging: ArAging, apAging: ApAging): string 
         v.vendorName || "Unassigned",
         v.bills.map((b) => ({
           number: b.billNumber ?? "",
-          jobNumber: b.jobNumber,
+          jobName: b.jobName,
           date: b.date,
           dueDate: b.dueDate,
           daysOverdue: b.daysOverdue,

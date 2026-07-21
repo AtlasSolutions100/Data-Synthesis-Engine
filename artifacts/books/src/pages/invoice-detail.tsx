@@ -185,12 +185,12 @@ export default function InvoiceDetail() {
           </Dialog>
         </div>
         <p className="text-slate-500 mt-1">
-          {invoice.jobNumber ? (
+          {invoice.jobName ? (
             <Link
               href={`/jobs/${invoice.jobId}`}
               className="text-blue-600 hover:underline"
             >
-              Job {invoice.jobNumber}
+              Job {invoice.jobName}
             </Link>
           ) : (
             "No job"

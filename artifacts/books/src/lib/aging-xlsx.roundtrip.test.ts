@@ -43,7 +43,7 @@ const arAging: ArAging = {
           id: 11,
           invoiceNumber: "INV-001",
           jobId: 5,
-          jobNumber: "JOB-42",
+          jobName: "JOB-42",
           date: "2026-06-01",
           dueDate: "2026-06-15",
           balanceCents: 150000,
@@ -54,7 +54,7 @@ const arAging: ArAging = {
           id: 12,
           invoiceNumber: "INV-002",
           jobId: null,
-          jobNumber: null,
+          jobName: null,
           date: "2026-05-20",
           dueDate: "2026-06-10",
           balanceCents: 25050,
@@ -72,7 +72,7 @@ const arAging: ArAging = {
           id: 13,
           invoiceNumber: "INV-003",
           jobId: null,
-          jobNumber: null,
+          jobName: null,
           date: "2026-01-05",
           dueDate: null,
           balanceCents: 9999,
@@ -97,7 +97,7 @@ const apAging: ApAging = {
           id: 21,
           billNumber: "BILL-77",
           jobId: 5,
-          jobNumber: "JOB-42",
+          jobName: "JOB-42",
           date: "2026-04-15",
           dueDate: "2026-05-01",
           balanceCents: 5000,
@@ -163,7 +163,7 @@ const payrollByJob: PayrollByJob = {
   rows: [
     {
       jobId: 5,
-      jobNumber: "JOB-42",
+      jobName: "JOB-42",
       jobName: "Substation Retrofit",
       regularWagesCents: 400000,
       overtimeWagesCents: 50000,
@@ -345,7 +345,7 @@ describe("aging xlsx roundtrip", () => {
       "Total Cost",
     ]);
     expect(rows[2]).toEqual([
-      "JOB-42 - Substation Retrofit",
+      "Substation Retrofit",
       4000,
       500,
       4500,

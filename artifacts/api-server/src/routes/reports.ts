@@ -191,6 +191,7 @@ router.get("/reports/dashboard", async (req, res): Promise<void> => {
       accountNumber: accountsTable.number,
       accountName: accountsTable.name,
       jobNumber: jobsTable.jobNumber,
+      jobName: jobsTable.name,
       splitAccountName: splitAccounts.name,
     })
     .from(transactionsTable)
@@ -344,6 +345,7 @@ router.get("/reports/ar-aging", async (req, res): Promise<void> => {
       inv: invoicesTable,
       customerName: customersTable.name,
       jobNumber: jobsTable.jobNumber,
+      jobName: jobsTable.name,
     })
     .from(invoicesTable)
     .leftJoin(customersTable, eq(customersTable.id, invoicesTable.customerId))
@@ -382,6 +384,7 @@ router.get("/reports/ar-aging", async (req, res): Promise<void> => {
         invoiceNumber: string;
         jobId: number | null;
         jobNumber: string | null;
+        jobName: string | null;
         date: string;
         dueDate: string | null;
         balanceCents: number;
@@ -419,6 +422,7 @@ router.get("/reports/ar-aging", async (req, res): Promise<void> => {
       invoiceNumber: r.inv.invoiceNumber,
       jobId: r.inv.jobId,
       jobNumber: r.jobNumber,
+      jobName: r.jobName,
       date: r.inv.date,
       dueDate: r.inv.dueDate,
       balanceCents,
@@ -449,6 +453,7 @@ router.get("/reports/ap-aging", async (req, res): Promise<void> => {
       bill: billsTable,
       vendorName: vendorsTable.name,
       jobNumber: jobsTable.jobNumber,
+      jobName: jobsTable.name,
     })
     .from(billsTable)
     .leftJoin(vendorsTable, eq(vendorsTable.id, billsTable.vendorId))
@@ -496,6 +501,7 @@ router.get("/reports/ap-aging", async (req, res): Promise<void> => {
         billNumber: string | null;
         jobId: number | null;
         jobNumber: string | null;
+        jobName: string | null;
         date: string;
         dueDate: string | null;
         balanceCents: number;
@@ -534,6 +540,7 @@ router.get("/reports/ap-aging", async (req, res): Promise<void> => {
       billNumber: r.bill.billNumber,
       jobId: r.bill.jobId,
       jobNumber: r.jobNumber,
+      jobName: r.jobName,
       date: r.bill.date,
       dueDate: r.bill.dueDate,
       balanceCents,

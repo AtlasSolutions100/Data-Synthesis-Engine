@@ -197,14 +197,14 @@ export default function BillDetail() {
         </div>
         <p className="text-slate-500 mt-1">
           {bill.vendorName || "Unknown vendor"}
-          {bill.jobNumber ? (
+          {bill.jobName ? (
             <>
               {" · "}
               <Link
                 href={`/jobs/${bill.jobId}`}
                 className="text-blue-600 hover:underline"
               >
-                Job {bill.jobNumber}
+                Job {bill.jobName}
               </Link>
             </>
           ) : (

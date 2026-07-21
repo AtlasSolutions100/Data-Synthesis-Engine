@@ -227,7 +227,7 @@ export default function Transactions() {
                     </TableCell>
                     <TableCell>{txn.num || "-"}</TableCell>
                     <TableCell>{txn.accountNumber} - {txn.accountName}</TableCell>
-                    <TableCell>{txn.jobNumber || "-"}</TableCell>
+                    <TableCell>{txn.jobName || "-"}</TableCell>
                     <TableCell>
                       <div className="font-medium">{txn.partyName || "-"}</div>
                       <div className="text-xs text-slate-500">{txn.description}</div>

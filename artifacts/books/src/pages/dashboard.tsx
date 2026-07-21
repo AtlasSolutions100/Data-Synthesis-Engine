@@ -88,8 +88,13 @@ export default function Dashboard() {
             <Activity className="h-4 w-4 text-slate-400" />
           </CardHeader>
           <CardContent>
-            <div className={`text-2xl font-bold ${summary.grossProfitCents >= 0 ? "text-emerald-600" : "text-red-600"}`}>
-              {formatCents(summary.grossProfitCents)}
+            <div className={`flex items-baseline gap-2 ${summary.grossProfitCents >= 0 ? "text-emerald-600" : "text-red-600"}`}>
+              <span className="text-2xl font-bold">{formatCents(summary.grossProfitCents)}</span>
+              {summary.totalIncomeCents > 0 && (
+                <span className="text-sm font-semibold">
+                  {Math.round((summary.grossProfitCents / summary.totalIncomeCents) * 100)}%
+                </span>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -210,7 +215,7 @@ function CustomerJobs({ customerId }: { customerId: number }) {
         <div key={job.id} className="flex items-center justify-between pl-4 py-1 rounded hover:bg-slate-50">
           <div className="flex items-center gap-2 min-w-0">
             <Link href={`/jobs/${job.id}`} className="text-blue-600 hover:underline truncate">
-              {job.jobNumber} - {job.name}
+              {job.name}
             </Link>
             {job.poNumber && (
               <span className="text-xs text-slate-500 whitespace-nowrap">PO {job.poNumber}</span>

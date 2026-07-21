@@ -14,3 +14,4 @@
 - [pdf.js range streaming config](pdfjs-range-streaming-config.md) — legacy build + disableAutoFetch + disableStream + `?url` worker import are all required; test PDFs must cluster page dicts.
 - [codegen-check must be read-only](codegen-check-read-only.md) — parallel validations race in-place regeneration; diff temp-copy output instead of mutating src/generated.
 - [Pay period numbering](pay-periods.md) — periods numbered by pay-date year, not start year; anchor Period 13 = 2026-06-08.
+- [Job/PO labeling](job-po-labeling.md) — jobs identified by Job Name only; PO Number is the sole reference field; job_number stays in DB but is auto-generated and never shown.

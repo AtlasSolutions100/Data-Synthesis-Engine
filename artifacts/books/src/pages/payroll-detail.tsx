@@ -348,8 +348,7 @@ export default function PayrollDetail() {
                         href={`/jobs/${a.jobId}`}
                         className="text-blue-600 hover:underline"
                       >
-                        {a.jobNumber || `Job #${a.jobId}`}
-                        {a.jobName ? ` — ${a.jobName}` : ""}
+                        {a.jobName || `Job ${a.jobId}`}
                       </Link>
                     </TableCell>
                     <TableCell className="text-right font-medium">

@@ -84,7 +84,7 @@ describe("buildJobReportsCsv", () => {
     const idx = rows.indexOf("Burdened Labor by Job,2026-06-01 to 2026-06-30");
     expect(rows[idx + 1]).toBe("Job,Regular,Overtime,Gross,Burden,Total Cost");
     expect(rows[idx + 2]).toBe(
-      "J-100 - Substation Upgrade,1000.00,250.00,1250.00,312.50,1562.50",
+      "Substation Upgrade,1000.00,250.00,1250.00,312.50,1562.50",
     );
     expect(rows[idx + 3]).toBe(
       "Total,1000.00,250.00,1250.00,312.50,1562.50",
@@ -134,7 +134,7 @@ const arAging: ArAging = {
         {
           invoiceId: 10,
           invoiceNumber: "INV-100",
-          jobNumber: "J-100",
+          jobName: "Substation Upgrade",
           date: "2026-06-01",
           dueDate: "2026-06-15",
           daysOverdue: 15,
@@ -157,7 +157,7 @@ const apAging: ApAging = {
         {
           billId: 20,
           billNumber: "BILL-200",
-          jobNumber: null,
+          jobName: null,
           date: "2026-06-05",
           dueDate: "2026-06-20",
           daysOverdue: 10,
@@ -240,7 +240,7 @@ describe("buildMonthEndCsv", () => {
     expect(idxApDetail).toBeGreaterThan(idxArDetail);
     expect(rows[idxArDetail - 1]).toBe("");
     expect(rows).toContain(
-      "Acme Utility,INV-100,J-100,2026-06-01,2026-06-15,15,125.00",
+      "Acme Utility,INV-100,Substation Upgrade,2026-06-01,2026-06-15,15,125.00",
     );
     expect(rows).toContain(
       "Volt Supply,BILL-200,,2026-06-05,2026-06-20,10,125.00",
@@ -280,7 +280,7 @@ describe("buildMonthEndCsv", () => {
   it("includes data rows from every report", () => {
     expect(rows).toContain("6100 - Fuel,Other Expense,50.00");
     expect(rows).toContain(
-      "J-100 - Substation Upgrade,1000.00,250.00,1250.00,312.50,1562.50",
+      "Substation Upgrade,1000.00,250.00,1250.00,312.50,1562.50",
     );
     expect(rows).toContain(
       "Acme Utility,100.00,20.00,0.00,0.00,5.00,125.00",

@@ -127,6 +127,7 @@ async function getFullBill(id: number) {
       bill: billsTable,
       vendorName: vendorsTable.name,
       jobNumber: jobsTable.jobNumber,
+      jobName: jobsTable.name,
     })
     .from(billsTable)
     .leftJoin(vendorsTable, eq(vendorsTable.id, billsTable.vendorId))
@@ -169,6 +170,7 @@ async function getFullBill(id: number) {
     vendorName: row.vendorName,
     jobId: row.bill.jobId,
     jobNumber: row.jobNumber,
+    jobName: row.jobName,
     date: row.bill.date,
     dueDate: row.bill.dueDate,
     memo: row.bill.memo,
@@ -220,6 +222,7 @@ router.get("/bills", async (req, res): Promise<void> => {
       bill: billsTable,
       vendorName: vendorsTable.name,
       jobNumber: jobsTable.jobNumber,
+      jobName: jobsTable.name,
     })
     .from(billsTable)
     .leftJoin(vendorsTable, eq(vendorsTable.id, billsTable.vendorId))
@@ -265,6 +268,7 @@ router.get("/bills", async (req, res): Promise<void> => {
         vendorName: r.vendorName,
         jobId: r.bill.jobId,
         jobNumber: r.jobNumber,
+        jobName: r.jobName,
         date: r.bill.date,
         dueDate: r.bill.dueDate,
         memo: r.bill.memo,

@@ -319,7 +319,7 @@ export function TransactionForm({
                   <EntityCombobox
                     options={(jobs ?? []).map((j) => ({
                       id: j.id,
-                      label: `${j.jobNumber} — ${j.name}`,
+                      label: j.name,
                     }))}
                     value={field.value ?? ""}
                     onChange={field.onChange}

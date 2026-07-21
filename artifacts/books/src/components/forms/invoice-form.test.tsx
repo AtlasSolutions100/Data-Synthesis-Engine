@@ -118,7 +118,7 @@ describe("InvoiceForm dangling id validation", () => {
       expect(screen.getByText(/job no longer exists/i)).toBeTruthy(),
     );
 
-    await pickOption(/Unknown \(#777\)/, /J-100 — Warehouse/);
+    await pickOption(/Unknown \(#777\)/, /Warehouse/);
 
     await submit();
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
