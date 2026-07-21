@@ -1,5 +1,6 @@
 import { Router, type IRouter } from "express";
 import { and, desc, eq, inArray, sql, type SQL } from "drizzle-orm";
+import { formatDollars } from "../lib/money";
 import {
   db,
   billsTable,
@@ -381,7 +382,7 @@ router.patch("/bills/:id", async (req, res): Promise<void> => {
     const newTotalCents = data.lines.reduce((s, l) => s + l.amountCents, 0);
     if (newTotalCents < paidCents) {
       res.status(400).json({
-        error: `New total ($${(newTotalCents / 100).toFixed(2)}) is less than the $${(paidCents / 100).toFixed(2)} already paid or credited on this bill. Remove or adjust payments and credits first, or keep the total at or above that amount.`,
+        error: `New total (${formatDollars(newTotalCents)}) is less than the ${formatDollars(paidCents)} already paid or credited on this bill. Remove or adjust payments and credits first, or keep the total at or above that amount.`,
         field: "lines",
       });
       return;
@@ -463,7 +464,7 @@ router.post("/bills/:id/payments", async (req, res): Promise<void> => {
   }
   if (parsed.data.amountCents > existing.balanceCents) {
     res.status(400).json({
-      error: `Payment exceeds the outstanding balance of $${(existing.balanceCents / 100).toFixed(2)}`,
+      error: `Payment exceeds the outstanding balance of ${formatDollars(existing.balanceCents)}`,
       field: "amountCents",
     });
     return;
@@ -505,7 +506,7 @@ router.post("/bills/:id/credits", async (req, res): Promise<void> => {
   }
   if (parsed.data.amountCents > existing.balanceCents) {
     res.status(400).json({
-      error: `Credit exceeds the outstanding balance of $${(existing.balanceCents / 100).toFixed(2)}`,
+      error: `Credit exceeds the outstanding balance of ${formatDollars(existing.balanceCents)}`,
       field: "amountCents",
     });
     return;

@@ -35,6 +35,7 @@ import {
 // are missing. Import it lazily inside the extract-hours handler so an
 // unconfigured integration never crashes unrelated payroll routes at startup.
 import { computeLine, type BurdenRates } from "../lib/payroll";
+import { formatDollars } from "../lib/money";
 import { COST_TYPES, dateRangeConds } from "../lib/finance";
 
 const router: IRouter = Router();
@@ -173,12 +174,6 @@ async function getFullRun(id: number) {
     allocatedCents,
     lines: linePayloads,
   };
-}
-
-/** Format a cent amount as a dollar string, e.g. 25000 -> "$250.00". */
-function formatDollars(cents: number): string {
-  const sign = cents < 0 ? "-" : "";
-  return `${sign}$${(Math.abs(cents) / 100).toFixed(2)}`;
 }
 
 /** Validate that a labor account exists and is a cost-type account. */

@@ -25,6 +25,7 @@ import {
   DeleteInvoicePaymentParams,
 } from "@workspace/api-zod";
 import { dateRangeConds } from "../lib/finance";
+import { formatDollars } from "../lib/money";
 
 const router: IRouter = Router();
 
@@ -443,7 +444,7 @@ router.post("/invoices/:id/payments", async (req, res): Promise<void> => {
   }
   if (parsed.data.amountCents > existing.balanceCents) {
     res.status(400).json({
-      error: `Payment exceeds the outstanding balance of $${(existing.balanceCents / 100).toFixed(2)}`,
+      error: `Payment exceeds the outstanding balance of ${formatDollars(existing.balanceCents)}`,
       field: "amountCents",
     });
     return;
