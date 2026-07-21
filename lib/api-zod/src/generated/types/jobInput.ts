@@ -8,8 +8,11 @@
 import type { JobInputStatus } from './jobInputStatus';
 
 export interface JobInput {
-  /** @minLength 1 */
-  jobNumber: string;
+  /**
+     * Optional internal identifier; auto-generated when omitted
+     * @minLength 1
+     */
+  jobNumber?: string;
   /** @minLength 1 */
   name: string;
   /** @nullable */

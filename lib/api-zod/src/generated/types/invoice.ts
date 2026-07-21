@@ -15,6 +15,8 @@ export interface Invoice {
   jobId: number;
   /** @nullable */
   jobNumber?: string | null;
+  /** @nullable */
+  jobName?: string | null;
   customerId: number;
   /** @nullable */
   customerName?: string | null;

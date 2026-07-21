@@ -15,6 +15,8 @@ export interface AgingBill {
   jobId?: number | null;
   /** @nullable */
   jobNumber?: string | null;
+  /** @nullable */
+  jobName?: string | null;
   date: string;
   /** @nullable */
   dueDate?: string | null;

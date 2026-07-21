@@ -282,8 +282,11 @@ export const JobInputStatus = {
 } as const;
 
 export interface JobInput {
-  /** @minLength 1 */
-  jobNumber: string;
+  /**
+     * Optional internal identifier; auto-generated when omitted
+     * @minLength 1
+     */
+  jobNumber?: string;
   /** @minLength 1 */
   name: string;
   /** @nullable */
@@ -368,6 +371,8 @@ export interface Transaction {
   jobId?: number | null;
   /** @nullable */
   jobNumber?: string | null;
+  /** @nullable */
+  jobName?: string | null;
   /** @nullable */
   customerId?: number | null;
   /** @nullable */
@@ -690,6 +695,8 @@ export interface Invoice {
   jobId: number;
   /** @nullable */
   jobNumber?: string | null;
+  /** @nullable */
+  jobName?: string | null;
   customerId: number;
   /** @nullable */
   customerName?: string | null;
@@ -862,6 +869,8 @@ export interface Bill {
   jobId?: number | null;
   /** @nullable */
   jobNumber?: string | null;
+  /** @nullable */
+  jobName?: string | null;
   date: string;
   /** @nullable */
   dueDate?: string | null;
@@ -929,6 +938,8 @@ export interface AgingInvoice {
   jobId?: number | null;
   /** @nullable */
   jobNumber?: string | null;
+  /** @nullable */
+  jobName?: string | null;
   date: string;
   /** @nullable */
   dueDate?: string | null;
@@ -956,6 +967,8 @@ export interface AgingBill {
   jobId?: number | null;
   /** @nullable */
   jobNumber?: string | null;
+  /** @nullable */
+  jobName?: string | null;
   date: string;
   /** @nullable */
   dueDate?: string | null;

@@ -1746,11 +1746,12 @@ components:
           description: billedToDateCents minus costCents (positive = overbilled, negative = underbilled)
     JobInput:
       type: object
-      required: [jobNumber, name]
+      required: [name]
       properties:
         jobNumber:
           type: string
           minLength: 1
+          description: Optional internal identifier; auto-generated when omitted
         name:
           type: string
           minLength: 1
@@ -1820,6 +1821,8 @@ components:
         jobId:
           type: ["integer", "null"]
         jobNumber:
+          type: ["string", "null"]
+        jobName:
           type: ["string", "null"]
         customerId:
           type: ["integer", "null"]
@@ -2167,6 +2170,8 @@ components:
           type: integer
         jobNumber:
           type: ["string", "null"]
+        jobName:
+          type: ["string", "null"]
         customerId:
           type: integer
         customerName:
@@ -2353,6 +2358,8 @@ components:
           type: ["integer", "null"]
         jobNumber:
           type: ["string", "null"]
+        jobName:
+          type: ["string", "null"]
         date:
           type: string
         dueDate:
@@ -2439,6 +2446,8 @@ components:
           type: ["integer", "null"]
         jobNumber:
           type: ["string", "null"]
+        jobName:
+          type: ["string", "null"]
         date:
           type: string
         dueDate:
@@ -2461,6 +2470,8 @@ components:
         jobId:
           type: ["integer", "null"]
         jobNumber:
+          type: ["string", "null"]
+        jobName:
           type: ["string", "null"]
         date:
           type: string

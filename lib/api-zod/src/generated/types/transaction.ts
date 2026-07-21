@@ -41,6 +41,8 @@ export interface Transaction {
   /** @nullable */
   jobNumber?: string | null;
   /** @nullable */
+  jobName?: string | null;
+  /** @nullable */
   customerId?: number | null;
   /** @nullable */
   vendorId?: number | null;
