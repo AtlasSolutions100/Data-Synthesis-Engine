@@ -337,7 +337,7 @@ describe("aging xlsx roundtrip", () => {
       null,
     ]);
     expect(rows[1]).toEqual([
-      "Job",
+      "Job Name",
       "Regular",
       "Overtime",
       "Gross",
@@ -443,7 +443,7 @@ describe("aging xlsx roundtrip", () => {
     expect(ar[1]).toEqual([
       "Customer",
       "Invoice #",
-      "Job",
+      "Job Name",
       "Date",
       "Due Date",
       "Days Overdue",

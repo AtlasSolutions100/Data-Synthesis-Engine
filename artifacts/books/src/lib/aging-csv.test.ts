@@ -155,7 +155,7 @@ describe("buildAgingDetailCsv", () => {
   it("includes section and column headers", () => {
     expect(rows[0]).toBe("Accounts Receivable Aging Detail,As of 2026-06-30");
     expect(rows[1]).toBe(
-      "Customer,Invoice #,Job,Date,Due Date,Days Overdue,Balance",
+      "Customer,Invoice #,Job Name,Date,Due Date,Days Overdue,Balance",
     );
     expect(rows).toContain("Accounts Payable Aging Detail,As of 2026-06-30");
   });
@@ -184,7 +184,7 @@ describe("buildAgingDetailCsv", () => {
       "Accounts Payable Aging Detail,As of 2026-06-30",
     );
     expect(rows[apStart + 1]).toBe(
-      "Vendor,Bill #,Job,Date,Due Date,Days Overdue,Balance",
+      "Vendor,Bill #,Job Name,Date,Due Date,Days Overdue,Balance",
     );
     expect(rows[apStart + 2]).toBe(
       "Steel Supply,BILL-77,JOB-42,2026-04-15,2026-05-01,60,50.00",

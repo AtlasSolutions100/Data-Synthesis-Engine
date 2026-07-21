@@ -82,7 +82,7 @@ describe("buildJobReportsCsv", () => {
 
   it("renders payroll rows and totals matching on-screen values", () => {
     const idx = rows.indexOf("Burdened Labor by Job,2026-06-01 to 2026-06-30");
-    expect(rows[idx + 1]).toBe("Job,Regular,Overtime,Gross,Burden,Total Cost");
+    expect(rows[idx + 1]).toBe("Job Name,Regular,Overtime,Gross,Burden,Total Cost");
     expect(rows[idx + 2]).toBe(
       "Substation Upgrade,1000.00,250.00,1250.00,312.50,1562.50",
     );

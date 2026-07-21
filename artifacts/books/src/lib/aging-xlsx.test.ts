@@ -128,7 +128,7 @@ describe("buildArDetailSheetData", () => {
     expect(cellValues(rows[1])).toEqual([
       "Customer",
       "Invoice #",
-      "Job",
+      "Job Name",
       "Date",
       "Due Date",
       "Days Overdue",
@@ -204,7 +204,7 @@ describe("buildApDetailSheetData", () => {
     expect(cellValues(rows[1])).toEqual([
       "Vendor",
       "Bill #",
-      "Job",
+      "Job Name",
       "Date",
       "Due Date",
       "Days Overdue",

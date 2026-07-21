@@ -75,7 +75,7 @@ function detailHeaderRow(entityLabel: string, docLabel: string): Row {
   return [
     headerCell(entityLabel),
     headerCell(docLabel),
-    headerCell("Job"),
+    headerCell("Job Name"),
     headerCell("Date"),
     headerCell("Due Date"),
     headerCell("Days Overdue"),
@@ -258,7 +258,7 @@ export function buildPayrollByJobSheetData(
     textCell(describeRangeForCsv(range)),
   ]);
   rows.push([
-    headerCell("Job"),
+    headerCell("Job Name"),
     headerCell("Regular"),
     headerCell("Overtime"),
     headerCell("Gross"),

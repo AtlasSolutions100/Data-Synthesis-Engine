@@ -62,7 +62,7 @@ export function buildJobReportsCsv(
 
   lines.push(["Burdened Labor by Job", rangeLabel]);
   lines.push([
-    "Job",
+    "Job Name",
     "Regular",
     "Overtime",
     "Gross",

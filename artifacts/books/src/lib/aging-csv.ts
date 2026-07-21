@@ -63,7 +63,7 @@ export function agingCsvFilename(asOf: string): string {
 
 const DETAIL_HEADERS = [
   "Number",
-  "Job",
+  "Job Name",
   "Date",
   "Due Date",
   "Days Overdue",
