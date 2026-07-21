@@ -1180,6 +1180,51 @@ export interface PayrollRunUpdate {
   lines?: PayrollLineInput[];
 }
 
+export interface ExtractBillInput {
+  /**
+     * Free-form pasted invoice text
+     * @maxLength 20000
+     */
+  text?: string;
+  /**
+     * Base64 data URL of an uploaded invoice image or PDF
+     * @maxLength 14000000
+     */
+  fileData?: string;
+  /**
+     * Original filename of the uploaded image/PDF, used to detect the file type
+     * @maxLength 300
+     */
+  fileName?: string;
+}
+
+export interface ExtractedBillLine {
+  /** @nullable */
+  description?: string | null;
+  /** Line amount in integer cents */
+  amountCents: number;
+}
+
+export interface ExtractBillResult {
+  /**
+     * Vendor name as written on the invoice
+     * @nullable
+     */
+  vendorName?: string | null;
+  /** @nullable */
+  billNumber?: string | null;
+  /**
+     * Invoice date (YYYY-MM-DD) when stated
+     * @nullable
+     */
+  date?: string | null;
+  /** @nullable */
+  dueDate?: string | null;
+  /** @nullable */
+  memo?: string | null;
+  lines: ExtractedBillLine[];
+}
+
 export interface ExtractPayrollHoursInput {
   /**
      * Free-form pasted email text or uploaded timesheet contents
@@ -1390,6 +1435,7 @@ customerId?: number;
 
 export type ListTransactionsParams = {
 jobId?: number;
+customerId?: number;
 accountId?: number;
 vendorId?: number;
 type?: string;
@@ -1429,6 +1475,14 @@ startDate?: StartDateParamParameter;
  * @pattern ^\d{4}-\d{2}-\d{2}$
  */
 endDate?: EndDateParamParameter;
+/**
+ * Only include costs on jobs belonging to this customer
+ */
+customerId?: number;
+/**
+ * Only include costs on this job
+ */
+jobId?: number;
 };
 
 export type GetAccountBalancesParams = {

@@ -651,6 +651,7 @@ export const listTransactionsQueryEndDateRegExp = new RegExp('^\\d{4}-\\d{2}-\\d
 
 export const ListTransactionsQueryParams = zod.object({
   "jobId": zod.coerce.number().optional(),
+  "customerId": zod.coerce.number().optional(),
   "accountId": zod.coerce.number().optional(),
   "vendorId": zod.coerce.number().optional(),
   "type": zod.coerce.string().optional(),
@@ -922,7 +923,9 @@ export const getCostByAccountQueryEndDateRegExp = new RegExp('^\\d{4}-\\d{2}-\\d
 
 export const GetCostByAccountQueryParams = zod.object({
   "startDate": zod.coerce.string().regex(getCostByAccountQueryStartDateRegExp).optional().describe('Inclusive start of the date range (YYYY-MM-DD). Omit for no lower bound.'),
-  "endDate": zod.coerce.string().regex(getCostByAccountQueryEndDateRegExp).optional().describe('Inclusive end of the date range (YYYY-MM-DD). Omit for no upper bound.')
+  "endDate": zod.coerce.string().regex(getCostByAccountQueryEndDateRegExp).optional().describe('Inclusive end of the date range (YYYY-MM-DD). Omit for no upper bound.'),
+  "customerId": zod.coerce.number().optional().describe('Only include costs on jobs belonging to this customer'),
+  "jobId": zod.coerce.number().optional().describe('Only include costs on this job')
 })
 
 export const GetCostByAccountResponseItem = zod.object({
@@ -1474,6 +1477,37 @@ export const CreateBillResponse = zod.object({
   "amountCents": zod.number(),
   "memo": zod.string().nullish()
 })).optional()
+})
+
+
+/**
+ * Uses an AI model to parse an uploaded invoice scan (image/PDF) or pasted text into a structured bill draft for review before saving.
+ * @summary Extract bill details from an uploaded invoice
+ */
+export const extractBillBodyTextMax = 20000;
+
+export const extractBillBodyFileDataMax = 14000000;
+
+export const extractBillBodyFileNameMax = 300;
+
+
+
+export const ExtractBillBody = zod.object({
+  "text": zod.string().max(extractBillBodyTextMax).optional().describe('Free-form pasted invoice text'),
+  "fileData": zod.string().max(extractBillBodyFileDataMax).optional().describe('Base64 data URL of an uploaded invoice image or PDF'),
+  "fileName": zod.string().max(extractBillBodyFileNameMax).optional().describe('Original filename of the uploaded image\/PDF, used to detect the file type')
+})
+
+export const ExtractBillResponse = zod.object({
+  "vendorName": zod.string().nullish().describe('Vendor name as written on the invoice'),
+  "billNumber": zod.string().nullish(),
+  "date": zod.string().nullish().describe('Invoice date (YYYY-MM-DD) when stated'),
+  "dueDate": zod.string().nullish(),
+  "memo": zod.string().nullish(),
+  "lines": zod.array(zod.object({
+  "description": zod.string().nullish(),
+  "amountCents": zod.number().describe('Line amount in integer cents')
+}))
 })
 
 

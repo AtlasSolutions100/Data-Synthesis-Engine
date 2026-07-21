@@ -14,6 +14,12 @@ import {
   getGetAccountBalancesQueryKey,
   useGetAccountBalanceTransactions,
   getGetAccountBalanceTransactionsQueryKey,
+  useListTransactions,
+  getListTransactionsQueryKey,
+  useListCustomers,
+  getListCustomersQueryKey,
+  useListJobs,
+  getListJobsQueryKey,
 } from "@workspace/api-client-react";
 import type {
   AgingBuckets,
@@ -56,6 +62,93 @@ import {
   describeRange,
 } from "@/components/date-range-picker";
 import { useExportToast } from "@/lib/export-toast";
+import { EntityCombobox } from "@/components/forms/entity-combobox";
+
+function CostAccountDetailRow({
+  accountId,
+  startDate,
+  endDate,
+  customerId,
+  jobId,
+}: {
+  accountId: number;
+  startDate?: string;
+  endDate?: string;
+  customerId?: number;
+  jobId?: number;
+}) {
+  const params = { accountId, startDate, endDate, customerId, jobId };
+  const { data, isLoading, isError } = useListTransactions(params, {
+    query: { queryKey: getListTransactionsQueryKey(params) },
+  });
+  return (
+    <TableRow className="bg-slate-50/70 hover:bg-slate-50/70">
+      <TableCell colSpan={3} className="p-0">
+        <div className="px-8 py-3">
+          {isLoading ? (
+            <p className="text-sm text-slate-500 py-2">
+              Loading transactions...
+            </p>
+          ) : isError || !data ? (
+            <p className="text-sm text-red-600 py-2">
+              Failed to load transactions for this account.
+            </p>
+          ) : data.length === 0 ? (
+            <p className="text-sm text-slate-500 py-2">
+              No transactions for this account in the selected filters.
+            </p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="h-8">Date</TableHead>
+                  <TableHead className="h-8">Type</TableHead>
+                  <TableHead className="h-8">Num</TableHead>
+                  <TableHead className="h-8">Name</TableHead>
+                  <TableHead className="h-8">Job Name</TableHead>
+                  <TableHead className="h-8">Description</TableHead>
+                  <TableHead className="h-8 text-right">Amount</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {data.map((tx) => (
+                  <TableRow
+                    key={tx.id}
+                    data-testid={`row-cost-tx-${accountId}-${tx.id}`}
+                  >
+                    <TableCell className="py-2">
+                      <Link
+                        href={`/transactions?highlight=${tx.id}&from=reports`}
+                        className="text-blue-600 hover:underline"
+                        data-testid={`link-cost-tx-${accountId}-${tx.id}`}
+                      >
+                        {tx.date}
+                      </Link>
+                    </TableCell>
+                    <TableCell className="py-2 capitalize">
+                      {tx.type.replace("_", " ")}
+                    </TableCell>
+                    <TableCell className="py-2">{tx.num || "—"}</TableCell>
+                    <TableCell className="py-2">
+                      {tx.partyName || "—"}
+                    </TableCell>
+                    <TableCell className="py-2">{tx.jobName || "—"}</TableCell>
+                    <TableCell className="py-2">
+                      {tx.description || "—"}
+                    </TableCell>
+                    <TableCell className="py-2 text-right">
+                      {formatCents(tx.amountCents)}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </div>
+      </TableCell>
+    </TableRow>
+  );
+}
 
 function BucketCells({ buckets }: { buckets: AgingBuckets }) {
   return (
@@ -277,6 +370,20 @@ export default function Reports() {
   const [expandedAccounts, setExpandedAccounts] = useState<Set<string>>(
     new Set(),
   );
+  const [expandedCostAccounts, setExpandedCostAccounts] = useState<
+    Set<string>
+  >(new Set());
+  const [costCustomerId, setCostCustomerId] = useState("");
+  const [costJobId, setCostJobId] = useState("");
+  const { data: customers } = useListCustomers({
+    query: { queryKey: getListCustomersQueryKey() },
+  });
+  const { data: jobs } = useListJobs(undefined, {
+    query: { queryKey: getListJobsQueryKey() },
+  });
+  const costFilterJobs = (jobs ?? []).filter(
+    (j) => !costCustomerId || String(j.customerId ?? "") === costCustomerId,
+  );
   const toggle = (
     set: React.Dispatch<React.SetStateAction<Set<string>>>,
     key: string,
@@ -295,8 +402,13 @@ export default function Reports() {
     startDate: range.startDate,
     endDate: range.endDate,
   };
-  const { data: report, isLoading } = useGetCostByAccount(params, {
-    query: { queryKey: getGetCostByAccountQueryKey(params) },
+  const costParams = {
+    ...params,
+    customerId: costCustomerId ? Number(costCustomerId) : undefined,
+    jobId: costJobId ? Number(costJobId) : undefined,
+  };
+  const { data: report, isLoading } = useGetCostByAccount(costParams, {
+    query: { queryKey: getGetCostByAccountQueryKey(costParams) },
   });
   const agingParams = { asOf: range.endDate };
   const { data: arAging, isLoading: arLoading } = useGetArAging(agingParams, {
@@ -588,7 +700,57 @@ export default function Reports() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Costs Across All Jobs</CardTitle>
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <CardTitle>Costs Across All Jobs</CardTitle>
+            <div className="flex items-end gap-3">
+              <div className="w-56">
+                <p className="text-xs font-medium text-slate-500 mb-1">
+                  Customer
+                </p>
+                <EntityCombobox
+                  options={[
+                    { id: "" as unknown as number, label: "All Customers" },
+                    ...(customers ?? []).map((c) => ({
+                      id: c.id,
+                      label: c.name,
+                    })),
+                  ]}
+                  value={costCustomerId}
+                  onChange={(next) => {
+                    setCostCustomerId(next);
+                    setCostJobId("");
+                    setExpandedCostAccounts(new Set());
+                  }}
+                  placeholder="All Customers"
+                  searchPlaceholder="Search customers..."
+                  emptyText="No customers found."
+                />
+              </div>
+              <div className="w-56">
+                <p className="text-xs font-medium text-slate-500 mb-1">Job</p>
+                <EntityCombobox
+                  options={[
+                    { id: "" as unknown as number, label: "All Jobs" },
+                    ...costFilterJobs.map((j) => ({
+                      id: j.id,
+                      label: j.name,
+                    })),
+                  ]}
+                  value={costJobId}
+                  onChange={(next) => {
+                    setCostJobId(next);
+                    setExpandedCostAccounts(new Set());
+                  }}
+                  placeholder="All Jobs"
+                  searchPlaceholder="Search jobs..."
+                  emptyText="No jobs found."
+                />
+              </div>
+            </div>
+          </div>
+          <p className="text-sm text-slate-500">
+            Click a row to see the transactions behind the total.
+          </p>
         </CardHeader>
         <CardContent className="p-0">
           <Table>
@@ -619,19 +781,47 @@ export default function Reports() {
                   </TableCell>
                 </TableRow>
               ) : (
-                report.map((row) => (
-                  <TableRow key={row.accountId}>
-                    <TableCell className="font-medium">
-                      {row.accountNumber} - {row.accountName}
-                    </TableCell>
-                    <TableCell className="capitalize">
-                      {row.type.replace("_", " ")}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {formatCents(row.amountCents)}
-                    </TableCell>
-                  </TableRow>
-                ))
+                report.map((row) => {
+                  const key = String(row.accountId);
+                  const expanded = expandedCostAccounts.has(key);
+                  return (
+                    <Fragment key={row.accountId}>
+                      <TableRow
+                        className="cursor-pointer"
+                        onClick={() => toggle(setExpandedCostAccounts, key)}
+                        data-testid={`row-cost-account-${row.accountId}`}
+                      >
+                        <TableCell className="font-medium">
+                          <span className="inline-flex items-center gap-1">
+                            {expanded ? (
+                              <ChevronDown className="h-4 w-4 text-slate-400" />
+                            ) : (
+                              <ChevronRight className="h-4 w-4 text-slate-400" />
+                            )}
+                            {row.accountNumber} - {row.accountName}
+                          </span>
+                        </TableCell>
+                        <TableCell className="capitalize">
+                          {row.type.replace("_", " ")}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {formatCents(row.amountCents)}
+                        </TableCell>
+                      </TableRow>
+                      {expanded && (
+                        <CostAccountDetailRow
+                          accountId={row.accountId}
+                          startDate={range.startDate}
+                          endDate={range.endDate}
+                          customerId={
+                            costCustomerId ? Number(costCustomerId) : undefined
+                          }
+                          jobId={costJobId ? Number(costJobId) : undefined}
+                        />
+                      )}
+                    </Fragment>
+                  );
+                })
               )}
             </TableBody>
           </Table>

@@ -121,6 +121,7 @@ interface PayrollRunFormProps {
   defaultValues?: Partial<RunFormValues>;
   onSubmit: (data: PayrollRunInput) => void;
   isLoading?: boolean;
+  autoOpenImport?: boolean;
 }
 
 /** Percentage string (e.g. "6.2") -> basis points (620). */
@@ -693,12 +694,14 @@ function ImportHoursDialog({
   form,
   employees,
   jobNames,
+  autoOpen = false,
 }: {
   form: UseFormReturn<RunFormValues>;
   employees: Employee[];
   jobNames: string[];
+  autoOpen?: boolean;
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(autoOpen);
   const [stage, setStage] = useState<"input" | "review">("input");
   const [text, setText] = useState("");
   const [fileName, setFileName] = useState("");
@@ -1077,6 +1080,7 @@ export function PayrollRunForm({
   defaultValues,
   onSubmit,
   isLoading,
+  autoOpenImport,
 }: PayrollRunFormProps) {
   const { data: employees } = useListEmployees({
     query: { queryKey: getListEmployeesQueryKey() },
@@ -1427,6 +1431,7 @@ export function PayrollRunForm({
                 form={form}
                 employees={employeeList}
                 jobNames={jobNames}
+                autoOpen={autoOpenImport}
               />
               <Button
                 type="button"

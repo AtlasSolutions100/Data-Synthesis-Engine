@@ -165,6 +165,11 @@ router.get("/transactions", async (req, res): Promise<void> => {
     return;
   }
   const conds: SQL[] = [];
+  if (query.data.customerId != null) {
+    conds.push(
+      sql`${transactionsTable.jobId} in (select id from ${jobsTable} where ${jobsTable.customerId} = ${query.data.customerId})`,
+    );
+  }
   if (query.data.jobId != null) {
     conds.push(eq(transactionsTable.jobId, query.data.jobId));
   }

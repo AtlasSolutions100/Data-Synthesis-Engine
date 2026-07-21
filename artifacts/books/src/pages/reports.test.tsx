@@ -154,6 +154,15 @@ const arAging: ArAging = { asOf: "2026-07-17", customers: [], totals: emptyBucke
 const apAging: ApAging = { asOf: "2026-07-17", vendors: [], totals: emptyBuckets };
 
 vi.mock("@workspace/api-client-react", () => ({
+  useListTransactions: () => ({ data: [], isLoading: false }),
+  getListTransactionsQueryKey: (params: unknown) => [
+    "/api/transactions",
+    params,
+  ],
+  useListCustomers: () => ({ data: [], isLoading: false }),
+  getListCustomersQueryKey: () => ["/api/customers"],
+  useListJobs: () => ({ data: [], isLoading: false }),
+  getListJobsQueryKey: () => ["/api/jobs"],
   useGetCostByAccount: (params: { startDate?: string; endDate?: string }) => ({
     data: costFor(params),
     isLoading: false,

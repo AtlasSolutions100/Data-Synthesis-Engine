@@ -28,6 +28,12 @@ vi.mock("@workspace/api-client-react", () => ({
     deleteJobOptions(opts);
     return { mutate: vi.fn(), isPending: false };
   },
+  useCreateJobDocument: () => ({ mutate: vi.fn(), isPending: false }),
+  getListJobDocumentsQueryKey: (id: number) => ["/api/jobs", id, "documents"],
+}));
+
+vi.mock("@workspace/object-storage-web", () => ({
+  useUpload: () => ({ uploadFile: vi.fn(), isUploading: false }),
 }));
 
 vi.mock("@/components/forms/job-form", () => ({

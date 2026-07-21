@@ -258,6 +258,14 @@ router.get("/reports/cost-by-account", async (req, res): Promise<void> => {
     inArray(accountsTable.type, [...COST_TYPES]),
     ...dateConds,
   ];
+  if (query.data.jobId != null) {
+    conds.push(eq(transactionsTable.jobId, query.data.jobId));
+  }
+  if (query.data.customerId != null) {
+    conds.push(
+      sql`${transactionsTable.jobId} in (select id from ${jobsTable} where ${jobsTable.customerId} = ${query.data.customerId})`,
+    );
+  }
 
   const rows = await db
     .select({

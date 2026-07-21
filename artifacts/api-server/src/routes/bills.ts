@@ -28,9 +28,187 @@ import {
   CreateVendorCreditParams,
   CreateVendorCreditBody,
   CreateVendorCreditResponse,
+  ExtractBillBody,
+  ExtractBillResponse,
+  MAX_EXTRACT_TEXT_LENGTH,
+  extractTextTooLargeMessage,
 } from "@workspace/api-zod";
 
 const router: IRouter = Router();
+
+const EXTRACT_BILL_SYSTEM_PROMPT = `You extract vendor bill details from invoices: uploaded scans/photos (images or PDFs) or pasted text. Formats vary widely.
+
+Return ONLY a JSON object of this exact shape:
+{"vendorName": string|null, "billNumber": string|null, "date": string|null, "dueDate": string|null, "memo": string|null, "lines": [{"description": string|null, "amount": number}]}
+
+Rules:
+- vendorName: the company issuing the invoice (the seller/supplier), exactly as written. null if unclear.
+- billNumber: the invoice/bill number as written (e.g. "INV-1042"). null if not present.
+- date: the invoice date in YYYY-MM-DD. null if not stated or ambiguous.
+- dueDate: the payment due date in YYYY-MM-DD. null if not stated. If terms like "Net 30" are given with an invoice date, compute the due date.
+- memo: a short one-line summary of what the invoice is for (e.g. "Electrical supplies for HR Stadium"). null if nothing useful.
+- lines: one entry per billed line item with description and amount in DOLLARS (e.g. 125.50). If only a grand total is visible, return a single line with the total. Exclude sales tax lines only if they are clearly separate — otherwise include everything so the lines sum to the invoice total.
+- amount must be a plain number in dollars (no currency symbols, no strings).
+- Ignore remittance addresses, logos, and marketing text.
+- If the content is not an invoice at all, return {"vendorName": null, "billNumber": null, "date": null, "dueDate": null, "memo": null, "lines": []}.`;
+
+const MAX_EXTRACT_FILE_BYTES = 10 * 1024 * 1024;
+
+router.post("/bills/extract", async (req, res): Promise<void> => {
+  const rawText = (req.body as { text?: unknown })?.text;
+  if (typeof rawText === "string" && rawText.length > MAX_EXTRACT_TEXT_LENGTH) {
+    res.status(400).json({ error: extractTextTooLargeMessage(rawText.length) });
+    return;
+  }
+
+  const parsed = ExtractBillBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+  const text = (parsed.data.text ?? "").trim();
+  const fileData = (parsed.data.fileData ?? "").trim();
+  const fileName = (parsed.data.fileName ?? "").trim();
+  if (!text && !fileData) {
+    res.status(400).json({
+      error: "Provide some text or attach an image/PDF invoice to extract from",
+    });
+    return;
+  }
+
+  let filePart:
+    | { type: "image_url"; image_url: { url: string } }
+    | { type: "file"; file: { filename: string; file_data: string } }
+    | null = null;
+  if (fileData) {
+    const match = /^data:([a-zA-Z0-9.+/-]+);base64,/.exec(fileData);
+    if (!match) {
+      res
+        .status(400)
+        .json({ error: "The uploaded file must be a base64 data URL" });
+      return;
+    }
+    const mime = match[1].toLowerCase();
+    const base64Body = fileData.slice(match[0].length);
+    const approxBytes = Math.floor((base64Body.length * 3) / 4);
+    if (approxBytes > MAX_EXTRACT_FILE_BYTES) {
+      res.status(400).json({
+        error: "The uploaded file is too large. Keep it under 10 MB.",
+      });
+      return;
+    }
+    if (mime === "application/pdf") {
+      filePart = {
+        type: "file",
+        file: { filename: fileName || "invoice.pdf", file_data: fileData },
+      };
+    } else if (
+      ["image/png", "image/jpeg", "image/webp", "image/gif"].includes(mime)
+    ) {
+      filePart = { type: "image_url", image_url: { url: fileData } };
+    } else {
+      res.status(400).json({
+        error:
+          "Unsupported file type. Upload a PNG, JPEG, WebP, or GIF image, or a PDF.",
+      });
+      return;
+    }
+  }
+
+  let openai;
+  try {
+    ({ openai } = await import("@workspace/integrations-openai-ai-server"));
+  } catch (err) {
+    req.log?.error({ err }, "openai integration unavailable");
+    res.status(503).json({
+      error:
+        "The invoice reading service is not configured. Please try again later.",
+    });
+    return;
+  }
+
+  const userParts: Array<
+    | { type: "text"; text: string }
+    | { type: "image_url"; image_url: { url: string } }
+    | { type: "file"; file: { filename: string; file_data: string } }
+  > = [];
+  if (text) userParts.push({ type: "text", text });
+  if (filePart) {
+    if (!text) {
+      userParts.push({
+        type: "text",
+        text: "Extract the bill details from this invoice file.",
+      });
+    }
+    userParts.push(filePart);
+  }
+
+  let content: string;
+  try {
+    const completion = await openai.chat.completions.create({
+      model: "gpt-5-mini",
+      max_completion_tokens: 8192,
+      response_format: { type: "json_object" },
+      messages: [
+        { role: "system", content: EXTRACT_BILL_SYSTEM_PROMPT },
+        // Cast: the OpenAI SDK's union type for content parts lags behind the
+        // API, which accepts file parts on chat completions.
+        { role: "user", content: userParts as never },
+      ],
+    });
+    content = completion.choices[0]?.message?.content ?? "";
+  } catch (err) {
+    req.log?.error({ err }, "bill extraction failed");
+    res.status(502).json({
+      error: "The invoice reading service is unavailable. Please try again.",
+    });
+    return;
+  }
+
+  let raw: Record<string, unknown>;
+  try {
+    raw = JSON.parse(content) as Record<string, unknown>;
+  } catch {
+    res.status(502).json({
+      error: "Could not read the extracted bill. Please try again.",
+    });
+    return;
+  }
+
+  const str = (v: unknown): string | null =>
+    typeof v === "string" && v.trim() ? v.trim() : null;
+  const dateStr = (v: unknown): string | null => {
+    const s = str(v);
+    return s && /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : null;
+  };
+  const lines = (Array.isArray(raw.lines) ? raw.lines : [])
+    .map((l) => {
+      const line = (l ?? {}) as Record<string, unknown>;
+      const amount =
+        typeof line.amount === "number" && Number.isFinite(line.amount)
+          ? line.amount
+          : null;
+      if (amount == null) return null;
+      return {
+        description: str(line.description),
+        amountCents: Math.round(amount * 100),
+      };
+    })
+    .filter((l): l is { description: string | null; amountCents: number } =>
+      Boolean(l),
+    );
+
+  res.json(
+    ExtractBillResponse.parse({
+      vendorName: str(raw.vendorName),
+      billNumber: str(raw.billNumber),
+      date: dateStr(raw.date),
+      dueDate: dateStr(raw.dueDate),
+      memo: str(raw.memo),
+      lines,
+    }),
+  );
+});
 
 /**
  * Return the first line whose accountId doesn't exist (with its index for a

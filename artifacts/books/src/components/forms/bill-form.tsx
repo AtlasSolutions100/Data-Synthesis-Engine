@@ -22,6 +22,8 @@ import {
   getListJobsQueryKey,
   useListAccounts,
   getListAccountsQueryKey,
+  useListCustomers,
+  getListCustomersQueryKey,
 } from "@workspace/api-client-react";
 import type { BillInput } from "@workspace/api-client-react";
 import { EntityCombobox } from "@/components/forms/entity-combobox";
@@ -36,6 +38,7 @@ const lineSchema = z.object({
 const billSchema = z.object({
   billNumber: z.string().optional(),
   vendorId: z.string().min(1, "Vendor is required"),
+  customerId: z.string().optional(),
   jobId: z.string().optional(),
   date: z.string().min(1, "Date is required"),
   dueDate: z.string().optional(),
@@ -71,12 +74,16 @@ export function BillForm({
   const { data: accounts } = useListAccounts({
     query: { queryKey: getListAccountsQueryKey() },
   });
+  const { data: customers } = useListCustomers({
+    query: { queryKey: getListCustomersQueryKey() },
+  });
 
   const form = useForm<BillFormValues>({
     resolver: zodResolver(billSchema),
     defaultValues: {
       billNumber: defaultValues?.billNumber || "",
       vendorId: defaultValues?.vendorId || "",
+      customerId: defaultValues?.customerId || "",
       jobId: defaultValues?.jobId || "",
       date: defaultValues?.date || new Date().toISOString().split("T")[0],
       dueDate: defaultValues?.dueDate || "",
@@ -108,6 +115,26 @@ export function BillForm({
       message: fieldError.message,
     });
   }, [fieldError, form]);
+
+  const watchedVendorId = form.watch("vendorId");
+  const watchedCustomerId = form.watch("customerId");
+
+  // When editing a bill that already has a job, derive the customer from the
+  // job once the jobs list loads so the cascading selects show correctly.
+  useEffect(() => {
+    if (!jobs) return;
+    const jobId = form.getValues("jobId");
+    if (!jobId || form.getValues("customerId")) return;
+    const job = jobs.find((j) => String(j.id) === jobId);
+    if (job?.customerId != null) {
+      form.setValue("customerId", String(job.customerId));
+    }
+  }, [jobs, form]);
+
+  const filteredJobs = (jobs ?? []).filter(
+    (j) =>
+      !watchedCustomerId || String(j.customerId ?? "") === watchedCustomerId,
+  );
 
   const watchedLines = form.watch("lines");
   const totalCents = (watchedLines ?? []).reduce(
@@ -212,7 +239,38 @@ export function BillForm({
             )}
           />
         </div>
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-2 gap-4">
+          <FormField
+            control={form.control}
+            name="customerId"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Customer</FormLabel>
+                <FormControl>
+                  <EntityCombobox
+                    options={(customers ?? []).map((c) => ({
+                      id: c.id,
+                      label: c.name,
+                    }))}
+                    value={field.value ?? ""}
+                    onChange={(next) => {
+                      field.onChange(next);
+                      form.setValue("jobId", "");
+                    }}
+                    placeholder={
+                      watchedVendorId
+                        ? "Select customer"
+                        : "Select a vendor first"
+                    }
+                    searchPlaceholder="Search customers..."
+                    emptyText="No customers found."
+                    disabled={!watchedVendorId}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
           <FormField
             control={form.control}
             name="jobId"
@@ -221,21 +279,28 @@ export function BillForm({
                 <FormLabel>Job (Optional)</FormLabel>
                 <FormControl>
                   <EntityCombobox
-                    options={(jobs ?? []).map((j) => ({
+                    options={filteredJobs.map((j) => ({
                       id: j.id,
                       label: j.name,
                     }))}
                     value={field.value ?? ""}
                     onChange={field.onChange}
-                    placeholder="Select job"
+                    placeholder={
+                      watchedCustomerId
+                        ? "Select job"
+                        : "Select a customer first"
+                    }
                     searchPlaceholder="Search jobs..."
-                    emptyText="No jobs found."
+                    emptyText="No jobs for this customer."
+                    disabled={!watchedCustomerId}
                   />
                 </FormControl>
                 <FormMessage />
               </FormItem>
             )}
           />
+        </div>
+        <div className="grid grid-cols-2 gap-4">
           <FormField
             control={form.control}
             name="date"

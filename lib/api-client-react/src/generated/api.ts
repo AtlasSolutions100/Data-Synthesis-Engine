@@ -43,6 +43,8 @@ import type {
   EmployeeUpdate,
   Error,
   ErrorResponse,
+  ExtractBillInput,
+  ExtractBillResult,
   ExtractPayrollHoursInput,
   ExtractPayrollHoursResult,
   GetAccountBalanceTransactionsParams,
@@ -4183,6 +4185,77 @@ export const useCreateBill = <TError = ErrorType<ErrorResponse>,
         TContext
       > => {
       return useMutation(getCreateBillMutationOptions(options));
+    }
+
+export const getExtractBillUrl = () => {
+
+
+
+
+  return `/api/bills/extract`
+}
+
+/**
+ * Uses an AI model to parse an uploaded invoice scan (image/PDF) or pasted text into a structured bill draft for review before saving.
+ * @summary Extract bill details from an uploaded invoice
+ */
+export const extractBill = async (extractBillInput: ExtractBillInput, options?: RequestInit): Promise<ExtractBillResult> => {
+
+  return customFetch<ExtractBillResult>(getExtractBillUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(extractBillInput)
+  }
+);}
+
+
+
+
+export const getExtractBillMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof extractBill>>, TError,{data: BodyType<ExtractBillInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof extractBill>>, TError,{data: BodyType<ExtractBillInput>}, TContext> => {
+
+const mutationKey = ['extractBill'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof extractBill>>, {data: BodyType<ExtractBillInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  extractBill(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ExtractBillMutationResult = NonNullable<Awaited<ReturnType<typeof extractBill>>>
+    export type ExtractBillMutationBody = BodyType<ExtractBillInput>
+    export type ExtractBillMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Extract bill details from an uploaded invoice
+ */
+export const useExtractBill = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof extractBill>>, TError,{data: BodyType<ExtractBillInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof extractBill>>,
+        TError,
+        {data: BodyType<ExtractBillInput>},
+        TContext
+      > => {
+      return useMutation(getExtractBillMutationOptions(options));
     }
 
 export const getGetBillUrl = (id: number,) => {

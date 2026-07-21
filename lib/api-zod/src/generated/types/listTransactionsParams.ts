@@ -10,6 +10,7 @@ import type { StartDateParamParameter } from './startDateParamParameter';
 
 export type ListTransactionsParams = {
 jobId?: number;
+customerId?: number;
 accountId?: number;
 vendorId?: number;
 type?: string;

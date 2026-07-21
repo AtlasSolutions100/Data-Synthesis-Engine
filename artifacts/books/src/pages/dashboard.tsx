@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { DollarSign, Activity, CreditCard, Users, ChevronRight, ChevronDown } from "lucide-react";
 import { Link } from "wouter";
 import { DateRangePicker, type DateRangeValue, describeRange } from "@/components/date-range-picker";
+import { QuickJobDocUploadDialog } from "@/components/quick-upload-dialog";
 
 export default function Dashboard() {
   const [range, setRange] = useState<DateRangeValue>({});
@@ -52,7 +53,10 @@ export default function Dashboard() {
             <span className="font-medium text-slate-700">{describeRange(range)}</span>
           </p>
         </div>
-        <DateRangePicker value={range} onChange={setRange} />
+        <div className="flex items-end gap-3">
+          <QuickJobDocUploadDialog />
+          <DateRangePicker value={range} onChange={setRange} />
+        </div>
       </div>
 
       {isLoading ? (

@@ -31,6 +31,10 @@ vi.mock("@workspace/api-client-react", () => ({
     ],
   }),
   getListAccountsQueryKey: () => ["/api/accounts"],
+  useListCustomers: () => ({
+    data: [{ id: 7, name: "HR Stadium LLC" }],
+  }),
+  getListCustomersQueryKey: () => ["/api/customers"],
 }));
 
 beforeAll(() => {

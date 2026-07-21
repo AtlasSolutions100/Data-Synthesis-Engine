@@ -37,7 +37,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useQueryClient } from "@tanstack/react-query";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2, Upload } from "lucide-react";
 
 const CURRENT_YEAR = new Date().getFullYear();
 const YEAR_OPTIONS = Array.from({ length: 6 }, (_, i) => CURRENT_YEAR - i);
@@ -45,6 +45,7 @@ const YEAR_OPTIONS = Array.from({ length: 6 }, (_, i) => CURRENT_YEAR - i);
 export default function Payroll() {
   const queryClient = useQueryClient();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [autoOpenImport, setAutoOpenImport] = useState(false);
   const [range, setRange] = useState<DateRangeValue>({});
 
   const params = { startDate: range.startDate, endDate: range.endDate };
@@ -111,7 +112,23 @@ export default function Payroll() {
           </SelectContent>
         </Select>
         <DateRangePicker value={range} onChange={setRange} />
-        <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+        <Button
+          variant="outline"
+          data-testid="button-upload-timesheet"
+          onClick={() => {
+            setAutoOpenImport(true);
+            setIsCreateOpen(true);
+          }}
+        >
+          <Upload className="mr-2 h-4 w-4" /> Upload Timesheet
+        </Button>
+        <Dialog
+          open={isCreateOpen}
+          onOpenChange={(open) => {
+            setIsCreateOpen(open);
+            if (!open) setAutoOpenImport(false);
+          }}
+        >
           <DialogTrigger asChild>
             <Button className="bg-blue-600 hover:bg-blue-700">
               <Plus className="mr-2 h-4 w-4" /> New Time Card Run
@@ -122,6 +139,8 @@ export default function Payroll() {
               <DialogTitle>New Time Card Run</DialogTitle>
             </DialogHeader>
             <PayrollRunForm
+              key={autoOpenImport ? "import" : "manual"}
+              autoOpenImport={autoOpenImport}
               onSubmit={(data) => createRun.mutate({ data })}
               isLoading={createRun.isPending}
             />

@@ -571,6 +571,11 @@ paths:
           required: false
           schema:
             type: integer
+        - name: customerId
+          in: query
+          required: false
+          schema:
+            type: integer
         - name: accountId
           in: query
           required: false
@@ -743,6 +748,18 @@ paths:
       parameters:
         - $ref: "#/components/parameters/StartDateParam"
         - $ref: "#/components/parameters/EndDateParam"
+        - name: customerId
+          in: query
+          required: false
+          schema:
+            type: integer
+          description: Only include costs on jobs belonging to this customer
+        - name: jobId
+          in: query
+          required: false
+          schema:
+            type: integer
+          description: Only include costs on this job
       responses:
         "200":
           description: Account totals
@@ -1020,6 +1037,27 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Bill"
+        "400":
+          $ref: "#/components/responses/Error"
+  /bills/extract:
+    post:
+      operationId: extractBill
+      tags: [bills]
+      summary: Extract bill details from an uploaded invoice
+      description: Uses an AI model to parse an uploaded invoice scan (image/PDF) or pasted text into a structured bill draft for review before saving.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ExtractBillInput"
+      responses:
+        "200":
+          description: Extracted bill draft
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExtractBillResult"
         "400":
           $ref: "#/components/responses/Error"
   /bills/{id}:
@@ -2827,6 +2865,50 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/PayrollLineInput"
+    ExtractBillInput:
+      type: object
+      properties:
+        text:
+          type: string
+          maxLength: 20000
+          description: Free-form pasted invoice text
+        fileData:
+          type: string
+          maxLength: 14000000
+          description: Base64 data URL of an uploaded invoice image or PDF
+        fileName:
+          type: string
+          maxLength: 300
+          description: Original filename of the uploaded image/PDF, used to detect the file type
+    ExtractedBillLine:
+      type: object
+      required: [amountCents]
+      properties:
+        description:
+          type: ["string", "null"]
+        amountCents:
+          type: integer
+          description: Line amount in integer cents
+    ExtractBillResult:
+      type: object
+      required: [lines]
+      properties:
+        vendorName:
+          type: ["string", "null"]
+          description: Vendor name as written on the invoice
+        billNumber:
+          type: ["string", "null"]
+        date:
+          type: ["string", "null"]
+          description: Invoice date (YYYY-MM-DD) when stated
+        dueDate:
+          type: ["string", "null"]
+        memo:
+          type: ["string", "null"]
+        lines:
+          type: array
+          items:
+            $ref: "#/components/schemas/ExtractedBillLine"
     ExtractPayrollHoursInput:
       type: object
       properties:

@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { JobForm } from "@/components/forms/job-form";
 import { useQueryClient } from "@tanstack/react-query";
 import { Plus, Edit2, Trash2 } from "lucide-react";
+import { QuickJobDocUploadDialog } from "@/components/quick-upload-dialog";
 
 export default function Jobs() {
   const queryClient = useQueryClient();
@@ -56,6 +57,8 @@ export default function Jobs() {
           <h1 className="text-3xl font-bold tracking-tight text-slate-900">Jobs</h1>
           <p className="text-slate-500 mt-1">Manage construction projects and job costing</p>
         </div>
+        <div className="flex items-center gap-2">
+        <QuickJobDocUploadDialog />
         <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
           <DialogTrigger asChild>
             <Button className="bg-blue-600 hover:bg-blue-700">
@@ -72,6 +75,7 @@ export default function Jobs() {
             />
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       <Card>

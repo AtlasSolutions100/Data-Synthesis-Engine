@@ -1,11 +1,15 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   useListBills,
   useCreateBill,
   useDeleteBill,
+  useExtractBill,
+  useListVendors,
+  getListVendorsQueryKey,
   getListBillsQueryKey,
   getGetApAgingQueryKey,
 } from "@workspace/api-client-react";
+import type { ExtractBillResult } from "@workspace/api-client-react";
 import { formatCents } from "@/lib/format";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -32,7 +36,191 @@ import {
   type ServerFieldError,
 } from "@/lib/server-field-error";
 import { useQueryClient } from "@tanstack/react-query";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2, Upload, Loader2 } from "lucide-react";
+
+const UPLOAD_MAX_BYTES = 10 * 1024 * 1024;
+
+type BillPrefill = {
+  vendorId?: string;
+  billNumber?: string;
+  date?: string;
+  dueDate?: string;
+  memo?: string;
+  lines?: { accountId: string; description: string; amount: string }[];
+};
+
+function UploadInvoiceDialog({
+  onExtracted,
+}: {
+  onExtracted: (prefill: BillPrefill, note: string | null) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [error, setError] = useState("");
+  const [fileName, setFileName] = useState("");
+  const [dragOver, setDragOver] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const extract = useExtractBill();
+  const { data: vendors } = useListVendors({
+    query: { queryKey: getListVendorsQueryKey() },
+  });
+
+  const reset = () => {
+    setError("");
+    setFileName("");
+    setDragOver(false);
+    extract.reset();
+  };
+
+  const finish = (result: ExtractBillResult) => {
+    const norm = (s: string) => s.trim().toLowerCase();
+    const matched =
+      result.vendorName && vendors
+        ? vendors.find(
+            (v) =>
+              norm(v.name) === norm(result.vendorName!) ||
+              norm(v.name).includes(norm(result.vendorName!)) ||
+              norm(result.vendorName!).includes(norm(v.name)),
+          )
+        : undefined;
+    const prefill: BillPrefill = {
+      vendorId: matched ? String(matched.id) : "",
+      billNumber: result.billNumber ?? "",
+      date: result.date ?? undefined,
+      dueDate: result.dueDate ?? "",
+      memo: result.memo ?? "",
+      lines: result.lines.length
+        ? result.lines.map((l) => ({
+            accountId: "",
+            description: l.description ?? "",
+            amount: (l.amountCents / 100).toFixed(2),
+          }))
+        : undefined,
+    };
+    const note =
+      result.vendorName && !matched
+        ? `Vendor "${result.vendorName}" was read from the invoice but doesn't match any vendor on file — pick the right vendor below.`
+        : null;
+    setOpen(false);
+    reset();
+    onExtracted(prefill, note);
+  };
+
+  const handleFile = (file: File | undefined) => {
+    if (!file) return;
+    setError("");
+    if (file.size > UPLOAD_MAX_BYTES) {
+      setError("File is larger than 10 MB. Upload a smaller file.");
+      return;
+    }
+    setFileName(file.name);
+    const isTextLike =
+      file.type.startsWith("text/") || /\.(txt|csv)$/i.test(file.name);
+    const reader = new FileReader();
+    reader.onload = () => {
+      const payload = isTextLike
+        ? { text: String(reader.result ?? "") }
+        : { fileData: String(reader.result ?? ""), fileName: file.name };
+      extract.mutate(
+        { data: payload },
+        {
+          onSuccess: (result) => {
+            if (!result.lines.length && !result.vendorName) {
+              setError(
+                "Couldn't find invoice details in that file. Try a clearer scan or enter the bill manually.",
+              );
+              return;
+            }
+            finish(result);
+          },
+          onError: (err) => {
+            const msg =
+              (err as { error?: string } | null)?.error ??
+              "Couldn't read the invoice. Please try again.";
+            setError(msg);
+          },
+        },
+      );
+    };
+    if (isTextLike) reader.readAsText(file);
+    else reader.readAsDataURL(file);
+  };
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        if (!next) reset();
+      }}
+    >
+      <DialogTrigger asChild>
+        <Button variant="outline" data-testid="button-upload-invoice">
+          <Upload className="mr-2 h-4 w-4" /> Upload Invoice
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-[480px]">
+        <DialogHeader>
+          <DialogTitle>Upload an Invoice</DialogTitle>
+        </DialogHeader>
+        <p className="text-sm text-slate-500">
+          Drop an invoice scan, photo, or PDF and the details will be read
+          automatically into a new bill for your review.
+        </p>
+        <div
+          className={`rounded-lg border-2 border-dashed p-8 text-center cursor-pointer transition-colors ${
+            dragOver
+              ? "border-blue-500 bg-blue-50"
+              : "border-slate-300 hover:border-slate-400"
+          }`}
+          onClick={() => fileInputRef.current?.click()}
+          onDragOver={(e) => {
+            e.preventDefault();
+            setDragOver(true);
+          }}
+          onDragLeave={() => setDragOver(false)}
+          onDrop={(e) => {
+            e.preventDefault();
+            setDragOver(false);
+            handleFile(e.dataTransfer.files?.[0]);
+          }}
+          data-testid="dropzone-invoice"
+        >
+          {extract.isPending ? (
+            <div className="flex flex-col items-center gap-2 text-slate-600">
+              <Loader2 className="h-6 w-6 animate-spin" />
+              <p className="text-sm">Reading {fileName || "invoice"}…</p>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center gap-2 text-slate-600">
+              <Upload className="h-6 w-6" />
+              <p className="text-sm font-medium">
+                Drag & drop an invoice here, or click to browse
+              </p>
+              <p className="text-xs text-slate-400">
+                PDF, PNG, JPG, WebP, or text — up to 10 MB
+              </p>
+            </div>
+          )}
+        </div>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".pdf,.png,.jpg,.jpeg,.webp,.gif,.txt,.csv,application/pdf,image/*,text/plain"
+          className="hidden"
+          onChange={(e) => {
+            handleFile(e.target.files?.[0]);
+            e.target.value = "";
+          }}
+        />
+        {error ? (
+          <p role="alert" className="text-sm font-medium text-destructive">
+            {error}
+          </p>
+        ) : null}
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 const statusVariant: Record<string, "default" | "secondary" | "outline"> = {
   paid: "secondary",
@@ -43,6 +231,9 @@ const statusVariant: Record<string, "default" | "secondary" | "outline"> = {
 export default function Bills() {
   const queryClient = useQueryClient();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [prefill, setPrefill] = useState<BillPrefill | null>(null);
+  const [prefillNote, setPrefillNote] = useState<string | null>(null);
+  const [prefillVersion, setPrefillVersion] = useState(0);
 
   const { data: bills, isLoading } = useListBills(undefined, {
     query: { queryKey: getListBillsQueryKey() },
@@ -88,32 +279,54 @@ export default function Bills() {
             Vendor bills, payments & credits (Accounts Payable)
           </p>
         </div>
-        <Dialog
-          open={isCreateOpen}
-          onOpenChange={(open) => {
-            setIsCreateOpen(open);
-            if (!open) setCreateError(null);
-          }}
-        >
-          <DialogTrigger asChild>
-            <Button className="bg-blue-600 hover:bg-blue-700">
-              <Plus className="mr-2 h-4 w-4" /> New Bill
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-[680px]">
-            <DialogHeader>
-              <DialogTitle>Create Bill</DialogTitle>
-            </DialogHeader>
-            <BillForm
-              onSubmit={(data) => {
+        <div className="flex items-center gap-2">
+          <UploadInvoiceDialog
+            onExtracted={(extracted, note) => {
+              setPrefill(extracted);
+              setPrefillNote(note);
+              setPrefillVersion((v) => v + 1);
+              setCreateError(null);
+              setIsCreateOpen(true);
+            }}
+          />
+          <Dialog
+            open={isCreateOpen}
+            onOpenChange={(open) => {
+              setIsCreateOpen(open);
+              if (!open) {
                 setCreateError(null);
-                createBill.mutate({ data });
-              }}
-              isLoading={createBill.isPending}
-              serverError={createError}
-            />
-          </DialogContent>
-        </Dialog>
+                setPrefill(null);
+                setPrefillNote(null);
+              }
+            }}
+          >
+            <DialogTrigger asChild>
+              <Button className="bg-blue-600 hover:bg-blue-700">
+                <Plus className="mr-2 h-4 w-4" /> New Bill
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[680px]">
+              <DialogHeader>
+                <DialogTitle>Create Bill</DialogTitle>
+              </DialogHeader>
+              {prefillNote ? (
+                <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
+                  {prefillNote}
+                </p>
+              ) : null}
+              <BillForm
+                key={prefill ? `prefilled-${prefillVersion}` : "blank"}
+                defaultValues={prefill ?? undefined}
+                onSubmit={(data) => {
+                  setCreateError(null);
+                  createBill.mutate({ data });
+                }}
+                isLoading={createBill.isPending}
+                serverError={createError}
+              />
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       <Card>

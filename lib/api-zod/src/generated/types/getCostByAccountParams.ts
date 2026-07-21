@@ -19,4 +19,12 @@ startDate?: StartDateParamParameter;
  * @pattern ^\d{4}-\d{2}-\d{2}$
  */
 endDate?: EndDateParamParameter;
+/**
+ * Only include costs on jobs belonging to this customer
+ */
+customerId?: number;
+/**
+ * Only include costs on this job
+ */
+jobId?: number;
 };
