@@ -1,0 +1,62 @@
+Replit: Some changes have already been implemented (especially customer hierarchy, Job Name / PO Number handling, and Time Cards). Your job is to:
+- Verify they are working correctly as described.
+- Confirm to me (with testing steps) when each item is complete and working.
+1. Job / PO Labeling — Make This Change EVERYWHERE in the App
+   - Find and change ALL references to “Job Number” (or similar labels like job# , job id when used as identifier) to exactly “PO Number”.
+   - This change must be applied consistently across the entire application, including but not limited to:
+     - Dashboard
+     - Customer views
+     - Job detail pages
+     - Lists and tables
+     - Reports
+     - Any forms, headers, tooltips, or export files
+   - PO Number must be its own dedicated, clearly labeled field.
+   - Never append or embed the PO number into the customer name or job name display.
+   - The job identifier field must be labeled “Job Name” everywhere (not “Name” or “Job Number”).
+
+   Test with examples:
+   - Customer: Douglas County Schools
+   - Job: HR Stadium (should show as Job Name, with separate PO Number field)
+
+CRITICAL ARCHITECTURE REQUIREMENT — SINGLE SOURCE OF TRUTH (SSOT)
+This is extremely important and must be strictly followed across the entire system:
+There needs to be a Single Source of Truth (SSOT). Every number is entered just once at the transactional level. The software automatically links, "rolls up," and pushes this exact data to the client profile and the Profit & Loss (P&L) report.
+Here is exactly how this connected architecture works across the workflow:
+- The Single Source of Truth: Every time  an invoice, record an expense, or pay a bill, the transaction is logged here. This is the origin point.
+- The "Roll Up" (Subledgers to Control Accounts): A roll-up is the automatic grouping of detailed data into broader categories. For example, dozens of individual client transactions (the subledger) are automatically grouped (rolled up) into your Accounts Receivable or Revenue accounts in the General Ledger.
+- The Client Level: Because the software is connected, when you look at an individual Client's Ledger (or customer account), you see a filtered view of only their specific transactions.
+- The P&L (Profit and Loss): This statement pulls data from the aggregated revenue and expense accounts in your GL. It sums up all the rolled-up client totals and operational costs to show your net profit for a specific period.
+All changes in this task must respect and reinforce this SSOT architecture. Data should never be duplicated manually — everything must flow automatically from the transactional/GL level.
+
+---
+
+CHANGES TO IMPLEMENT / VERIFY
+
+1. Customer → Jobs Hierarchy (Confirm / Polish)
+   - Customers are the anchor. Opening the Customers view shows top-level customers (example: "Douglas County Schools").
+   - Clicking a customer shows its detail page with every job listed directly underneath (examples: "HR Stadium", "RVMS Moblies", etc.).
+   - Clicking a job under the customer opens the full job detail page with transactions and costs.
+   - PO Number is its own separate field — never appended to customer or job name.
+   - Label is "Job Name" everywhere.
+   - Search works the same way: find customer → see jobs immediately below.
+
+2. Dashboard Simplification
+   - Completely remove "Over and Under Billings" (Mike considers it unnecessary clutter).
+   - Add profit percentage display right next to the profit amount (in the green section) so it clearly shows e.g. "24%".
+
+3. General Cleanliness
+   - Keep the interface simple and clean. Remove any QuickBooks-style junk that is not needed.
+   - Ensure the SSOT flow is evident and working (transactions roll up correctly to client ledgers and P&L).
+
+---
+
+EXECUTION INSTRUCTIONS
+- First, explore the current codebase and confirm which items from the hierarchy and dashboard are already implemented.
+- Make any missing adjustments or polish needed.
+- After changes, provide:
+  - Clear confirmation for each item (e.g., "Customer hierarchy verified and working with Douglas County Schools example")
+  - Step-by-step testing instructions I can run
+  - List of files modified
+- Strictly follow the SSOT architecture described above in all edits.
+
+Ask me any questions that are not clear or that might contradict each other 
