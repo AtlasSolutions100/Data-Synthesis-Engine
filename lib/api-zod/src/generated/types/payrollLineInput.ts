@@ -20,6 +20,11 @@ export interface PayrollLineInput {
   regularHours?: number;
   /** @minimum 0 */
   overtimeHours?: number;
+  /**
+     * Combined Holiday / Vacation / Sick hours, paid at the straight-time rate
+     * @minimum 0
+     */
+  holidayHours?: number;
   /** @nullable */
   straightRateCents?: number | null;
   /** @nullable */

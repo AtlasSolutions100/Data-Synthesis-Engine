@@ -376,6 +376,30 @@ paths:
           description: Deleted
         "404":
           $ref: "#/components/responses/Error"
+  /employees/{id}/timecards:
+    get:
+      operationId: listEmployeeTimecards
+      tags: [employees]
+      summary: List an employee's time card history across payroll runs
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+        - name: year
+          in: query
+          required: false
+          description: Restrict to runs whose pay period starts in this calendar year; omit for all years
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Time card rows, newest pay period first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/EmployeeTimecardRow"
+        "404":
+          $ref: "#/components/responses/Error"
 
   /jobs:
     get:
@@ -2554,8 +2578,10 @@ components:
           workerName,
           regularHours,
           overtimeHours,
+          holidayHours,
           regularWagesCents,
           overtimeWagesCents,
+          holidayWagesCents,
           grossWagesCents,
           socialSecurityCents,
           medicareCents,
@@ -2585,6 +2611,9 @@ components:
           type: number
         overtimeHours:
           type: number
+        holidayHours:
+          type: number
+          description: Combined Holiday / Vacation / Sick hours, paid at the straight-time rate
         straightRateCents:
           type: ["integer", "null"]
         overtimeRateCents:
@@ -2595,6 +2624,8 @@ components:
         regularWagesCents:
           type: integer
         overtimeWagesCents:
+          type: integer
+        holidayWagesCents:
           type: integer
         grossWagesCents:
           type: integer
@@ -2638,6 +2669,11 @@ components:
           type: number
           minimum: 0
           default: 0
+        holidayHours:
+          type: number
+          minimum: 0
+          default: 0
+          description: Combined Holiday / Vacation / Sick hours, paid at the straight-time rate
         straightRateCents:
           type: ["integer", "null"]
         overtimeRateCents:
@@ -2782,16 +2818,40 @@ components:
             $ref: "#/components/schemas/PayrollLineInput"
     ExtractPayrollHoursInput:
       type: object
-      required: [text]
       properties:
         text:
           type: string
-          minLength: 1
           maxLength: 20000
           description: Free-form pasted email text or uploaded timesheet contents
+        fileData:
+          type: string
+          maxLength: 14000000
+          description: Base64 data URL of an uploaded image or PDF timesheet (scan/photo)
+        fileName:
+          type: string
+          maxLength: 300
+          description: Original filename of the uploaded image/PDF, used to detect the file type
+    ExtractedDayEntry:
+      type: object
+      required: [hours]
+      properties:
+        date:
+          type: ["string", "null"]
+          description: Work date (YYYY-MM-DD) when stated in the source
+        jobName:
+          type: ["string", "null"]
+          description: Job name as written in the source (not yet matched to a job record)
+        hours:
+          type: number
+          minimum: 0
+        costType:
+          type: string
+          enum: [regular, overtime, holiday]
+          default: regular
+          description: Labor cost bucket; "holiday" covers Holiday / Vacation / Sick
     ExtractedHourRow:
       type: object
-      required: [workerName, regularHours, overtimeHours]
+      required: [workerName, regularHours, overtimeHours, holidayHours]
       properties:
         workerName:
           type: string
@@ -2801,6 +2861,14 @@ components:
         overtimeHours:
           type: number
           minimum: 0
+        holidayHours:
+          type: number
+          minimum: 0
+        entries:
+          type: array
+          items:
+            $ref: "#/components/schemas/ExtractedDayEntry"
+          description: Per-day detail rows (date, job, hours) when the source lists them
     ExtractPayrollHoursResult:
       type: object
       required: [rows]
@@ -2809,6 +2877,42 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ExtractedHourRow"
+    EmployeeTimecardRow:
+      type: object
+      required:
+        [
+          runId,
+          payPeriodStart,
+          payPeriodEnd,
+          payDate,
+          posted,
+          regularHours,
+          overtimeHours,
+          holidayHours,
+          grossWagesCents,
+          totalCostCents,
+        ]
+      properties:
+        runId:
+          type: integer
+        payPeriodStart:
+          type: string
+        payPeriodEnd:
+          type: string
+        payDate:
+          type: string
+        posted:
+          type: boolean
+        regularHours:
+          type: number
+        overtimeHours:
+          type: number
+        holidayHours:
+          type: number
+        grossWagesCents:
+          type: integer
+        totalCostCents:
+          type: integer
     PayrollByJobRow:
       type: object
       required:

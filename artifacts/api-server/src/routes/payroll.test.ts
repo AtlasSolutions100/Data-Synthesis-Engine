@@ -593,7 +593,7 @@ describe("POST /api/payroll/extract-hours error handling", () => {
     expect(res.status).toBe(400);
     // Exact-match: mirrors the frontend contract test for the "no rows" case.
     expect(res.body.error).toBe(
-      "No worker hours were found in that text. Check the format and try again.",
+      "No worker hours were found. Check the format and try again.",
     );
     expect(mockCreate).toHaveBeenCalledTimes(1);
   });
@@ -618,7 +618,7 @@ describe("POST /api/payroll/extract-hours error handling", () => {
 
     expect(res.status).toBe(400);
     expect(res.body.error).toBe(
-      "No worker hours were found in that text. Check the format and try again.",
+      "No worker hours were found. Check the format and try again.",
     );
   });
 
@@ -653,7 +653,13 @@ describe("POST /api/payroll/extract-hours error handling", () => {
 
     expect(res.status).toBe(200);
     expect(res.body.rows).toEqual([
-      { workerName: "Jane Doe", regularHours: 40, overtimeHours: 5 },
+      {
+        workerName: "Jane Doe",
+        regularHours: 40,
+        overtimeHours: 5,
+        holidayHours: 0,
+        entries: [],
+      },
     ]);
     expect(mockCreate).toHaveBeenCalledTimes(1);
   });

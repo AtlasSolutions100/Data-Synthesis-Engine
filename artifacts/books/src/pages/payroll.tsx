@@ -90,10 +90,10 @@ export default function Payroll() {
       <div className="flex items-end justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-slate-900">
-            Payroll
+            Time Cards
           </h1>
           <p className="mt-1 text-slate-500">
-            Pay-period runs with burdened labor cost posted to jobs
+            Pay-period time card runs with burdened labor cost posted to jobs
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -114,12 +114,12 @@ export default function Payroll() {
         <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
           <DialogTrigger asChild>
             <Button className="bg-blue-600 hover:bg-blue-700">
-              <Plus className="mr-2 h-4 w-4" /> New Payroll Run
+              <Plus className="mr-2 h-4 w-4" /> New Time Card Run
             </Button>
           </DialogTrigger>
           <DialogContent className="sm:max-w-[760px]">
             <DialogHeader>
-              <DialogTitle>Create Payroll Run</DialogTitle>
+              <DialogTitle>New Time Card Run</DialogTitle>
             </DialogHeader>
             <PayrollRunForm
               onSubmit={(data) => createRun.mutate({ data })}
@@ -151,7 +151,7 @@ export default function Payroll() {
                     colSpan={7}
                     className="py-8 text-center text-slate-500"
                   >
-                    Loading payroll runs...
+                    Loading time card runs...
                   </TableCell>
                 </TableRow>
               ) : runs?.length === 0 ? (
@@ -160,7 +160,7 @@ export default function Payroll() {
                     colSpan={7}
                     className="py-8 text-center text-slate-500"
                   >
-                    No payroll runs yet.
+                    No time card runs yet.
                   </TableCell>
                 </TableRow>
               ) : (
@@ -204,7 +204,7 @@ export default function Payroll() {
                               : "Delete run"
                           }
                           onClick={() => {
-                            if (confirm("Delete this payroll run?")) {
+                            if (confirm("Delete this time card run?")) {
                               deleteRun.mutate({ id: run.id });
                             }
                           }}

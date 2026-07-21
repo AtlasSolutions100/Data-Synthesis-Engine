@@ -1040,6 +1040,8 @@ export interface PayrollLine {
   workerName: string;
   regularHours: number;
   overtimeHours: number;
+  /** Combined Holiday / Vacation / Sick hours, paid at the straight-time rate */
+  holidayHours: number;
   /** @nullable */
   straightRateCents?: number | null;
   /** @nullable */
@@ -1048,6 +1050,7 @@ export interface PayrollLine {
   taxExempt: boolean;
   regularWagesCents: number;
   overtimeWagesCents: number;
+  holidayWagesCents: number;
   grossWagesCents: number;
   socialSecurityCents: number;
   medicareCents: number;
@@ -1079,6 +1082,11 @@ export interface PayrollLineInput {
   regularHours?: number;
   /** @minimum 0 */
   overtimeHours?: number;
+  /**
+     * Combined Holiday / Vacation / Sick hours, paid at the straight-time rate
+     * @minimum 0
+     */
+  holidayHours?: number;
   /** @nullable */
   straightRateCents?: number | null;
   /** @nullable */
@@ -1162,10 +1170,48 @@ export interface PayrollRunUpdate {
 export interface ExtractPayrollHoursInput {
   /**
      * Free-form pasted email text or uploaded timesheet contents
-     * @minLength 1
      * @maxLength 20000
      */
-  text: string;
+  text?: string;
+  /**
+     * Base64 data URL of an uploaded image or PDF timesheet (scan/photo)
+     * @maxLength 14000000
+     */
+  fileData?: string;
+  /**
+     * Original filename of the uploaded image/PDF, used to detect the file type
+     * @maxLength 300
+     */
+  fileName?: string;
+}
+
+/**
+ * Labor cost bucket; "holiday" covers Holiday / Vacation / Sick
+ */
+export type ExtractedDayEntryCostType = typeof ExtractedDayEntryCostType[keyof typeof ExtractedDayEntryCostType];
+
+
+export const ExtractedDayEntryCostType = {
+  regular: 'regular',
+  overtime: 'overtime',
+  holiday: 'holiday',
+} as const;
+
+export interface ExtractedDayEntry {
+  /**
+     * Work date (YYYY-MM-DD) when stated in the source
+     * @nullable
+     */
+  date?: string | null;
+  /**
+     * Job name as written in the source (not yet matched to a job record)
+     * @nullable
+     */
+  jobName?: string | null;
+  /** @minimum 0 */
+  hours: number;
+  /** Labor cost bucket; "holiday" covers Holiday / Vacation / Sick */
+  costType?: ExtractedDayEntryCostType;
 }
 
 export interface ExtractedHourRow {
@@ -1174,10 +1220,27 @@ export interface ExtractedHourRow {
   regularHours: number;
   /** @minimum 0 */
   overtimeHours: number;
+  /** @minimum 0 */
+  holidayHours: number;
+  /** Per-day detail rows (date, job, hours) when the source lists them */
+  entries?: ExtractedDayEntry[];
 }
 
 export interface ExtractPayrollHoursResult {
   rows: ExtractedHourRow[];
+}
+
+export interface EmployeeTimecardRow {
+  runId: number;
+  payPeriodStart: string;
+  payPeriodEnd: string;
+  payDate: string;
+  posted: boolean;
+  regularHours: number;
+  overtimeHours: number;
+  holidayHours: number;
+  grossWagesCents: number;
+  totalCostCents: number;
 }
 
 export interface PayrollByJobRow {
@@ -1300,6 +1363,13 @@ export type EndDateParamParameter = string;
  * Report balances as of this date, inclusive (YYYY-MM-DD). When omitted, all transactions count regardless of date; aging buckets are computed relative to today.
  */
 export type AsOfDateParamParameter = string;
+
+export type ListEmployeeTimecardsParams = {
+/**
+ * Restrict to runs whose pay period starts in this calendar year; omit for all years
+ */
+year?: number;
+};
 
 export type ListJobsParams = {
 customerId?: number;

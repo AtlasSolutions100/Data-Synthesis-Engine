@@ -72,6 +72,14 @@ export const payrollLinesTable = pgTable("payroll_lines", {
   })
     .notNull()
     .default(0),
+  // Combined Holiday / Vacation / Sick bucket, paid at the straight-time rate.
+  holidayHours: numeric("holiday_hours", {
+    precision: 10,
+    scale: 2,
+    mode: "number",
+  })
+    .notNull()
+    .default(0),
   straightRateCents: bigint("straight_rate_cents", { mode: "number" }),
   overtimeRateCents: bigint("overtime_rate_cents", { mode: "number" }),
   // Whether employer burden was intentionally waived for this line. Persisted
@@ -81,6 +89,9 @@ export const payrollLinesTable = pgTable("payroll_lines", {
     .notNull()
     .default(0),
   overtimeWagesCents: bigint("overtime_wages_cents", { mode: "number" })
+    .notNull()
+    .default(0),
+  holidayWagesCents: bigint("holiday_wages_cents", { mode: "number" })
     .notNull()
     .default(0),
   grossWagesCents: bigint("gross_wages_cents", { mode: "number" })

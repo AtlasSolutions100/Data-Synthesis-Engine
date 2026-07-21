@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { ExtractedDayEntry } from './extractedDayEntry';
 
 export interface ExtractedHourRow {
   workerName: string;
@@ -12,4 +13,8 @@ export interface ExtractedHourRow {
   regularHours: number;
   /** @minimum 0 */
   overtimeHours: number;
+  /** @minimum 0 */
+  holidayHours: number;
+  /** Per-day detail rows (date, job, hours) when the source lists them */
+  entries?: ExtractedDayEntry[];
 }

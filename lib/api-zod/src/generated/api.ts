@@ -376,6 +376,32 @@ export const DeleteEmployeeResponse = zod.void()
 
 
 /**
+ * @summary List an employee's time card history across payroll runs
+ */
+export const ListEmployeeTimecardsParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ListEmployeeTimecardsQueryParams = zod.object({
+  "year": zod.coerce.number().optional().describe('Restrict to runs whose pay period starts in this calendar year; omit for all years')
+})
+
+export const ListEmployeeTimecardsResponseItem = zod.object({
+  "runId": zod.number(),
+  "payPeriodStart": zod.string(),
+  "payPeriodEnd": zod.string(),
+  "payDate": zod.string(),
+  "posted": zod.boolean(),
+  "regularHours": zod.number(),
+  "overtimeHours": zod.number(),
+  "holidayHours": zod.number(),
+  "grossWagesCents": zod.number(),
+  "totalCostCents": zod.number()
+})
+export const ListEmployeeTimecardsResponse = zod.array(ListEmployeeTimecardsResponseItem)
+
+
+/**
  * @summary List jobs
  */
 export const ListJobsQueryParams = zod.object({
@@ -1744,11 +1770,13 @@ export const ListPayrollRunsResponseItem = zod.object({
   "workerName": zod.string(),
   "regularHours": zod.number(),
   "overtimeHours": zod.number(),
+  "holidayHours": zod.number().describe('Combined Holiday \/ Vacation \/ Sick hours, paid at the straight-time rate'),
   "straightRateCents": zod.number().nullish(),
   "overtimeRateCents": zod.number().nullish(),
   "taxExempt": zod.boolean().describe('When true, employer payroll taxes were skipped for this line'),
   "regularWagesCents": zod.number(),
   "overtimeWagesCents": zod.number(),
+  "holidayWagesCents": zod.number(),
   "grossWagesCents": zod.number(),
   "socialSecurityCents": zod.number(),
   "medicareCents": zod.number(),
@@ -1790,6 +1818,9 @@ export const createPayrollRunBodyLinesItemRegularHoursMin = 0;
 export const createPayrollRunBodyLinesItemOvertimeHoursDefault = 0;
 export const createPayrollRunBodyLinesItemOvertimeHoursMin = 0;
 
+export const createPayrollRunBodyLinesItemHolidayHoursDefault = 0;
+export const createPayrollRunBodyLinesItemHolidayHoursMin = 0;
+
 export const createPayrollRunBodyLinesItemTaxExemptDefault = false;
 
 
@@ -1811,6 +1842,7 @@ export const CreatePayrollRunBody = zod.object({
   "workerName": zod.string().min(1),
   "regularHours": zod.number().min(createPayrollRunBodyLinesItemRegularHoursMin).default(createPayrollRunBodyLinesItemRegularHoursDefault),
   "overtimeHours": zod.number().min(createPayrollRunBodyLinesItemOvertimeHoursMin).default(createPayrollRunBodyLinesItemOvertimeHoursDefault),
+  "holidayHours": zod.number().min(createPayrollRunBodyLinesItemHolidayHoursMin).default(createPayrollRunBodyLinesItemHolidayHoursDefault).describe('Combined Holiday \/ Vacation \/ Sick hours, paid at the straight-time rate'),
   "straightRateCents": zod.number().nullish(),
   "overtimeRateCents": zod.number().nullish(),
   "taxExempt": zod.boolean().default(createPayrollRunBodyLinesItemTaxExemptDefault).describe('When true, employer payroll taxes are skipped for this line'),
@@ -1850,11 +1882,13 @@ export const CreatePayrollRunResponse = zod.object({
   "workerName": zod.string(),
   "regularHours": zod.number(),
   "overtimeHours": zod.number(),
+  "holidayHours": zod.number().describe('Combined Holiday \/ Vacation \/ Sick hours, paid at the straight-time rate'),
   "straightRateCents": zod.number().nullish(),
   "overtimeRateCents": zod.number().nullish(),
   "taxExempt": zod.boolean().describe('When true, employer payroll taxes were skipped for this line'),
   "regularWagesCents": zod.number(),
   "overtimeWagesCents": zod.number(),
+  "holidayWagesCents": zod.number(),
   "grossWagesCents": zod.number(),
   "socialSecurityCents": zod.number(),
   "medicareCents": zod.number(),
@@ -1910,11 +1944,13 @@ export const GetPayrollRunResponse = zod.object({
   "workerName": zod.string(),
   "regularHours": zod.number(),
   "overtimeHours": zod.number(),
+  "holidayHours": zod.number().describe('Combined Holiday \/ Vacation \/ Sick hours, paid at the straight-time rate'),
   "straightRateCents": zod.number().nullish(),
   "overtimeRateCents": zod.number().nullish(),
   "taxExempt": zod.boolean().describe('When true, employer payroll taxes were skipped for this line'),
   "regularWagesCents": zod.number(),
   "overtimeWagesCents": zod.number(),
+  "holidayWagesCents": zod.number(),
   "grossWagesCents": zod.number(),
   "socialSecurityCents": zod.number(),
   "medicareCents": zod.number(),
@@ -1959,6 +1995,9 @@ export const updatePayrollRunBodyLinesItemRegularHoursMin = 0;
 export const updatePayrollRunBodyLinesItemOvertimeHoursDefault = 0;
 export const updatePayrollRunBodyLinesItemOvertimeHoursMin = 0;
 
+export const updatePayrollRunBodyLinesItemHolidayHoursDefault = 0;
+export const updatePayrollRunBodyLinesItemHolidayHoursMin = 0;
+
 export const updatePayrollRunBodyLinesItemTaxExemptDefault = false;
 
 
@@ -1980,6 +2019,7 @@ export const UpdatePayrollRunBody = zod.object({
   "workerName": zod.string().min(1),
   "regularHours": zod.number().min(updatePayrollRunBodyLinesItemRegularHoursMin).default(updatePayrollRunBodyLinesItemRegularHoursDefault),
   "overtimeHours": zod.number().min(updatePayrollRunBodyLinesItemOvertimeHoursMin).default(updatePayrollRunBodyLinesItemOvertimeHoursDefault),
+  "holidayHours": zod.number().min(updatePayrollRunBodyLinesItemHolidayHoursMin).default(updatePayrollRunBodyLinesItemHolidayHoursDefault).describe('Combined Holiday \/ Vacation \/ Sick hours, paid at the straight-time rate'),
   "straightRateCents": zod.number().nullish(),
   "overtimeRateCents": zod.number().nullish(),
   "taxExempt": zod.boolean().default(updatePayrollRunBodyLinesItemTaxExemptDefault).describe('When true, employer payroll taxes are skipped for this line'),
@@ -2019,11 +2059,13 @@ export const UpdatePayrollRunResponse = zod.object({
   "workerName": zod.string(),
   "regularHours": zod.number(),
   "overtimeHours": zod.number(),
+  "holidayHours": zod.number().describe('Combined Holiday \/ Vacation \/ Sick hours, paid at the straight-time rate'),
   "straightRateCents": zod.number().nullish(),
   "overtimeRateCents": zod.number().nullish(),
   "taxExempt": zod.boolean().describe('When true, employer payroll taxes were skipped for this line'),
   "regularWagesCents": zod.number(),
   "overtimeWagesCents": zod.number(),
+  "holidayWagesCents": zod.number(),
   "grossWagesCents": zod.number(),
   "socialSecurityCents": zod.number(),
   "medicareCents": zod.number(),
@@ -2090,11 +2132,13 @@ export const PostPayrollRunResponse = zod.object({
   "workerName": zod.string(),
   "regularHours": zod.number(),
   "overtimeHours": zod.number(),
+  "holidayHours": zod.number().describe('Combined Holiday \/ Vacation \/ Sick hours, paid at the straight-time rate'),
   "straightRateCents": zod.number().nullish(),
   "overtimeRateCents": zod.number().nullish(),
   "taxExempt": zod.boolean().describe('When true, employer payroll taxes were skipped for this line'),
   "regularWagesCents": zod.number(),
   "overtimeWagesCents": zod.number(),
+  "holidayWagesCents": zod.number(),
   "grossWagesCents": zod.number(),
   "socialSecurityCents": zod.number(),
   "medicareCents": zod.number(),
@@ -2151,11 +2195,13 @@ export const UnpostPayrollRunResponse = zod.object({
   "workerName": zod.string(),
   "regularHours": zod.number(),
   "overtimeHours": zod.number(),
+  "holidayHours": zod.number().describe('Combined Holiday \/ Vacation \/ Sick hours, paid at the straight-time rate'),
   "straightRateCents": zod.number().nullish(),
   "overtimeRateCents": zod.number().nullish(),
   "taxExempt": zod.boolean().describe('When true, employer payroll taxes were skipped for this line'),
   "regularWagesCents": zod.number(),
   "overtimeWagesCents": zod.number(),
+  "holidayWagesCents": zod.number(),
   "grossWagesCents": zod.number(),
   "socialSecurityCents": zod.number(),
   "medicareCents": zod.number(),
@@ -2182,23 +2228,40 @@ export const UnpostPayrollRunResponse = zod.object({
  */
 export const extractPayrollHoursBodyTextMax = 20000;
 
+export const extractPayrollHoursBodyFileDataMax = 14000000;
+
+export const extractPayrollHoursBodyFileNameMax = 300;
+
 
 
 export const ExtractPayrollHoursBody = zod.object({
-  "text": zod.string().min(1).max(extractPayrollHoursBodyTextMax).describe('Free-form pasted email text or uploaded timesheet contents')
+  "text": zod.string().max(extractPayrollHoursBodyTextMax).optional().describe('Free-form pasted email text or uploaded timesheet contents'),
+  "fileData": zod.string().max(extractPayrollHoursBodyFileDataMax).optional().describe('Base64 data URL of an uploaded image or PDF timesheet (scan\/photo)'),
+  "fileName": zod.string().max(extractPayrollHoursBodyFileNameMax).optional().describe('Original filename of the uploaded image\/PDF, used to detect the file type')
 })
 
 export const extractPayrollHoursResponseRowsItemRegularHoursMin = 0;
 
 export const extractPayrollHoursResponseRowsItemOvertimeHoursMin = 0;
 
+export const extractPayrollHoursResponseRowsItemHolidayHoursMin = 0;
 
+export const extractPayrollHoursResponseRowsItemEntriesItemHoursMin = 0;
+
+export const extractPayrollHoursResponseRowsItemEntriesItemCostTypeDefault = `regular`;
 
 export const ExtractPayrollHoursResponse = zod.object({
   "rows": zod.array(zod.object({
   "workerName": zod.string(),
   "regularHours": zod.number().min(extractPayrollHoursResponseRowsItemRegularHoursMin),
-  "overtimeHours": zod.number().min(extractPayrollHoursResponseRowsItemOvertimeHoursMin)
+  "overtimeHours": zod.number().min(extractPayrollHoursResponseRowsItemOvertimeHoursMin),
+  "holidayHours": zod.number().min(extractPayrollHoursResponseRowsItemHolidayHoursMin),
+  "entries": zod.array(zod.object({
+  "date": zod.string().nullish().describe('Work date (YYYY-MM-DD) when stated in the source'),
+  "jobName": zod.string().nullish().describe('Job name as written in the source (not yet matched to a job record)'),
+  "hours": zod.number().min(extractPayrollHoursResponseRowsItemEntriesItemHoursMin),
+  "costType": zod.enum(['regular', 'overtime', 'holiday']).default(extractPayrollHoursResponseRowsItemEntriesItemCostTypeDefault).describe('Labor cost bucket; \"holiday\" covers Holiday \/ Vacation \/ Sick')
+})).optional().describe('Per-day detail rows (date, job, hours) when the source lists them')
 }))
 })
 

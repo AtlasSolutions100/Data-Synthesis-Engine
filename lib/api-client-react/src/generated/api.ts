@@ -39,6 +39,7 @@ import type {
   DashboardSummary,
   Employee,
   EmployeeInput,
+  EmployeeTimecardRow,
   EmployeeUpdate,
   Error,
   ErrorResponse,
@@ -68,6 +69,7 @@ import type {
   LegacySplitUndoBody,
   LegacySplitUndoResponse,
   ListBillsParams,
+  ListEmployeeTimecardsParams,
   ListInvoicesParams,
   ListJobsParams,
   ListPayrollRunsParams,
@@ -1653,6 +1655,95 @@ export const useDeleteEmployee = <TError = ErrorType<ErrorResponse>,
       > => {
       return useMutation(getDeleteEmployeeMutationOptions(options));
     }
+
+export const getListEmployeeTimecardsUrl = (id: number,
+    params?: ListEmployeeTimecardsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/employees/${id}/timecards?${stringifiedParams}` : `/api/employees/${id}/timecards`
+}
+
+/**
+ * @summary List an employee's time card history across payroll runs
+ */
+export const listEmployeeTimecards = async (id: number,
+    params?: ListEmployeeTimecardsParams, options?: RequestInit): Promise<EmployeeTimecardRow[]> => {
+
+  return customFetch<EmployeeTimecardRow[]>(getListEmployeeTimecardsUrl(id,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListEmployeeTimecardsQueryKey = (id: number,
+    params?: ListEmployeeTimecardsParams,) => {
+    return [
+    `/api/employees/${id}/timecards`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListEmployeeTimecardsQueryOptions = <TData = Awaited<ReturnType<typeof listEmployeeTimecards>>, TError = ErrorType<ErrorResponse>>(id: number,
+    params?: ListEmployeeTimecardsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listEmployeeTimecards>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListEmployeeTimecardsQueryKey(id,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listEmployeeTimecards>>> = ({ signal }) => listEmployeeTimecards(id,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listEmployeeTimecards>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListEmployeeTimecardsQueryResult = NonNullable<Awaited<ReturnType<typeof listEmployeeTimecards>>>
+export type ListEmployeeTimecardsQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary List an employee's time card history across payroll runs
+ */
+
+export function useListEmployeeTimecards<TData = Awaited<ReturnType<typeof listEmployeeTimecards>>, TError = ErrorType<ErrorResponse>>(
+ id: number,
+    params?: ListEmployeeTimecardsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listEmployeeTimecards>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListEmployeeTimecardsQueryOptions(id,params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getListJobsUrl = (params?: ListJobsParams,) => {
   const normalizedParams = new URLSearchParams();

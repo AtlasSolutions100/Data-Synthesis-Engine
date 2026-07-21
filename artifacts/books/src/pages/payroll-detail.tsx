@@ -63,25 +63,42 @@ function runToFormValues(run: PayrollRun) {
     futaRate: bpsToPct(run.futaRateBps),
     coSuiRate: bpsToPct(run.coSuiRateBps),
     coSurchargeRate: bpsToPct(run.coSurchargeRateBps),
-    lines: run.lines.map((line) => ({
-      lineType: line.lineType,
-      employeeId: line.employeeId != null ? String(line.employeeId) : "",
-      vendorId: line.vendorId != null ? String(line.vendorId) : "",
-      workerName: line.workerName,
-      regularHours: line.regularHours ? String(line.regularHours) : "",
-      overtimeHours: line.overtimeHours ? String(line.overtimeHours) : "",
-      straightRate: centsToInput(line.straightRateCents),
-      overtimeRate: centsToInput(line.overtimeRateCents),
-      taxExempt: line.taxExempt,
-      subcontractorAmount:
-        line.lineType === "subcontractor"
-          ? centsToInput(line.totalCostCents)
-          : "",
-      allocations: line.allocations.map((a) => ({
-        jobId: String(a.jobId),
-        amount: centsToInput(a.amountCents),
-      })),
-    })),
+    lines: run.lines.map((line) => {
+      const hourEntries: {
+        costType: "regular" | "overtime" | "holiday";
+        hours: string;
+      }[] = [];
+      if (line.regularHours)
+        hourEntries.push({ costType: "regular", hours: String(line.regularHours) });
+      if (line.overtimeHours)
+        hourEntries.push({
+          costType: "overtime",
+          hours: String(line.overtimeHours),
+        });
+      if (line.holidayHours)
+        hourEntries.push({
+          costType: "holiday",
+          hours: String(line.holidayHours),
+        });
+      if (hourEntries.length === 0)
+        hourEntries.push({ costType: "regular", hours: "" });
+      return {
+        lineType: line.lineType,
+        employeeId: line.employeeId != null ? String(line.employeeId) : "",
+        vendorId: line.vendorId != null ? String(line.vendorId) : "",
+        workerName: line.workerName,
+        hourEntries,
+        taxExempt: line.taxExempt,
+        subcontractorAmount:
+          line.lineType === "subcontractor"
+            ? centsToInput(line.totalCostCents)
+            : "",
+        allocations: line.allocations.map((a) => ({
+          jobId: String(a.jobId),
+          amount: centsToInput(a.amountCents),
+        })),
+      };
+    }),
   };
 }
 
@@ -115,10 +132,10 @@ export default function PayrollDetail() {
   });
 
   if (isLoading) {
-    return <div className="p-8 text-slate-500">Loading payroll run...</div>;
+    return <div className="p-8 text-slate-500">Loading time card run...</div>;
   }
   if (!run) {
-    return <div className="p-8 text-red-500">Payroll run not found.</div>;
+    return <div className="p-8 text-red-500">Time card run not found.</div>;
   }
 
   const allocated = run.allocatedCents ?? 0;
@@ -131,7 +148,7 @@ export default function PayrollDetail() {
           href="/payroll"
           className="mb-3 inline-flex items-center text-sm text-slate-500 hover:text-slate-900"
         >
-          <ArrowLeft className="mr-1 h-4 w-4" /> Back to Payroll
+          <ArrowLeft className="mr-1 h-4 w-4" /> Back to Time Cards
         </Link>
         <div className="flex items-center justify-between">
           <div>
@@ -253,6 +270,7 @@ export default function PayrollDetail() {
                 <TableHead>Type</TableHead>
                 <TableHead className="text-right">Reg Hrs</TableHead>
                 <TableHead className="text-right">OT Hrs</TableHead>
+                <TableHead className="text-right">Hol/Vac Hrs</TableHead>
                 <TableHead className="text-right">Gross</TableHead>
                 <TableHead className="text-right">Burden</TableHead>
                 <TableHead className="text-right">Total Cost</TableHead>
@@ -272,6 +290,9 @@ export default function PayrollDetail() {
                     {line.lineType === "employee" ? line.overtimeHours : "-"}
                   </TableCell>
                   <TableCell className="text-right">
+                    {line.lineType === "employee" ? line.holidayHours : "-"}
+                  </TableCell>
+                  <TableCell className="text-right">
                     {formatCents(line.grossWagesCents)}
                   </TableCell>
                   <TableCell className="text-right">
@@ -284,7 +305,7 @@ export default function PayrollDetail() {
               ))}
               <TableRow className="bg-slate-50 hover:bg-slate-50">
                 <TableCell
-                  colSpan={4}
+                  colSpan={5}
                   className="text-right font-semibold text-slate-700"
                 >
                   Totals
@@ -355,7 +376,7 @@ export default function PayrollDetail() {
       <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
         <DialogContent className="sm:max-w-[760px]">
           <DialogHeader>
-            <DialogTitle>Edit Payroll Run</DialogTitle>
+            <DialogTitle>Edit Time Card Run</DialogTitle>
           </DialogHeader>
           {isEditOpen ? (
             <PayrollRunForm

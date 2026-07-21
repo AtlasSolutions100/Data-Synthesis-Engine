@@ -9,8 +9,17 @@
 export interface ExtractPayrollHoursInput {
   /**
      * Free-form pasted email text or uploaded timesheet contents
-     * @minLength 1
      * @maxLength 20000
      */
-  text: string;
+  text?: string;
+  /**
+     * Base64 data URL of an uploaded image or PDF timesheet (scan/photo)
+     * @maxLength 14000000
+     */
+  fileData?: string;
+  /**
+     * Original filename of the uploaded image/PDF, used to detect the file type
+     * @maxLength 300
+     */
+  fileName?: string;
 }

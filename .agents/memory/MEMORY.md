@@ -13,3 +13,4 @@
 - [Split-account prod migration](split-account-prod-migration.md) — keep legacy split_account column in dev schema until prod is backfilled; Publish diffs atomically and prod writes only happen via the deployed app.
 - [pdf.js range streaming config](pdfjs-range-streaming-config.md) — legacy build + disableAutoFetch + disableStream + `?url` worker import are all required; test PDFs must cluster page dicts.
 - [codegen-check must be read-only](codegen-check-read-only.md) — parallel validations race in-place regeneration; diff temp-copy output instead of mutating src/generated.
+- [Pay period numbering](pay-periods.md) — periods numbered by pay-date year, not start year; anchor Period 13 = 2026-06-08.

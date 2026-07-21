@@ -6,3 +6,7 @@ export * from "./generated/types";
 // names identically; re-export both explicitly to resolve the ambiguity.
 export { GetAccountBalanceTransactionsParams } from "./generated/api";
 export type { GetAccountBalanceTransactionsParams as GetAccountBalanceTransactionsQuery } from "./generated/types";
+// Same naming collision for listEmployeeTimecards (path params zod const vs
+// query params TS type).
+export { ListEmployeeTimecardsParams } from "./generated/api";
+export type { ListEmployeeTimecardsParams as ListEmployeeTimecardsQuery } from "./generated/types";

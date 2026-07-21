@@ -38,7 +38,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { href: "/customers", label: "Customers", icon: Building2 },
     { href: "/vendors", label: "Vendors", icon: HardHat },
     { href: "/employees", label: "Employees", icon: Users },
-    { href: "/payroll", label: "Payroll", icon: CircleDollarSign },
+    { href: "/payroll", label: "Time Cards", icon: CircleDollarSign },
     { href: "/reports", label: "Reports", icon: FileBarChart },
     ...(me?.role === "owner"
       ? [{ href: "/users", label: "Users", icon: ShieldCheck }]

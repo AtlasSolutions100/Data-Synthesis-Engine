@@ -19,6 +19,8 @@ export interface PayrollLine {
   workerName: string;
   regularHours: number;
   overtimeHours: number;
+  /** Combined Holiday / Vacation / Sick hours, paid at the straight-time rate */
+  holidayHours: number;
   /** @nullable */
   straightRateCents?: number | null;
   /** @nullable */
@@ -27,6 +29,7 @@ export interface PayrollLine {
   taxExempt: boolean;
   regularWagesCents: number;
   overtimeWagesCents: number;
+  holidayWagesCents: number;
   grossWagesCents: number;
   socialSecurityCents: number;
   medicareCents: number;

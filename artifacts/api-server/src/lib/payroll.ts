@@ -15,6 +15,7 @@ export interface BurdenRates {
 export interface ComputedLine {
   regularWagesCents: number;
   overtimeWagesCents: number;
+  holidayWagesCents: number;
   grossWagesCents: number;
   socialSecurityCents: number;
   medicareCents: number;
@@ -34,14 +35,17 @@ function applyBps(cents: number, bps: number): number {
  * Compute wages and employer burden for a single payroll line.
  *
  * - Employee lines: gross = round(regularHours * straightRate) +
- *   round(overtimeHours * overtimeRate); burden = sum of employer taxes applied
- *   to gross (skipped when taxExempt). Total cost = gross + burden.
+ *   round(overtimeHours * overtimeRate) + round(holidayHours * straightRate);
+ *   burden = sum of employer taxes applied to gross (skipped when taxExempt).
+ *   Total cost = gross + burden. Holiday / Vacation / Sick hours are paid at
+ *   the straight-time rate and taxed like regular wages.
  * - Subcontractor lines: a flat pass-through labor cost with no employer burden.
  */
 export function computeLine(input: {
   lineType: "employee" | "subcontractor";
   regularHours: number;
   overtimeHours: number;
+  holidayHours: number;
   straightRateCents: number | null;
   overtimeRateCents: number | null;
   taxExempt: boolean;
@@ -53,6 +57,7 @@ export function computeLine(input: {
     return {
       regularWagesCents: 0,
       overtimeWagesCents: 0,
+      holidayWagesCents: 0,
       grossWagesCents: 0,
       socialSecurityCents: 0,
       medicareCents: 0,
@@ -68,7 +73,9 @@ export function computeLine(input: {
   const overtimeRate = input.overtimeRateCents ?? 0;
   const regularWagesCents = Math.round(input.regularHours * straightRate);
   const overtimeWagesCents = Math.round(input.overtimeHours * overtimeRate);
-  const grossWagesCents = regularWagesCents + overtimeWagesCents;
+  const holidayWagesCents = Math.round(input.holidayHours * straightRate);
+  const grossWagesCents =
+    regularWagesCents + overtimeWagesCents + holidayWagesCents;
 
   const socialSecurityCents = input.taxExempt
     ? 0
@@ -96,6 +103,7 @@ export function computeLine(input: {
   return {
     regularWagesCents,
     overtimeWagesCents,
+    holidayWagesCents,
     grossWagesCents,
     socialSecurityCents,
     medicareCents,

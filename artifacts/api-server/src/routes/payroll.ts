@@ -46,6 +46,7 @@ type LineInput = {
   workerName: string;
   regularHours: number;
   overtimeHours: number;
+  holidayHours: number;
   straightRateCents?: number | null;
   overtimeRateCents?: number | null;
   taxExempt: boolean;
@@ -132,11 +133,13 @@ async function getFullRun(id: number) {
       workerName: l.workerName,
       regularHours: Number(l.regularHours),
       overtimeHours: Number(l.overtimeHours),
+      holidayHours: Number(l.holidayHours),
       straightRateCents: l.straightRateCents,
       overtimeRateCents: l.overtimeRateCents,
       taxExempt: l.taxExempt,
       regularWagesCents: Number(l.regularWagesCents),
       overtimeWagesCents: Number(l.overtimeWagesCents),
+      holidayWagesCents: Number(l.holidayWagesCents),
       grossWagesCents: Number(l.grossWagesCents),
       socialSecurityCents: Number(l.socialSecurityCents),
       medicareCents: Number(l.medicareCents),
@@ -246,6 +249,7 @@ async function validateLines(
       lineType: l.lineType,
       regularHours: l.regularHours,
       overtimeHours: l.overtimeHours,
+      holidayHours: l.holidayHours,
       straightRateCents: l.straightRateCents ?? null,
       overtimeRateCents: l.overtimeRateCents ?? null,
       taxExempt: l.taxExempt,
@@ -273,6 +277,7 @@ async function insertLines(
       lineType: l.lineType,
       regularHours: l.regularHours,
       overtimeHours: l.overtimeHours,
+      holidayHours: l.holidayHours,
       straightRateCents: l.straightRateCents ?? null,
       overtimeRateCents: l.overtimeRateCents ?? null,
       taxExempt: l.taxExempt,
@@ -287,6 +292,7 @@ async function insertLines(
       workerName: l.workerName,
       regularHours: l.regularHours,
       overtimeHours: l.overtimeHours,
+      holidayHours: l.holidayHours,
       straightRateCents: l.straightRateCents ?? null,
       overtimeRateCents: l.overtimeRateCents ?? null,
       taxExempt: l.taxExempt,
@@ -334,6 +340,7 @@ function normalizeLines(
     workerName: string;
     regularHours: number;
     overtimeHours: number;
+    holidayHours?: number;
     straightRateCents?: number | null;
     overtimeRateCents?: number | null;
     taxExempt: boolean;
@@ -348,6 +355,7 @@ function normalizeLines(
     workerName: l.workerName,
     regularHours: l.regularHours,
     overtimeHours: l.overtimeHours,
+    holidayHours: l.holidayHours ?? 0,
     straightRateCents: l.straightRateCents ?? null,
     overtimeRateCents: l.overtimeRateCents ?? null,
     taxExempt: l.taxExempt,
@@ -767,20 +775,25 @@ function normalizeHours(value: unknown): number {
   return Math.round(n * 100) / 100;
 }
 
-const EXTRACT_SYSTEM_PROMPT = `You extract worker payroll hours from free-form text such as emails, notes, or CSV data. Hours emails vary widely in format.
+const EXTRACT_SYSTEM_PROMPT = `You extract worker payroll hours from timesheets: free-form text (emails, notes, CSV) or images/PDFs of time cards. Formats vary widely.
 
 Return ONLY a JSON object of this exact shape:
-{"rows": [{"workerName": string, "regularHours": number, "overtimeHours": number}]}
+{"rows": [{"workerName": string, "regularHours": number, "overtimeHours": number, "holidayHours": number, "entries": [{"date": string|null, "jobName": string|null, "hours": number, "costType": "regular"|"overtime"|"holiday"}]}]}
 
 Rules:
 - One row per distinct worker.
 - workerName: the person's name exactly as written (keep normal capitalization).
-- regularHours: straight-time hours. Default 0 when not stated.
-- overtimeHours: overtime / OT / time-and-a-half hours. Default 0 when not stated.
+- regularHours: total straight-time hours. Default 0 when not stated.
+- overtimeHours: total overtime / OT / time-and-a-half hours. Default 0 when not stated.
+- holidayHours: total holiday, vacation, PTO, or sick hours combined. Default 0 when not stated.
+- entries: per-day detail rows when the source lists hours by day and/or job. date must be YYYY-MM-DD (null if not stated or ambiguous); jobName is the job/site name exactly as written (null if none). costType defaults to "regular"; use "holiday" for holiday/vacation/PTO/sick hours. Omit or use an empty array when the source gives only totals.
+- The regularHours/overtimeHours/holidayHours totals must equal the sums of matching entries when entries are present.
 - Numbers only (no units, no text). Convert values like "8h" to 8.
-- If only a single total is given with no reg/OT split, put the whole amount in regularHours and 0 in overtimeHours.
-- Ignore anything that is not a worker's hours (greetings, signatures, job notes, dollar amounts).
+- If only a single total is given with no split, put the whole amount in regularHours.
+- Ignore anything that is not a worker's hours (greetings, signatures, dollar amounts).
 - If no worker hours are present, return {"rows": []}.`;
+
+const MAX_EXTRACT_FILE_BYTES = 10 * 1024 * 1024;
 
 router.post("/payroll/extract-hours", async (req, res): Promise<void> => {
   const rawText = (req.body as { text?: unknown })?.text;
@@ -796,10 +809,59 @@ router.post("/payroll/extract-hours", async (req, res): Promise<void> => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
-  const text = parsed.data.text.trim();
-  if (!text) {
-    res.status(400).json({ error: "Provide some text to extract hours from" });
+  const text = (parsed.data.text ?? "").trim();
+  const fileData = (parsed.data.fileData ?? "").trim();
+  const fileName = (parsed.data.fileName ?? "").trim();
+  if (!text && !fileData) {
+    res.status(400).json({
+      error: "Provide some text or attach an image/PDF to extract hours from",
+    });
     return;
+  }
+
+  let filePart:
+    | { type: "image_url"; image_url: { url: string } }
+    | {
+        type: "file";
+        file: { filename: string; file_data: string };
+      }
+    | null = null;
+  if (fileData) {
+    const match = /^data:([a-zA-Z0-9.+/-]+);base64,/.exec(fileData);
+    if (!match) {
+      res.status(400).json({
+        error: "The uploaded file must be a base64 data URL",
+      });
+      return;
+    }
+    const mime = match[1].toLowerCase();
+    const base64Body = fileData.slice(match[0].length);
+    const approxBytes = Math.floor((base64Body.length * 3) / 4);
+    if (approxBytes > MAX_EXTRACT_FILE_BYTES) {
+      res.status(400).json({
+        error: "The uploaded file is too large. Keep it under 10 MB.",
+      });
+      return;
+    }
+    if (mime === "application/pdf") {
+      filePart = {
+        type: "file",
+        file: {
+          filename: fileName || "timesheet.pdf",
+          file_data: fileData,
+        },
+      };
+    } else if (
+      ["image/png", "image/jpeg", "image/webp", "image/gif"].includes(mime)
+    ) {
+      filePart = { type: "image_url", image_url: { url: fileData } };
+    } else {
+      res.status(400).json({
+        error:
+          "Unsupported file type. Upload a PNG, JPEG, WebP, or GIF image, or a PDF.",
+      });
+      return;
+    }
   }
 
   let openai;
@@ -814,6 +876,22 @@ router.post("/payroll/extract-hours", async (req, res): Promise<void> => {
     return;
   }
 
+  const userParts: Array<
+    | { type: "text"; text: string }
+    | { type: "image_url"; image_url: { url: string } }
+    | { type: "file"; file: { filename: string; file_data: string } }
+  > = [];
+  if (text) userParts.push({ type: "text", text });
+  if (filePart) {
+    if (!text) {
+      userParts.push({
+        type: "text",
+        text: "Extract the worker hours from this timesheet file.",
+      });
+    }
+    userParts.push(filePart);
+  }
+
   let content: string;
   try {
     const completion = await openai.chat.completions.create({
@@ -822,7 +900,12 @@ router.post("/payroll/extract-hours", async (req, res): Promise<void> => {
       response_format: { type: "json_object" },
       messages: [
         { role: "system", content: EXTRACT_SYSTEM_PROMPT },
-        { role: "user", content: text },
+        // Cast: the OpenAI SDK's union type for content parts lags behind the
+        // API, which accepts file parts on chat completions.
+        {
+          role: "user",
+          content: userParts as never,
+        },
       ],
     });
     content = completion.choices[0]?.message?.content ?? "";
@@ -851,10 +934,39 @@ router.post("/payroll/extract-hours", async (req, res): Promise<void> => {
           const row = (r ?? {}) as Record<string, unknown>;
           const workerName =
             typeof row.workerName === "string" ? row.workerName.trim() : "";
+          const entries = Array.isArray(row.entries)
+            ? (row.entries as unknown[])
+                .map((e) => {
+                  const entry = (e ?? {}) as Record<string, unknown>;
+                  const date =
+                    typeof entry.date === "string" &&
+                    /^\d{4}-\d{2}-\d{2}$/.test(entry.date)
+                      ? entry.date
+                      : null;
+                  const jobName =
+                    typeof entry.jobName === "string" && entry.jobName.trim()
+                      ? entry.jobName.trim()
+                      : null;
+                  const costType =
+                    entry.costType === "overtime" ||
+                    entry.costType === "holiday"
+                      ? entry.costType
+                      : "regular";
+                  return {
+                    date,
+                    jobName,
+                    hours: normalizeHours(entry.hours),
+                    costType,
+                  };
+                })
+                .filter((e) => e.hours > 0)
+            : [];
           return {
             workerName,
             regularHours: normalizeHours(row.regularHours),
             overtimeHours: normalizeHours(row.overtimeHours),
+            holidayHours: normalizeHours(row.holidayHours),
+            entries,
           };
         })
         .filter((r) => r.workerName.length > 0)
@@ -863,7 +975,7 @@ router.post("/payroll/extract-hours", async (req, res): Promise<void> => {
   if (rows.length === 0) {
     res.status(400).json({
       error:
-        "No worker hours were found in that text. Check the format and try again.",
+        "No worker hours were found. Check the format and try again.",
     });
     return;
   }

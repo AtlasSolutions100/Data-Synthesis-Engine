@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   useForm,
   useFieldArray,
@@ -45,19 +45,48 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { parseDollars, formatCents } from "@/lib/format";
-import { Plus, Trash2, Sparkles, Upload } from "lucide-react";
+import {
+  currentPayPeriod,
+  payPeriodsForYear,
+  payPeriodForStart,
+  payPeriodLabel,
+  type PayPeriod,
+} from "@/lib/pay-periods";
+import { Plus, Trash2, Sparkles, Upload, AlertTriangle } from "lucide-react";
 import {
   useExtractPayrollHours,
+  useListEmployees,
+  getListEmployeesQueryKey,
+  useListJobs,
+  getListJobsQueryKey,
   type PayrollRunInput,
+  type Employee,
+  type ExtractedHourRow,
 } from "@workspace/api-client-react";
 import {
   MAX_EXTRACT_TEXT_LENGTH,
   extractTextTooLargeMessage,
 } from "@workspace/api-zod";
 
+const LABOR_COST_OPTIONS = [
+  { value: "regular", label: "Regular Pay" },
+  { value: "overtime", label: "Overtime Pay" },
+  { value: "holiday", label: "Holiday / Vacation / Sick" },
+] as const;
+
+type LaborCostType = (typeof LABOR_COST_OPTIONS)[number]["value"];
+
+const laborCostLabel = (v: LaborCostType) =>
+  LABOR_COST_OPTIONS.find((o) => o.value === v)?.label ?? v;
+
 const allocationSchema = z.object({
   jobId: z.string().min(1, "Job ID required"),
   amount: z.string().min(1, "Amount required"),
+});
+
+const hourEntrySchema = z.object({
+  costType: z.enum(["regular", "overtime", "holiday"]),
+  hours: z.string(),
 });
 
 const lineSchema = z.object({
@@ -65,10 +94,7 @@ const lineSchema = z.object({
   employeeId: z.string().optional(),
   vendorId: z.string().optional(),
   workerName: z.string().min(1, "Worker name is required"),
-  regularHours: z.string().optional(),
-  overtimeHours: z.string().optional(),
-  straightRate: z.string().optional(),
-  overtimeRate: z.string().optional(),
+  hourEntries: z.array(hourEntrySchema),
   taxExempt: z.boolean().default(false),
   subcontractorAmount: z.string().optional(),
   allocations: z.array(allocationSchema),
@@ -89,6 +115,7 @@ const runSchema = z.object({
 });
 
 type RunFormValues = z.infer<typeof runSchema>;
+export type PayrollRunFormValues = RunFormValues;
 
 interface PayrollRunFormProps {
   defaultValues?: Partial<RunFormValues>;
@@ -113,14 +140,21 @@ const emptyLine = {
   employeeId: "",
   vendorId: "",
   workerName: "",
-  regularHours: "",
-  overtimeHours: "",
-  straightRate: "",
-  overtimeRate: "",
+  hourEntries: [{ costType: "regular" as const, hours: "" }],
   taxExempt: false,
   subcontractorAmount: "",
   allocations: [] as { jobId: string; amount: string }[],
 };
+
+/** Sum hour entries into the three pay buckets. */
+function sumHours(entries: RunFormValues["lines"][number]["hourEntries"]) {
+  const sums = { regular: 0, overtime: 0, holiday: 0 };
+  for (const e of entries ?? []) {
+    const h = parseFloat(e.hours || "0") || 0;
+    sums[e.costType] += h;
+  }
+  return sums;
+}
 
 interface ComputedLine {
   grossCents: number;
@@ -130,6 +164,7 @@ interface ComputedLine {
 
 function computeLineCents(
   line: RunFormValues["lines"][number],
+  employee: Employee | undefined,
   rates: {
     ss: number;
     medicare: number;
@@ -142,13 +177,13 @@ function computeLineCents(
     const total = Math.max(0, parseDollars(line.subcontractorAmount || "0"));
     return { grossCents: 0, burdenCents: 0, totalCents: total };
   }
-  const straight = parseDollars(line.straightRate || "0");
-  const overtime = parseDollars(line.overtimeRate || "0");
-  const regularHours = parseFloat(line.regularHours || "0") || 0;
-  const overtimeHours = parseFloat(line.overtimeHours || "0") || 0;
-  const regularWages = Math.round(regularHours * straight);
-  const overtimeWages = Math.round(overtimeHours * overtime);
-  const gross = regularWages + overtimeWages;
+  const straight = employee?.straightTimeRateCents ?? 0;
+  const overtime = employee?.overtimeRateCents ?? 0;
+  const hours = sumHours(line.hourEntries);
+  const gross =
+    Math.round(hours.regular * straight) +
+    Math.round(hours.overtime * overtime) +
+    Math.round(hours.holiday * straight);
   const burden = line.taxExempt
     ? 0
     : bpsApply(gross, rates.ss) +
@@ -238,14 +273,103 @@ function LineAllocations({
   );
 }
 
-function WorkerLine({
+function LineHourEntries({
   control,
+  lineIndex,
+}: {
+  control: Control<RunFormValues>;
+  lineIndex: number;
+}) {
+  const { fields, append, remove } = useFieldArray({
+    control,
+    name: `lines.${lineIndex}.hourEntries`,
+  });
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-medium text-slate-600">Hours</span>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => append({ costType: "regular", hours: "" })}
+        >
+          <Plus className="mr-1 h-3 w-3" /> Add Hours
+        </Button>
+      </div>
+      {fields.map((f, hIndex) => (
+        <div key={f.id} className="flex items-start gap-2">
+          <FormField
+            control={control}
+            name={`lines.${lineIndex}.hourEntries.${hIndex}.costType`}
+            render={({ field }) => (
+              <FormItem className="w-56">
+                {hIndex === 0 ? (
+                  <FormLabel className="text-xs text-slate-500">
+                    Labor Cost
+                  </FormLabel>
+                ) : null}
+                <Select onValueChange={field.onChange} value={field.value}>
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {LABOR_COST_OPTIONS.map((o) => (
+                      <SelectItem key={o.value} value={o.value}>
+                        {o.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={control}
+            name={`lines.${lineIndex}.hourEntries.${hIndex}.hours`}
+            render={({ field }) => (
+              <FormItem className="w-28">
+                {hIndex === 0 ? (
+                  <FormLabel className="text-xs text-slate-500">
+                    Hours
+                  </FormLabel>
+                ) : null}
+                <FormControl>
+                  <Input type="number" step="0.01" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className={`text-red-500 hover:bg-red-50 hover:text-red-700 ${hIndex === 0 ? "mt-6" : ""}`}
+            onClick={() => remove(hIndex)}
+            disabled={fields.length <= 1}
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function WorkerLine({
+  form,
   index,
   rates,
+  employees,
   onRemove,
   canRemove,
 }: {
-  control: Control<RunFormValues>;
+  form: UseFormReturn<RunFormValues>;
   index: number;
   rates: {
     ss: number;
@@ -254,19 +378,35 @@ function WorkerLine({
     coSui: number;
     coSurcharge: number;
   };
+  employees: Employee[];
   onRemove: () => void;
   canRemove: boolean;
 }) {
+  const control = form.control;
   const line = useWatch({ control, name: `lines.${index}` });
+  const employee = employees.find(
+    (e) => String(e.id) === (line?.employeeId ?? ""),
+  );
   const computed = line
-    ? computeLineCents(line as RunFormValues["lines"][number], rates)
+    ? computeLineCents(
+        line as RunFormValues["lines"][number],
+        employee,
+        rates,
+      )
     : { grossCents: 0, burdenCents: 0, totalCents: 0 };
   const allocated = (line?.allocations ?? []).reduce(
-    (sum: number, a: { amount?: string }) => sum + parseDollars(a?.amount || "0"),
+    (sum: number, a: { amount?: string }) =>
+      sum + parseDollars(a?.amount || "0"),
     0,
   );
   const unallocated = computed.totalCents - allocated;
   const isSub = line?.lineType === "subcontractor";
+  const missingRate =
+    !isSub &&
+    (!employee ||
+      employee.straightTimeRateCents == null ||
+      (sumHours(line?.hourEntries ?? []).overtime > 0 &&
+        employee.overtimeRateCents == null));
 
   return (
     <div className="space-y-3 rounded-lg border p-4">
@@ -303,76 +443,17 @@ function WorkerLine({
         </Button>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
-        <FormField
-          control={control}
-          name={`lines.${index}.workerName`}
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Worker Name</FormLabel>
-              <FormControl>
-                <Input {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        {isSub ? (
-          <FormField
-            control={control}
-            name={`lines.${index}.vendorId`}
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Vendor ID (Optional)</FormLabel>
-                <FormControl>
-                  <Input type="number" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        ) : (
-          <FormField
-            control={control}
-            name={`lines.${index}.employeeId`}
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Employee ID (Optional)</FormLabel>
-                <FormControl>
-                  <Input type="number" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        )}
-      </div>
-
       {isSub ? (
-        <FormField
-          control={control}
-          name={`lines.${index}.subcontractorAmount`}
-          render={({ field }) => (
-            <FormItem className="w-48">
-              <FormLabel>Labor Cost ($)</FormLabel>
-              <FormControl>
-                <Input type="number" step="0.01" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-      ) : (
         <>
-          <div className="grid grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 gap-3">
             <FormField
               control={control}
-              name={`lines.${index}.regularHours`}
+              name={`lines.${index}.workerName`}
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Reg Hours</FormLabel>
+                  <FormLabel>Worker Name</FormLabel>
                   <FormControl>
-                    <Input type="number" step="0.01" {...field} />
+                    <Input {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -380,44 +461,125 @@ function WorkerLine({
             />
             <FormField
               control={control}
-              name={`lines.${index}.straightRate`}
+              name={`lines.${index}.vendorId`}
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Reg Rate ($/hr)</FormLabel>
+                  <FormLabel>Vendor ID (Optional)</FormLabel>
                   <FormControl>
-                    <Input type="number" step="0.01" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={control}
-              name={`lines.${index}.overtimeHours`}
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>OT Hours</FormLabel>
-                  <FormControl>
-                    <Input type="number" step="0.01" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={control}
-              name={`lines.${index}.overtimeRate`}
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>OT Rate ($/hr)</FormLabel>
-                  <FormControl>
-                    <Input type="number" step="0.01" {...field} />
+                    <Input type="number" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
           </div>
+          <FormField
+            control={control}
+            name={`lines.${index}.subcontractorAmount`}
+            render={({ field }) => (
+              <FormItem className="w-48">
+                <FormLabel>Labor Cost ($)</FormLabel>
+                <FormControl>
+                  <Input type="number" step="0.01" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </>
+      ) : (
+        <>
+          <div className="grid grid-cols-2 gap-3">
+            <FormField
+              control={control}
+              name={`lines.${index}.employeeId`}
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Employee</FormLabel>
+                  <Select
+                    value={field.value || "none"}
+                    onValueChange={(v) => {
+                      const next = v === "none" ? "" : v;
+                      field.onChange(next);
+                      const emp = employees.find((e) => String(e.id) === next);
+                      if (emp) {
+                        form.setValue(`lines.${index}.workerName`, emp.name, {
+                          shouldDirty: true,
+                          shouldValidate: true,
+                        });
+                        form.setValue(
+                          `lines.${index}.taxExempt`,
+                          emp.taxExempt ?? false,
+                          { shouldDirty: true },
+                        );
+                      }
+                    }}
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select employee" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="none">— Not linked —</SelectItem>
+                      {employees.map((e) => (
+                        <SelectItem key={e.id} value={String(e.id)}>
+                          {e.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={control}
+              name={`lines.${index}.workerName`}
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Worker Name</FormLabel>
+                  <FormControl>
+                    <Input {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-md bg-slate-50 px-3 py-2 text-xs text-slate-600">
+            <span>
+              Reg Rate:{" "}
+              <span className="font-semibold text-slate-900">
+                {employee?.straightTimeRateCents != null
+                  ? `${formatCents(employee.straightTimeRateCents)}/hr`
+                  : "—"}
+              </span>
+            </span>
+            <span>
+              OT Rate:{" "}
+              <span className="font-semibold text-slate-900">
+                {employee?.overtimeRateCents != null
+                  ? `${formatCents(employee.overtimeRateCents)}/hr`
+                  : "—"}
+              </span>
+            </span>
+            <span className="text-slate-400">
+              Rates are managed in the Employee Center.
+            </span>
+          </div>
+          {missingRate ? (
+            <p className="flex items-center gap-1 text-xs text-amber-600">
+              <AlertTriangle className="h-3.5 w-3.5" />
+              {employee
+                ? "Missing pay rate — set it on the Employees tab."
+                : "No employee linked — pay computes as $0 until one is selected."}
+            </p>
+          ) : null}
+
+          <LineHourEntries control={control} lineIndex={index} />
+
           <FormField
             control={control}
             name={`lines.${index}.taxExempt`}
@@ -496,8 +658,11 @@ interface ReviewRow {
   workerName: string;
   regularHours: string;
   overtimeHours: string;
+  holidayHours: string;
   target: string; // "skip" or the target line index as a string
   status: ImportStatus;
+  employeeId: string; // matched Employee Center record id ("" if none)
+  flags: string[];
 }
 
 function StatusBadge({ status }: { status: ImportStatus }) {
@@ -522,11 +687,22 @@ function StatusBadge({ status }: { status: ImportStatus }) {
   );
 }
 
-function ImportHoursDialog({ form }: { form: UseFormReturn<RunFormValues> }) {
+const IMPORT_FILE_MAX_BYTES = 10 * 1024 * 1024;
+
+function ImportHoursDialog({
+  form,
+  employees,
+  jobNames,
+}: {
+  form: UseFormReturn<RunFormValues>;
+  employees: Employee[];
+  jobNames: string[];
+}) {
   const [open, setOpen] = useState(false);
   const [stage, setStage] = useState<"input" | "review">("input");
   const [text, setText] = useState("");
   const [fileName, setFileName] = useState("");
+  const [fileData, setFileData] = useState("");
   const [error, setError] = useState("");
   const [rows, setRows] = useState<ReviewRow[]>([]);
 
@@ -540,6 +716,7 @@ function ImportHoursDialog({ form }: { form: UseFormReturn<RunFormValues> }) {
     setStage("input");
     setText("");
     setFileName("");
+    setFileData("");
     setError("");
     setRows([]);
     extract.reset();
@@ -552,22 +729,34 @@ function ImportHoursDialog({ form }: { form: UseFormReturn<RunFormValues> }) {
 
   const handleFile = (file: File | undefined) => {
     if (!file) return;
+    setError("");
+    if (file.size > IMPORT_FILE_MAX_BYTES) {
+      setError("File is larger than 10 MB. Upload a smaller file.");
+      return;
+    }
     setFileName(file.name);
+    const isTextLike =
+      file.type.startsWith("text/") ||
+      /\.(txt|csv)$/i.test(file.name);
     const reader = new FileReader();
-    reader.onload = () => setText(String(reader.result ?? ""));
-    reader.readAsText(file);
+    if (isTextLike) {
+      setFileData("");
+      reader.onload = () => setText(String(reader.result ?? ""));
+      reader.readAsText(file);
+    } else {
+      reader.onload = () => setFileData(String(reader.result ?? ""));
+      reader.readAsDataURL(file);
+    }
   };
 
-  const buildReview = (
-    extracted: Array<{
-      workerName: string;
-      regularHours: number;
-      overtimeHours: number;
-    }>,
-  ): ReviewRow[] => {
+  const buildReview = (extracted: ExtractedHourRow[]): ReviewRow[] => {
     const opts = (form.getValues("lines") ?? [])
       .map((l, index) => ({ index, name: l.workerName, type: l.lineType }))
       .filter((o) => o.type === "employee");
+    const periodStart = form.getValues("payPeriodStart");
+    const periodEnd = form.getValues("payPeriodEnd");
+    const knownJobs = new Set(jobNames.map(normalizeName));
+
     return extracted.map((r) => {
       const matches = opts.filter(
         (o) => normalizeName(o.name) === normalizeName(r.workerName),
@@ -580,19 +769,49 @@ function ImportHoursDialog({ form }: { form: UseFormReturn<RunFormValues> }) {
       } else if (matches.length > 1) {
         status = "ambiguous";
       }
+
+      const empMatches = employees.filter(
+        (e) => normalizeName(e.name) === normalizeName(r.workerName),
+      );
+      const employee = empMatches.length === 1 ? empMatches[0] : undefined;
+
+      const flags: string[] = [];
+      if (!employee) {
+        flags.push(`Unknown employee "${r.workerName}" — not in the Employee Center.`);
+      } else if (employee.straightTimeRateCents == null) {
+        flags.push(`${employee.name} has no pay rate set in the Employee Center.`);
+      } else if (r.overtimeHours > 0 && employee.overtimeRateCents == null) {
+        flags.push(`${employee.name} has no overtime rate set in the Employee Center.`);
+      }
+      for (const entry of r.entries ?? []) {
+        if (entry.jobName && !knownJobs.has(normalizeName(entry.jobName))) {
+          const msg = `Unknown job "${entry.jobName}" — no matching job on file.`;
+          if (!flags.includes(msg)) flags.push(msg);
+        }
+        if (entry.date && periodStart && periodEnd) {
+          if (entry.date < periodStart || entry.date > periodEnd) {
+            const msg = `Date ${entry.date} is outside the pay period (${periodStart} – ${periodEnd}).`;
+            if (!flags.includes(msg)) flags.push(msg);
+          }
+        }
+      }
+
       return {
         workerName: r.workerName,
         regularHours: String(r.regularHours),
         overtimeHours: String(r.overtimeHours),
+        holidayHours: String(r.holidayHours),
         target,
         status,
+        employeeId: employee ? String(employee.id) : "",
+        flags,
       };
     });
   };
 
   const handleExtract = async () => {
     setError("");
-    if (!text.trim()) {
+    if (!text.trim() && !fileData) {
       setError("Paste some text or upload a file first.");
       return;
     }
@@ -601,7 +820,13 @@ function ImportHoursDialog({ form }: { form: UseFormReturn<RunFormValues> }) {
       return;
     }
     try {
-      const result = await extract.mutateAsync({ data: { text } });
+      const result = await extract.mutateAsync({
+        data: {
+          text: text.trim() ? text : undefined,
+          fileData: fileData || undefined,
+          fileName: fileData ? fileName || undefined : undefined,
+        },
+      });
       setRows(buildReview(result.rows));
       setStage("review");
     } catch (err) {
@@ -610,7 +835,9 @@ function ImportHoursDialog({ form }: { form: UseFormReturn<RunFormValues> }) {
   };
 
   const updateRow = (i: number, patch: Partial<ReviewRow>) => {
-    setRows((prev) => prev.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
+    setRows((prev) =>
+      prev.map((r, idx) => (idx === i ? { ...r, ...patch } : r)),
+    );
   };
 
   const appliedCount = rows.filter((r) => r.target !== "skip").length;
@@ -620,14 +847,26 @@ function ImportHoursDialog({ form }: { form: UseFormReturn<RunFormValues> }) {
       if (r.target === "skip") return;
       const idx = parseInt(r.target, 10);
       if (Number.isNaN(idx)) return;
-      form.setValue(`lines.${idx}.regularHours`, r.regularHours, {
-        shouldDirty: true,
-        shouldValidate: true,
-      });
-      form.setValue(`lines.${idx}.overtimeHours`, r.overtimeHours, {
-        shouldDirty: true,
-        shouldValidate: true,
-      });
+      const entries: { costType: LaborCostType; hours: string }[] = [];
+      if (parseFloat(r.regularHours || "0") > 0)
+        entries.push({ costType: "regular", hours: r.regularHours });
+      if (parseFloat(r.overtimeHours || "0") > 0)
+        entries.push({ costType: "overtime", hours: r.overtimeHours });
+      if (parseFloat(r.holidayHours || "0") > 0)
+        entries.push({ costType: "holiday", hours: r.holidayHours });
+      form.setValue(
+        `lines.${idx}.hourEntries`,
+        entries.length > 0
+          ? entries
+          : [{ costType: "regular", hours: "" }],
+        { shouldDirty: true, shouldValidate: true },
+      );
+      // Link the Employee Center record so rates apply automatically.
+      if (r.employeeId && !form.getValues(`lines.${idx}.employeeId`)) {
+        form.setValue(`lines.${idx}.employeeId`, r.employeeId, {
+          shouldDirty: true,
+        });
+      }
     });
     handleOpenChange(false);
   };
@@ -639,13 +878,13 @@ function ImportHoursDialog({ form }: { form: UseFormReturn<RunFormValues> }) {
           <Sparkles className="mr-1 h-4 w-4" /> Import hours
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[720px]">
+      <DialogContent className="sm:max-w-[760px]">
         <DialogHeader>
           <DialogTitle>Import hours</DialogTitle>
           <DialogDescription>
-            Paste an hours email or upload a .txt/.csv file. Extracted hours
-            merge into matching worker lines by name — nothing posts
-            automatically.
+            Paste an hours email, or upload a timesheet as .txt/.csv, image, or
+            PDF. Extracted hours merge into matching worker lines by name and
+            rates come from the Employee Center — nothing posts automatically.
           </DialogDescription>
         </DialogHeader>
 
@@ -685,17 +924,21 @@ function ImportHoursDialog({ form }: { form: UseFormReturn<RunFormValues> }) {
                 htmlFor="import-hours-file"
                 className="cursor-pointer text-sm font-normal text-blue-600 hover:underline"
               >
-                <Upload className="mr-1 inline h-4 w-4" /> Upload .txt / .csv
+                <Upload className="mr-1 inline h-4 w-4" /> Upload .txt / .csv /
+                image / PDF
               </Label>
               <input
                 id="import-hours-file"
                 type="file"
-                accept=".txt,.csv,text/plain,text/csv"
+                accept=".txt,.csv,text/plain,text/csv,image/*,.pdf,application/pdf"
                 className="hidden"
                 onChange={(e) => handleFile(e.target.files?.[0])}
               />
               {fileName ? (
-                <span className="text-xs text-slate-500">{fileName}</span>
+                <span className="text-xs text-slate-500">
+                  {fileName}
+                  {fileData ? " (will be scanned)" : ""}
+                </span>
               ) : null}
             </div>
             {error ? <p className="text-sm text-red-600">{error}</p> : null}
@@ -715,12 +958,13 @@ function ImportHoursDialog({ form }: { form: UseFormReturn<RunFormValues> }) {
           <div className="space-y-4">
             <p className="text-sm text-slate-600">
               {appliedCount} of {rows.length} row
-              {rows.length === 1 ? "" : "s"} will be applied. Review the hours and
-              confirm which worker line each maps to.
+              {rows.length === 1 ? "" : "s"} will be applied. Review the hours
+              and confirm which worker line each maps to.
             </p>
             {employeeOptions.length === 0 ? (
               <p className="text-sm text-amber-600">
-                Add employee worker lines first, then import to fill their hours.
+                Add employee worker lines first, then import to fill their
+                hours.
               </p>
             ) : null}
             <div className="max-h-[45vh] overflow-y-auto rounded-md border">
@@ -728,9 +972,10 @@ function ImportHoursDialog({ form }: { form: UseFormReturn<RunFormValues> }) {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Extracted name</TableHead>
-                    <TableHead className="w-24 text-right">Reg</TableHead>
-                    <TableHead className="w-24 text-right">OT</TableHead>
-                    <TableHead className="w-48">Apply to worker</TableHead>
+                    <TableHead className="w-20 text-right">Reg</TableHead>
+                    <TableHead className="w-20 text-right">OT</TableHead>
+                    <TableHead className="w-20 text-right">Hol/Vac</TableHead>
+                    <TableHead className="w-44">Apply to worker</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -739,6 +984,15 @@ function ImportHoursDialog({ form }: { form: UseFormReturn<RunFormValues> }) {
                       <TableCell className="align-top">
                         <div className="font-medium">{r.workerName}</div>
                         <StatusBadge status={r.status} />
+                        {r.flags.map((flag, fi) => (
+                          <p
+                            key={fi}
+                            className="mt-1 flex items-start gap-1 text-xs text-amber-600"
+                          >
+                            <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
+                            {flag}
+                          </p>
+                        ))}
                       </TableCell>
                       <TableCell className="align-top">
                         <Input
@@ -759,6 +1013,17 @@ function ImportHoursDialog({ form }: { form: UseFormReturn<RunFormValues> }) {
                           value={r.overtimeHours}
                           onChange={(e) =>
                             updateRow(i, { overtimeHours: e.target.value })
+                          }
+                        />
+                      </TableCell>
+                      <TableCell className="align-top">
+                        <Input
+                          type="number"
+                          step="0.01"
+                          className="text-right"
+                          value={r.holidayHours}
+                          onChange={(e) =>
+                            updateRow(i, { holidayHours: e.target.value })
                           }
                         />
                       </TableCell>
@@ -813,6 +1078,18 @@ export function PayrollRunForm({
   onSubmit,
   isLoading,
 }: PayrollRunFormProps) {
+  const { data: employees } = useListEmployees({
+    query: { queryKey: getListEmployeesQueryKey() },
+  });
+  const { data: jobs } = useListJobs(undefined, {
+    query: { queryKey: getListJobsQueryKey() },
+  });
+  const employeeList = useMemo(() => employees ?? [], [employees]);
+  const jobNames = useMemo(
+    () => (jobs ?? []).map((j) => j.name).filter(Boolean) as string[],
+    [jobs],
+  );
+
   const form = useForm<RunFormValues>({
     resolver: zodResolver(runSchema),
     defaultValues: {
@@ -836,9 +1113,48 @@ export function PayrollRunForm({
     name: "lines",
   });
 
+  const periodOptions = useMemo(() => {
+    const year = currentPayPeriod().year;
+    return [...payPeriodsForYear(year), ...payPeriodsForYear(year + 1)];
+  }, []);
+
+  const watchedStart = useWatch({
+    control: form.control,
+    name: "payPeriodStart",
+  });
+  const selectedPeriod = watchedStart
+    ? payPeriodForStart(watchedStart)
+    : null;
+  const periodValue =
+    selectedPeriod &&
+    periodOptions.some((p) => p.start === selectedPeriod.start)
+      ? selectedPeriod.start
+      : "custom";
+
+  const applyPeriod = (p: PayPeriod) => {
+    form.setValue("payPeriodStart", p.start, {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+    form.setValue("payPeriodEnd", p.end, {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+    form.setValue("payDate", p.payDate, {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+  };
+
   const rateValues = useWatch({
     control: form.control,
-    name: ["ssRate", "medicareRate", "futaRate", "coSuiRate", "coSurchargeRate"],
+    name: [
+      "ssRate",
+      "medicareRate",
+      "futaRate",
+      "coSuiRate",
+      "coSurchargeRate",
+    ],
   });
   const rates = {
     ss: pctToBps(rateValues?.[0]),
@@ -851,7 +1167,14 @@ export function PayrollRunForm({
   const watchedLines = form.watch("lines");
   const totals = (watchedLines ?? []).reduce(
     (acc, l) => {
-      const c = computeLineCents(l as RunFormValues["lines"][number], rates);
+      const employee = employeeList.find(
+        (e) => String(e.id) === (l.employeeId ?? ""),
+      );
+      const c = computeLineCents(
+        l as RunFormValues["lines"][number],
+        employee,
+        rates,
+      );
       return {
         gross: acc.gross + c.grossCents,
         burden: acc.burden + c.burdenCents,
@@ -873,43 +1196,41 @@ export function PayrollRunForm({
       futaRateBps: pctToBps(values.futaRate),
       coSuiRateBps: pctToBps(values.coSuiRate),
       coSurchargeRateBps: pctToBps(values.coSurchargeRate),
-      lines: values.lines.map((l) => ({
-        lineType: l.lineType,
-        employeeId:
+      lines: values.lines.map((l) => {
+        const employee =
           l.lineType === "employee" && l.employeeId
-            ? parseInt(l.employeeId, 10)
-            : null,
-        vendorId:
-          l.lineType === "subcontractor" && l.vendorId
-            ? parseInt(l.vendorId, 10)
-            : null,
-        workerName: l.workerName,
-        regularHours:
-          l.lineType === "employee" ? parseFloat(l.regularHours || "0") || 0 : 0,
-        overtimeHours:
+            ? employeeList.find((e) => String(e.id) === l.employeeId)
+            : undefined;
+        const hours =
           l.lineType === "employee"
-            ? parseFloat(l.overtimeHours || "0") || 0
-            : 0,
-        straightRateCents:
-          l.lineType === "employee" && l.straightRate
-            ? parseDollars(l.straightRate)
-            : null,
-        overtimeRateCents:
-          l.lineType === "employee" && l.overtimeRate
-            ? parseDollars(l.overtimeRate)
-            : null,
-        taxExempt: l.lineType === "employee" ? l.taxExempt : false,
-        subcontractorAmountCents:
-          l.lineType === "subcontractor" && l.subcontractorAmount
-            ? parseDollars(l.subcontractorAmount)
-            : null,
-        allocations: (l.allocations ?? [])
-          .filter((a) => a.jobId && a.amount)
-          .map((a) => ({
-            jobId: parseInt(a.jobId, 10),
-            amountCents: parseDollars(a.amount),
-          })),
-      })),
+            ? sumHours(l.hourEntries)
+            : { regular: 0, overtime: 0, holiday: 0 };
+        return {
+          lineType: l.lineType,
+          employeeId: employee ? employee.id : null,
+          vendorId:
+            l.lineType === "subcontractor" && l.vendorId
+              ? parseInt(l.vendorId, 10)
+              : null,
+          workerName: l.workerName,
+          regularHours: hours.regular,
+          overtimeHours: hours.overtime,
+          holidayHours: hours.holiday,
+          straightRateCents: employee?.straightTimeRateCents ?? null,
+          overtimeRateCents: employee?.overtimeRateCents ?? null,
+          taxExempt: l.lineType === "employee" ? l.taxExempt : false,
+          subcontractorAmountCents:
+            l.lineType === "subcontractor" && l.subcontractorAmount
+              ? parseDollars(l.subcontractorAmount)
+              : null,
+          allocations: (l.allocations ?? [])
+            .filter((a) => a.jobId && a.amount)
+            .map((a) => ({
+              jobId: parseInt(a.jobId, 10),
+              amountCents: parseDollars(a.amount),
+            })),
+        };
+      }),
     });
   };
 
@@ -919,6 +1240,38 @@ export function PayrollRunForm({
         onSubmit={form.handleSubmit(handleSubmit)}
         className="max-h-[70vh] space-y-5 overflow-y-auto px-1"
       >
+        <div className="space-y-1">
+          <Label>Pay Period</Label>
+          <Select
+            value={periodValue}
+            onValueChange={(v) => {
+              if (v === "custom") return;
+              const p = periodOptions.find((o) => o.start === v);
+              if (p) applyPeriod(p);
+            }}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select pay period number" />
+            </SelectTrigger>
+            <SelectContent>
+              {periodValue === "custom" ? (
+                <SelectItem value="custom" disabled>
+                  Custom dates
+                </SelectItem>
+              ) : null}
+              {periodOptions.map((p) => (
+                <SelectItem key={p.start} value={p.start}>
+                  {payPeriodLabel(p)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-slate-500">
+            Picking a pay period number fills the dates and pay date
+            automatically. You can still adjust them below.
+          </p>
+        </div>
+
         <div className="grid grid-cols-3 gap-4">
           <FormField
             control={form.control}
@@ -1070,7 +1423,11 @@ export function PayrollRunForm({
           <div className="flex items-center justify-between">
             <p className="text-sm font-medium leading-none">Worker Lines</p>
             <div className="flex items-center gap-2">
-              <ImportHoursDialog form={form} />
+              <ImportHoursDialog
+                form={form}
+                employees={employeeList}
+                jobNames={jobNames}
+              />
               <Button
                 type="button"
                 variant="outline"
@@ -1084,9 +1441,10 @@ export function PayrollRunForm({
           {fields.map((f, index) => (
             <WorkerLine
               key={f.id}
-              control={form.control}
+              form={form}
               index={index}
               rates={rates}
+              employees={employeeList}
               onRemove={() => fields.length > 1 && remove(index)}
               canRemove={fields.length > 1}
             />
@@ -1115,9 +1473,11 @@ export function PayrollRunForm({
         </div>
 
         <Button type="submit" disabled={isLoading} className="w-full">
-          {isLoading ? "Saving..." : "Save Payroll Run"}
+          {isLoading ? "Saving..." : "Save Time Card Run"}
         </Button>
       </form>
     </Form>
   );
 }
+
+export { laborCostLabel };

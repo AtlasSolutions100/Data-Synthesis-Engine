@@ -17,6 +17,10 @@ vi.mock("@workspace/api-client-react", () => ({
     isPending: false,
     reset: vi.fn(),
   }),
+  useListEmployees: () => ({ data: [], isLoading: false }),
+  getListEmployeesQueryKey: () => ["employees"],
+  useListJobs: () => ({ data: [], isLoading: false }),
+  getListJobsQueryKey: () => ["jobs"],
 }));
 
 beforeAll(() => {
@@ -46,8 +50,7 @@ const defaults = {
     {
       lineType: "employee" as const,
       workerName: "John Smith",
-      regularHours: "",
-      overtimeHours: "",
+      hourEntries: [{ costType: "regular" as const, hours: "" }],
       taxExempt: false,
       allocations: [],
     },
@@ -62,7 +65,7 @@ const ERR_502 =
 const ERR_502_UNPARSEABLE =
   "Could not read the extracted hours. Please try again.";
 const ERR_400_NO_ROWS =
-  "No worker hours were found in that text. Check the format and try again.";
+  "No worker hours were found. Check the format and try again.";
 
 function apiError(status: number, error: string) {
   // Shape produced by the generated client's error handling: the parsed JSON
