@@ -61,6 +61,59 @@ async function findMissingAccount(
 
 type BillStatus = "open" | "partial" | "paid";
 
+class BillValidationError extends Error {
+  constructor(
+    message: string,
+    public field: string,
+  ) {
+    super(message);
+  }
+}
+
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+/**
+ * Lock the bill row (SELECT ... FOR UPDATE) so concurrent writers that touch
+ * this bill's payments/credits/lines serialize against each other. Returns
+ * false when the bill does not exist.
+ */
+async function lockBillRow(tx: Tx, billId: number): Promise<boolean> {
+  const rows = await tx
+    .select({ id: billsTable.id })
+    .from(billsTable)
+    .where(eq(billsTable.id, billId))
+    .for("update");
+  return rows.length > 0;
+}
+
+/** Sum of payments + vendor credits for a bill, read through the given tx. */
+async function sumPaidCents(tx: Tx, billId: number): Promise<number> {
+  const [paySum] = await tx
+    .select({
+      total: sql<number>`coalesce(sum(${billPaymentsTable.amountCents}), 0)::bigint`,
+    })
+    .from(billPaymentsTable)
+    .where(eq(billPaymentsTable.billId, billId));
+  const [creditSum] = await tx
+    .select({
+      total: sql<number>`coalesce(sum(${vendorCreditsTable.amountCents}), 0)::bigint`,
+    })
+    .from(vendorCreditsTable)
+    .where(eq(vendorCreditsTable.billId, billId));
+  return Number(paySum?.total ?? 0) + Number(creditSum?.total ?? 0);
+}
+
+/** Sum of line amounts for a bill, read through the given tx. */
+async function sumLineCents(tx: Tx, billId: number): Promise<number> {
+  const [lineSum] = await tx
+    .select({
+      total: sql<number>`coalesce(sum(${billLinesTable.amountCents}), 0)::bigint`,
+    })
+    .from(billLinesTable)
+    .where(eq(billLinesTable.billId, billId));
+  return Number(lineSum?.total ?? 0);
+}
+
 function computeStatus(totalCents: number, paidCents: number): BillStatus {
   if (totalCents > 0 && paidCents >= totalCents) return "paid";
   if (paidCents > 0) return "partial";
@@ -365,58 +418,58 @@ router.patch("/bills/:id", async (req, res): Promise<void> => {
       });
       return;
     }
-
-    const [paySum] = await db
-      .select({
-        total: sql<number>`coalesce(sum(${billPaymentsTable.amountCents}), 0)::bigint`,
-      })
-      .from(billPaymentsTable)
-      .where(eq(billPaymentsTable.billId, params.data.id));
-    const [creditSum] = await db
-      .select({
-        total: sql<number>`coalesce(sum(${vendorCreditsTable.amountCents}), 0)::bigint`,
-      })
-      .from(vendorCreditsTable)
-      .where(eq(vendorCreditsTable.billId, params.data.id));
-    const paidCents = Number(paySum?.total ?? 0) + Number(creditSum?.total ?? 0);
-    const newTotalCents = data.lines.reduce((s, l) => s + l.amountCents, 0);
-    if (newTotalCents < paidCents) {
-      res.status(400).json({
-        error: `New total (${formatDollars(newTotalCents)}) is less than the ${formatDollars(paidCents)} already paid or credited on this bill. Remove or adjust payments and credits first, or keep the total at or above that amount.`,
-        field: "lines",
-      });
-      return;
-    }
   }
 
-  await db.transaction(async (tx) => {
-    const set: Record<string, unknown> = {};
-    if (data.billNumber !== undefined) set.billNumber = data.billNumber;
-    if (data.vendorId !== undefined) set.vendorId = data.vendorId;
-    if (data.jobId !== undefined) set.jobId = data.jobId;
-    if (data.date !== undefined) set.date = data.date;
-    if (data.dueDate !== undefined) set.dueDate = data.dueDate;
-    if (data.memo !== undefined) set.memo = data.memo;
-    if (Object.keys(set).length > 0) {
-      await tx
-        .update(billsTable)
-        .set(set)
-        .where(eq(billsTable.id, params.data.id));
+  try {
+    await db.transaction(async (tx) => {
+      if (data.lines !== undefined) {
+        // Lock the bill row so concurrent payment/credit inserts (which take
+        // the same lock) serialize against this rewrite, then verify the new
+        // total against the paid amount inside the same transaction.
+        await lockBillRow(tx, params.data.id);
+        const paidCents = await sumPaidCents(tx, params.data.id);
+        const newTotalCents = data.lines.reduce((s, l) => s + l.amountCents, 0);
+        if (newTotalCents < paidCents) {
+          throw new BillValidationError(
+            `New total (${formatDollars(newTotalCents)}) is less than the ${formatDollars(paidCents)} already paid or credited on this bill. Remove or adjust payments and credits first, or keep the total at or above that amount.`,
+            "lines",
+          );
+        }
+      }
+      const set: Record<string, unknown> = {};
+      if (data.billNumber !== undefined) set.billNumber = data.billNumber;
+      if (data.vendorId !== undefined) set.vendorId = data.vendorId;
+      if (data.jobId !== undefined) set.jobId = data.jobId;
+      if (data.date !== undefined) set.date = data.date;
+      if (data.dueDate !== undefined) set.dueDate = data.dueDate;
+      if (data.memo !== undefined) set.memo = data.memo;
+      if (Object.keys(set).length > 0) {
+        await tx
+          .update(billsTable)
+          .set(set)
+          .where(eq(billsTable.id, params.data.id));
+      }
+      if (data.lines !== undefined) {
+        await tx
+          .delete(billLinesTable)
+          .where(eq(billLinesTable.billId, params.data.id));
+        await tx.insert(billLinesTable).values(
+          data.lines.map((l) => ({
+            billId: params.data.id,
+            accountId: l.accountId ?? null,
+            description: l.description ?? null,
+            amountCents: l.amountCents,
+          })),
+        );
+      }
+    });
+  } catch (err) {
+    if (err instanceof BillValidationError) {
+      res.status(400).json({ error: err.message, field: err.field });
+      return;
     }
-    if (data.lines !== undefined) {
-      await tx
-        .delete(billLinesTable)
-        .where(eq(billLinesTable.billId, params.data.id));
-      await tx.insert(billLinesTable).values(
-        data.lines.map((l) => ({
-          billId: params.data.id,
-          accountId: l.accountId ?? null,
-          description: l.description ?? null,
-          amountCents: l.amountCents,
-        })),
-      );
-    }
-  });
+    throw err;
+  }
 
   const full = await getFullBill(params.data.id);
   res.json(UpdateBillResponse.parse(full));
@@ -462,21 +515,37 @@ router.post("/bills/:id/payments", async (req, res): Promise<void> => {
     });
     return;
   }
-  if (parsed.data.amountCents > existing.balanceCents) {
-    res.status(400).json({
-      error: `Payment exceeds the outstanding balance of ${formatDollars(existing.balanceCents)}`,
-      field: "amountCents",
+  try {
+    await db.transaction(async (tx) => {
+      // Lock the bill row so this insert serializes with concurrent bill
+      // edits (PATCH) and other payments/credits, then re-check the balance
+      // inside the same transaction.
+      await lockBillRow(tx, params.data.id);
+      const balanceCents =
+        (await sumLineCents(tx, params.data.id)) -
+        (await sumPaidCents(tx, params.data.id));
+      if (parsed.data.amountCents > balanceCents) {
+        throw new BillValidationError(
+          `Payment exceeds the outstanding balance of ${formatDollars(balanceCents)}`,
+          "amountCents",
+        );
+      }
+      await tx.insert(billPaymentsTable).values({
+        billId: params.data.id,
+        date: parsed.data.date,
+        method: parsed.data.method ?? "check",
+        referenceNum: parsed.data.referenceNum ?? null,
+        amountCents: parsed.data.amountCents,
+        memo: parsed.data.memo ?? null,
+      });
     });
-    return;
+  } catch (err) {
+    if (err instanceof BillValidationError) {
+      res.status(400).json({ error: err.message, field: err.field });
+      return;
+    }
+    throw err;
   }
-  await db.insert(billPaymentsTable).values({
-    billId: params.data.id,
-    date: parsed.data.date,
-    method: parsed.data.method ?? "check",
-    referenceNum: parsed.data.referenceNum ?? null,
-    amountCents: parsed.data.amountCents,
-    memo: parsed.data.memo ?? null,
-  });
   const full = await getFullBill(params.data.id);
   res.status(201).json(CreateBillPaymentResponse.parse(full));
 });
@@ -504,20 +573,35 @@ router.post("/bills/:id/credits", async (req, res): Promise<void> => {
     });
     return;
   }
-  if (parsed.data.amountCents > existing.balanceCents) {
-    res.status(400).json({
-      error: `Credit exceeds the outstanding balance of ${formatDollars(existing.balanceCents)}`,
-      field: "amountCents",
+  try {
+    await db.transaction(async (tx) => {
+      // Same locking discipline as payments: serialize with concurrent bill
+      // edits and re-check the balance inside the transaction.
+      await lockBillRow(tx, params.data.id);
+      const balanceCents =
+        (await sumLineCents(tx, params.data.id)) -
+        (await sumPaidCents(tx, params.data.id));
+      if (parsed.data.amountCents > balanceCents) {
+        throw new BillValidationError(
+          `Credit exceeds the outstanding balance of ${formatDollars(balanceCents)}`,
+          "amountCents",
+        );
+      }
+      await tx.insert(vendorCreditsTable).values({
+        billId: params.data.id,
+        date: parsed.data.date,
+        referenceNum: parsed.data.referenceNum ?? null,
+        amountCents: parsed.data.amountCents,
+        memo: parsed.data.memo ?? null,
+      });
     });
-    return;
+  } catch (err) {
+    if (err instanceof BillValidationError) {
+      res.status(400).json({ error: err.message, field: err.field });
+      return;
+    }
+    throw err;
   }
-  await db.insert(vendorCreditsTable).values({
-    billId: params.data.id,
-    date: parsed.data.date,
-    referenceNum: parsed.data.referenceNum ?? null,
-    amountCents: parsed.data.amountCents,
-    memo: parsed.data.memo ?? null,
-  });
   const full = await getFullBill(params.data.id);
   res.status(201).json(CreateVendorCreditResponse.parse(full));
 });
