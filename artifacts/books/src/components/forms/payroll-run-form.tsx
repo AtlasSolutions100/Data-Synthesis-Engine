@@ -62,7 +62,9 @@ import {
   type PayrollRunInput,
   type Employee,
   type ExtractedHourRow,
+  type Job,
 } from "@workspace/api-client-react";
+import { JobCombobox } from "@/components/job-combobox";
 import {
   MAX_EXTRACT_TEXT_LENGTH,
   extractTextTooLargeMessage,
@@ -198,9 +200,11 @@ function computeLineCents(
 function LineAllocations({
   control,
   lineIndex,
+  jobs,
 }: {
   control: Control<RunFormValues>;
   lineIndex: number;
+  jobs: Job[];
 }) {
   const { fields, append, remove } = useFieldArray({
     control,
@@ -233,9 +237,13 @@ function LineAllocations({
               control={control}
               name={`lines.${lineIndex}.allocations.${aIndex}.jobId`}
               render={({ field }) => (
-                <FormItem className="w-28">
+                <FormItem className="w-64">
                   <FormControl>
-                    <Input type="number" placeholder="Job ID" {...field} />
+                    <JobCombobox
+                      jobs={jobs}
+                      value={field.value}
+                      onChange={field.onChange}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -367,6 +375,7 @@ function WorkerLine({
   index,
   rates,
   employees,
+  jobs,
   onRemove,
   canRemove,
 }: {
@@ -380,6 +389,7 @@ function WorkerLine({
     coSurcharge: number;
   };
   employees: Employee[];
+  jobs: Job[];
   onRemove: () => void;
   canRemove: boolean;
 }) {
@@ -624,7 +634,7 @@ function WorkerLine({
         </span>
       </div>
 
-      <LineAllocations control={control} lineIndex={index} />
+      <LineAllocations control={control} lineIndex={index} jobs={jobs} />
 
       <div className="flex justify-end text-xs">
         <span
@@ -660,9 +670,12 @@ interface ReviewRow {
   regularHours: string;
   overtimeHours: string;
   holidayHours: string;
-  target: string; // "skip" or the target line index as a string
+  target: string; // "skip", "new" (add a worker line), or a line index string
   status: ImportStatus;
   employeeId: string; // matched Employee Center record id ("" if none)
+  jobId: string; // confirmed job id ("" until confirmed)
+  jobAuto: boolean; // job was matched automatically from the extraction
+  extractedJobName: string; // job text as written in the source, for context
   flags: string[];
 }
 
@@ -693,12 +706,14 @@ const IMPORT_FILE_MAX_BYTES = 10 * 1024 * 1024;
 function ImportHoursDialog({
   form,
   employees,
-  jobNames,
+  jobs,
+  appendLine,
   autoOpen = false,
 }: {
   form: UseFormReturn<RunFormValues>;
   employees: Employee[];
-  jobNames: string[];
+  jobs: Job[];
+  appendLine: (line: RunFormValues["lines"][number]) => void;
   autoOpen?: boolean;
 }) {
   const [open, setOpen] = useState(autoOpen);
@@ -752,13 +767,55 @@ function ImportHoursDialog({
     }
   };
 
+  // Common given names used to spot job fields that actually contain a
+  // person's name (e.g. a supervisor) rather than a job. Any such value must
+  // be explicitly confirmed against the job list, even if a job with the
+  // same name exists.
+  const COMMON_GIVEN_NAMES = new Set(
+    (
+      "james john robert michael william david richard joseph thomas charles " +
+      "christopher daniel matthew anthony mark donald steven paul andrew joshua " +
+      "kenneth kevin brian george timothy ronald edward jason jeffrey ryan " +
+      "jacob gary nicholas eric jonathan stephen larry justin scott brandon " +
+      "benjamin samuel gregory alexander frank patrick raymond jack dennis " +
+      "jerry tyler aaron jose adam nathan henry peter zachary douglas kyle " +
+      "noah alan ethan jeremy walter christian keith roger terry austin sean " +
+      "gerald carl harold dylan arthur lawrence jordan jesse bryan billy " +
+      "bruce gabriel joe logan albert willie elijah wayne randy vincent mason " +
+      "roy ralph bobby russell bradley philip eugene louis phillip brendan " +
+      "mary patricia jennifer linda elizabeth barbara susan jessica sarah " +
+      "karen lisa nancy betty sandra margaret ashley kimberly emily donna " +
+      "michelle carol amanda dorothy melissa deborah stephanie rebecca sharon " +
+      "laura cynthia kathleen amy angela shirley anna brenda pamela emma " +
+      "nicole helen samantha katherine christine debra rachel carolyn janet " +
+      "catherine maria heather diane ruth julie olivia joyce virginia victoria " +
+      "kelly lauren christina joan evelyn judith megan andrea cheryl hannah " +
+      "jacqueline martha gloria teresa ann sara madison frances kathryn janice " +
+      "jean abigail alice julia judy sophia grace denise amber doris marilyn " +
+      "danielle beverly isabella theresa diana natalie brittany charlotte " +
+      "griselda tracy"
+    ).split(/\s+/),
+  );
+
+  const looksLikePersonName = (raw: string): boolean => {
+    const words = raw.trim().split(/\s+/);
+    if (words.length < 2 || words.length > 3) return false;
+    if (!words.every((w) => /^[A-Za-z][A-Za-z'.-]*$/.test(w))) return false;
+    return COMMON_GIVEN_NAMES.has(words[0].toLowerCase());
+  };
+
   const buildReview = (extracted: ExtractedHourRow[]): ReviewRow[] => {
     const opts = (form.getValues("lines") ?? [])
       .map((l, index) => ({ index, name: l.workerName, type: l.lineType }))
       .filter((o) => o.type === "employee");
     const periodStart = form.getValues("payPeriodStart");
     const periodEnd = form.getValues("payPeriodEnd");
-    const knownJobs = new Set(jobNames.map(normalizeName));
+    const jobsByName = new Map<string, Job[]>();
+    for (const job of jobs) {
+      const key = normalizeName(job.name);
+      jobsByName.set(key, [...(jobsByName.get(key) ?? []), job]);
+    }
+    const employeeNames = new Set(employees.map((e) => normalizeName(e.name)));
 
     return extracted.map((r) => {
       const matches = opts.filter(
@@ -777,6 +834,11 @@ function ImportHoursDialog({
         (e) => normalizeName(e.name) === normalizeName(r.workerName),
       );
       const employee = empMatches.length === 1 ? empMatches[0] : undefined;
+      // No existing worker line, but a unique Employee Center match: offer to
+      // add a new worker line so the import stays seamless.
+      if (status === "unmatched" && employee) {
+        target = "new";
+      }
 
       const flags: string[] = [];
       if (!employee) {
@@ -786,11 +848,54 @@ function ImportHoursDialog({
       } else if (r.overtimeHours > 0 && employee.overtimeRateCents == null) {
         flags.push(`${employee.name} has no overtime rate set in the Employee Center.`);
       }
-      for (const entry of r.entries ?? []) {
-        if (entry.jobName && !knownJobs.has(normalizeName(entry.jobName))) {
-          const msg = `Unknown job "${entry.jobName}" — no matching job on file.`;
-          if (!flags.includes(msg)) flags.push(msg);
+
+      // Job Name association: every applied row must map to an existing job.
+      const extractedJobNames = [
+        ...new Set(
+          (r.entries ?? [])
+            .map((e) => (e.jobName ?? "").trim())
+            .filter(Boolean),
+        ),
+      ];
+      let jobId = "";
+      let jobAuto = false;
+      if (extractedJobNames.length === 1) {
+        const raw = extractedJobNames[0];
+        const key = normalizeName(raw);
+        const jobMatches = jobsByName.get(key) ?? [];
+        const looksLikePerson =
+          employeeNames.has(key) ||
+          extracted.some((x) => normalizeName(x.workerName) === key) ||
+          looksLikePersonName(raw);
+        if (jobMatches.length === 1 && !looksLikePerson) {
+          jobId = String(jobMatches[0].id);
+          jobAuto = true;
+        } else if (looksLikePerson) {
+          flags.push(
+            jobMatches.length === 1
+              ? `"${raw}" looks like a person's name, but a job with this name exists. What job is this associated with?`
+              : `"${raw}" looks like a person's name, not a job. What job is this associated with?`,
+          );
+        } else if (jobMatches.length > 1) {
+          flags.push(
+            `Several jobs are named "${raw}". What job is this associated with?`,
+          );
+        } else {
+          flags.push(
+            `Unknown job "${raw}" — no matching job on file. What job is this associated with?`,
+          );
         }
+      } else if (extractedJobNames.length > 1) {
+        flags.push(
+          `Multiple job names detected (${extractedJobNames.join(", ")}). Hours were combined — pick the job to allocate to, then adjust allocations on the worker line if the cost should be split.`,
+        );
+      } else {
+        flags.push(
+          "No job detected in the source. What job is this associated with?",
+        );
+      }
+
+      for (const entry of r.entries ?? []) {
         if (entry.date && periodStart && periodEnd) {
           if (entry.date < periodStart || entry.date > periodEnd) {
             const msg = `Date ${entry.date} is outside the pay period (${periodStart} – ${periodEnd}).`;
@@ -807,6 +912,9 @@ function ImportHoursDialog({
         target,
         status,
         employeeId: employee ? String(employee.id) : "",
+        jobId,
+        jobAuto,
+        extractedJobName: extractedJobNames.join(", "),
         flags,
       };
     });
@@ -844,12 +952,21 @@ function ImportHoursDialog({
   };
 
   const appliedCount = rows.filter((r) => r.target !== "skip").length;
+  const unconfirmedJobCount = rows.filter(
+    (r) => r.target !== "skip" && !r.jobId,
+  ).length;
 
   const handleApply = () => {
+    const formValues = form.getValues();
+    const burdenRates = {
+      ss: pctToBps(formValues.ssRate),
+      medicare: pctToBps(formValues.medicareRate),
+      futa: pctToBps(formValues.futaRate),
+      coSui: pctToBps(formValues.coSuiRate),
+      coSurcharge: pctToBps(formValues.coSurchargeRate),
+    };
     rows.forEach((r) => {
       if (r.target === "skip") return;
-      const idx = parseInt(r.target, 10);
-      if (Number.isNaN(idx)) return;
       const entries: { costType: LaborCostType; hours: string }[] = [];
       if (parseFloat(r.regularHours || "0") > 0)
         entries.push({ costType: "regular", hours: r.regularHours });
@@ -857,16 +974,71 @@ function ImportHoursDialog({
         entries.push({ costType: "overtime", hours: r.overtimeHours });
       if (parseFloat(r.holidayHours || "0") > 0)
         entries.push({ costType: "holiday", hours: r.holidayHours });
-      form.setValue(
-        `lines.${idx}.hourEntries`,
+      const hourEntries =
         entries.length > 0
           ? entries
-          : [{ costType: "regular", hours: "" }],
-        { shouldDirty: true, shouldValidate: true },
-      );
+          : [{ costType: "regular" as LaborCostType, hours: "" }];
+
+      const employee = r.employeeId
+        ? employees.find((e) => String(e.id) === r.employeeId)
+        : undefined;
+
+      // Burdened labor cost rolls up from the Employee Center rates and the
+      // run's burden percentages — no manual re-entry.
+      const buildAllocations = (taxExempt: boolean) => {
+        if (!r.jobId) return [] as { jobId: string; amount: string }[];
+        const computed = computeLineCents(
+          {
+            lineType: "employee",
+            workerName: r.workerName,
+            hourEntries,
+            taxExempt,
+            allocations: [],
+          } as unknown as RunFormValues["lines"][number],
+          employee,
+          burdenRates,
+        );
+        if (computed.totalCents <= 0) {
+          return [{ jobId: r.jobId, amount: "" }];
+        }
+        return [
+          { jobId: r.jobId, amount: (computed.totalCents / 100).toFixed(2) },
+        ];
+      };
+
+      if (r.target === "new") {
+        const taxExempt = employee?.taxExempt ?? false;
+        appendLine({
+          lineType: "employee",
+          employeeId: r.employeeId,
+          vendorId: "",
+          workerName: employee?.name ?? r.workerName,
+          hourEntries,
+          taxExempt,
+          subcontractorAmount: "",
+          allocations: buildAllocations(taxExempt),
+        });
+        return;
+      }
+
+      const idx = parseInt(r.target, 10);
+      if (Number.isNaN(idx)) return;
+      form.setValue(`lines.${idx}.hourEntries`, hourEntries, {
+        shouldDirty: true,
+        shouldValidate: true,
+      });
       // Link the Employee Center record so rates apply automatically.
       if (r.employeeId && !form.getValues(`lines.${idx}.employeeId`)) {
         form.setValue(`lines.${idx}.employeeId`, r.employeeId, {
+          shouldDirty: true,
+        });
+      }
+      if (r.jobId) {
+        const taxExempt =
+          form.getValues(`lines.${idx}.taxExempt`) ??
+          employee?.taxExempt ??
+          false;
+        form.setValue(`lines.${idx}.allocations`, buildAllocations(taxExempt), {
           shouldDirty: true,
         });
       }
@@ -881,7 +1053,7 @@ function ImportHoursDialog({
           <Sparkles className="mr-1 h-4 w-4" /> Import hours
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[760px]">
+      <DialogContent className="sm:max-w-[980px]">
         <DialogHeader>
           <DialogTitle>Import hours</DialogTitle>
           <DialogDescription>
@@ -961,13 +1133,18 @@ function ImportHoursDialog({
           <div className="space-y-4">
             <p className="text-sm text-slate-600">
               {appliedCount} of {rows.length} row
-              {rows.length === 1 ? "" : "s"} will be applied. Review the hours
-              and confirm which worker line each maps to.
+              {rows.length === 1 ? "" : "s"} will be applied. Review the hours,
+              confirm the worker, and confirm the Job Name each row belongs to.
+              The burdened labor cost (rates from the Employee Center plus
+              employer burden) is allocated to the confirmed job automatically.
             </p>
-            {employeeOptions.length === 0 ? (
-              <p className="text-sm text-amber-600">
-                Add employee worker lines first, then import to fill their
-                hours.
+            {unconfirmedJobCount > 0 ? (
+              <p className="flex items-center gap-1 text-sm text-amber-600">
+                <AlertTriangle className="h-4 w-4 shrink-0" />
+                {unconfirmedJobCount} row
+                {unconfirmedJobCount === 1 ? " needs" : "s need"} a Job Name
+                before you can apply. Pick one from the list, or set the row to
+                Skip.
               </p>
             ) : null}
             <div className="max-h-[45vh] overflow-y-auto rounded-md border">
@@ -975,10 +1152,11 @@ function ImportHoursDialog({
                 <TableHeader>
                   <TableRow>
                     <TableHead>Extracted name</TableHead>
-                    <TableHead className="w-20 text-right">Reg</TableHead>
-                    <TableHead className="w-20 text-right">OT</TableHead>
-                    <TableHead className="w-20 text-right">Hol/Vac</TableHead>
+                    <TableHead className="w-16 text-right">Reg</TableHead>
+                    <TableHead className="w-16 text-right">OT</TableHead>
+                    <TableHead className="w-16 text-right">Hol/Vac</TableHead>
                     <TableHead className="w-44">Apply to worker</TableHead>
+                    <TableHead className="w-56">Job Name</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -1040,6 +1218,11 @@ function ImportHoursDialog({
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="skip">Skip</SelectItem>
+                            {r.employeeId ? (
+                              <SelectItem value="new">
+                                + Add new worker line
+                              </SelectItem>
+                            ) : null}
                             {employeeOptions.map((o) => (
                               <SelectItem key={o.index} value={String(o.index)}>
                                 {o.name || `Worker ${o.index + 1}`}
@@ -1047,6 +1230,20 @@ function ImportHoursDialog({
                             ))}
                           </SelectContent>
                         </Select>
+                      </TableCell>
+                      <TableCell className="align-top">
+                        <JobCombobox
+                          jobs={jobs}
+                          value={r.jobId}
+                          onChange={(jobId) => updateRow(i, { jobId })}
+                          placeholder="Confirm job…"
+                          highlight={r.target !== "skip" && !r.jobId}
+                        />
+                        {r.jobId && r.jobAuto ? (
+                          <p className="mt-1 text-xs text-emerald-600">
+                            Matched from “{r.extractedJobName}”
+                          </p>
+                        ) : null}
                       </TableCell>
                     </TableRow>
                   ))}
@@ -1064,7 +1261,7 @@ function ImportHoursDialog({
               <Button
                 type="button"
                 onClick={handleApply}
-                disabled={appliedCount === 0}
+                disabled={appliedCount === 0 || unconfirmedJobCount > 0}
               >
                 Apply hours
               </Button>
@@ -1089,10 +1286,7 @@ export function PayrollRunForm({
     query: { queryKey: getListJobsQueryKey() },
   });
   const employeeList = useMemo(() => employees ?? [], [employees]);
-  const jobNames = useMemo(
-    () => (jobs ?? []).map((j) => j.name).filter(Boolean) as string[],
-    [jobs],
-  );
+  const jobList = useMemo(() => jobs ?? [], [jobs]);
 
   const form = useForm<RunFormValues>({
     resolver: zodResolver(runSchema),
@@ -1430,7 +1624,8 @@ export function PayrollRunForm({
               <ImportHoursDialog
                 form={form}
                 employees={employeeList}
-                jobNames={jobNames}
+                jobs={jobList}
+                appendLine={append}
                 autoOpen={autoOpenImport}
               />
               <Button
@@ -1450,6 +1645,7 @@ export function PayrollRunForm({
               index={index}
               rates={rates}
               employees={employeeList}
+              jobs={jobList}
               onRemove={() => fields.length > 1 && remove(index)}
               canRemove={fields.length > 1}
             />
