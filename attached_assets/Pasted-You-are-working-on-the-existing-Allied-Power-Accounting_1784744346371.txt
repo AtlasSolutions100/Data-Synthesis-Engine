@@ -1,0 +1,27 @@
+You are working on the existing Allied Power Accounting dashboard in this Replit project.
+
+We just attached a real P&L export spreadsheet for "Douglas County School District" (Larkspur gear project and related transactions). This is an example of how data should flow.
+
+CRITICAL REQUIREMENTS — CONFIRM AND REINFORCE:
+
+1. Single Source of Truth + Roll-up Architecture
+   - Confirm that the system already works with a proper Single Source of Truth (GL is the origin).
+   - Transactions must automatically roll up to the correct Customer ledger and to the overall P&L.
+   - When viewing the customer "Douglas County School District", it should show all associated transactions and totals (income, costs, profit) for all jobs under it.
+   - Verify this is already functioning correctly with the attached spreadsheet data. If any gaps exist, fix them.
+
+2. Customer → Job Hierarchy & Categorization (Simplified QBO-style)
+   - Maintain the hierarchy: Customer (e.g. "Douglas County School District") → list of Jobs underneath (e.g. "Larkspur gear" and any others).
+   - When new transactions come in (invoices, bills, expenses, time cards, etc.), the system should make it easy for Mike to assign them to the correct Customer and Job Name.
+   - Provide smart suggestions or easy dropdowns based on existing customers/jobs (similar to QuickBooks but simpler and cleaner — no extra clutter).
+   - PO Number remains a separate field only.
+
+Test / Verify Using the Attached Spreadsheet:
+- All "Douglas County Schools" / "Douglas County School District" transactions should roll up correctly under that customer.
+- Income (various pay apps), expenses (equipment rental, materials from CES, etc.), and profit should aggregate properly in client view and P&L.
+- Ensure Job Name is used as the main identifier (e.g. "Larkspur gear").
+
+After changes:
+- Confirm explicitly: "Customer/job roll-up and categorization is now working as requested."
+- Give step-by-step testing instructions using the Douglas County Schools example.
+- List any files modified.

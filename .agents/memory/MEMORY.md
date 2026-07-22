@@ -14,5 +14,6 @@
 - [pdf.js range streaming config](pdfjs-range-streaming-config.md) — legacy build + disableAutoFetch + disableStream + `?url` worker import are all required; test PDFs must cluster page dicts.
 - [codegen-check must be read-only](codegen-check-read-only.md) — parallel validations race in-place regeneration; diff temp-copy output instead of mutating src/generated.
 - [Base64 upload body limit](base64-upload-body-limit.md) — express.json default ~100KB 413s base64 upload routes; raise limit above base64-inflated file cap and test with multi-MB payload.
+- [Douglas County verification data](douglas-county-verification-data.md) — real QBO P&L seeded on job "Larkspur Gear"; ground-truth totals for roll-up testing (net income $109,657.07).
 - [Pay period numbering](pay-periods.md) — periods numbered by pay-date year, not start year; anchor Period 13 = 2026-06-08.
 - [Job/PO labeling](job-po-labeling.md) — jobs identified by Job Name only; PO Number is the sole reference field; job_number stays in DB but is auto-generated and never shown.
