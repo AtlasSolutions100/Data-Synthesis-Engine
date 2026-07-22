@@ -1,0 +1,119 @@
+Core Navigation 
+ “attack the data from any angle” with multiple pathways to the same information:
+
+•       Start at Customer → see all Jobs underneath → click into Job details & transactions
+
+•       Start at Vendor → see every expense/transaction ever paid to that vendor across all jobs
+
+•       Start in Reports → filter by Customer/Job → click dollar amounts for full line-item drill-down
+
+•       Profit analysis lives in the P&L report (not on the main dashboard)
+
+1. Main Dashboard Changes
+Current vs. Desired
+•       Remove “Jobs by Profit” widget/section from the main dashboard view entirely.
+
+•       Make Customer list/view the primary/anchor experience on login or main screen.
+
+•       Example flow: See “National Network Services” as top-level customer → underneath it appears job “PSL” (and future jobs).
+
+•       Clicking a job name pulls in the full transaction detail view (currently what shows on the dashboard for a selected job).
+
+PO & Job Name Handling
+•       Do NOT display the PO number as part of the customer name or job identifier in any list or detail view.
+
+•       Create a dedicated separate field/category labeled “PO Number”.
+
+•       Change the existing “Name” field label to “Job Name”. All job numbers in Mike’s world are actually job names (e.g., “PSL”).
+
+•       Status, Cost to Date, and other columns on the job detail screen are good and should remain visible.
+
+2. Customer View / Tab
+•       Primary navigation method: Search or browse by Customer name.
+
+•       Under each customer, show an expandable or immediately visible list of all associated jobs.
+
+•       Clicking a job under the customer takes the user straight into that job’s full detail/transactions view.
+
+•       Goal stated by Mike: “When I pull up National Network Services, I should see every job underneath it, then pick which one I want to look at.”
+
+3. Vendor Tab / Search by Vendor
+•       Implement full “Search by Vendor” capability (currently partial).
+
+•       Clicking any vendor (Worker B, Radiant, CES/Charlie Echo Sam, etc.) must show ALL costs/transactions associated with that vendor across every job.
+
+•       Example: Click “Radiant” → immediately see the one transaction already paid, plus future ones, without having to navigate back to individual jobs.
+
+•       Keep and prominently feature the “New Vendor” button/tab on the right side of the vendor screen.
+
+•       Data sync requirement: Every vendor entry created from job data must flow bidirectionally so the vendor view is always complete.
+
+4. Employees / Employee Center Tab
+•       This becomes the single source of truth and the ONLY place where rates, OT multipliers, payroll deductions, tax status, and active/inactive flags can be edited.
+
+•       Add the following employees with complete data:
+
+•       Brendan – $30/hr regular, 1.5× OT ($45), Active, tax settings as appropriate
+
+•       Tracy, Jeff Harris, Michael Grenz (owner)
+
+•       View history: “All Years” dropdown + ability to select a specific employee to see lifetime hours/time-card history.
+
+•       Burden rates and employer costs should be viewable (but not editable) from the time-card screen; edits only in Employee Center.
+
+5. Time Cards / Time Sheets (Rename from “Payroll”)
+Tab Rename & Labeling
+•       Rename the tab from “Payroll” to “Time Cards” (Mike’s preferred terminology).
+
+•       Update button/label to “New Time Card Run”.
+
+Pay Period Intelligence 
+•       Add a Pay Period Number field (Mike runs 26 payrolls/year – weekly, Mon–Sun).
+
+•       Hard-code the full pay-period schedule using the data Mike already sent (one of the downloads contains the FICA/payroll export showing Period 13: Start 6/8, End 6/21, Check Date ~6/26).
+
+•       When the user selects only the Pay Period Number, auto-populate: Begin Date, End Date, and Pay Date (following Thursday, with holiday exceptions noted).
+
+•       Mike will send the complete schedule (Excel or photo) so it can be parameterized exactly.
+
+Importing Hours & Extraction
+•       Support paste from email, upload of image/PDF/scan, or text block.
+
+•       AI extracts employee, date(s), hours, job name/project.
+
+•       Auto-calculate Regular vs. OT using the employee master record.
+
+•       Flag mismatches (unknown employee, unknown job name like “Bruce Randolph”, date outside pay period) with clear red-flag alerts for review.
+
+•       Future enhancement noted: AI should eventually suggest/create missing Customer/Job records with confirmation.
+
+Labor Cost Categories
+•       Replace free-text or current options with a clean dropdown containing exactly three choices:
+
+•       Regular Pay
+
+•       Overtime Pay
+
+•       Holiday / Vacation / Sick (one combined “slush fund” bucket)
+
+6. Bills Tab
+•       New Bill creation flow must enforce three sequential categories:
+
+•       1. Vendor (improve search: name-based type-ahead/autocomplete – typing “CES” or “Charlie” should surface the vendor, not just numeric ID lookup).
+
+•       2. Customer
+
+•       3. Job
+
+•       AI should pre-populate as much as possible from an uploaded invoice/scan; user verifies and clears any flags.
+
+•       All bill data must sync to the corresponding job cost ledger and vendor history view.
+
+7. Reports Tab & Drill-Down
+•       Add Customer + Job filters to reports such as “Job Materials Purchased” and “Equipment Rentals”.
+
+•       Make dollar-amount totals clickable: clicking $19,665.80 (or any total) expands to show every line item/transaction that makes up that number.
+
+•       Consistent experience whether the user arrives from the left (Jobs view) or the right (Reports view).
+
+•       P&L report remains the home for profit analysis (per job or roll-up).

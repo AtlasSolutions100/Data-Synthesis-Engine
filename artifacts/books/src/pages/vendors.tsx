@@ -6,17 +6,28 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { VendorForm } from "@/components/forms/vendor-form";
 import { useQueryClient } from "@tanstack/react-query";
-import { Plus, Edit2, Trash2 } from "lucide-react";
+import { Plus, Edit2, Trash2, Search } from "lucide-react";
 import { Link } from "wouter";
+import { Input } from "@/components/ui/input";
 
 export default function Vendors() {
   const queryClient = useQueryClient();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
+  const [search, setSearch] = useState("");
 
   const { data: vendors, isLoading } = useListVendors({
     query: { queryKey: getListVendorsQueryKey() }
   });
+
+  const normalizedSearch = search.trim().toLowerCase();
+  const filteredVendors = normalizedSearch
+    ? vendors?.filter((v) =>
+        [v.name, v.email, v.phone, v.notes]
+          .filter(Boolean)
+          .some((field) => String(field).toLowerCase().includes(normalizedSearch))
+      )
+    : vendors;
 
   const createVendor = useCreateVendor({
     mutation: {
@@ -69,6 +80,16 @@ export default function Vendors() {
         </Dialog>
       </div>
 
+      <div className="relative max-w-sm">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+        <Input
+          placeholder="Search vendors..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="pl-9"
+        />
+      </div>
+
       <Card>
         <CardContent className="p-0">
           <Table>
@@ -86,12 +107,14 @@ export default function Vendors() {
                 <TableRow>
                   <TableCell colSpan={5} className="text-center py-8 text-slate-500">Loading vendors...</TableCell>
                 </TableRow>
-              ) : vendors?.length === 0 ? (
+              ) : filteredVendors?.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-8 text-slate-500">No vendors found.</TableCell>
+                  <TableCell colSpan={5} className="text-center py-8 text-slate-500">
+                    {normalizedSearch ? "No vendors match your search." : "No vendors found."}
+                  </TableCell>
                 </TableRow>
               ) : (
-                vendors?.map((vendor) => (
+                filteredVendors?.map((vendor) => (
                   <TableRow key={vendor.id}>
                     <TableCell className="font-medium">
                       <Link href={`/vendors/${vendor.id}`} className="text-blue-600 hover:underline">
