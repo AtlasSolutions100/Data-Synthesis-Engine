@@ -128,6 +128,13 @@ describe("Import hours — Job Name association", () => {
     render(<PayrollRunForm onSubmit={vi.fn()} defaultValues={defaults} />);
     await importText("Brendan Friedman — 40 reg, 5 OT at HR Stadium");
 
+    // Step 1: the customer is suggested from the matched job.
+    expect(
+      screen.getByText(/Which Client \/ Customer is this time associated with\?/),
+    ).toBeTruthy();
+    expect(screen.getByText("Douglas County Schools")).toBeTruthy();
+    expect(screen.getByText(/Suggested from the timesheet/)).toBeTruthy();
+
     // Auto-matched: green confirmation, no amber prompt, Apply enabled.
     expect(screen.getByText(/Matched from “HR Stadium”/)).toBeTruthy();
     expect(screen.queryByText(/what job is this associated with/i)).toBeNull();
@@ -222,6 +229,79 @@ describe("Import hours — Job Name association", () => {
     expect(applyButton().disabled).toBe(true);
   });
 
+  it("recognizes a customer name in the source and asks which of their jobs to use", async () => {
+    mutateAsync.mockResolvedValueOnce({
+      rows: [
+        {
+          workerName: "Brendan Friedman",
+          regularHours: 40,
+          overtimeHours: 0,
+          holidayHours: 0,
+          entries: [
+            {
+              date: null,
+              jobName: "Douglas County Schools",
+              hours: 40,
+              costType: "regular",
+            },
+          ],
+        },
+      ],
+    });
+    render(<PayrollRunForm onSubmit={vi.fn()} defaultValues={defaults} />);
+    await importText("Brendan Friedman — 40 hours for Douglas County Schools");
+
+    // Step 1 is pre-filled with the recognized customer.
+    expect(screen.getByText("Douglas County Schools")).toBeTruthy();
+    expect(screen.getByText(/Suggested from the timesheet/)).toBeTruthy();
+    // Step 2 asks for the specific job and blocks Apply until chosen.
+    expect(
+      screen.getByText(
+        /"Douglas County Schools" is a customer, not a job\. Which of their jobs is this associated with\?/,
+      ),
+    ).toBeTruthy();
+    expect(applyButton().disabled).toBe(true);
+
+    // The job list is narrowed to that customer's jobs.
+    fireEvent.click(screen.getByText(/confirm job/i));
+    await screen.findByPlaceholderText(/search job names/i);
+    expect(screen.queryByText("Bruce Randolph")).toBeNull();
+    fireEvent.click(await screen.findByText("HR Stadium"));
+    await waitFor(() => expect(applyButton().disabled).toBe(false));
+  });
+
+  it("clears job picks under other customers when the customer changes, re-blocking Apply", async () => {
+    mutateAsync.mockResolvedValueOnce({
+      rows: [
+        {
+          workerName: "Brendan Friedman",
+          regularHours: 40,
+          overtimeHours: 0,
+          holidayHours: 0,
+          entries: [
+            { date: null, jobName: "HR Stadium", hours: 40, costType: "regular" },
+          ],
+        },
+      ],
+    });
+    render(<PayrollRunForm onSubmit={vi.fn()} defaultValues={defaults} />);
+    await importText("Brendan Friedman — 40 hours at HR Stadium");
+
+    // Auto-matched to HR Stadium (Douglas County Schools); Apply enabled.
+    expect(applyButton().disabled).toBe(false);
+
+    // Switch Step 1 to a different customer — the mismatched job pick is
+    // cleared and Apply is blocked again until a job is confirmed.
+    fireEvent.click(screen.getAllByRole("combobox")[0]);
+    const search = await screen.findByPlaceholderText(/search customers/i);
+    fireEvent.change(search, { target: { value: "Bassett" } });
+    fireEvent.click(await screen.findByText("Bassett & Associates, Inc"));
+
+    await waitFor(() => expect(applyButton().disabled).toBe(true));
+    expect(screen.getByText(/needs a Job Name before you can apply/i)).toBeTruthy();
+    expect(screen.getByText(/confirm job/i)).toBeTruthy();
+  });
+
   it("requires a job even when the source has no job at all", async () => {
     mutateAsync.mockResolvedValueOnce({
       rows: [
@@ -275,7 +355,9 @@ describe("Import hours — Job Name association", () => {
         /"Bruce Randolph" looks like a person's name, but a job with this name exists\. What job is this associated with\?/,
       ),
     ).toBeTruthy();
-    const targetSelect = screen.getAllByRole("combobox")[0];
+    // Index 0 is the Step 1 customer combobox; index 1 is the row's
+    // "Apply to worker" select.
+    const targetSelect = screen.getAllByRole("combobox")[1];
     expect(within(targetSelect).getByText(/add new worker line/i)).toBeTruthy();
     expect(applyButton().disabled).toBe(true);
 

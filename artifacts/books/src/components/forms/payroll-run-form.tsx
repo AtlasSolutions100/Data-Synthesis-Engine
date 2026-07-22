@@ -65,6 +65,7 @@ import {
   type Job,
 } from "@workspace/api-client-react";
 import { JobCombobox } from "@/components/job-combobox";
+import { CustomerCombobox } from "@/components/customer-combobox";
 import {
   MAX_EXTRACT_TEXT_LENGTH,
   extractTextTooLargeMessage,
@@ -676,6 +677,7 @@ interface ReviewRow {
   jobId: string; // confirmed job id ("" until confirmed)
   jobAuto: boolean; // job was matched automatically from the extraction
   extractedJobName: string; // job text as written in the source, for context
+  customerHint: string; // customer name suggested by the extraction ("" if none)
   flags: string[];
 }
 
@@ -723,6 +725,8 @@ function ImportHoursDialog({
   const [fileData, setFileData] = useState("");
   const [error, setError] = useState("");
   const [rows, setRows] = useState<ReviewRow[]>([]);
+  const [customer, setCustomer] = useState(""); // "" = all customers
+  const [customerAuto, setCustomerAuto] = useState(false);
 
   const extract = useExtractPayrollHours();
 
@@ -737,6 +741,8 @@ function ImportHoursDialog({
     setFileData("");
     setError("");
     setRows([]);
+    setCustomer("");
+    setCustomerAuto(false);
     extract.reset();
   };
 
@@ -816,6 +822,12 @@ function ImportHoursDialog({
       jobsByName.set(key, [...(jobsByName.get(key) ?? []), job]);
     }
     const employeeNames = new Set(employees.map((e) => normalizeName(e.name)));
+    const customersByName = new Map<string, string>();
+    for (const job of jobs) {
+      if (job.customerName) {
+        customersByName.set(normalizeName(job.customerName), job.customerName);
+      }
+    }
 
     return extracted.map((r) => {
       const matches = opts.filter(
@@ -859,10 +871,12 @@ function ImportHoursDialog({
       ];
       let jobId = "";
       let jobAuto = false;
+      let customerHint = "";
       if (extractedJobNames.length === 1) {
         const raw = extractedJobNames[0];
         const key = normalizeName(raw);
         const jobMatches = jobsByName.get(key) ?? [];
+        const customerMatch = customersByName.get(key) ?? "";
         const looksLikePerson =
           employeeNames.has(key) ||
           extracted.some((x) => normalizeName(x.workerName) === key) ||
@@ -870,7 +884,14 @@ function ImportHoursDialog({
         if (jobMatches.length === 1 && !looksLikePerson) {
           jobId = String(jobMatches[0].id);
           jobAuto = true;
+          customerHint = jobMatches[0].customerName ?? "";
+        } else if (jobMatches.length === 0 && customerMatch) {
+          customerHint = customerMatch;
+          flags.push(
+            `"${raw}" is a customer, not a job. Which of their jobs is this associated with?`,
+          );
         } else if (looksLikePerson) {
+          if (jobMatches.length === 1) customerHint = jobMatches[0].customerName ?? "";
           flags.push(
             jobMatches.length === 1
               ? `"${raw}" looks like a person's name, but a job with this name exists. What job is this associated with?`
@@ -915,9 +936,19 @@ function ImportHoursDialog({
         jobId,
         jobAuto,
         extractedJobName: extractedJobNames.join(", "),
+        customerHint,
         flags,
       };
     });
+  };
+
+  // If the extraction points at exactly one customer, pre-select it so the
+  // guided Customer → Job flow starts already filled in.
+  const suggestCustomer = (built: ReviewRow[]): string => {
+    const hints = new Set(
+      built.map((r) => r.customerHint).filter((c): c is string => !!c),
+    );
+    return hints.size === 1 ? [...hints][0] : "";
   };
 
   const handleExtract = async () => {
@@ -938,7 +969,11 @@ function ImportHoursDialog({
           fileName: fileData ? fileName || undefined : undefined,
         },
       });
-      setRows(buildReview(result.rows));
+      const built = buildReview(result.rows);
+      const suggested = suggestCustomer(built);
+      setRows(built);
+      setCustomer(suggested);
+      setCustomerAuto(!!suggested);
       setStage("review");
     } catch (err) {
       setError(readApiError(err));
@@ -955,6 +990,29 @@ function ImportHoursDialog({
   const unconfirmedJobCount = rows.filter(
     (r) => r.target !== "skip" && !r.jobId,
   ).length;
+
+  // Step 1 (customer) narrows the Job Name choices in step 2.
+  const jobsForRows = customer
+    ? jobs.filter((j) => (j.customerName || "No customer") === customer)
+    : jobs;
+
+  const handleCustomerChange = (next: string) => {
+    setCustomer(next);
+    setCustomerAuto(false);
+    if (!next) return;
+    // Forgiving: clear any job picks that don't belong to the chosen
+    // customer instead of silently keeping a mismatch.
+    setRows((prev) =>
+      prev.map((r) => {
+        if (!r.jobId) return r;
+        const job = jobs.find((j) => String(j.id) === r.jobId);
+        if (job && (job.customerName || "No customer") !== next) {
+          return { ...r, jobId: "", jobAuto: false };
+        }
+        return r;
+      }),
+    );
+  };
 
   const handleApply = () => {
     const formValues = form.getValues();
@@ -1131,7 +1189,30 @@ function ImportHoursDialog({
           </div>
         ) : (
           <div className="space-y-4">
+            <div className="rounded-lg border border-blue-200 bg-blue-50/60 p-4">
+              <p className="text-sm font-semibold text-slate-900">
+                Step 1 — Which Client / Customer is this time associated with?
+              </p>
+              <div className="mt-2 max-w-md">
+                <CustomerCombobox
+                  jobs={jobs}
+                  value={customer}
+                  onChange={handleCustomerChange}
+                  highlight={rows.length > 0 && unconfirmedJobCount > 0}
+                />
+              </div>
+              <p className="mt-1.5 text-xs text-slate-600">
+                {customer && customerAuto
+                  ? `Suggested from the timesheet — change it if that's not right.`
+                  : customer
+                    ? `Showing only ${customer}'s jobs below.`
+                    : "Picking a customer narrows the Job Name choices below. You can also leave it on all customers."}
+              </p>
+            </div>
             <p className="text-sm text-slate-600">
+              <span className="font-semibold text-slate-900">
+                Step 2 — Confirm each worker and Job Name.
+              </span>{" "}
               {appliedCount} of {rows.length} row
               {rows.length === 1 ? "" : "s"} will be applied. Review the hours,
               confirm the worker, and confirm the Job Name each row belongs to.
@@ -1233,7 +1314,7 @@ function ImportHoursDialog({
                       </TableCell>
                       <TableCell className="align-top">
                         <JobCombobox
-                          jobs={jobs}
+                          jobs={jobsForRows}
                           value={r.jobId}
                           onChange={(jobId) => updateRow(i, { jobId })}
                           placeholder="Confirm job…"
