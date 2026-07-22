@@ -283,6 +283,18 @@ export const DeleteVendorResponse = zod.void()
 
 
 /**
+ * @summary Get the vendor's most-used expense account (smart default)
+ */
+export const GetVendorDefaultAccountParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetVendorDefaultAccountResponse = zod.object({
+  "accountId": zod.number().nullable().describe('The account this vendor\'s costs are most often categorized to, or null when the vendor has no history yet.')
+})
+
+
+/**
  * @summary List employees
  */
 export const ListEmployeesResponseItem = zod.object({

@@ -89,6 +89,7 @@ import type {
   UserRoleUpdate,
   Vendor,
   VendorCreditInput,
+  VendorDefaultAccount,
   VendorInput,
   VendorUpdate
 } from './api.schemas';
@@ -1292,6 +1293,83 @@ export const useDeleteVendor = <TError = ErrorType<ErrorResponse>,
       > => {
       return useMutation(getDeleteVendorMutationOptions(options));
     }
+
+export const getGetVendorDefaultAccountUrl = (id: number,) => {
+
+
+
+
+  return `/api/vendors/${id}/default-account`
+}
+
+/**
+ * @summary Get the vendor's most-used expense account (smart default)
+ */
+export const getVendorDefaultAccount = async (id: number, options?: RequestInit): Promise<VendorDefaultAccount> => {
+
+  return customFetch<VendorDefaultAccount>(getGetVendorDefaultAccountUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetVendorDefaultAccountQueryKey = (id: number,) => {
+    return [
+    `/api/vendors/${id}/default-account`
+    ] as const;
+    }
+
+
+export const getGetVendorDefaultAccountQueryOptions = <TData = Awaited<ReturnType<typeof getVendorDefaultAccount>>, TError = ErrorType<ErrorResponse>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getVendorDefaultAccount>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetVendorDefaultAccountQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getVendorDefaultAccount>>> = ({ signal }) => getVendorDefaultAccount(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getVendorDefaultAccount>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetVendorDefaultAccountQueryResult = NonNullable<Awaited<ReturnType<typeof getVendorDefaultAccount>>>
+export type GetVendorDefaultAccountQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary Get the vendor's most-used expense account (smart default)
+ */
+
+export function useGetVendorDefaultAccount<TData = Awaited<ReturnType<typeof getVendorDefaultAccount>>, TError = ErrorType<ErrorResponse>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getVendorDefaultAccount>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetVendorDefaultAccountQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getListEmployeesUrl = () => {
 

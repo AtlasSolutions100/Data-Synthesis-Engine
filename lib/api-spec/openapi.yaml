@@ -295,6 +295,23 @@ paths:
         "404":
           $ref: "#/components/responses/Error"
 
+  /vendors/{id}/default-account:
+    get:
+      operationId: getVendorDefaultAccount
+      tags: [vendors]
+      summary: Get the vendor's most-used expense account (smart default)
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "200":
+          description: Suggested default account for this vendor
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VendorDefaultAccount"
+        "404":
+          $ref: "#/components/responses/Error"
+
   /employees:
     get:
       operationId: listEmployees
@@ -1661,6 +1678,15 @@ components:
           type: ["string", "null"]
         notes:
           type: ["string", "null"]
+    VendorDefaultAccount:
+      type: object
+      required: [accountId]
+      properties:
+        accountId:
+          type: ["integer", "null"]
+          description: >-
+            The account this vendor's costs are most often categorized to,
+            or null when the vendor has no history yet.
     VendorInput:
       type: object
       required: [name]

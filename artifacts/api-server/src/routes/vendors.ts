@@ -1,8 +1,9 @@
 import { Router, type IRouter } from "express";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { db, vendorsTable } from "@workspace/db";
 import {
   ListVendorsResponse,
+  GetVendorDefaultAccountResponse,
   CreateVendorBody,
   GetVendorParams,
   GetVendorResponse,
@@ -44,6 +45,47 @@ router.get("/vendors/:id", async (req, res): Promise<void> => {
   }
   res.json(GetVendorResponse.parse(row));
 });
+
+router.get(
+  "/vendors/:id/default-account",
+  async (req, res): Promise<void> => {
+    const params = GetVendorParams.safeParse(req.params);
+    if (!params.success) {
+      res.status(400).json({ error: params.error.message });
+      return;
+    }
+    const [vendor] = await db
+      .select({ id: vendorsTable.id })
+      .from(vendorsTable)
+      .where(eq(vendorsTable.id, params.data.id));
+    if (!vendor) {
+      res.status(404).json({ error: "Vendor not found" });
+      return;
+    }
+    // Most-used account across the vendor's bill lines and GL transactions,
+    // tie-broken by most recent usage.
+    const rows = await db.execute(sql`
+      with usage as (
+        select bl.account_id, b.date
+        from bill_lines bl
+        join bills b on b.id = bl.bill_id
+        where b.vendor_id = ${params.data.id} and bl.account_id is not null
+        union all
+        select t.account_id, t.date
+        from transactions t
+        where t.vendor_id = ${params.data.id} and t.account_id is not null
+      )
+      select account_id
+      from usage
+      group by account_id
+      order by count(*) desc, max(date) desc
+      limit 1
+    `);
+    const accountId =
+      rows.rows.length > 0 ? Number(rows.rows[0].account_id) : null;
+    res.json(GetVendorDefaultAccountResponse.parse({ accountId }));
+  },
+);
 
 router.patch("/vendors/:id", async (req, res): Promise<void> => {
   const params = UpdateVendorParams.safeParse(req.params);

@@ -35,6 +35,10 @@ vi.mock("@workspace/api-client-react", () => ({
     ],
   }),
   getListAccountsQueryKey: () => ["/api/accounts"],
+  useGetVendorDefaultAccount: () => ({ data: undefined }),
+  getGetVendorDefaultAccountQueryKey: (id: number) => [
+    `/api/vendors/${id}/default-account`,
+  ],
 }));
 
 beforeAll(() => {

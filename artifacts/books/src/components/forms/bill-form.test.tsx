@@ -35,6 +35,10 @@ vi.mock("@workspace/api-client-react", () => ({
     data: [{ id: 7, name: "HR Stadium LLC" }],
   }),
   getListCustomersQueryKey: () => ["/api/customers"],
+  useGetVendorDefaultAccount: () => ({ data: undefined }),
+  getGetVendorDefaultAccountQueryKey: (id: number) => [
+    `/api/vendors/${id}/default-account`,
+  ],
 }));
 
 beforeAll(() => {

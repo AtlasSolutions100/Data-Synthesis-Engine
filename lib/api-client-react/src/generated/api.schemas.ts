@@ -167,6 +167,14 @@ export interface Vendor {
   notes?: string | null;
 }
 
+export interface VendorDefaultAccount {
+  /**
+     * The account this vendor's costs are most often categorized to, or null when the vendor has no history yet.
+     * @nullable
+     */
+  accountId: number | null;
+}
+
 export interface VendorInput {
   /** @minLength 1 */
   name: string;

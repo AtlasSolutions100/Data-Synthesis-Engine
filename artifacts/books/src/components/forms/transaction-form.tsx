@@ -27,6 +27,8 @@ import {
   getListJobsQueryKey,
   useListAccounts,
   getListAccountsQueryKey,
+  useGetVendorDefaultAccount,
+  getGetVendorDefaultAccountQueryKey,
 } from "@workspace/api-client-react";
 import { EntityCombobox } from "@/components/forms/entity-combobox";
 import type { ServerFieldError } from "@/lib/server-field-error";
@@ -121,6 +123,24 @@ export function TransactionForm({
       message: fieldError.message,
     });
   }, [fieldError, form]);
+
+  // Smart default: when a vendor is picked and no account is set yet,
+  // pre-fill the account this vendor's costs are usually categorized to.
+  const watchedTxnVendorId = form.watch("vendorId");
+  const txnVendorIdNum = watchedTxnVendorId
+    ? parseInt(watchedTxnVendorId, 10)
+    : 0;
+  const { data: vendorDefault } = useGetVendorDefaultAccount(txnVendorIdNum, {
+    query: {
+      queryKey: getGetVendorDefaultAccountQueryKey(txnVendorIdNum),
+      enabled: txnVendorIdNum > 0,
+    },
+  });
+  useEffect(() => {
+    if (!vendorDefault?.accountId) return;
+    if (form.getValues("accountId")) return;
+    form.setValue("accountId", String(vendorDefault.accountId));
+  }, [vendorDefault, form]);
 
   const handleSubmit = (values: TransactionFormValues) => {
     let hasError = false;

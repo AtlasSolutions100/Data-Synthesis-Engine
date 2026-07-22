@@ -24,6 +24,8 @@ import {
   getListAccountsQueryKey,
   useListCustomers,
   getListCustomersQueryKey,
+  useGetVendorDefaultAccount,
+  getGetVendorDefaultAccountQueryKey,
 } from "@workspace/api-client-react";
 import type { BillInput } from "@workspace/api-client-react";
 import { EntityCombobox } from "@/components/forms/entity-combobox";
@@ -118,6 +120,28 @@ export function BillForm({
 
   const watchedVendorId = form.watch("vendorId");
   const watchedCustomerId = form.watch("customerId");
+
+  // Smart default: when a vendor is picked, pre-fill empty account fields
+  // with the account this vendor's costs are usually categorized to.
+  const vendorIdNum = watchedVendorId ? parseInt(watchedVendorId, 10) : 0;
+  const { data: vendorDefault } = useGetVendorDefaultAccount(vendorIdNum, {
+    query: {
+      queryKey: getGetVendorDefaultAccountQueryKey(vendorIdNum),
+      enabled: vendorIdNum > 0,
+    },
+  });
+  useEffect(() => {
+    if (!vendorDefault?.accountId) return;
+    const lines = form.getValues("lines");
+    lines.forEach((line, index) => {
+      if (!line.accountId) {
+        form.setValue(
+          `lines.${index}.accountId`,
+          String(vendorDefault.accountId),
+        );
+      }
+    });
+  }, [vendorDefault, form]);
 
   // When editing a bill that already has a job, derive the customer from the
   // job once the jobs list loads so the cascading selects show correctly.

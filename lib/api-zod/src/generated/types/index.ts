@@ -131,5 +131,6 @@ export * from './userRoleUpdateRole';
 export * from './vendor';
 export * from './vendorCredit';
 export * from './vendorCreditInput';
+export * from './vendorDefaultAccount';
 export * from './vendorInput';
 export * from './vendorUpdate';
