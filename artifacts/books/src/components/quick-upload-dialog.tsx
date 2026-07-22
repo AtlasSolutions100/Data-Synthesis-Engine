@@ -172,12 +172,12 @@ export function QuickJobDocUploadDialog({
         </p>
         <div className="space-y-4">
           <div>
-            <p className="text-sm font-medium mb-1">Job</p>
+            <p className="text-sm font-medium mb-1">Job Name</p>
             <EntityCombobox
               options={(jobs ?? []).map((j) => ({ id: j.id, label: j.name }))}
               value={jobId}
               onChange={setJobId}
-              placeholder="Select job"
+              placeholder="Select job name"
               searchPlaceholder="Search jobs..."
               emptyText="No jobs found."
             />

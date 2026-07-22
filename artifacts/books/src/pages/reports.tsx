@@ -198,7 +198,7 @@ function AgingDetailRow({
             <TableHeader>
               <TableRow>
                 <TableHead className="h-8">{numberLabel}</TableHead>
-                <TableHead className="h-8">Job</TableHead>
+                <TableHead className="h-8">Job Name</TableHead>
                 <TableHead className="h-8">Date</TableHead>
                 <TableHead className="h-8">Due Date</TableHead>
                 <TableHead className="h-8 text-right">Days Overdue</TableHead>
@@ -727,7 +727,7 @@ export default function Reports() {
                 />
               </div>
               <div className="w-56">
-                <p className="text-xs font-medium text-slate-500 mb-1">Job</p>
+                <p className="text-xs font-medium text-slate-500 mb-1">Job Name</p>
                 <EntityCombobox
                   options={[
                     { id: "" as unknown as number, label: "All Jobs" },
@@ -839,7 +839,7 @@ export default function Reports() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Job</TableHead>
+                <TableHead>Job Name</TableHead>
                 <TableHead className="text-right">Regular</TableHead>
                 <TableHead className="text-right">Overtime</TableHead>
                 <TableHead className="text-right">Gross</TableHead>

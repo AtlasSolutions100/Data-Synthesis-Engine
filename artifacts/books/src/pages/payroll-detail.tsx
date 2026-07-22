@@ -334,7 +334,7 @@ export default function PayrollDetail() {
             <TableHeader>
               <TableRow>
                 <TableHead>Worker</TableHead>
-                <TableHead>Job</TableHead>
+                <TableHead>Job Name</TableHead>
                 <TableHead className="text-right">Burdened Cost</TableHead>
               </TableRow>
             </TableHeader>

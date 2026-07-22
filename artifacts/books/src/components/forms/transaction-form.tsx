@@ -334,7 +334,7 @@ export function TransactionForm({
             name="jobId"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Job</FormLabel>
+                <FormLabel>Job Name</FormLabel>
                 <FormControl>
                   <EntityCombobox
                     options={(jobs ?? []).map((j) => ({
@@ -343,7 +343,7 @@ export function TransactionForm({
                     }))}
                     value={field.value ?? ""}
                     onChange={field.onChange}
-                    placeholder="Select job"
+                    placeholder="Select job name"
                     searchPlaceholder="Search jobs..."
                     emptyText="No jobs found."
                   />

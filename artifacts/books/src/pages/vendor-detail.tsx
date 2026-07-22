@@ -102,7 +102,7 @@ export default function VendorDetail() {
                 <TableHead>Type</TableHead>
                 <TableHead>Num</TableHead>
                 <TableHead>Account</TableHead>
-                <TableHead>Job</TableHead>
+                <TableHead>Job Name</TableHead>
                 <TableHead>Description</TableHead>
                 <TableHead className="text-right">Amount</TableHead>
               </TableRow>

@@ -187,7 +187,7 @@ export function InvoiceForm({
             name="jobId"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Job</FormLabel>
+                <FormLabel>Job Name</FormLabel>
                 <FormControl>
                   <EntityCombobox
                     options={(jobs ?? []).map((j) => ({
@@ -196,7 +196,7 @@ export function InvoiceForm({
                     }))}
                     value={field.value ?? ""}
                     onChange={field.onChange}
-                    placeholder="Select job"
+                    placeholder="Select job name"
                     searchPlaceholder="Search jobs..."
                     emptyText="No jobs found."
                     clearable={false}

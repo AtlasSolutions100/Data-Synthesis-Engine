@@ -194,7 +194,7 @@ export default function Transactions() {
                 <TableHead>Type</TableHead>
                 <TableHead>Num</TableHead>
                 <TableHead>Account</TableHead>
-                <TableHead>Job</TableHead>
+                <TableHead>Job Name</TableHead>
                 <TableHead>Party / Description</TableHead>
                 <TableHead className="text-right">Amount</TableHead>
                 <TableHead className="w-[100px]"></TableHead>

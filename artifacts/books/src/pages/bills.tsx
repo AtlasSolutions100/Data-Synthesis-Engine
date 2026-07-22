@@ -336,7 +336,7 @@ export default function Bills() {
               <TableRow>
                 <TableHead>Bill #</TableHead>
                 <TableHead>Vendor</TableHead>
-                <TableHead>Job</TableHead>
+                <TableHead>Job Name</TableHead>
                 <TableHead>Date</TableHead>
                 <TableHead>Due</TableHead>
                 <TableHead className="text-right">Total</TableHead>

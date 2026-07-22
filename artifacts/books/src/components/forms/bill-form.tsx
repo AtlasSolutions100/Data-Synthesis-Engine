@@ -300,7 +300,7 @@ export function BillForm({
             name="jobId"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Job (Optional)</FormLabel>
+                <FormLabel>Job Name (Optional)</FormLabel>
                 <FormControl>
                   <EntityCombobox
                     options={filteredJobs.map((j) => ({
@@ -311,7 +311,7 @@ export function BillForm({
                     onChange={field.onChange}
                     placeholder={
                       watchedCustomerId
-                        ? "Select job"
+                        ? "Select job name"
                         : "Select a customer first"
                     }
                     searchPlaceholder="Search jobs..."
