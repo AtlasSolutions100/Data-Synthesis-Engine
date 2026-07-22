@@ -17,6 +17,10 @@ import {
   ListEmployeeTimecardsParams,
   ListEmployeeTimecardsQueryParams,
   ListEmployeeTimecardsResponse,
+  ExtractEmployeesBody,
+  ExtractEmployeesResponse,
+  MAX_EXTRACT_TEXT_LENGTH,
+  extractTextTooLargeMessage,
 } from "@workspace/api-zod";
 
 const router: IRouter = Router();
@@ -37,6 +41,181 @@ router.post("/employees", async (req, res): Promise<void> => {
   }
   const [row] = await db.insert(employeesTable).values(parsed.data).returning();
   res.status(201).json(GetEmployeeResponse.parse(row));
+});
+
+const EXTRACT_EMPLOYEES_SYSTEM_PROMPT = `You extract employee payroll master records from documents: free-form text (emails, notes, rate sheets, CSV) or images/PDFs of employee lists. Formats vary widely.
+
+Return ONLY a JSON object of this exact shape:
+{"rows": [{"name": string, "regularRate": number|null, "overtimeRate": number|null, "taxExempt": boolean|null, "active": boolean|null, "notes": string|null}]}
+
+Rules:
+- One row per distinct employee.
+- name: the person's name exactly as written (keep normal capitalization).
+- regularRate: regular / straight-time hourly rate in DOLLARS (e.g. 30 for $30/hr). null when not stated. Convert salary-only info to null and mention it in notes.
+- overtimeRate: overtime hourly rate in dollars. If only a multiplier is given (e.g. "1.5x OT"), compute it from the regular rate (30 * 1.5 = 45). null when neither is stated.
+- taxExempt: true ONLY when the source explicitly says tax exempt / 1099 / contractor / no payroll taxes. false when it explicitly says W-2 / taxed normally. null otherwise.
+- active: false ONLY when the source explicitly says inactive, terminated, or former employee. true when explicitly stated active. null otherwise.
+- notes: short summary of other useful payroll details (deductions, tax filing status, title, start date). null when there is nothing extra.
+- Numbers only for rates (no units, no "$"). Convert "$30.00/hr" to 30.
+- Ignore anything that is not employee master data (hours worked, greetings, signatures, invoice amounts).
+- If no employees are present, return {"rows": []}.`;
+
+const MAX_EXTRACT_FILE_BYTES = 10 * 1024 * 1024;
+
+function normalizeRate(value: unknown): number | null {
+  const n = typeof value === "number" ? value : NaN;
+  if (!Number.isFinite(n) || n < 0) return null;
+  return Math.round(n * 100) / 100;
+}
+
+router.post("/employees/extract", async (req, res): Promise<void> => {
+  const rawText = (req.body as { text?: unknown })?.text;
+  if (typeof rawText === "string" && rawText.length > MAX_EXTRACT_TEXT_LENGTH) {
+    res.status(400).json({ error: extractTextTooLargeMessage(rawText.length) });
+    return;
+  }
+
+  const parsed = ExtractEmployeesBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+  const text = (parsed.data.text ?? "").trim();
+  const fileData = (parsed.data.fileData ?? "").trim();
+  const fileName = (parsed.data.fileName ?? "").trim();
+  if (!text && !fileData) {
+    res.status(400).json({
+      error: "Provide some text or attach an image/PDF to extract employees from",
+    });
+    return;
+  }
+
+  let filePart:
+    | { type: "image_url"; image_url: { url: string } }
+    | { type: "file"; file: { filename: string; file_data: string } }
+    | null = null;
+  if (fileData) {
+    const match = /^data:([a-zA-Z0-9.+/-]+);base64,/.exec(fileData);
+    if (!match) {
+      res.status(400).json({ error: "The uploaded file must be a base64 data URL" });
+      return;
+    }
+    const mime = match[1].toLowerCase();
+    const base64Body = fileData.slice(match[0].length);
+    const approxBytes = Math.floor((base64Body.length * 3) / 4);
+    if (approxBytes > MAX_EXTRACT_FILE_BYTES) {
+      res.status(400).json({
+        error: "The uploaded file is too large. Keep it under 10 MB.",
+      });
+      return;
+    }
+    if (mime === "application/pdf") {
+      filePart = {
+        type: "file",
+        file: { filename: fileName || "employees.pdf", file_data: fileData },
+      };
+    } else if (
+      ["image/png", "image/jpeg", "image/webp", "image/gif"].includes(mime)
+    ) {
+      filePart = { type: "image_url", image_url: { url: fileData } };
+    } else {
+      res.status(400).json({
+        error:
+          "Unsupported file type. Upload a PNG, JPEG, WebP, or GIF image, or a PDF.",
+      });
+      return;
+    }
+  }
+
+  let openai;
+  try {
+    ({ openai } = await import("@workspace/integrations-openai-ai-server"));
+  } catch (err) {
+    req.log?.error({ err }, "openai integration unavailable");
+    res.status(503).json({
+      error:
+        "The employee extraction service is not configured. Please try again later.",
+    });
+    return;
+  }
+
+  const userParts: Array<
+    | { type: "text"; text: string }
+    | { type: "image_url"; image_url: { url: string } }
+    | { type: "file"; file: { filename: string; file_data: string } }
+  > = [];
+  if (text) userParts.push({ type: "text", text });
+  if (filePart) {
+    if (!text) {
+      userParts.push({
+        type: "text",
+        text: "Extract the employee records from this document.",
+      });
+    }
+    userParts.push(filePart);
+  }
+
+  let content: string;
+  try {
+    const completion = await openai.chat.completions.create({
+      model: "gpt-5-mini",
+      max_completion_tokens: 8192,
+      response_format: { type: "json_object" },
+      messages: [
+        { role: "system", content: EXTRACT_EMPLOYEES_SYSTEM_PROMPT },
+        // Cast: the OpenAI SDK's union type for content parts lags behind the
+        // API, which accepts file parts on chat completions.
+        { role: "user", content: userParts as never },
+      ],
+    });
+    content = completion.choices[0]?.message?.content ?? "";
+  } catch (err) {
+    req.log?.error({ err }, "employee extraction failed");
+    res.status(502).json({
+      error: "The employee extraction service is unavailable. Please try again.",
+    });
+    return;
+  }
+
+  let rawRows: unknown;
+  try {
+    const obj = JSON.parse(content) as { rows?: unknown };
+    rawRows = obj?.rows;
+  } catch {
+    res.status(502).json({
+      error: "Could not read the extracted employees. Please try again.",
+    });
+    return;
+  }
+
+  const rows = Array.isArray(rawRows)
+    ? rawRows
+        .map((r) => {
+          const row = (r ?? {}) as Record<string, unknown>;
+          const name = typeof row.name === "string" ? row.name.trim() : "";
+          return {
+            name,
+            regularRate: normalizeRate(row.regularRate),
+            overtimeRate: normalizeRate(row.overtimeRate),
+            taxExempt: typeof row.taxExempt === "boolean" ? row.taxExempt : null,
+            active: typeof row.active === "boolean" ? row.active : null,
+            notes:
+              typeof row.notes === "string" && row.notes.trim()
+                ? row.notes.trim()
+                : null,
+          };
+        })
+        .filter((r) => r.name.length > 0)
+    : [];
+
+  if (rows.length === 0) {
+    res.status(400).json({
+      error: "No employee records were found. Check the format and try again.",
+    });
+    return;
+  }
+
+  res.json(ExtractEmployeesResponse.parse({ rows }));
 });
 
 router.get("/employees/:id", async (req, res): Promise<void> => {

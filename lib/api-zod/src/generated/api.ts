@@ -333,6 +333,42 @@ export const CreateEmployeeResponse = zod.object({
 
 
 /**
+ * Uses an AI model to parse pasted text (emails, rate sheets) or an uploaded image/PDF into structured employee rows (name, rates, status) for review before saving to the Employee Center.
+ * @summary Extract employee records from free-form text or an uploaded document
+ */
+export const extractEmployeesBodyTextMax = 20000;
+
+export const extractEmployeesBodyFileDataMax = 14000000;
+
+export const extractEmployeesBodyFileNameMax = 300;
+
+
+
+export const ExtractEmployeesBody = zod.object({
+  "text": zod.string().max(extractEmployeesBodyTextMax).optional().describe('Free-form pasted text (email, rate sheet, notes)'),
+  "fileData": zod.string().max(extractEmployeesBodyFileDataMax).optional().describe('Base64 data URL of an uploaded image or PDF (scan\/photo)'),
+  "fileName": zod.string().max(extractEmployeesBodyFileNameMax).optional().describe('Original filename of the uploaded image\/PDF, used to detect the file type')
+})
+
+export const extractEmployeesResponseRowsItemRegularRateMin = 0;
+
+export const extractEmployeesResponseRowsItemOvertimeRateMin = 0;
+
+
+
+export const ExtractEmployeesResponse = zod.object({
+  "rows": zod.array(zod.object({
+  "name": zod.string().describe('Employee name exactly as written in the source'),
+  "regularRate": zod.number().min(extractEmployeesResponseRowsItemRegularRateMin).nullish().describe('Regular\/straight-time hourly rate in dollars, null when not stated'),
+  "overtimeRate": zod.number().min(extractEmployeesResponseRowsItemOvertimeRateMin).nullish().describe('Overtime hourly rate in dollars; computed from a stated multiplier when only a multiplier is given'),
+  "taxExempt": zod.boolean().nullish().describe('True only when the source explicitly says the worker is tax exempt \/ 1099 \/ no payroll taxes'),
+  "active": zod.boolean().nullish().describe('False only when the source explicitly says inactive\/terminated'),
+  "notes": zod.string().nullish().describe('Other relevant details from the source (deductions, tax settings, title) not captured by the structured fields')
+}))
+})
+
+
+/**
  * @summary Get an employee
  */
 export const GetEmployeeParams = zod.object({

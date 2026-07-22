@@ -345,6 +345,27 @@ paths:
                 $ref: "#/components/schemas/Employee"
         "400":
           $ref: "#/components/responses/Error"
+  /employees/extract:
+    post:
+      operationId: extractEmployees
+      tags: [employees]
+      summary: Extract employee records from free-form text or an uploaded document
+      description: Uses an AI model to parse pasted text (emails, rate sheets) or an uploaded image/PDF into structured employee rows (name, rates, status) for review before saving to the Employee Center.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ExtractEmployeesInput"
+      responses:
+        "200":
+          description: Extracted employee rows
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExtractEmployeesResult"
+        "400":
+          $ref: "#/components/responses/Error"
   /employees/{id}:
     get:
       operationId: getEmployee
@@ -2935,6 +2956,53 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ExtractedBillLine"
+    ExtractEmployeesInput:
+      type: object
+      properties:
+        text:
+          type: string
+          maxLength: 20000
+          description: Free-form pasted text (email, rate sheet, notes)
+        fileData:
+          type: string
+          maxLength: 14000000
+          description: Base64 data URL of an uploaded image or PDF (scan/photo)
+        fileName:
+          type: string
+          maxLength: 300
+          description: Original filename of the uploaded image/PDF, used to detect the file type
+    ExtractedEmployeeRow:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          description: Employee name exactly as written in the source
+        regularRate:
+          type: ["number", "null"]
+          minimum: 0
+          description: Regular/straight-time hourly rate in dollars, null when not stated
+        overtimeRate:
+          type: ["number", "null"]
+          minimum: 0
+          description: Overtime hourly rate in dollars; computed from a stated multiplier when only a multiplier is given
+        taxExempt:
+          type: ["boolean", "null"]
+          description: True only when the source explicitly says the worker is tax exempt / 1099 / no payroll taxes
+        active:
+          type: ["boolean", "null"]
+          description: False only when the source explicitly says inactive/terminated
+        notes:
+          type: ["string", "null"]
+          description: Other relevant details from the source (deductions, tax settings, title) not captured by the structured fields
+    ExtractEmployeesResult:
+      type: object
+      required: [rows]
+      properties:
+        rows:
+          type: array
+          items:
+            $ref: "#/components/schemas/ExtractedEmployeeRow"
     ExtractPayrollHoursInput:
       type: object
       properties:

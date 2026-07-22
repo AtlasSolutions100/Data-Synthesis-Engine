@@ -1233,6 +1233,60 @@ export interface ExtractBillResult {
   lines: ExtractedBillLine[];
 }
 
+export interface ExtractEmployeesInput {
+  /**
+     * Free-form pasted text (email, rate sheet, notes)
+     * @maxLength 20000
+     */
+  text?: string;
+  /**
+     * Base64 data URL of an uploaded image or PDF (scan/photo)
+     * @maxLength 14000000
+     */
+  fileData?: string;
+  /**
+     * Original filename of the uploaded image/PDF, used to detect the file type
+     * @maxLength 300
+     */
+  fileName?: string;
+}
+
+export interface ExtractedEmployeeRow {
+  /** Employee name exactly as written in the source */
+  name: string;
+  /**
+     * Regular/straight-time hourly rate in dollars, null when not stated
+     * @minimum 0
+     * @nullable
+     */
+  regularRate?: number | null;
+  /**
+     * Overtime hourly rate in dollars; computed from a stated multiplier when only a multiplier is given
+     * @minimum 0
+     * @nullable
+     */
+  overtimeRate?: number | null;
+  /**
+     * True only when the source explicitly says the worker is tax exempt / 1099 / no payroll taxes
+     * @nullable
+     */
+  taxExempt?: boolean | null;
+  /**
+     * False only when the source explicitly says inactive/terminated
+     * @nullable
+     */
+  active?: boolean | null;
+  /**
+     * Other relevant details from the source (deductions, tax settings, title) not captured by the structured fields
+     * @nullable
+     */
+  notes?: string | null;
+}
+
+export interface ExtractEmployeesResult {
+  rows: ExtractedEmployeeRow[];
+}
+
 export interface ExtractPayrollHoursInput {
   /**
      * Free-form pasted email text or uploaded timesheet contents

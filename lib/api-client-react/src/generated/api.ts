@@ -45,6 +45,8 @@ import type {
   ErrorResponse,
   ExtractBillInput,
   ExtractBillResult,
+  ExtractEmployeesInput,
+  ExtractEmployeesResult,
   ExtractPayrollHoursInput,
   ExtractPayrollHoursResult,
   GetAccountBalanceTransactionsParams,
@@ -1516,6 +1518,77 @@ export const useCreateEmployee = <TError = ErrorType<ErrorResponse>,
         TContext
       > => {
       return useMutation(getCreateEmployeeMutationOptions(options));
+    }
+
+export const getExtractEmployeesUrl = () => {
+
+
+
+
+  return `/api/employees/extract`
+}
+
+/**
+ * Uses an AI model to parse pasted text (emails, rate sheets) or an uploaded image/PDF into structured employee rows (name, rates, status) for review before saving to the Employee Center.
+ * @summary Extract employee records from free-form text or an uploaded document
+ */
+export const extractEmployees = async (extractEmployeesInput: ExtractEmployeesInput, options?: RequestInit): Promise<ExtractEmployeesResult> => {
+
+  return customFetch<ExtractEmployeesResult>(getExtractEmployeesUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(extractEmployeesInput)
+  }
+);}
+
+
+
+
+export const getExtractEmployeesMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof extractEmployees>>, TError,{data: BodyType<ExtractEmployeesInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof extractEmployees>>, TError,{data: BodyType<ExtractEmployeesInput>}, TContext> => {
+
+const mutationKey = ['extractEmployees'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof extractEmployees>>, {data: BodyType<ExtractEmployeesInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  extractEmployees(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ExtractEmployeesMutationResult = NonNullable<Awaited<ReturnType<typeof extractEmployees>>>
+    export type ExtractEmployeesMutationBody = BodyType<ExtractEmployeesInput>
+    export type ExtractEmployeesMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Extract employee records from free-form text or an uploaded document
+ */
+export const useExtractEmployees = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof extractEmployees>>, TError,{data: BodyType<ExtractEmployeesInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof extractEmployees>>,
+        TError,
+        {data: BodyType<ExtractEmployeesInput>},
+        TContext
+      > => {
+      return useMutation(getExtractEmployeesMutationOptions(options));
     }
 
 export const getGetEmployeeUrl = (id: number,) => {
