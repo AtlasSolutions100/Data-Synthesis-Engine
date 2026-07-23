@@ -27,6 +27,26 @@ export async function withCurrentUser(
   try {
     const { userId } = getAuth(req);
     if (!userId) {
+      // TEMP DEBUG: diagnose blanket 401s — log what Clerk actually received.
+      if (process.env.NODE_ENV !== "production") {
+        const cookieHeader = req.headers.cookie ?? "";
+        logger.warn(
+          {
+            url: req.originalUrl,
+            auth: getAuth(req),
+            authStatus: (req as any).auth?.() ?? (req as any).auth,
+            hasCookieHeader: Boolean(cookieHeader),
+            cookieNames: cookieHeader
+              .split(";")
+              .map((c) => c.split("=")[0]?.trim())
+              .filter(Boolean),
+            hasAuthorization: Boolean(req.headers.authorization),
+            host: req.headers.host,
+            xForwardedHost: req.headers["x-forwarded-host"],
+          },
+          "401 debug: unauthenticated API request",
+        );
+      }
       res.status(401).json({ error: "Unauthorized" });
       return;
     }
