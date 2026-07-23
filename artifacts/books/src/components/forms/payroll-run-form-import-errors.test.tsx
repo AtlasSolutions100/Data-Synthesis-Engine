@@ -6,7 +6,17 @@ import {
   fireEvent,
   waitFor,
 } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { PayrollRunForm } from "./payroll-run-form";
+
+function renderForm(ui: React.ReactElement) {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  return render(
+    <QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>,
+  );
+}
 
 // Mock the generated react-query hook so we can simulate the API server's
 // 502/503 error contract without a live backend.
@@ -21,6 +31,8 @@ vi.mock("@workspace/api-client-react", () => ({
   getListEmployeesQueryKey: () => ["employees"],
   useListJobs: () => ({ data: [], isLoading: false }),
   getListJobsQueryKey: () => ["jobs"],
+  getListCustomersQueryKey: () => ["customers"],
+  useCreateJob: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
 
 beforeAll(() => {
@@ -86,7 +98,7 @@ async function openDialogAndPaste(text: string) {
 describe("ImportHoursDialog AI-service error handling", () => {
   it("shows the server's 503 'not configured' message and keeps the pasted text", async () => {
     mutateAsync.mockRejectedValueOnce(apiError(503, ERR_503));
-    render(<PayrollRunForm onSubmit={vi.fn()} defaultValues={defaults} />);
+    renderForm(<PayrollRunForm onSubmit={vi.fn()} defaultValues={defaults} />);
 
     const pasted = "John Smith — 40 reg, 5 OT";
     const textarea = await openDialogAndPaste(pasted);
@@ -107,7 +119,7 @@ describe("ImportHoursDialog AI-service error handling", () => {
       .mockResolvedValueOnce({
         rows: [{ workerName: "John Smith", regularHours: 40, overtimeHours: 5 }],
       });
-    render(<PayrollRunForm onSubmit={vi.fn()} defaultValues={defaults} />);
+    renderForm(<PayrollRunForm onSubmit={vi.fn()} defaultValues={defaults} />);
 
     const pasted = "John Smith — 40 reg, 5 OT";
     const textarea = await openDialogAndPaste(pasted);
@@ -136,7 +148,7 @@ describe("ImportHoursDialog AI-service error handling", () => {
       .mockResolvedValueOnce({
         rows: [{ workerName: "John Smith", regularHours: 40, overtimeHours: 5 }],
       });
-    render(<PayrollRunForm onSubmit={vi.fn()} defaultValues={defaults} />);
+    renderForm(<PayrollRunForm onSubmit={vi.fn()} defaultValues={defaults} />);
 
     const pasted = "John Smith — 40 reg, 5 OT";
     const textarea = await openDialogAndPaste(pasted);
@@ -166,7 +178,7 @@ describe("ImportHoursDialog AI-service error handling", () => {
       .mockResolvedValueOnce({
         rows: [{ workerName: "John Smith", regularHours: 40, overtimeHours: 5 }],
       });
-    render(<PayrollRunForm onSubmit={vi.fn()} defaultValues={defaults} />);
+    renderForm(<PayrollRunForm onSubmit={vi.fn()} defaultValues={defaults} />);
 
     const pasted = "John Smith — 40 reg, 5 OT";
     const textarea = await openDialogAndPaste(pasted);
@@ -195,7 +207,7 @@ describe("ImportHoursDialog AI-service error handling", () => {
 
   it("rejects oversized pastes client-side without sending a request", async () => {
     const { MAX_EXTRACT_TEXT_LENGTH } = await import("@workspace/api-zod");
-    render(<PayrollRunForm onSubmit={vi.fn()} defaultValues={defaults} />);
+    renderForm(<PayrollRunForm onSubmit={vi.fn()} defaultValues={defaults} />);
 
     const huge = "x".repeat(MAX_EXTRACT_TEXT_LENGTH + 1);
     const textarea = await openDialogAndPaste(huge);
@@ -215,7 +227,7 @@ describe("ImportHoursDialog AI-service error handling", () => {
 
   it("shows a live character count that warns when approaching the limit", async () => {
     const { MAX_EXTRACT_TEXT_LENGTH } = await import("@workspace/api-zod");
-    render(<PayrollRunForm onSubmit={vi.fn()} defaultValues={defaults} />);
+    renderForm(<PayrollRunForm onSubmit={vi.fn()} defaultValues={defaults} />);
 
     const nearLimit = "x".repeat(Math.ceil(MAX_EXTRACT_TEXT_LENGTH * 0.95));
     await openDialogAndPaste(nearLimit);
@@ -237,7 +249,7 @@ describe("ImportHoursDialog AI-service error handling", () => {
 
   it("falls back to a friendly generic message when the error has no server body", async () => {
     mutateAsync.mockRejectedValueOnce(new Error("Network Error"));
-    render(<PayrollRunForm onSubmit={vi.fn()} defaultValues={defaults} />);
+    renderForm(<PayrollRunForm onSubmit={vi.fn()} defaultValues={defaults} />);
 
     await openDialogAndPaste("some hours text");
     fireEvent.click(screen.getByRole("button", { name: /extract hours/i }));

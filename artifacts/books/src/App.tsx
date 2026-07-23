@@ -2,9 +2,9 @@ import { Switch, Route, Router as WouterRouter, useLocation, Redirect } from "wo
 import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { ClerkProvider, SignIn, SignUp, Show, useClerk } from "@clerk/react";
+import { ClerkProvider, SignIn, SignUp, Show, useClerk, useUser } from "@clerk/react";
 import { publishableKeyFromHost } from "@clerk/react/internal";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import NotFound from "@/pages/not-found";
 
 import Home from "./pages/home";
@@ -120,23 +120,55 @@ function SignUpPage() {
 function ClerkQueryClientCacheInvalidator() {
   const { addListener } = useClerk();
   const queryClient = useQueryClient();
-  const prevUserIdRef = useRef<string | null | undefined>(undefined);
+  // Track the last *signed-in* user. Clerk's dev session can flicker to null
+  // for a moment during token refresh; clearing the cache on that transient
+  // null aborted in-flight queries and remounted pages mid-use (losing open
+  // dialogs and typed form values). Only clear when a genuinely different
+  // user signs in.
+  const lastUserIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     const unsubscribe = addListener(({ user }) => {
       const userId = user?.id ?? null;
-      if (
-        prevUserIdRef.current !== undefined &&
-        prevUserIdRef.current !== userId
-      ) {
+      if (userId === null) return; // transient sign-out flicker or real sign-out
+      if (lastUserIdRef.current !== null && lastUserIdRef.current !== userId) {
         queryClient.clear();
       }
-      prevUserIdRef.current = userId;
+      lastUserIdRef.current = userId;
     });
     return unsubscribe;
   }, [addListener, queryClient]);
 
   return null;
+}
+
+/**
+ * Auth state with a grace period: a momentary signed-out flip (Clerk dev
+ * token refresh) must not unmount the current page — that closes open
+ * dialogs and wipes any half-typed form (e.g. a New Time Card Run).
+ * Only report "out" when the signed-out state persists.
+ */
+function useStableAuthState(): "loading" | "in" | "out" {
+  const { isLoaded, isSignedIn } = useUser();
+  const [state, setState] = useState<"loading" | "in" | "out">("loading");
+
+  useEffect(() => {
+    if (!isLoaded) return;
+    if (isSignedIn) {
+      setState("in");
+      return;
+    }
+    if (state !== "in") {
+      setState("out");
+      return;
+    }
+    // Was signed in and now appears signed out: wait before treating it as
+    // a real sign-out so transient refresh flickers don't lose work.
+    const timer = setTimeout(() => setState("out"), 5000);
+    return () => clearTimeout(timer);
+  }, [isLoaded, isSignedIn, state]);
+
+  return state;
 }
 
 function HomeRedirect() {
@@ -153,43 +185,35 @@ function HomeRedirect() {
 }
 
 function ProtectedRoute({ component: Component }: { component: any }) {
+  const auth = useStableAuthState();
+  if (auth === "loading") return null;
+  if (auth === "out") return <Redirect to="/" />;
   return (
-    <>
-      <Show when="signed-in">
-        <Layout>
-          <Component />
-        </Layout>
-      </Show>
-      <Show when="signed-out">
-        <Redirect to="/" />
-      </Show>
-    </>
+    <Layout>
+      <Component />
+    </Layout>
   );
 }
 
 function OwnerRoute({ component: Component }: { component: any }) {
+  const auth = useStableAuthState();
   const { data: me, isLoading } = useGetCurrentUser({
-    query: { queryKey: getGetCurrentUserQueryKey() },
+    query: { queryKey: getGetCurrentUserQueryKey(), enabled: auth === "in" },
   });
+  if (auth === "loading") return null;
+  if (auth === "out") return <Redirect to="/" />;
+  if (isLoading) {
+    return (
+      <Layout>
+        <div className="p-8 text-slate-500">Loading...</div>
+      </Layout>
+    );
+  }
+  if (me?.role !== "owner") return <Redirect to="/dashboard" />;
   return (
-    <>
-      <Show when="signed-in">
-        {isLoading ? (
-          <Layout>
-            <div className="p-8 text-slate-500">Loading...</div>
-          </Layout>
-        ) : me?.role === "owner" ? (
-          <Layout>
-            <Component />
-          </Layout>
-        ) : (
-          <Redirect to="/dashboard" />
-        )}
-      </Show>
-      <Show when="signed-out">
-        <Redirect to="/" />
-      </Show>
-    </>
+    <Layout>
+      <Component />
+    </Layout>
   );
 }
 

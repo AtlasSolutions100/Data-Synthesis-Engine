@@ -782,6 +782,9 @@ Rules:
 - overtimeHours: total overtime / OT / time-and-a-half hours. Default 0 when not stated.
 - holidayHours: total holiday, vacation, PTO, or sick hours combined. Default 0 when not stated.
 - entries: per-day detail rows when the source lists hours by day and/or job. date must be YYYY-MM-DD (null if not stated or ambiguous); jobName is the job/site name exactly as written (null if none). costType defaults to "regular"; use "holiday" for holiday/vacation/PTO/sick hours. Omit or use an empty array when the source gives only totals.
+- Weekly timesheets: many workers email hours week by week. A bare date line like "6/22" or "Week of 6/22" starts a week; the weekday lines under it belong to that week. Resolve each entry's full date from the week-start date plus the weekday (e.g. week "6/22" where 6/22 is a Monday: "Tue." = 6/23, "Wed." = 6/24, "Thur." = 6/25). If the weekday doesn't line up with the header date being a Monday, treat the header date as the first day of that week and pick the matching weekday date in the following 6 days.
+- Day lines usually read "<weekday> - <hours> - <job or customer>", e.g. "Tue. - 6 - AHEC TV 329" = 6 hours on 6/23 for job "AHEC TV 329". A continuation line with no weekday (e.g. "        - 1 - Office") belongs to the SAME day as the line above it — emit it as a separate entry with the same date. Produce one entry per day-and-job combination.
+- When the year is not written, choose the year that puts the dates in the most recent past 12 months relative to today.
 - The regularHours/overtimeHours/holidayHours totals must equal the sums of matching entries when entries are present.
 - Numbers only (no units, no text). Convert values like "8h" to 8.
 - If only a single total is given with no split, put the whole amount in regularHours.

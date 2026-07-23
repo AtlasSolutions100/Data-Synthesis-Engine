@@ -59,11 +59,15 @@ import {
   getListEmployeesQueryKey,
   useListJobs,
   getListJobsQueryKey,
+  getListCustomersQueryKey,
+  useCreateJob,
   type PayrollRunInput,
   type Employee,
   type ExtractedHourRow,
   type Job,
 } from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { splitCentsByWeights } from "@/lib/hours-split";
 import { JobCombobox } from "@/components/job-combobox";
 import { CustomerCombobox } from "@/components/customer-combobox";
 import {
@@ -666,6 +670,29 @@ function readApiError(err: unknown): string {
 
 type ImportStatus = "matched" | "ambiguous" | "unmatched";
 
+/** A per-day, per-job line extracted from the timesheet. */
+interface EntryDetail {
+  date: string | null; // YYYY-MM-DD
+  hours: number;
+  jobKey: string; // normalized key into the associations map ("" = no job)
+  jobRaw: string; // job text exactly as written in the source
+  costType: LaborCostType;
+}
+
+/**
+ * One extracted job/customer name and its confirmed Job Name. Shared across
+ * every worker row that mentions the same name, so it only needs confirming
+ * once.
+ */
+interface JobAssociation {
+  raw: string; // as written in the source ("" when no job was detected)
+  jobId: string; // confirmed job id ("" until confirmed)
+  auto: boolean; // matched automatically from the extraction
+  overhead: boolean; // internal Overhead / Office time (auto-billed)
+  customerHint: string; // customer name suggested by the extraction
+  flag: string; // guidance message ("" if none)
+}
+
 interface ReviewRow {
   workerName: string;
   regularHours: string;
@@ -674,11 +701,74 @@ interface ReviewRow {
   target: string; // "skip", "new" (add a worker line), or a line index string
   status: ImportStatus;
   employeeId: string; // matched Employee Center record id ("" if none)
-  jobId: string; // confirmed job id ("" until confirmed)
-  jobAuto: boolean; // job was matched automatically from the extraction
-  extractedJobName: string; // job text as written in the source, for context
-  customerHint: string; // customer name suggested by the extraction ("" if none)
+  jobKeys: string[]; // associations this worker's hours touch, in order
+  entries: EntryDetail[]; // day-by-day detail (may be empty for totals-only)
   flags: string[];
+}
+
+/** Names that mean internal, non-billable time. */
+const OVERHEAD_SOURCE_NAMES = new Set([
+  "office",
+  "overhead",
+  "shop",
+  "shop time",
+  "overhead / office",
+  "overhead/office",
+]);
+
+/** Existing jobs that can hold internal overhead time. */
+const OVERHEAD_JOB_NAMES = new Set([
+  "overhead / office",
+  "overhead/office",
+  "overhead",
+  "office",
+]);
+
+const OVERHEAD_JOB_NAME = "Overhead / Office";
+
+const WEEKDAY_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+function parseUtcDate(date: string): Date | null {
+  const d = new Date(`${date}T00:00:00Z`);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+function formatShortDate(date: string): string {
+  const d = parseUtcDate(date);
+  if (!d) return date;
+  return `${d.getUTCMonth() + 1}/${d.getUTCDate()}`;
+}
+
+/** Monday-of-week (YYYY-MM-DD) for a date string, or "" when unknown. */
+function weekStartOf(date: string | null): string {
+  if (!date) return "";
+  const d = parseUtcDate(date);
+  if (!d) return "";
+  const offset = (d.getUTCDay() + 6) % 7; // Monday = 0
+  d.setUTCDate(d.getUTCDate() - offset);
+  return d.toISOString().slice(0, 10);
+}
+
+interface WeekGroup {
+  weekStart: string; // "" when the entries have no date
+  entries: EntryDetail[];
+}
+
+/** Group day-by-day entries into calendar weeks (Monday start) for display. */
+function groupEntriesByWeek(entries: EntryDetail[]): WeekGroup[] {
+  const byWeek = new Map<string, EntryDetail[]>();
+  for (const e of entries) {
+    const key = weekStartOf(e.date);
+    byWeek.set(key, [...(byWeek.get(key) ?? []), e]);
+  }
+  return [...byWeek.entries()]
+    .sort(([a], [b]) => (a === "" ? 1 : b === "" ? -1 : a.localeCompare(b)))
+    .map(([weekStart, list]) => ({
+      weekStart,
+      entries: [...list].sort((a, b) =>
+        (a.date ?? "").localeCompare(b.date ?? ""),
+      ),
+    }));
 }
 
 function StatusBadge({ status }: { status: ImportStatus }) {
@@ -725,10 +815,13 @@ function ImportHoursDialog({
   const [fileData, setFileData] = useState("");
   const [error, setError] = useState("");
   const [rows, setRows] = useState<ReviewRow[]>([]);
+  const [assoc, setAssoc] = useState<Record<string, JobAssociation>>({});
   const [customer, setCustomer] = useState(""); // "" = all customers
   const [customerAuto, setCustomerAuto] = useState(false);
 
   const extract = useExtractPayrollHours();
+  const createJob = useCreateJob();
+  const queryClient = useQueryClient();
 
   const employeeOptions = (form.getValues("lines") ?? [])
     .map((l, index) => ({ index, name: l.workerName, type: l.lineType }))
@@ -741,6 +834,7 @@ function ImportHoursDialog({
     setFileData("");
     setError("");
     setRows([]);
+    setAssoc({});
     setCustomer("");
     setCustomerAuto(false);
     extract.reset();
@@ -810,7 +904,9 @@ function ImportHoursDialog({
     return COMMON_GIVEN_NAMES.has(words[0].toLowerCase());
   };
 
-  const buildReview = (extracted: ExtractedHourRow[]): ReviewRow[] => {
+  const buildReview = (
+    extracted: ExtractedHourRow[],
+  ): { rows: ReviewRow[]; associations: Record<string, JobAssociation> } => {
     const opts = (form.getValues("lines") ?? [])
       .map((l, index) => ({ index, name: l.workerName, type: l.lineType }))
       .filter((o) => o.type === "employee");
@@ -829,7 +925,74 @@ function ImportHoursDialog({
       }
     }
 
-    return extracted.map((r) => {
+    // Build one shared association per distinct extracted job/customer name,
+    // so a job mentioned on many days (or by many workers) is confirmed once.
+    const associations: Record<string, JobAssociation> = {};
+    const ensureAssociation = (raw: string, rowIndex: number): string => {
+      // A missing job name is row-scoped (each worker confirms their own),
+      // while real names are shared so they're confirmed once for everyone.
+      const key = raw ? normalizeName(raw) : `__none__:${rowIndex}`;
+      if (associations[key]) return key;
+      if (!raw) {
+        associations[key] = {
+          raw: "",
+          jobId: "",
+          auto: false,
+          overhead: false,
+          customerHint: "",
+          flag: "No job detected in the source. What job is this associated with?",
+        };
+        return key;
+      }
+      const jobMatches = jobsByName.get(key) ?? [];
+      const customerMatch = customersByName.get(key) ?? "";
+      const looksLikePerson =
+        employeeNames.has(key) ||
+        extracted.some((x) => normalizeName(x.workerName) === key) ||
+        looksLikePersonName(raw);
+      const a: JobAssociation = {
+        raw,
+        jobId: "",
+        auto: false,
+        overhead: false,
+        customerHint: "",
+        flag: "",
+      };
+      if (OVERHEAD_SOURCE_NAMES.has(key)) {
+        // Internal, non-billable time: bill automatically to the internal
+        // Overhead / Office job (created on apply if it doesn't exist).
+        a.overhead = true;
+        const existing = jobs.find((j) =>
+          OVERHEAD_JOB_NAMES.has(normalizeName(j.name)),
+        );
+        if (existing) {
+          a.jobId = String(existing.id);
+          a.auto = true;
+        }
+      } else if (jobMatches.length === 1 && !looksLikePerson) {
+        a.jobId = String(jobMatches[0].id);
+        a.auto = true;
+        a.customerHint = jobMatches[0].customerName ?? "";
+      } else if (jobMatches.length === 0 && customerMatch) {
+        a.customerHint = customerMatch;
+        a.flag = `"${raw}" is a customer, not a job. Which of their jobs is this associated with?`;
+      } else if (looksLikePerson) {
+        if (jobMatches.length === 1)
+          a.customerHint = jobMatches[0].customerName ?? "";
+        a.flag =
+          jobMatches.length === 1
+            ? `"${raw}" looks like a person's name, but a job with this name exists. What job is this associated with?`
+            : `"${raw}" looks like a person's name, not a job. What job is this associated with?`;
+      } else if (jobMatches.length > 1) {
+        a.flag = `Several jobs are named "${raw}". What job is this associated with?`;
+      } else {
+        a.flag = `Unknown job "${raw}" — no matching job on file. What job is this associated with?`;
+      }
+      associations[key] = a;
+      return key;
+    };
+
+    const rows = extracted.map((r, rowIndex) => {
       const matches = opts.filter(
         (o) => normalizeName(o.name) === normalizeName(r.workerName),
       );
@@ -861,62 +1024,25 @@ function ImportHoursDialog({
         flags.push(`${employee.name} has no overtime rate set in the Employee Center.`);
       }
 
-      // Job Name association: every applied row must map to an existing job.
-      const extractedJobNames = [
-        ...new Set(
-          (r.entries ?? [])
-            .map((e) => (e.jobName ?? "").trim())
-            .filter(Boolean),
-        ),
-      ];
-      let jobId = "";
-      let jobAuto = false;
-      let customerHint = "";
-      if (extractedJobNames.length === 1) {
-        const raw = extractedJobNames[0];
-        const key = normalizeName(raw);
-        const jobMatches = jobsByName.get(key) ?? [];
-        const customerMatch = customersByName.get(key) ?? "";
-        const looksLikePerson =
-          employeeNames.has(key) ||
-          extracted.some((x) => normalizeName(x.workerName) === key) ||
-          looksLikePersonName(raw);
-        if (jobMatches.length === 1 && !looksLikePerson) {
-          jobId = String(jobMatches[0].id);
-          jobAuto = true;
-          customerHint = jobMatches[0].customerName ?? "";
-        } else if (jobMatches.length === 0 && customerMatch) {
-          customerHint = customerMatch;
-          flags.push(
-            `"${raw}" is a customer, not a job. Which of their jobs is this associated with?`,
-          );
-        } else if (looksLikePerson) {
-          if (jobMatches.length === 1) customerHint = jobMatches[0].customerName ?? "";
-          flags.push(
-            jobMatches.length === 1
-              ? `"${raw}" looks like a person's name, but a job with this name exists. What job is this associated with?`
-              : `"${raw}" looks like a person's name, not a job. What job is this associated with?`,
-          );
-        } else if (jobMatches.length > 1) {
-          flags.push(
-            `Several jobs are named "${raw}". What job is this associated with?`,
-          );
-        } else {
-          flags.push(
-            `Unknown job "${raw}" — no matching job on file. What job is this associated with?`,
-          );
-        }
-      } else if (extractedJobNames.length > 1) {
-        flags.push(
-          `Multiple job names detected (${extractedJobNames.join(", ")}). Hours were combined — pick the job to allocate to, then adjust allocations on the worker line if the cost should be split.`,
-        );
-      } else {
-        flags.push(
-          "No job detected in the source. What job is this associated with?",
-        );
-      }
+      // Job Name association: every hour entry maps to a shared association
+      // (one per distinct extracted job/customer name).
+      const entries: EntryDetail[] = (r.entries ?? []).map((e) => {
+        const jobRaw = (e.jobName ?? "").trim();
+        return {
+          date: e.date ?? null,
+          hours: e.hours,
+          jobKey: ensureAssociation(jobRaw, rowIndex),
+          jobRaw,
+          costType:
+            e.costType === "overtime" || e.costType === "holiday"
+              ? e.costType
+              : ("regular" as LaborCostType),
+        };
+      });
+      const jobKeys = [...new Set(entries.map((e) => e.jobKey))];
+      if (jobKeys.length === 0) jobKeys.push(ensureAssociation("", rowIndex));
 
-      for (const entry of r.entries ?? []) {
+      for (const entry of entries) {
         if (entry.date && periodStart && periodEnd) {
           if (entry.date < periodStart || entry.date > periodEnd) {
             const msg = `Date ${entry.date} is outside the pay period (${periodStart} – ${periodEnd}).`;
@@ -933,20 +1059,24 @@ function ImportHoursDialog({
         target,
         status,
         employeeId: employee ? String(employee.id) : "",
-        jobId,
-        jobAuto,
-        extractedJobName: extractedJobNames.join(", "),
-        customerHint,
+        jobKeys,
+        entries,
         flags,
       };
     });
+
+    return { rows, associations };
   };
 
   // If the extraction points at exactly one customer, pre-select it so the
   // guided Customer → Job flow starts already filled in.
-  const suggestCustomer = (built: ReviewRow[]): string => {
+  const suggestCustomer = (
+    associations: Record<string, JobAssociation>,
+  ): string => {
     const hints = new Set(
-      built.map((r) => r.customerHint).filter((c): c is string => !!c),
+      Object.values(associations)
+        .map((a) => a.customerHint)
+        .filter((c): c is string => !!c),
     );
     return hints.size === 1 ? [...hints][0] : "";
   };
@@ -970,8 +1100,9 @@ function ImportHoursDialog({
         },
       });
       const built = buildReview(result.rows);
-      const suggested = suggestCustomer(built);
-      setRows(built);
+      const suggested = suggestCustomer(built.associations);
+      setRows(built.rows);
+      setAssoc(built.associations);
       setCustomer(suggested);
       setCustomerAuto(!!suggested);
       setStage("review");
@@ -986,10 +1117,22 @@ function ImportHoursDialog({
     );
   };
 
+  const updateAssoc = (key: string, patch: Partial<JobAssociation>) => {
+    setAssoc((prev) => ({ ...prev, [key]: { ...prev[key], ...patch } }));
+  };
+
+  /** An association is settled when a job is picked, or it is internal overhead. */
+  const assocConfirmed = (a: JobAssociation | undefined) =>
+    !!a && (!!a.jobId || a.overhead);
+
   const appliedCount = rows.filter((r) => r.target !== "skip").length;
-  const unconfirmedJobCount = rows.filter(
-    (r) => r.target !== "skip" && !r.jobId,
-  ).length;
+  // Distinct job names (used by applied rows) still needing confirmation.
+  const unconfirmedJobCount = new Set(
+    rows
+      .filter((r) => r.target !== "skip")
+      .flatMap((r) => r.jobKeys)
+      .filter((k) => !assocConfirmed(assoc[k])),
+  ).size;
 
   // Step 1 (customer) narrows the Job Name choices in step 2.
   const jobsForRows = customer
@@ -1001,20 +1144,22 @@ function ImportHoursDialog({
     setCustomerAuto(false);
     if (!next) return;
     // Forgiving: clear any job picks that don't belong to the chosen
-    // customer instead of silently keeping a mismatch.
-    setRows((prev) =>
-      prev.map((r) => {
-        if (!r.jobId) return r;
-        const job = jobs.find((j) => String(j.id) === r.jobId);
+    // customer instead of silently keeping a mismatch. Internal overhead
+    // time is exempt — it never belongs to a customer.
+    setAssoc((prev) => {
+      const nextAssoc = { ...prev };
+      for (const [key, a] of Object.entries(prev)) {
+        if (!a.jobId || a.overhead) continue;
+        const job = jobs.find((j) => String(j.id) === a.jobId);
         if (job && (job.customerName || "No customer") !== next) {
-          return { ...r, jobId: "", jobAuto: false };
+          nextAssoc[key] = { ...a, jobId: "", auto: false };
         }
-        return r;
-      }),
-    );
+      }
+      return nextAssoc;
+    });
   };
 
-  const handleApply = () => {
+  const handleApply = async () => {
     const formValues = form.getValues();
     const burdenRates = {
       ss: pctToBps(formValues.ssRate),
@@ -1023,6 +1168,52 @@ function ImportHoursDialog({
       coSui: pctToBps(formValues.coSuiRate),
       coSurcharge: pctToBps(formValues.coSurchargeRate),
     };
+    // Internal overhead time needs a job to bill against. Use an existing
+    // Overhead/Office job, or create the internal one automatically.
+    const usedKeys = new Set(
+      rows.filter((r) => r.target !== "skip").flatMap((r) => r.jobKeys),
+    );
+    let overheadJobId = "";
+    const needsOverheadJob = [...usedKeys].some((k) => {
+      const a = assoc[k];
+      return !!a && a.overhead && !a.jobId;
+    });
+    if (needsOverheadJob) {
+      const existing = jobs.find((j) =>
+        OVERHEAD_JOB_NAMES.has(normalizeName(j.name)),
+      );
+      if (existing) {
+        overheadJobId = String(existing.id);
+      } else {
+        try {
+          const created = await createJob.mutateAsync({
+            data: {
+              name: OVERHEAD_JOB_NAME,
+              description:
+                "Internal non-billable time (office, shop, overhead)",
+            },
+          });
+          overheadJobId = String(created.id);
+          queryClient.invalidateQueries({ queryKey: getListJobsQueryKey() });
+          queryClient.invalidateQueries({
+            queryKey: getListCustomersQueryKey(),
+          });
+        } catch {
+          setError(
+            `Couldn't create the internal "${OVERHEAD_JOB_NAME}" job. Pick a job manually for the office/overhead time and try again.`,
+          );
+          return;
+        }
+      }
+    }
+
+    const jobIdForKey = (key: string): string => {
+      const a = assoc[key];
+      if (!a) return "";
+      if (a.jobId) return a.jobId;
+      return a.overhead ? overheadJobId : "";
+    };
+
     rows.forEach((r) => {
       if (r.target === "skip") return;
       const entries: { costType: LaborCostType; hours: string }[] = [];
@@ -1041,10 +1232,18 @@ function ImportHoursDialog({
         ? employees.find((e) => String(e.id) === r.employeeId)
         : undefined;
 
+      // Distinct confirmed jobs this worker's time touches, in order.
+      const rowJobIds = [
+        ...new Set(r.jobKeys.map(jobIdForKey).filter(Boolean)),
+      ];
+
       // Burdened labor cost rolls up from the Employee Center rates and the
-      // run's burden percentages — no manual re-entry.
+      // run's burden percentages — no manual re-entry. When the timesheet
+      // splits days across several jobs, the cost is split in proportion to
+      // the hours worked on each job.
       const buildAllocations = (taxExempt: boolean) => {
-        if (!r.jobId) return [] as { jobId: string; amount: string }[];
+        if (rowJobIds.length === 0)
+          return [] as { jobId: string; amount: string }[];
         const computed = computeLineCents(
           {
             lineType: "employee",
@@ -1057,11 +1256,36 @@ function ImportHoursDialog({
           burdenRates,
         );
         if (computed.totalCents <= 0) {
-          return [{ jobId: r.jobId, amount: "" }];
+          return rowJobIds.map((jobId) => ({ jobId, amount: "" }));
         }
-        return [
-          { jobId: r.jobId, amount: (computed.totalCents / 100).toFixed(2) },
-        ];
+        if (rowJobIds.length === 1) {
+          return [
+            {
+              jobId: rowJobIds[0],
+              amount: (computed.totalCents / 100).toFixed(2),
+            },
+          ];
+        }
+        const hoursByJob = new Map<string, number>();
+        for (const e of r.entries) {
+          const jobId = jobIdForKey(e.jobKey);
+          if (!jobId) continue;
+          hoursByJob.set(jobId, (hoursByJob.get(jobId) ?? 0) + e.hours);
+        }
+        const split = splitCentsByWeights(
+          computed.totalCents,
+          rowJobIds.map((jobId) => ({
+            key: jobId,
+            weight: hoursByJob.get(jobId) ?? 0,
+          })),
+        );
+        return rowJobIds
+          .map((jobId) => ({ jobId, cents: split.get(jobId) ?? 0 }))
+          .filter((x) => x.cents > 0)
+          .map((x) => ({
+            jobId: x.jobId,
+            amount: (x.cents / 100).toFixed(2),
+          }));
       };
 
       if (r.target === "new") {
@@ -1091,7 +1315,7 @@ function ImportHoursDialog({
           shouldDirty: true,
         });
       }
-      if (r.jobId) {
+      if (rowJobIds.length > 0) {
         const taxExempt =
           form.getValues(`lines.${idx}.taxExempt`) ??
           employee?.taxExempt ??
@@ -1222,12 +1446,13 @@ function ImportHoursDialog({
             {unconfirmedJobCount > 0 ? (
               <p className="flex items-center gap-1 text-sm text-amber-600">
                 <AlertTriangle className="h-4 w-4 shrink-0" />
-                {unconfirmedJobCount} row
-                {unconfirmedJobCount === 1 ? " needs" : "s need"} a Job Name
-                before you can apply. Pick one from the list, or set the row to
-                Skip.
+                {unconfirmedJobCount} job name
+                {unconfirmedJobCount === 1 ? " needs" : "s need"} confirming
+                before you can apply. Each name only needs confirming once —
+                or set the row to Skip.
               </p>
             ) : null}
+            {error ? <p className="text-sm text-red-600">{error}</p> : null}
             <div className="max-h-[45vh] overflow-y-auto rounded-md border">
               <Table>
                 <TableHeader>
@@ -1255,6 +1480,36 @@ function ImportHoursDialog({
                             {flag}
                           </p>
                         ))}
+                        {r.entries.length > 0 ? (
+                          <div className="mt-2 space-y-1.5">
+                            {groupEntriesByWeek(r.entries).map((week) => (
+                              <div key={week.weekStart || "undated"}>
+                                <p className="text-xs font-medium text-slate-700">
+                                  {week.weekStart
+                                    ? `Week of ${formatShortDate(week.weekStart)}`
+                                    : "No date"}
+                                </p>
+                                {week.entries.map((e, ei) => (
+                                  <p
+                                    key={ei}
+                                    className="text-xs text-slate-500"
+                                  >
+                                    {e.date
+                                      ? `${WEEKDAY_SHORT[parseUtcDate(e.date)?.getUTCDay() ?? 0]} ${formatShortDate(e.date)}`
+                                      : "—"}
+                                    {" · "}
+                                    {e.hours}h
+                                    {e.costType !== "regular"
+                                      ? ` ${e.costType === "overtime" ? "OT" : "Hol"}`
+                                      : ""}
+                                    {" · "}
+                                    {e.jobRaw || "No job"}
+                                  </p>
+                                ))}
+                              </div>
+                            ))}
+                          </div>
+                        ) : null}
                       </TableCell>
                       <TableCell className="align-top">
                         <Input
@@ -1313,18 +1568,59 @@ function ImportHoursDialog({
                         </Select>
                       </TableCell>
                       <TableCell className="align-top">
-                        <JobCombobox
-                          jobs={jobsForRows}
-                          value={r.jobId}
-                          onChange={(jobId) => updateRow(i, { jobId })}
-                          placeholder="Confirm job…"
-                          highlight={r.target !== "skip" && !r.jobId}
-                        />
-                        {r.jobId && r.jobAuto ? (
-                          <p className="mt-1 text-xs text-emerald-600">
-                            Matched from “{r.extractedJobName}”
-                          </p>
-                        ) : null}
+                        <div className="space-y-2">
+                          {r.jobKeys.map((key) => {
+                            const a = assoc[key];
+                            if (!a) return null;
+                            return (
+                              <div key={key}>
+                                {r.jobKeys.length > 1 ? (
+                                  <p className="mb-0.5 text-xs font-medium text-slate-700">
+                                    {a.raw || "No job named"}
+                                  </p>
+                                ) : null}
+                                {a.overhead && !a.jobId ? (
+                                  <p className="text-xs text-slate-600">
+                                    Billed to the internal{" "}
+                                    <span className="font-medium">
+                                      {OVERHEAD_JOB_NAME}
+                                    </span>{" "}
+                                    job (created automatically).
+                                  </p>
+                                ) : (
+                                  <>
+                                    <JobCombobox
+                                      jobs={jobsForRows}
+                                      value={a.jobId}
+                                      onChange={(jobId) =>
+                                        updateAssoc(key, {
+                                          jobId,
+                                          auto: false,
+                                        })
+                                      }
+                                      placeholder="Confirm job…"
+                                      highlight={
+                                        r.target !== "skip" &&
+                                        !assocConfirmed(a)
+                                      }
+                                    />
+                                    {a.jobId && a.auto ? (
+                                      <p className="mt-1 text-xs text-emerald-600">
+                                        Matched from “{a.raw}”
+                                      </p>
+                                    ) : null}
+                                    {!assocConfirmed(a) && a.flag ? (
+                                      <p className="mt-1 flex items-start gap-1 text-xs text-amber-600">
+                                        <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
+                                        {a.flag}
+                                      </p>
+                                    ) : null}
+                                  </>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -1342,9 +1638,13 @@ function ImportHoursDialog({
               <Button
                 type="button"
                 onClick={handleApply}
-                disabled={appliedCount === 0 || unconfirmedJobCount > 0}
+                disabled={
+                  appliedCount === 0 ||
+                  unconfirmedJobCount > 0 ||
+                  createJob.isPending
+                }
               >
-                Apply hours
+                {createJob.isPending ? "Applying…" : "Apply hours"}
               </Button>
             </div>
           </div>
