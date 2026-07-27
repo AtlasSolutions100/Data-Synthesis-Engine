@@ -11,3 +11,9 @@ id = "dLxxie1cUWFCbL-RheWyy"
 uri = "file://.local/deliverables/allied-power-email.md"
 type = "text"
 title = "Client Email — Allied Power Books Capabilities & Next Steps"
+
+[[outputs]]
+id = "sESpnv_5jl6ZizmQRg-Ss"
+uri = "file://attached_assets/0_Chart_of_Accounts_1785183716461.xlsx"
+type = "table"
+title = "Chart of Accounts (QuickBooks export)"
