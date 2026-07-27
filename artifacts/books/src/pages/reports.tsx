@@ -610,7 +610,7 @@ export default function Reports() {
             }}
           >
             <Download className="h-4 w-4 mr-2" />
-            {exportingXlsx ? "Exporting…" : "Export Aging (Excel)"}
+            {exportingXlsx ? "Exporting…" : "Export Month-End (Excel)"}
           </Button>
         </div>
       </div>

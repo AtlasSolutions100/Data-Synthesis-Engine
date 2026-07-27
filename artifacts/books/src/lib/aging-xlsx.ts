@@ -10,6 +10,7 @@ import type {
 } from "@workspace/api-client-react";
 import {
   describeRangeForCsv,
+  rangeSlug,
   type ReportDateRange,
 } from "./reports-csv";
 
@@ -306,8 +307,8 @@ const SUMMARY_COLUMNS = [
   { width: 14 },
 ];
 
-export function agingXlsxFilename(asOf: string): string {
-  return `aging-report-${asOf}.xlsx`;
+export function monthEndXlsxFilename(range: ReportDateRange): string {
+  return `month-end-reports-${rangeSlug(range)}.xlsx`;
 }
 
 const BALANCES_COLUMNS = [{ width: 28 }, { width: 18 }, { width: 14 }];
@@ -366,5 +367,5 @@ export async function downloadAgingXlsx(
       },
     ],
   );
-  await result.toFile(agingXlsxFilename(arAging.asOf));
+  await result.toFile(monthEndXlsxFilename(range));
 }

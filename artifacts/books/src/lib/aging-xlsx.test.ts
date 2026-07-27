@@ -3,7 +3,7 @@ import {
   buildArDetailSheetData,
   buildApDetailSheetData,
   buildSummarySheetData,
-  agingXlsxFilename,
+  monthEndXlsxFilename,
 } from "./aging-xlsx";
 import type { ArAging, ApAging } from "@workspace/api-client-react";
 
@@ -308,10 +308,19 @@ describe("buildSummarySheetData", () => {
   });
 });
 
-describe("agingXlsxFilename", () => {
-  it("embeds the as-of date", () => {
-    expect(agingXlsxFilename("2026-06-30")).toBe(
-      "aging-report-2026-06-30.xlsx",
+describe("monthEndXlsxFilename", () => {
+  it("embeds the full range slug", () => {
+    expect(
+      monthEndXlsxFilename({
+        startDate: "2026-06-01",
+        endDate: "2026-06-30",
+      }),
+    ).toBe("month-end-reports-2026-06-01-to-2026-06-30.xlsx");
+  });
+
+  it("uses all-time when no dates are set", () => {
+    expect(monthEndXlsxFilename({})).toBe(
+      "month-end-reports-all-time.xlsx",
     );
   });
 });

@@ -294,7 +294,9 @@ afterAll(() => {
 describe("aging xlsx roundtrip", () => {
   it("downloads a valid workbook with six named sheets", async () => {
     const { buffer, filename } = await captureWorkbook(arAging, apAging);
-    expect(filename).toBe("aging-report-2026-06-30.xlsx");
+    expect(filename).toBe(
+      "month-end-reports-2026-06-01-to-2026-06-30.xlsx",
+    );
     // Valid xlsx starts with the ZIP local file header signature.
     expect(buffer.length).toBeGreaterThan(0);
     expect(buffer.subarray(0, 4)).toEqual(
