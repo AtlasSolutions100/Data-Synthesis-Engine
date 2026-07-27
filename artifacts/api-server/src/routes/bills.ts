@@ -39,7 +39,7 @@ const router: IRouter = Router();
 const EXTRACT_BILL_SYSTEM_PROMPT = `You extract vendor bill details from invoices: uploaded scans/photos (images or PDFs) or pasted text. Formats vary widely.
 
 Return ONLY a JSON object of this exact shape:
-{"vendorName": string|null, "billNumber": string|null, "date": string|null, "dueDate": string|null, "memo": string|null, "lines": [{"description": string|null, "amount": number}]}
+{"vendorName": string|null, "billNumber": string|null, "date": string|null, "dueDate": string|null, "memo": string|null, "jobName": string|null, "poNumber": string|null, "lines": [{"description": string|null, "amount": number}]}
 
 Rules:
 - vendorName: the company issuing the invoice (the seller/supplier), exactly as written. null if unclear.
@@ -47,10 +47,12 @@ Rules:
 - date: the invoice date in YYYY-MM-DD. null if not stated or ambiguous.
 - dueDate: the payment due date in YYYY-MM-DD. null if not stated. If terms like "Net 30" are given with an invoice date, compute the due date.
 - memo: a short one-line summary of what the invoice is for (e.g. "Electrical supplies for HR Stadium"). null if nothing useful.
+- jobName: the job, project, or site name the invoice is billed to, when the invoice names one (e.g. "Job: HR Stadium", "Project", "Ship To" site name, or a job referenced in the line descriptions). Exactly as written. null if no job/project reference is visible.
+- poNumber: the customer purchase order number when shown (e.g. "PO #4482"). Just the number/reference as written, without the "PO" label. null if not present. Do not confuse it with the invoice number.
 - lines: one entry per billed line item with description and amount in DOLLARS (e.g. 125.50). If only a grand total is visible, return a single line with the total. Exclude sales tax lines only if they are clearly separate — otherwise include everything so the lines sum to the invoice total.
 - amount must be a plain number in dollars (no currency symbols, no strings).
 - Ignore remittance addresses, logos, and marketing text.
-- If the content is not an invoice at all, return {"vendorName": null, "billNumber": null, "date": null, "dueDate": null, "memo": null, "lines": []}.`;
+- If the content is not an invoice at all, return {"vendorName": null, "billNumber": null, "date": null, "dueDate": null, "memo": null, "jobName": null, "poNumber": null, "lines": []}.`;
 
 const MAX_EXTRACT_FILE_BYTES = 10 * 1024 * 1024;
 
@@ -205,6 +207,8 @@ router.post("/bills/extract", async (req, res): Promise<void> => {
       date: dateStr(raw.date),
       dueDate: dateStr(raw.dueDate),
       memo: str(raw.memo),
+      jobName: str(raw.jobName),
+      poNumber: str(raw.poNumber),
       lines,
     }),
   );

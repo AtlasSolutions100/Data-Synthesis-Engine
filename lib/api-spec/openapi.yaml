@@ -2952,6 +2952,12 @@ components:
           type: ["string", "null"]
         memo:
           type: ["string", "null"]
+        jobName:
+          type: ["string", "null"]
+          description: Job/project name referenced on the invoice, when visible
+        poNumber:
+          type: ["string", "null"]
+          description: Purchase order (PO) number referenced on the invoice, when visible
         lines:
           type: array
           items:

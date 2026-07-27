@@ -1552,6 +1552,8 @@ export const ExtractBillResponse = zod.object({
   "date": zod.string().nullish().describe('Invoice date (YYYY-MM-DD) when stated'),
   "dueDate": zod.string().nullish(),
   "memo": zod.string().nullish(),
+  "jobName": zod.string().nullish().describe('Job\/project name referenced on the invoice, when visible'),
+  "poNumber": zod.string().nullish().describe('Purchase order (PO) number referenced on the invoice, when visible'),
   "lines": zod.array(zod.object({
   "description": zod.string().nullish(),
   "amountCents": zod.number().describe('Line amount in integer cents')

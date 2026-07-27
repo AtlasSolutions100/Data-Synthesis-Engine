@@ -24,5 +24,15 @@ export interface ExtractBillResult {
   dueDate?: string | null;
   /** @nullable */
   memo?: string | null;
+  /**
+     * Job/project name referenced on the invoice, when visible
+     * @nullable
+     */
+  jobName?: string | null;
+  /**
+     * Purchase order (PO) number referenced on the invoice, when visible
+     * @nullable
+     */
+  poNumber?: string | null;
   lines: ExtractedBillLine[];
 }
