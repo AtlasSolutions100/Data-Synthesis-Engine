@@ -192,7 +192,7 @@ describe("GET /api/reports/account-balances", () => {
       (res.body.rows as Array<{ type: string }>).map((r) => r.type),
     );
     for (const t of types) {
-      expect(["asset", "bank", "liability", "credit_card"]).toContain(t);
+      expect(["asset", "bank", "liability", "credit_card", "equity"]).toContain(t);
     }
   });
 

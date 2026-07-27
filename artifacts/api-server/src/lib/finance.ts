@@ -152,6 +152,7 @@ export const BALANCE_SHEET_TYPES = [
   "bank",
   "liability",
   "credit_card",
+  "equity",
 ] as const;
 
 /** Account types whose natural balance is a debit (increases with debits). */

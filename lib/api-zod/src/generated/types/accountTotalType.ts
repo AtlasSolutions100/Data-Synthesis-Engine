@@ -19,4 +19,5 @@ export const AccountTotalType = {
   bank: 'bank',
   liability: 'liability',
   credit_card: 'credit_card',
+  equity: 'equity',
 } as const;

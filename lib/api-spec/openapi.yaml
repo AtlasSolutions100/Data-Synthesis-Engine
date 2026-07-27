@@ -1581,7 +1581,7 @@ components:
           type: string
         type:
           type: string
-          enum: [income, cogs, expense, other_income, other_expense, asset, bank, liability, credit_card]
+          enum: [income, cogs, expense, other_income, other_expense, asset, bank, liability, credit_card, equity]
         parentNumber:
           type: ["string", "null"]
     AccountInput:
@@ -1596,7 +1596,7 @@ components:
           minLength: 1
         type:
           type: string
-          enum: [income, cogs, expense, other_income, other_expense, asset, bank, liability, credit_card]
+          enum: [income, cogs, expense, other_income, other_expense, asset, bank, liability, credit_card, equity]
         parentNumber:
           type: ["string", "null"]
     AccountUpdate:
@@ -1610,7 +1610,7 @@ components:
           minLength: 1
         type:
           type: string
-          enum: [income, cogs, expense, other_income, other_expense, asset, bank, liability, credit_card]
+          enum: [income, cogs, expense, other_income, other_expense, asset, bank, liability, credit_card, equity]
         parentNumber:
           type: ["string", "null"]
 
@@ -2079,7 +2079,7 @@ components:
           type: string
         type:
           type: string
-          enum: [income, cogs, expense, other_income, other_expense, asset, bank, liability, credit_card]
+          enum: [income, cogs, expense, other_income, other_expense, asset, bank, liability, credit_card, equity]
         amountCents:
           type: integer
 
@@ -2095,7 +2095,7 @@ components:
           type: string
         type:
           type: string
-          enum: [asset, bank, liability, credit_card]
+          enum: [asset, bank, liability, credit_card, equity]
         balanceCents:
           type: integer
 
@@ -2146,7 +2146,7 @@ components:
           type: string
         type:
           type: string
-          enum: [asset, bank, liability, credit_card]
+          enum: [asset, bank, liability, credit_card, equity]
         balanceCents:
           type: integer
           description: Sum of all line effects; matches getAccountBalances for this account.

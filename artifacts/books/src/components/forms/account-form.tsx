@@ -27,6 +27,7 @@ const accountSchema = z.object({
     "bank",
     "liability",
     "credit_card",
+    "equity",
   ]),
   parentNumber: z.string().optional(),
 });
@@ -113,6 +114,7 @@ export function AccountForm({ defaultValues, onSubmit, isLoading }: AccountFormP
                     <SelectItem value="bank">Bank</SelectItem>
                     <SelectItem value="liability">Liability</SelectItem>
                     <SelectItem value="credit_card">Credit Card</SelectItem>
+                    <SelectItem value="equity">Equity</SelectItem>
                   </SelectContent>
                 </Select>
                 <FormMessage />

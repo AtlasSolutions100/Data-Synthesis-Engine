@@ -24,7 +24,7 @@ export const ListAccountsResponseItem = zod.object({
   "id": zod.number(),
   "number": zod.string(),
   "name": zod.string(),
-  "type": zod.enum(['income', 'cogs', 'expense', 'other_income', 'other_expense', 'asset', 'bank', 'liability', 'credit_card']),
+  "type": zod.enum(['income', 'cogs', 'expense', 'other_income', 'other_expense', 'asset', 'bank', 'liability', 'credit_card', 'equity']),
   "parentNumber": zod.string().nullish()
 })
 export const ListAccountsResponse = zod.array(ListAccountsResponseItem)
@@ -40,7 +40,7 @@ export const ListAccountsResponse = zod.array(ListAccountsResponseItem)
 export const CreateAccountBody = zod.object({
   "number": zod.string().min(1),
   "name": zod.string().min(1),
-  "type": zod.enum(['income', 'cogs', 'expense', 'other_income', 'other_expense', 'asset', 'bank', 'liability', 'credit_card']),
+  "type": zod.enum(['income', 'cogs', 'expense', 'other_income', 'other_expense', 'asset', 'bank', 'liability', 'credit_card', 'equity']),
   "parentNumber": zod.string().nullish()
 })
 
@@ -48,7 +48,7 @@ export const CreateAccountResponse = zod.object({
   "id": zod.number(),
   "number": zod.string(),
   "name": zod.string(),
-  "type": zod.enum(['income', 'cogs', 'expense', 'other_income', 'other_expense', 'asset', 'bank', 'liability', 'credit_card']),
+  "type": zod.enum(['income', 'cogs', 'expense', 'other_income', 'other_expense', 'asset', 'bank', 'liability', 'credit_card', 'equity']),
   "parentNumber": zod.string().nullish()
 })
 
@@ -64,7 +64,7 @@ export const GetAccountResponse = zod.object({
   "id": zod.number(),
   "number": zod.string(),
   "name": zod.string(),
-  "type": zod.enum(['income', 'cogs', 'expense', 'other_income', 'other_expense', 'asset', 'bank', 'liability', 'credit_card']),
+  "type": zod.enum(['income', 'cogs', 'expense', 'other_income', 'other_expense', 'asset', 'bank', 'liability', 'credit_card', 'equity']),
   "parentNumber": zod.string().nullish()
 })
 
@@ -83,7 +83,7 @@ export const UpdateAccountParams = zod.object({
 export const UpdateAccountBody = zod.object({
   "number": zod.string().min(1).optional(),
   "name": zod.string().min(1).optional(),
-  "type": zod.enum(['income', 'cogs', 'expense', 'other_income', 'other_expense', 'asset', 'bank', 'liability', 'credit_card']).optional(),
+  "type": zod.enum(['income', 'cogs', 'expense', 'other_income', 'other_expense', 'asset', 'bank', 'liability', 'credit_card', 'equity']).optional(),
   "parentNumber": zod.string().nullish()
 })
 
@@ -91,7 +91,7 @@ export const UpdateAccountResponse = zod.object({
   "id": zod.number(),
   "number": zod.string(),
   "name": zod.string(),
-  "type": zod.enum(['income', 'cogs', 'expense', 'other_income', 'other_expense', 'asset', 'bank', 'liability', 'credit_card']),
+  "type": zod.enum(['income', 'cogs', 'expense', 'other_income', 'other_expense', 'asset', 'bank', 'liability', 'credit_card', 'equity']),
   "parentNumber": zod.string().nullish()
 })
 
@@ -613,7 +613,7 @@ export const GetJobCostSummaryResponse = zod.object({
   "accountId": zod.number(),
   "accountNumber": zod.string(),
   "accountName": zod.string(),
-  "type": zod.enum(['income', 'cogs', 'expense', 'other_income', 'other_expense', 'asset', 'bank', 'liability', 'credit_card']),
+  "type": zod.enum(['income', 'cogs', 'expense', 'other_income', 'other_expense', 'asset', 'bank', 'liability', 'credit_card', 'equity']),
   "amountCents": zod.number()
 }))
 })
@@ -980,7 +980,7 @@ export const GetCostByAccountResponseItem = zod.object({
   "accountId": zod.number(),
   "accountNumber": zod.string(),
   "accountName": zod.string(),
-  "type": zod.enum(['income', 'cogs', 'expense', 'other_income', 'other_expense', 'asset', 'bank', 'liability', 'credit_card']),
+  "type": zod.enum(['income', 'cogs', 'expense', 'other_income', 'other_expense', 'asset', 'bank', 'liability', 'credit_card', 'equity']),
   "amountCents": zod.number()
 })
 export const GetCostByAccountResponse = zod.array(GetCostByAccountResponseItem)
@@ -1002,7 +1002,7 @@ export const GetAccountBalancesResponse = zod.object({
   "accountId": zod.number(),
   "accountNumber": zod.string(),
   "accountName": zod.string(),
-  "type": zod.enum(['asset', 'bank', 'liability', 'credit_card']),
+  "type": zod.enum(['asset', 'bank', 'liability', 'credit_card', 'equity']),
   "balanceCents": zod.number()
 }))
 })
@@ -1027,7 +1027,7 @@ export const GetAccountBalanceTransactionsResponse = zod.object({
   "accountId": zod.number(),
   "accountNumber": zod.string(),
   "accountName": zod.string(),
-  "type": zod.enum(['asset', 'bank', 'liability', 'credit_card']),
+  "type": zod.enum(['asset', 'bank', 'liability', 'credit_card', 'equity']),
   "balanceCents": zod.number().describe('Sum of all line effects; matches getAccountBalances for this account.'),
   "lines": zod.array(zod.object({
   "transactionId": zod.number(),

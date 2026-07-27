@@ -9,6 +9,46 @@ import { AccountForm } from "@/components/forms/account-form";
 import { useQueryClient } from "@tanstack/react-query";
 import { Plus, Edit2, Trash2 } from "lucide-react";
 
+import type { Account } from "@workspace/api-client-react";
+
+type AccountRow = Account;
+
+/**
+ * Order accounts as a tree: parents first (by number), each followed by its
+ * children (recursively), so sub-accounts read nested under their parent.
+ */
+function orderAsTree(accounts: AccountRow[]): Array<{ account: AccountRow; depth: number }> {
+  const byParent = new Map<string, AccountRow[]>();
+  const numbers = new Set(accounts.map((a) => a.number));
+  for (const a of accounts) {
+    // Treat a missing/unknown parent as a root so orphans are never hidden.
+    const key = a.parentNumber && numbers.has(a.parentNumber) ? a.parentNumber : "";
+    const list = byParent.get(key) ?? [];
+    list.push(a);
+    byParent.set(key, list);
+  }
+  for (const list of byParent.values()) {
+    list.sort((x, y) => x.number.localeCompare(y.number, undefined, { numeric: true }));
+  }
+  const out: Array<{ account: AccountRow; depth: number }> = [];
+  const visited = new Set<number>();
+  const walk = (parentNumber: string, depth: number) => {
+    for (const a of byParent.get(parentNumber) ?? []) {
+      if (visited.has(a.id)) continue; // cycle / duplicate-number guard
+      visited.add(a.id);
+      out.push({ account: a, depth });
+      walk(a.number, depth + 1);
+    }
+  };
+  walk("", 0);
+  // Any accounts unreachable from a root (e.g. cyclic parent links) still
+  // must be shown; append them flat at the end.
+  for (const a of accounts) {
+    if (!visited.has(a.id)) out.push({ account: a, depth: 0 });
+  }
+  return out;
+}
+
 export default function Accounts() {
   const queryClient = useQueryClient();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -91,10 +131,17 @@ export default function Accounts() {
                   <TableCell colSpan={5} className="text-center py-8 text-slate-500">No accounts found.</TableCell>
                 </TableRow>
               ) : (
-                accounts?.map((account) => (
+                orderAsTree(accounts ?? []).map(({ account, depth }) => (
                   <TableRow key={account.id}>
                     <TableCell className="font-medium">{account.number}</TableCell>
-                    <TableCell>{account.name}</TableCell>
+                    <TableCell>
+                      <span
+                        style={depth > 0 ? { paddingLeft: `${depth * 1.25}rem` } : undefined}
+                        className={depth > 0 ? "text-slate-600" : undefined}
+                      >
+                        {account.name}
+                      </span>
+                    </TableCell>
                     <TableCell>
                       <Badge variant="outline" className="capitalize">{account.type.replace('_', ' ')}</Badge>
                     </TableCell>
