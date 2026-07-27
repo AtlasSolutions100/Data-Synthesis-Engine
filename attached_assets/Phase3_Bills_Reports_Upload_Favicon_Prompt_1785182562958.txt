@@ -1,0 +1,53 @@
+You are an expert full-stack developer working inside an existing Replit project that already contains a fully functional web-based accounting and project management dashboard for Allied Power (Allied Power Accounting).
+
+The existing dashboard already has Bills, Reports, and upload functionality.
+
+Do NOT recommend new tech or rebuilding anything. Make precise, targeted edits to the existing code. Assume Phases 1 and 2 have been completed or will be merged.
+
+---
+
+PHASE 3 GOAL
+Polish the remaining high-value usability improvements and add easy visual identification for the client.
+
+Implement ONLY the following changes in this phase:
+
+1. Bills Tab Improvements
+   - Improve the New Bill creation flow to clearly enforce this sequence:
+     1. Select Vendor first (greatly improve search/autocomplete — typing partial name like "CES", "Charlie", or "Worker" should surface matching vendors; do not rely only on numeric ID lookup).
+     2. Then select Customer.
+     3. Then select Job.
+   - Ensure AI-assisted population from uploaded invoices correctly flows into job costs and vendor history.
+
+2. Reports Section & Drill-Down
+   - Add Customer and Job filters to key reports such as "Job Materials Purchased" and "Equipment Rentals".
+   - Make dollar-amount totals clickable. Clicking a total expands to show every underlying transaction or line item that makes up that amount.
+   - Ensure users can reach the same detailed data whether they start from the Jobs view or from Reports.
+
+3. Prominent Upload Buttons (Usability)
+   - Add a clear, prominent "Upload" button near the top (not buried at the bottom) of these areas:
+     - Main Jobs / Dashboard area (for new project/job documents)
+     - Bills tab (for invoice scans, PDFs, or images)
+     - Time Cards tab (for timesheet photos, forwarded emails, or text)
+     - Customers area (for bulk CSV import of customers from QuickBooks)
+   - Support drag-and-drop where straightforward in the existing code.
+   - For Customers, enable CSV upload that creates multiple customer records.
+
+4. Favicon for Easy Client Identification (New)
+   - Add or update a favicon (browser tab icon) so the client can easily locate and distinguish the Allied Power Accounting dashboard among other tabs (QuickBooks, email, etc.).
+   - Use a simple, professional icon — preferably the company initials "AP" or a clean accounting/construction-themed icon.
+   - Make the favicon high-quality and recognizable at small sizes.
+   - Update the browser tab title if needed to clearly say "Allied Power Accounting" or similar.
+   - Place the favicon file appropriately in the existing project structure (usually in /public or the static assets folder) and ensure it loads correctly.
+
+---
+
+REQUIREMENTS FOR THIS PHASE
+- Use the client's language where relevant.
+- Preserve all existing functionality and data.
+- After completing the changes, provide:
+  - Summary of what was changed in Phase 3
+  - Step-by-step testing instructions for Bills flow, Reports drill-down, Upload buttons, and the new favicon
+  - Confirmation that the favicon appears correctly in the browser tab
+  - Full list of files modified across all phases if possible
+
+Start with Phase 3 now. Be precise and client-focused.
