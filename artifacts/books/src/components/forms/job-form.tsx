@@ -22,14 +22,34 @@ import {
 } from "@workspace/api-client-react";
 import { EntityCombobox } from "@/components/forms/entity-combobox";
 
-const jobSchema = z.object({
-  name: z.string().min(1, "Job name is required"),
-  poNumber: z.string().optional(),
-  customerId: z.string().optional(),
-  description: z.string().optional(),
-  status: z.enum(["active", "completed", "on_hold"]),
-  contractAmount: z.string().optional(),
-});
+/**
+ * Internal (non-billable) job names that may be saved without a customer.
+ * Keep in sync with INTERNAL_JOB_NAMES in the jobs API route.
+ */
+const INTERNAL_JOB_NAMES = new Set(["overhead / office", "overhead/office"]);
+
+function isInternalJobName(name: string): boolean {
+  return INTERNAL_JOB_NAMES.has(name.trim().toLowerCase().replace(/\s+/g, " "));
+}
+
+const jobSchema = z
+  .object({
+    name: z.string().min(1, "Job name is required"),
+    poNumber: z.string().optional(),
+    customerId: z.string().optional(),
+    description: z.string().optional(),
+    status: z.enum(["active", "completed", "on_hold"]),
+    contractAmount: z.string().optional(),
+  })
+  .superRefine((values, ctx) => {
+    if (!values.customerId && !isInternalJobName(values.name)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["customerId"],
+        message: "Customer is required",
+      });
+    }
+  });
 
 type JobFormValues = z.infer<typeof jobSchema>;
 
@@ -89,7 +109,7 @@ export function JobForm({ defaultValues, onSubmit, isLoading }: JobFormProps) {
             name="poNumber"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>PO Number</FormLabel>
+                <FormLabel>PO Number (Optional)</FormLabel>
                 <FormControl>
                   <Input {...field} />
                 </FormControl>
@@ -102,7 +122,7 @@ export function JobForm({ defaultValues, onSubmit, isLoading }: JobFormProps) {
             name="customerId"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Customer (Optional)</FormLabel>
+                <FormLabel>Customer</FormLabel>
                 <FormControl>
                   <EntityCombobox
                     options={(customers ?? []).map((c) => ({ id: c.id, label: c.name }))}

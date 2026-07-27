@@ -30,12 +30,12 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
   const navItems = [
     { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+    { href: "/customers", label: "Customers", icon: Building2 },
     { href: "/jobs", label: "Jobs", icon: Briefcase },
     { href: "/invoices", label: "Invoices", icon: FileText },
     { href: "/bills", label: "Bills", icon: FileInput },
     { href: "/transactions", label: "Transactions", icon: ReceiptText },
-    { href: "/accounts", label: "Accounts", icon: Wallet },
-    { href: "/customers", label: "Customers", icon: Building2 },
+    { href: "/accounts", label: "Chart of Accounts", icon: Wallet },
     { href: "/vendors", label: "Vendors", icon: HardHat },
     { href: "/employees", label: "Employees", icon: Users },
     { href: "/payroll", label: "Time Cards", icon: CircleDollarSign },

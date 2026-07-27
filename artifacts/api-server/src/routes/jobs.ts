@@ -29,6 +29,24 @@ import {
 
 const router: IRouter = Router();
 
+/**
+ * The single internal (non-billable) job that may exist without a customer.
+ * Keep in sync with OVERHEAD_JOB_NAME in the payroll import form.
+ */
+const INTERNAL_JOB_NAMES = new Set(["overhead / office", "overhead/office"]);
+
+function isInternalJobName(name: string): boolean {
+  return INTERNAL_JOB_NAMES.has(name.trim().toLowerCase().replace(/\s+/g, " "));
+}
+
+async function customerExists(customerId: number): Promise<boolean> {
+  const [customer] = await db
+    .select({ id: customersTable.id })
+    .from(customersTable)
+    .where(eq(customersTable.id, customerId));
+  return !!customer;
+}
+
 type JobRow = typeof jobsTable.$inferSelect;
 
 function serializeJob(
@@ -108,6 +126,17 @@ router.post("/jobs", async (req, res): Promise<void> => {
   const parsed = CreateJobBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+  // Customer is required for real jobs (P1-JOB-01/02). The single internal
+  // "Overhead / Office" job used for non-billable time is the only exception.
+  if (parsed.data.customerId == null) {
+    if (!isInternalJobName(parsed.data.name)) {
+      res.status(400).json({ error: "Customer is required" });
+      return;
+    }
+  } else if (!(await customerExists(parsed.data.customerId))) {
+    res.status(400).json({ error: "Customer not found" });
     return;
   }
   const jobNumber =
@@ -231,6 +260,31 @@ router.patch("/jobs/:id", async (req, res): Promise<void> => {
   const parsed = UpdateJobBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+  const [existing] = await db
+    .select()
+    .from(jobsTable)
+    .where(eq(jobsTable.id, params.data.id));
+  if (!existing) {
+    res.status(404).json({ error: "Job not found" });
+    return;
+  }
+  // Enforce the same customer-required rule on edits: the effective state
+  // after this update must have a customer unless it's the internal job.
+  const effectiveCustomerId =
+    "customerId" in parsed.data ? parsed.data.customerId : existing.customerId;
+  const effectiveName = parsed.data.name ?? existing.name;
+  if (effectiveCustomerId == null) {
+    if (!isInternalJobName(effectiveName)) {
+      res.status(400).json({ error: "Customer is required" });
+      return;
+    }
+  } else if (
+    effectiveCustomerId !== existing.customerId &&
+    !(await customerExists(effectiveCustomerId))
+  ) {
+    res.status(400).json({ error: "Customer not found" });
     return;
   }
   const [job] = await db
