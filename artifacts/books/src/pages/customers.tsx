@@ -18,149 +18,9 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { CustomerForm } from "@/components/forms/customer-form";
 import { useQueryClient } from "@tanstack/react-query";
-import { Plus, Edit2, Trash2, Search, ChevronRight, Upload, Loader2 } from "lucide-react";
+import { Plus, Edit2, Trash2, Search, ChevronRight } from "lucide-react";
 import { Link } from "wouter";
-import { useRef } from "react";
-import { createCustomer } from "@workspace/api-client-react";
-import { useToast } from "@/hooks/use-toast";
-
-/** Minimal CSV parser that handles quoted fields and commas inside quotes. */
-function parseCsv(text: string): string[][] {
-  const rows: string[][] = [];
-  let row: string[] = [];
-  let field = "";
-  let inQuotes = false;
-  for (let i = 0; i < text.length; i++) {
-    const ch = text[i];
-    if (inQuotes) {
-      if (ch === '"') {
-        if (text[i + 1] === '"') {
-          field += '"';
-          i++;
-        } else {
-          inQuotes = false;
-        }
-      } else {
-        field += ch;
-      }
-    } else if (ch === '"') {
-      inQuotes = true;
-    } else if (ch === ",") {
-      row.push(field);
-      field = "";
-    } else if (ch === "\n" || ch === "\r") {
-      if (ch === "\r" && text[i + 1] === "\n") i++;
-      row.push(field);
-      field = "";
-      if (row.some((c) => c.trim() !== "")) rows.push(row);
-      row = [];
-    } else {
-      field += ch;
-    }
-  }
-  row.push(field);
-  if (row.some((c) => c.trim() !== "")) rows.push(row);
-  return rows;
-}
-
-function ImportCustomersButton({ onDone }: { onDone: () => void }) {
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [importing, setImporting] = useState(false);
-  const { toast } = useToast();
-
-  const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    e.target.value = "";
-    if (!file) return;
-    const text = await file.text();
-    const rows = parseCsv(text);
-    if (rows.length === 0) {
-      toast({ title: "The CSV file is empty", variant: "destructive" });
-      return;
-    }
-    const header = rows[0].map((h) => h.trim().toLowerCase());
-    const nameIdx = header.findIndex((h) =>
-      ["name", "customer", "customer name"].includes(h),
-    );
-    if (nameIdx === -1) {
-      toast({
-        title: "Missing Name column",
-        description:
-          'The CSV needs a header row with a "Name" column. Optional columns: Email, Phone, Notes.',
-        variant: "destructive",
-      });
-      return;
-    }
-    const emailIdx = header.indexOf("email");
-    const phoneIdx = header.indexOf("phone");
-    const notesIdx = header.indexOf("notes");
-    const records = rows
-      .slice(1)
-      .map((r) => ({
-        name: (r[nameIdx] ?? "").trim(),
-        email: emailIdx >= 0 ? (r[emailIdx] ?? "").trim() || null : null,
-        phone: phoneIdx >= 0 ? (r[phoneIdx] ?? "").trim() || null : null,
-        notes: notesIdx >= 0 ? (r[notesIdx] ?? "").trim() || null : null,
-      }))
-      .filter((r) => r.name);
-    if (records.length === 0) {
-      toast({
-        title: "No customers found in the CSV",
-        description: "Every row needs a value in the Name column.",
-        variant: "destructive",
-      });
-      return;
-    }
-    setImporting(true);
-    let created = 0;
-    let failed = 0;
-    for (const record of records) {
-      try {
-        await createCustomer(record);
-        created++;
-      } catch {
-        failed++;
-      }
-    }
-    setImporting(false);
-    onDone();
-    toast({
-      title: `Imported ${created} customer${created === 1 ? "" : "s"}`,
-      description: failed
-        ? `${failed} row${failed === 1 ? "" : "s"} could not be imported.`
-        : undefined,
-      variant: failed ? "destructive" : undefined,
-    });
-  };
-
-  return (
-    <>
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept=".csv,text/csv"
-        className="hidden"
-        onChange={handleFile}
-      />
-      <Button
-        variant="outline"
-        disabled={importing}
-        onClick={() => fileInputRef.current?.click()}
-        data-testid="button-import-customers"
-      >
-        {importing ? (
-          <>
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Importing…
-          </>
-        ) : (
-          <>
-            <Upload className="mr-2 h-4 w-4" /> Import Customers (CSV)
-          </>
-        )}
-      </Button>
-    </>
-  );
-}
+import { ImportDataDialog } from "@/components/import-data-dialog";
 
 export default function Customers() {
   const queryClient = useQueryClient();
@@ -232,7 +92,8 @@ export default function Customers() {
           <p className="text-slate-500 mt-1">Every customer with their jobs listed underneath</p>
         </div>
         <div className="flex items-center gap-2">
-        <ImportCustomersButton
+        <ImportDataDialog
+          entity="customers"
           onDone={() =>
             queryClient.invalidateQueries({
               queryKey: getListCustomersQueryKey(),

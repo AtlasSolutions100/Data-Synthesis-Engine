@@ -11,6 +11,7 @@ import { JobForm } from "@/components/forms/job-form";
 import { useQueryClient } from "@tanstack/react-query";
 import { Plus, Edit2, Trash2 } from "lucide-react";
 import { QuickJobDocUploadDialog } from "@/components/quick-upload-dialog";
+import { ImportDataDialog } from "@/components/import-data-dialog";
 
 export default function Jobs() {
   const queryClient = useQueryClient();
@@ -58,6 +59,12 @@ export default function Jobs() {
           <p className="text-slate-500 mt-1">Manage construction projects and job costing</p>
         </div>
         <div className="flex items-center gap-2">
+        <ImportDataDialog
+          entity="jobs"
+          onDone={() =>
+            queryClient.invalidateQueries({ queryKey: getListJobsQueryKey() })
+          }
+        />
         <QuickJobDocUploadDialog />
         <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
           <DialogTrigger asChild>

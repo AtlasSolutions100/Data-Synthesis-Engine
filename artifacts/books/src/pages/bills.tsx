@@ -40,6 +40,7 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { matchExtractedJob } from "@/lib/match-extracted-job";
 import { Plus, Trash2, Upload, Loader2 } from "lucide-react";
+import { ImportDataDialog } from "@/components/import-data-dialog";
 
 const UPLOAD_MAX_BYTES = 10 * 1024 * 1024;
 
@@ -302,6 +303,12 @@ export default function Bills() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <ImportDataDialog
+            entity="bills"
+            onDone={() =>
+              queryClient.invalidateQueries({ queryKey: getListBillsQueryKey() })
+            }
+          />
           <UploadInvoiceDialog
             onExtracted={(extracted, note) => {
               setPrefill(extracted);

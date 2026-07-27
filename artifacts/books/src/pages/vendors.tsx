@@ -9,6 +9,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Plus, Edit2, Trash2, Search } from "lucide-react";
 import { Link } from "wouter";
 import { Input } from "@/components/ui/input";
+import { ImportDataDialog } from "@/components/import-data-dialog";
 
 export default function Vendors() {
   const queryClient = useQueryClient();
@@ -62,6 +63,13 @@ export default function Vendors() {
           <h1 className="text-3xl font-bold tracking-tight text-slate-900">Vendors</h1>
           <p className="text-slate-500 mt-1">Manage suppliers and subcontractors</p>
         </div>
+        <div className="flex items-center gap-2">
+        <ImportDataDialog
+          entity="vendors"
+          onDone={() =>
+            queryClient.invalidateQueries({ queryKey: getListVendorsQueryKey() })
+          }
+        />
         <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
           <DialogTrigger asChild>
             <Button className="bg-blue-600 hover:bg-blue-700">
@@ -78,6 +86,7 @@ export default function Vendors() {
             />
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       <div className="relative max-w-sm">

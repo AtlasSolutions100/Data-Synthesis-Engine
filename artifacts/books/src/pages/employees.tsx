@@ -17,6 +17,7 @@ import { EmployeeForm } from "@/components/forms/employee-form";
 import { useQueryClient } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { Plus, Edit2, Trash2, History, Sparkles, Upload } from "lucide-react";
+import { ImportDataDialog } from "@/components/import-data-dialog";
 
 const IMPORT_FILE_MAX_BYTES = 10 * 1024 * 1024;
 
@@ -567,6 +568,12 @@ export default function Employees() {
           <p className="text-slate-500 mt-1">Manage employee records and pay rates</p>
         </div>
         <div className="flex items-center gap-2">
+        <ImportDataDialog
+          entity="employees"
+          onDone={() =>
+            queryClient.invalidateQueries({ queryKey: getListEmployeesQueryKey() })
+          }
+        />
         <ImportEmployeesDialog employees={employees ?? []} />
         <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
           <DialogTrigger asChild>

@@ -78,6 +78,56 @@ export const ImportChartOfAccountsResponse = zod.object({
 
 
 /**
+ * Two-phase spreadsheet import shared by all tabs. In preview mode the workbook is parsed and each row is classified (new, duplicate that would update an existing record, or error) without writing anything. In apply mode the same workbook is re-parsed and rows are inserted or updated, skipping any row numbers listed in excludeRows. Never deletes.
+ * @summary Preview or apply an Excel data import for a given entity tab
+ */
+export const ImportDataParams = zod.object({
+  "entity": zod.enum(['customers', 'vendors', 'jobs', 'employees', 'bills', 'invoices'])
+})
+
+export const importDataBodyFileDataMax = 14000000;
+
+export const importDataBodyFileNameMax = 300;
+
+export const importDataBodyExcludeRowsMax = 20000;
+
+
+
+export const ImportDataBody = zod.object({
+  "fileData": zod.string().max(importDataBodyFileDataMax).describe('Base64 data URL of the uploaded .xlsx workbook'),
+  "fileName": zod.string().max(importDataBodyFileNameMax).optional(),
+  "mode": zod.enum(['preview', 'apply']),
+  "excludeRows": zod.array(zod.number()).max(importDataBodyExcludeRowsMax).optional().describe('Row numbers (from the preview) to skip when applying')
+})
+
+export const ImportDataResponse = zod.object({
+  "mode": zod.enum(['preview', 'apply']),
+  "rows": zod.array(zod.object({
+  "row": zod.number().describe('Stable row identifier used in excludeRows'),
+  "status": zod.enum(['new', 'duplicate', 'error']),
+  "label": zod.string().describe('Human-readable identity of the row (name, bill number, etc.)'),
+  "message": zod.string().nullable().describe('Explanation for errors or duplicate matches'),
+  "changes": zod.array(zod.object({
+  "field": zod.string(),
+  "from": zod.string().nullable(),
+  "to": zod.string().nullable()
+})).nullable().describe('For duplicates, the fields that would change on update')
+})),
+  "summary": zod.object({
+  "total": zod.number(),
+  "newRows": zod.number(),
+  "duplicates": zod.number(),
+  "errors": zod.number()
+}),
+  "applied": zod.object({
+  "inserted": zod.number(),
+  "updated": zod.number(),
+  "skipped": zod.number()
+}).optional()
+})
+
+
+/**
  * @summary Get an account
  */
 export const GetAccountParams = zod.object({

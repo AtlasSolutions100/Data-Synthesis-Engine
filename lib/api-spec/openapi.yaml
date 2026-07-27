@@ -105,6 +105,39 @@ paths:
           $ref: "#/components/responses/Error"
         "403":
           $ref: "#/components/responses/Error"
+  /import/{entity}:
+    post:
+      operationId: importData
+      tags: [import]
+      summary: Preview or apply an Excel data import for a given entity tab
+      description: >
+        Two-phase spreadsheet import shared by all tabs. In preview mode the
+        workbook is parsed and each row is classified (new, duplicate that
+        would update an existing record, or error) without writing anything.
+        In apply mode the same workbook is re-parsed and rows are inserted or
+        updated, skipping any row numbers listed in excludeRows. Never deletes.
+      parameters:
+        - name: entity
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [customers, vendors, jobs, employees, bills, invoices]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ImportDataInput"
+      responses:
+        "200":
+          description: Preview rows or apply summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ImportDataResult"
+        "400":
+          $ref: "#/components/responses/Error"
   /accounts/{id}:
     get:
       operationId: getAccount
@@ -3015,6 +3048,94 @@ components:
           items:
             type: string
           description: Account names skipped because they have no account number (QB system accounts)
+    ImportDataInput:
+      type: object
+      required: [fileData, mode]
+      properties:
+        fileData:
+          type: string
+          maxLength: 14000000
+          description: Base64 data URL of the uploaded .xlsx workbook
+        fileName:
+          type: string
+          maxLength: 300
+        mode:
+          type: string
+          enum: [preview, apply]
+        excludeRows:
+          type: array
+          maxItems: 20000
+          items:
+            type: integer
+          description: Row numbers (from the preview) to skip when applying
+    ImportRowChange:
+      type: object
+      required: [field, from, to]
+      properties:
+        field:
+          type: string
+        from:
+          type: ["string", "null"]
+        to:
+          type: ["string", "null"]
+    ImportPreviewRow:
+      type: object
+      required: [row, status, label, message, changes]
+      properties:
+        row:
+          type: integer
+          description: Stable row identifier used in excludeRows
+        status:
+          type: string
+          enum: [new, duplicate, error]
+        label:
+          type: string
+          description: Human-readable identity of the row (name, bill number, etc.)
+        message:
+          type: ["string", "null"]
+          description: Explanation for errors or duplicate matches
+        changes:
+          type: ["array", "null"]
+          items:
+            $ref: "#/components/schemas/ImportRowChange"
+          description: For duplicates, the fields that would change on update
+    ImportDataSummary:
+      type: object
+      required: [total, newRows, duplicates, errors]
+      properties:
+        total:
+          type: integer
+        newRows:
+          type: integer
+        duplicates:
+          type: integer
+        errors:
+          type: integer
+    ImportDataApplied:
+      type: object
+      required: [inserted, updated, skipped]
+      properties:
+        inserted:
+          type: integer
+        updated:
+          type: integer
+        skipped:
+          type: integer
+    ImportDataResult:
+      type: object
+      required: [mode, rows, summary]
+      properties:
+        mode:
+          type: string
+          enum: [preview, apply]
+        rows:
+          type: array
+          items:
+            $ref: "#/components/schemas/ImportPreviewRow"
+        summary:
+          $ref: "#/components/schemas/ImportDataSummary"
+        applied:
+          $ref: "#/components/schemas/ImportDataApplied"
     ExtractEmployeesInput:
       type: object
       properties:

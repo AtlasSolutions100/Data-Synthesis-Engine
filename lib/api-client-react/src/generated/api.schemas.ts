@@ -1272,6 +1272,93 @@ export interface ImportChartOfAccountsResult {
   skippedNoNumber: string[];
 }
 
+export type ImportDataInputMode = typeof ImportDataInputMode[keyof typeof ImportDataInputMode];
+
+
+export const ImportDataInputMode = {
+  preview: 'preview',
+  apply: 'apply',
+} as const;
+
+export interface ImportDataInput {
+  /**
+     * Base64 data URL of the uploaded .xlsx workbook
+     * @maxLength 14000000
+     */
+  fileData: string;
+  /** @maxLength 300 */
+  fileName?: string;
+  mode: ImportDataInputMode;
+  /**
+     * Row numbers (from the preview) to skip when applying
+     * @maxItems 20000
+     */
+  excludeRows?: number[];
+}
+
+export interface ImportRowChange {
+  field: string;
+  /** @nullable */
+  from: string | null;
+  /** @nullable */
+  to: string | null;
+}
+
+export type ImportPreviewRowStatus = typeof ImportPreviewRowStatus[keyof typeof ImportPreviewRowStatus];
+
+
+export const ImportPreviewRowStatus = {
+  new: 'new',
+  duplicate: 'duplicate',
+  error: 'error',
+} as const;
+
+export interface ImportPreviewRow {
+  /** Stable row identifier used in excludeRows */
+  row: number;
+  status: ImportPreviewRowStatus;
+  /** Human-readable identity of the row (name, bill number, etc.) */
+  label: string;
+  /**
+     * Explanation for errors or duplicate matches
+     * @nullable
+     */
+  message: string | null;
+  /**
+     * For duplicates, the fields that would change on update
+     * @nullable
+     */
+  changes: ImportRowChange[] | null;
+}
+
+export interface ImportDataSummary {
+  total: number;
+  newRows: number;
+  duplicates: number;
+  errors: number;
+}
+
+export interface ImportDataApplied {
+  inserted: number;
+  updated: number;
+  skipped: number;
+}
+
+export type ImportDataResultMode = typeof ImportDataResultMode[keyof typeof ImportDataResultMode];
+
+
+export const ImportDataResultMode = {
+  preview: 'preview',
+  apply: 'apply',
+} as const;
+
+export interface ImportDataResult {
+  mode: ImportDataResultMode;
+  rows: ImportPreviewRow[];
+  summary: ImportDataSummary;
+  applied?: ImportDataApplied;
+}
+
 export interface ExtractEmployeesInput {
   /**
      * Free-form pasted text (email, rate sheet, notes)

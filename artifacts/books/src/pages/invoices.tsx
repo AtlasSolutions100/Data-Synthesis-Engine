@@ -35,6 +35,7 @@ import {
 import { DateRangePicker, type DateRangeValue } from "@/components/date-range-picker";
 import { useQueryClient } from "@tanstack/react-query";
 import { Plus, Trash2 } from "lucide-react";
+import { ImportDataDialog } from "@/components/import-data-dialog";
 
 const statusVariant: Record<string, "default" | "secondary" | "outline"> = {
   paid: "secondary",
@@ -98,6 +99,12 @@ export default function Invoices() {
           </p>
         </div>
         <div className="flex items-center gap-3">
+        <ImportDataDialog
+          entity="invoices"
+          onDone={() =>
+            queryClient.invalidateQueries({ queryKey: getListInvoicesQueryKey() })
+          }
+        />
         <DateRangePicker value={range} onChange={setRange} />
         <Dialog
           open={isCreateOpen}

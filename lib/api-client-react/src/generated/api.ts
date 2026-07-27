@@ -59,6 +59,8 @@ import type {
   HealthStatus,
   ImportChartOfAccountsInput,
   ImportChartOfAccountsResult,
+  ImportDataInput,
+  ImportDataResult,
   Invoice,
   InvoiceInput,
   InvoicePaymentInput,
@@ -419,6 +421,78 @@ export const useImportChartOfAccounts = <TError = ErrorType<ErrorResponse>,
         TContext
       > => {
       return useMutation(getImportChartOfAccountsMutationOptions(options));
+    }
+
+export const getImportDataUrl = (entity: 'customers' | 'vendors' | 'jobs' | 'employees' | 'bills' | 'invoices',) => {
+
+
+
+
+  return `/api/import/${entity}`
+}
+
+/**
+ * Two-phase spreadsheet import shared by all tabs. In preview mode the workbook is parsed and each row is classified (new, duplicate that would update an existing record, or error) without writing anything. In apply mode the same workbook is re-parsed and rows are inserted or updated, skipping any row numbers listed in excludeRows. Never deletes.
+ * @summary Preview or apply an Excel data import for a given entity tab
+ */
+export const importData = async (entity: 'customers' | 'vendors' | 'jobs' | 'employees' | 'bills' | 'invoices',
+    importDataInput: ImportDataInput, options?: RequestInit): Promise<ImportDataResult> => {
+
+  return customFetch<ImportDataResult>(getImportDataUrl(entity),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(importDataInput)
+  }
+);}
+
+
+
+
+export const getImportDataMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof importData>>, TError,{entity: 'customers' | 'vendors' | 'jobs' | 'employees' | 'bills' | 'invoices';data: BodyType<ImportDataInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof importData>>, TError,{entity: 'customers' | 'vendors' | 'jobs' | 'employees' | 'bills' | 'invoices';data: BodyType<ImportDataInput>}, TContext> => {
+
+const mutationKey = ['importData'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof importData>>, {entity: 'customers' | 'vendors' | 'jobs' | 'employees' | 'bills' | 'invoices';data: BodyType<ImportDataInput>}> = (props) => {
+          const {entity,data} = props ?? {};
+
+          return  importData(entity,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ImportDataMutationResult = NonNullable<Awaited<ReturnType<typeof importData>>>
+    export type ImportDataMutationBody = BodyType<ImportDataInput>
+    export type ImportDataMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Preview or apply an Excel data import for a given entity tab
+ */
+export const useImportData = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof importData>>, TError,{entity: 'customers' | 'vendors' | 'jobs' | 'employees' | 'bills' | 'invoices';data: BodyType<ImportDataInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof importData>>,
+        TError,
+        {entity: 'customers' | 'vendors' | 'jobs' | 'employees' | 'bills' | 'invoices';data: BodyType<ImportDataInput>},
+        TContext
+      > => {
+      return useMutation(getImportDataMutationOptions(options));
     }
 
 export const getGetAccountUrl = (id: number,) => {

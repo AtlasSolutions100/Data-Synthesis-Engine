@@ -12,6 +12,7 @@ import payrollRouter from "./payroll";
 import documentsRouter from "./documents";
 import storageRouter from "./storage";
 import reportsRouter from "./reports";
+import importDataRouter from "./importData";
 
 const router: IRouter = Router();
 
@@ -28,5 +29,6 @@ router.use(payrollRouter);
 router.use(documentsRouter);
 router.use(storageRouter);
 router.use(reportsRouter);
+router.use(importDataRouter);
 
 export default router;
