@@ -18,4 +18,5 @@
 - [Overhead / Office job](overhead-office-job.md) — office/shop time auto-bills to internal "Overhead / Office" job; blank job names are row-scoped, real names shared confirm-once.
 - [Pay period numbering](pay-periods.md) — periods numbered by pay-date year, not start year; anchor Period 13 = 2026-06-08.
 - [Job/PO labeling](job-po-labeling.md) — jobs identified by Job Name only; PO Number is the sole reference field; job_number stays in DB but is auto-generated and never shown.
+- [Clerk owner self-heal](clerk-user-owner-selfheal.md) — new Clerk keys duplicate users as bookkeepers; promote by fresh *verified* email match to an owner row, never stored/unverified email.
 - [Hours-import job confirmation](import-job-confirmation.md) — person-like extracted job names always require explicit confirmation, even if a job with that exact name exists.
