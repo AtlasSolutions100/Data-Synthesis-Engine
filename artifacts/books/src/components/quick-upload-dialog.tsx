@@ -79,6 +79,7 @@ export function QuickJobDocUploadDialog({
   const [open, setOpen] = useState(false);
   const [jobId, setJobId] = useState("");
   const [category, setCategory] = useState<Category>(defaultCategory);
+  const [dragOver, setDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -114,12 +115,8 @@ export function QuickJobDocUploadDialog({
 
   const busy = isUploading || createDocument.isPending;
 
-  const handleFileSelected = async (
-    e: React.ChangeEvent<HTMLInputElement>,
-  ) => {
-    const file = e.target.files?.[0];
-    e.target.value = "";
-    if (!file || !jobId) return;
+  const processFile = async (file: File | undefined) => {
+    if (!file || !jobId || busy) return;
 
     const validationError = validateFile(file);
     if (validationError) {
@@ -205,12 +202,37 @@ export function QuickJobDocUploadDialog({
             type="file"
             accept={ACCEPT}
             className="hidden"
-            onChange={handleFileSelected}
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              e.target.value = "";
+              processFile(file);
+            }}
           />
           <Button
-            className="w-full bg-blue-600 hover:bg-blue-700"
+            className={`w-full bg-blue-600 hover:bg-blue-700 ${
+              dragOver ? "ring-2 ring-blue-400 ring-offset-2" : ""
+            }`}
             disabled={!jobId || busy}
             onClick={() => fileInputRef.current?.click()}
+            onDragOver={(e) => {
+              e.preventDefault();
+              setDragOver(true);
+            }}
+            onDragLeave={() => setDragOver(false)}
+            onDrop={(e) => {
+              e.preventDefault();
+              setDragOver(false);
+              if (!jobId) {
+                toast({
+                  title: "Select a job first",
+                  description:
+                    "Choose which job this document belongs to, then drop the file again.",
+                  variant: "destructive",
+                });
+                return;
+              }
+              processFile(e.dataTransfer.files?.[0]);
+            }}
             data-testid="button-quick-upload-choose"
           >
             {busy ? (
@@ -224,7 +246,8 @@ export function QuickJobDocUploadDialog({
             )}
           </Button>
           <p className="text-xs text-slate-400">
-            PDF, images, or spreadsheets — up to 25 MB.
+            PDF, images, or spreadsheets — up to 25 MB. You can also drag &
+            drop a file onto the button.
           </p>
         </div>
       </DialogContent>

@@ -839,6 +839,7 @@ export function JobDocuments({ jobId }: { jobId: number }) {
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [category, setCategory] = useState<Category>("other");
+  const [dragOver, setDragOver] = useState(false);
   const [failedThumbnails, setFailedThumbnails] = useState<Set<number>>(
     () => new Set(),
   );
@@ -930,12 +931,10 @@ export function JobDocuments({ jobId }: { jobId: number }) {
       }),
   });
 
-  const handleFileSelected = async (
-    e: React.ChangeEvent<HTMLInputElement>,
-  ) => {
-    const file = e.target.files?.[0];
-    e.target.value = "";
-    if (!file) return;
+  const busy = isUploading || createDocument.isPending;
+
+  const processFile = async (file: File | undefined) => {
+    if (!file || busy) return;
 
     const validationError = validateFile(file);
     if (validationError) {
@@ -963,7 +962,6 @@ export function JobDocuments({ jobId }: { jobId: number }) {
   };
 
   const docs = documents ?? [];
-  const busy = isUploading || createDocument.isPending;
 
   return (
     <Card>
@@ -996,13 +994,30 @@ export function JobDocuments({ jobId }: { jobId: number }) {
             type="file"
             accept={ACCEPT}
             className="hidden"
-            onChange={handleFileSelected}
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              e.target.value = "";
+              processFile(file);
+            }}
           />
           <Button
             size="sm"
-            className="bg-blue-600 hover:bg-blue-700"
+            className={`bg-blue-600 hover:bg-blue-700 ${
+              dragOver ? "ring-2 ring-blue-400 ring-offset-2" : ""
+            }`}
             disabled={busy}
             onClick={() => fileInputRef.current?.click()}
+            onDragOver={(e) => {
+              e.preventDefault();
+              setDragOver(true);
+            }}
+            onDragLeave={() => setDragOver(false)}
+            onDrop={(e) => {
+              e.preventDefault();
+              setDragOver(false);
+              processFile(e.dataTransfer.files?.[0]);
+            }}
+            data-testid="button-job-doc-upload"
           >
             {busy ? (
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />

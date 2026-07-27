@@ -818,6 +818,7 @@ function ImportHoursDialog({
   const [assoc, setAssoc] = useState<Record<string, JobAssociation>>({});
   const [customer, setCustomer] = useState(""); // "" = all customers
   const [customerAuto, setCustomerAuto] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
 
   const extract = useExtractPayrollHours();
   const createJob = useCreateJob();
@@ -837,6 +838,7 @@ function ImportHoursDialog({
     setAssoc({});
     setCustomer("");
     setCustomerAuto(false);
+    setDragOver(false);
     extract.reset();
   };
 
@@ -1376,20 +1378,40 @@ function ImportHoursDialog({
                     : ""}
               </p>
             </div>
-            <div className="flex items-center gap-3">
+            <div
+              className={`flex items-center gap-3 rounded-md border border-dashed px-3 py-2 transition-colors ${
+                dragOver
+                  ? "border-blue-500 bg-blue-50"
+                  : "border-slate-200"
+              }`}
+              onDragOver={(e) => {
+                e.preventDefault();
+                setDragOver(true);
+              }}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={(e) => {
+                e.preventDefault();
+                setDragOver(false);
+                handleFile(e.dataTransfer.files?.[0]);
+              }}
+              data-testid="dropzone-import-hours"
+            >
               <Label
                 htmlFor="import-hours-file"
                 className="cursor-pointer text-sm font-normal text-blue-600 hover:underline"
               >
-                <Upload className="mr-1 inline h-4 w-4" /> Upload .txt / .csv /
-                image / PDF
+                <Upload className="mr-1 inline h-4 w-4" /> Upload or drop .txt
+                / .csv / image / PDF
               </Label>
               <input
                 id="import-hours-file"
                 type="file"
                 accept=".txt,.csv,text/plain,text/csv,image/*,.pdf,application/pdf"
                 className="hidden"
-                onChange={(e) => handleFile(e.target.files?.[0])}
+                onChange={(e) => {
+                  handleFile(e.target.files?.[0]);
+                  e.target.value = "";
+                }}
               />
               {fileName ? (
                 <span className="text-xs text-slate-500">
