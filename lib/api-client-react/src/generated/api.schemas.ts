@@ -1249,6 +1249,29 @@ export interface ExtractBillResult {
   lines: ExtractedBillLine[];
 }
 
+export interface ImportChartOfAccountsInput {
+  /**
+     * Base64 data URL of the QuickBooks chart-of-accounts .xlsx export
+     * @maxLength 14000000
+     */
+  fileData: string;
+  /**
+     * Original filename of the uploaded workbook
+     * @maxLength 300
+     */
+  fileName?: string;
+}
+
+export interface ImportChartOfAccountsResult {
+  /** Number of numbered account rows found in the workbook */
+  totalInWorkbook: number;
+  inserted: number;
+  updated: number;
+  unchanged: number;
+  /** Account names skipped because they have no account number (QB system accounts) */
+  skippedNoNumber: string[];
+}
+
 export interface ExtractEmployeesInput {
   /**
      * Free-form pasted text (email, rate sheet, notes)

@@ -72,6 +72,8 @@ export * from './getCostByAccountParams';
 export * from './getDashboardSummaryParams';
 export * from './getPayrollByJobParams';
 export * from './healthStatus';
+export * from './importChartOfAccountsInput';
+export * from './importChartOfAccountsResult';
 export * from './invoice';
 export * from './invoiceInput';
 export * from './invoiceLine';

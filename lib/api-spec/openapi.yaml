@@ -82,6 +82,29 @@ paths:
                 $ref: "#/components/schemas/Account"
         "400":
           $ref: "#/components/responses/Error"
+  /accounts/import:
+    post:
+      operationId: importChartOfAccounts
+      tags: [accounts]
+      summary: Import a QuickBooks chart of accounts export (admin only)
+      description: Parses a QuickBooks chart-of-accounts Excel export and upserts accounts by number. Never deletes; pre-validates the whole workbook before any write.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ImportChartOfAccountsInput"
+      responses:
+        "200":
+          description: Import summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ImportChartOfAccountsResult"
+        "400":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
   /accounts/{id}:
     get:
       operationId: getAccount
@@ -2962,6 +2985,36 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ExtractedBillLine"
+    ImportChartOfAccountsInput:
+      type: object
+      required: [fileData]
+      properties:
+        fileData:
+          type: string
+          maxLength: 14000000
+          description: Base64 data URL of the QuickBooks chart-of-accounts .xlsx export
+        fileName:
+          type: string
+          maxLength: 300
+          description: Original filename of the uploaded workbook
+    ImportChartOfAccountsResult:
+      type: object
+      required: [totalInWorkbook, inserted, updated, unchanged, skippedNoNumber]
+      properties:
+        totalInWorkbook:
+          type: integer
+          description: Number of numbered account rows found in the workbook
+        inserted:
+          type: integer
+        updated:
+          type: integer
+        unchanged:
+          type: integer
+        skippedNoNumber:
+          type: array
+          items:
+            type: string
+          description: Account names skipped because they have no account number (QB system accounts)
     ExtractEmployeesInput:
       type: object
       properties:

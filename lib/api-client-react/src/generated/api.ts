@@ -57,6 +57,8 @@ import type {
   GetDashboardSummaryParams,
   GetPayrollByJobParams,
   HealthStatus,
+  ImportChartOfAccountsInput,
+  ImportChartOfAccountsResult,
   Invoice,
   InvoiceInput,
   InvoicePaymentInput,
@@ -346,6 +348,77 @@ export const useCreateAccount = <TError = ErrorType<ErrorResponse>,
         TContext
       > => {
       return useMutation(getCreateAccountMutationOptions(options));
+    }
+
+export const getImportChartOfAccountsUrl = () => {
+
+
+
+
+  return `/api/accounts/import`
+}
+
+/**
+ * Parses a QuickBooks chart-of-accounts Excel export and upserts accounts by number. Never deletes; pre-validates the whole workbook before any write.
+ * @summary Import a QuickBooks chart of accounts export (admin only)
+ */
+export const importChartOfAccounts = async (importChartOfAccountsInput: ImportChartOfAccountsInput, options?: RequestInit): Promise<ImportChartOfAccountsResult> => {
+
+  return customFetch<ImportChartOfAccountsResult>(getImportChartOfAccountsUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(importChartOfAccountsInput)
+  }
+);}
+
+
+
+
+export const getImportChartOfAccountsMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof importChartOfAccounts>>, TError,{data: BodyType<ImportChartOfAccountsInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof importChartOfAccounts>>, TError,{data: BodyType<ImportChartOfAccountsInput>}, TContext> => {
+
+const mutationKey = ['importChartOfAccounts'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof importChartOfAccounts>>, {data: BodyType<ImportChartOfAccountsInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  importChartOfAccounts(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ImportChartOfAccountsMutationResult = NonNullable<Awaited<ReturnType<typeof importChartOfAccounts>>>
+    export type ImportChartOfAccountsMutationBody = BodyType<ImportChartOfAccountsInput>
+    export type ImportChartOfAccountsMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Import a QuickBooks chart of accounts export (admin only)
+ */
+export const useImportChartOfAccounts = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof importChartOfAccounts>>, TError,{data: BodyType<ImportChartOfAccountsInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof importChartOfAccounts>>,
+        TError,
+        {data: BodyType<ImportChartOfAccountsInput>},
+        TContext
+      > => {
+      return useMutation(getImportChartOfAccountsMutationOptions(options));
     }
 
 export const getGetAccountUrl = (id: number,) => {

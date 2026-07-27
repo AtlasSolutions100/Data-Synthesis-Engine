@@ -1,5 +1,15 @@
-import { useState } from "react";
-import { useListAccounts, useCreateAccount, useUpdateAccount, useDeleteAccount, getListAccountsQueryKey } from "@workspace/api-client-react";
+import { useRef, useState } from "react";
+import {
+  useListAccounts,
+  useCreateAccount,
+  useUpdateAccount,
+  useDeleteAccount,
+  getListAccountsQueryKey,
+  useImportChartOfAccounts,
+  useGetCurrentUser,
+  getGetCurrentUserQueryKey,
+} from "@workspace/api-client-react";
+import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -7,7 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { AccountForm } from "@/components/forms/account-form";
 import { useQueryClient } from "@tanstack/react-query";
-import { Plus, Edit2, Trash2 } from "lucide-react";
+import { Plus, Edit2, Trash2, Upload, Loader2 } from "lucide-react";
 
 import type { Account } from "@workspace/api-client-react";
 
@@ -51,8 +61,44 @@ function orderAsTree(accounts: AccountRow[]): Array<{ account: AccountRow; depth
 
 export default function Accounts() {
   const queryClient = useQueryClient();
+  const { toast } = useToast();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const { data: me } = useGetCurrentUser({
+    query: { queryKey: getGetCurrentUserQueryKey() },
+  });
+
+  const importAccounts = useImportChartOfAccounts({
+    mutation: {
+      onSuccess: (result) => {
+        queryClient.invalidateQueries({ queryKey: getListAccountsQueryKey() });
+        toast({
+          title: "Chart of accounts imported",
+          description: `${result.inserted} added, ${result.updated} updated, ${result.unchanged} unchanged (${result.totalInWorkbook} accounts in file).`,
+        });
+      },
+      onError: (error: any) => {
+        toast({
+          title: "Import failed — no changes made",
+          description: error?.response?.data?.error ?? error?.message ?? "Unknown error",
+          variant: "destructive",
+        });
+      },
+    },
+  });
+
+  const handleImportFile = (file: File | undefined) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      importAccounts.mutate({
+        data: { fileData: String(reader.result), fileName: file.name },
+      });
+    };
+    reader.readAsDataURL(file);
+  };
 
   const { data: accounts, isLoading } = useListAccounts({
     query: { queryKey: getListAccountsQueryKey() }
@@ -91,6 +137,33 @@ export default function Accounts() {
           <h1 className="text-3xl font-bold tracking-tight text-slate-900">Chart of Accounts</h1>
           <p className="text-slate-500 mt-1">Manage income, expense, and COGS accounts</p>
         </div>
+        <div className="flex items-center gap-2">
+          {me?.role === "owner" && (
+            <>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".xlsx"
+                className="hidden"
+                onChange={(e) => {
+                  handleImportFile(e.target.files?.[0]);
+                  e.target.value = "";
+                }}
+              />
+              <Button
+                variant="outline"
+                disabled={importAccounts.isPending}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                {importAccounts.isPending ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Upload className="mr-2 h-4 w-4" />
+                )}
+                Import Chart of Accounts
+              </Button>
+            </>
+          )}
         <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
           <DialogTrigger asChild>
             <Button className="bg-blue-600 hover:bg-blue-700">
@@ -107,6 +180,7 @@ export default function Accounts() {
             />
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       <Card>

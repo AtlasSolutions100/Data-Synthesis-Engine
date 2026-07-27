@@ -54,6 +54,30 @@ export const CreateAccountResponse = zod.object({
 
 
 /**
+ * Parses a QuickBooks chart-of-accounts Excel export and upserts accounts by number. Never deletes; pre-validates the whole workbook before any write.
+ * @summary Import a QuickBooks chart of accounts export (admin only)
+ */
+export const importChartOfAccountsBodyFileDataMax = 14000000;
+
+export const importChartOfAccountsBodyFileNameMax = 300;
+
+
+
+export const ImportChartOfAccountsBody = zod.object({
+  "fileData": zod.string().max(importChartOfAccountsBodyFileDataMax).describe('Base64 data URL of the QuickBooks chart-of-accounts .xlsx export'),
+  "fileName": zod.string().max(importChartOfAccountsBodyFileNameMax).optional().describe('Original filename of the uploaded workbook')
+})
+
+export const ImportChartOfAccountsResponse = zod.object({
+  "totalInWorkbook": zod.number().describe('Number of numbered account rows found in the workbook'),
+  "inserted": zod.number(),
+  "updated": zod.number(),
+  "unchanged": zod.number(),
+  "skippedNoNumber": zod.array(zod.string()).describe('Account names skipped because they have no account number (QB system accounts)')
+})
+
+
+/**
  * @summary Get an account
  */
 export const GetAccountParams = zod.object({
