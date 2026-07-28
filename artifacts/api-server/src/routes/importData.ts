@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { Router, type IRouter } from "express";
 import { eq, sql } from "drizzle-orm";
 import readXlsxFile from "read-excel-file/node";
@@ -879,6 +880,26 @@ const PLANNERS: Record<string, (buffer: Buffer) => Promise<PlanRow[]>> = {
   invoices: planInvoices,
 };
 
+/**
+ * Consistency token: hash of the normalized plan (row number + status +
+ * label + planned changes). Preview returns it; apply requires it and
+ * rejects with 409 if the re-computed plan differs — meaning the underlying
+ * data changed between preview and apply, so a row shown as "new" could
+ * otherwise silently apply as an "update" (or vice versa).
+ */
+function planToken(entity: string, plan: PlanRow[]): string {
+  const normalized = plan.map((r) => ({
+    row: r.row,
+    status: r.status,
+    label: r.label,
+    message: r.message,
+    changes: r.changes,
+  }));
+  return createHash("sha256")
+    .update(JSON.stringify({ entity, plan: normalized }))
+    .digest("hex");
+}
+
 router.post("/import/:entity", async (req, res): Promise<void> => {
   const params = ImportDataParams.safeParse(req.params);
   if (!params.success) {
@@ -915,8 +936,20 @@ router.post("/import/:entity", async (req, res): Promise<void> => {
     changes,
   }));
 
+  const token = planToken(params.data.entity, plan);
+
   if (body.data.mode === "preview") {
-    res.json(ImportDataResponse.parse({ mode: "preview", rows, summary }));
+    res.json(ImportDataResponse.parse({ mode: "preview", rows, summary, planToken: token }));
+    return;
+  }
+
+  // Consistency check: the plan the user reviewed must match the plan we
+  // just re-computed against live data. If records changed in between, a
+  // "new" row could apply as an update (or vice versa) — reject instead.
+  if (!body.data.planToken || body.data.planToken !== token) {
+    res.status(409).json({
+      error: "Data changed since the preview — please re-preview before importing.",
+    });
     return;
   }
 

@@ -15,4 +15,6 @@ export interface ImportDataResult {
   rows: ImportPreviewRow[];
   summary: ImportDataSummary;
   applied?: ImportDataApplied;
+  /** Present in preview mode. Pass back as planToken when applying so the server can detect data drift between preview and apply. */
+  planToken?: string;
 }

@@ -138,6 +138,8 @@ paths:
                 $ref: "#/components/schemas/ImportDataResult"
         "400":
           $ref: "#/components/responses/Error"
+        "409":
+          $ref: "#/components/responses/Error"
   /accounts/{id}:
     get:
       operationId: getAccount
@@ -3126,6 +3128,13 @@ components:
           items:
             type: integer
           description: Row numbers (from the preview) to skip when applying
+        planToken:
+          type: string
+          maxLength: 128
+          description: >
+            Consistency token returned by the preview. Required in apply mode;
+            the apply is rejected with 409 if the re-computed plan no longer
+            matches (data changed between preview and apply).
     ImportRowChange:
       type: object
       required: [field, from, to]
@@ -3194,6 +3203,11 @@ components:
           $ref: "#/components/schemas/ImportDataSummary"
         applied:
           $ref: "#/components/schemas/ImportDataApplied"
+        planToken:
+          type: string
+          description: >
+            Present in preview mode. Pass back as planToken when applying so
+            the server can detect data drift between preview and apply.
     ExtractEmployeesInput:
       type: object
       properties:

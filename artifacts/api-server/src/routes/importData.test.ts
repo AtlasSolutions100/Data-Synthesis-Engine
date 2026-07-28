@@ -50,6 +50,12 @@ async function workbook(rows: (string | number)[][]): Promise<string> {
   return `data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,${buf.toString("base64")}`;
 }
 
+/** Preview the file and return the consistency token apply now requires. */
+async function previewToken(entity: string, fileData: string): Promise<string> {
+  const res = await request(app).post(`/api/import/${entity}`).send({ fileData, mode: "preview" });
+  return res.body.planToken;
+}
+
 async function cleanup(): Promise<void> {
   const bills = await db
     .select({ id: billsTable.id })
@@ -115,7 +121,7 @@ describe("POST /import/customers", () => {
 
     const res = await request(app)
       .post("/api/import/customers")
-      .send({ fileData, mode: "apply", excludeRows: [excludeRow] });
+      .send({ fileData, mode: "apply", excludeRows: [excludeRow], planToken: preview.body.planToken });
     expect(res.status).toBe(200);
     expect(res.body.applied).toMatchObject({ inserted: 1, updated: 1, skipped: 1 });
 
@@ -135,7 +141,7 @@ describe("POST /import/jobs", () => {
     ]);
     const res = await request(app)
       .post("/api/import/jobs")
-      .send({ fileData, mode: "apply" });
+      .send({ fileData, mode: "apply", planToken: await previewToken("jobs", fileData) });
     expect(res.status).toBe(200);
     expect(res.body.applied).toMatchObject({ inserted: 1, skipped: 1 });
     const errRow = res.body.rows.find((r: any) => r.label === `${TP}Job B`);
@@ -160,7 +166,7 @@ describe("POST /import/bills", () => {
     ]);
     const res = await request(app)
       .post("/api/import/bills")
-      .send({ fileData, mode: "apply" });
+      .send({ fileData, mode: "apply", planToken: await previewToken("bills", fileData) });
     expect(res.status).toBe(200);
     expect(res.body.summary.total).toBe(2); // two lines grouped into one bill + one error group
     expect(res.body.applied).toMatchObject({ inserted: 1, skipped: 1 });
@@ -186,7 +192,7 @@ describe("POST /import/bills", () => {
 
     const res = await request(app)
       .post("/api/import/bills")
-      .send({ fileData, mode: "apply" });
+      .send({ fileData, mode: "apply", planToken: preview.body.planToken });
     expect(res.body.applied).toMatchObject({ updated: 1 });
 
     const [bill] = await db.select().from(billsTable).where(eq(billsTable.billNumber, `${TP}B-1`));
@@ -220,11 +226,69 @@ describe("POST /import/bills", () => {
     // Apply skips error rows — the bill's lines must be untouched.
     const res = await request(app)
       .post("/api/import/bills")
-      .send({ fileData, mode: "apply" });
+      .send({ fileData, mode: "apply", planToken: preview.body.planToken });
     expect(res.body.applied).toMatchObject({ inserted: 0, updated: 0, skipped: 1 });
     const lines = await db.select().from(billLinesTable).where(eq(billLinesTable.billId, bill.id));
     expect(Number(lines[0].amountCents)).toBe(99999);
   });
+
+describe("plan consistency token", () => {
+  it("rejects an apply with no token", async () => {
+    const fileData = await workbook([
+      ["Name", "Email"],
+      [`${TP}Cust Two`, "two@x.com"],
+    ]);
+    const res = await request(app)
+      .post("/api/import/customers")
+      .send({ fileData, mode: "apply" });
+    expect(res.status).toBe(409);
+    expect(res.body.error).toMatch(/re-preview/i);
+  });
+
+  it("rejects an apply when the data changed after preview (409, no writes)", async () => {
+    const fileData = await workbook([
+      ["Name", "Email"],
+      [`${TP}Cust Drift`, "drift@x.com"],
+    ]);
+    // Preview classifies the row as "new" ...
+    const preview = await request(app)
+      .post("/api/import/customers")
+      .send({ fileData, mode: "preview" });
+    expect(preview.body.rows[0].status).toBe("new");
+    const token = preview.body.planToken;
+    expect(token).toBeTruthy();
+
+    // ... then someone creates the customer, so the row would now be an
+    // update instead of an insert. Apply must reject rather than drift.
+    await db.insert(customersTable).values({ name: `${TP}Cust Drift`, email: "existing@x.com" });
+    try {
+      const res = await request(app)
+        .post("/api/import/customers")
+        .send({ fileData, mode: "apply", planToken: token });
+      expect(res.status).toBe(409);
+      expect(res.body.error).toMatch(/changed.*re-preview/i);
+
+      // No silent update happened.
+      const [row] = await db
+        .select()
+        .from(customersTable)
+        .where(eq(customersTable.name, `${TP}Cust Drift`));
+      expect(row.email).toBe("existing@x.com");
+
+      // A fresh preview yields a token that applies cleanly.
+      const re = await request(app)
+        .post("/api/import/customers")
+        .send({ fileData, mode: "preview" });
+      const apply = await request(app)
+        .post("/api/import/customers")
+        .send({ fileData, mode: "apply", planToken: re.body.planToken });
+      expect(apply.status).toBe(200);
+      expect(apply.body.applied).toMatchObject({ updated: 1 });
+    } finally {
+      await db.delete(customersTable).where(eq(customersTable.name, `${TP}Cust Drift`));
+    }
+  });
+});
 
 describe("input validation", () => {
   it("rejects an unknown entity", async () => {

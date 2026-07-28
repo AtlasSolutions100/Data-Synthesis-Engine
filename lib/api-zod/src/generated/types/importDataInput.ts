@@ -21,4 +21,9 @@ export interface ImportDataInput {
      * @maxItems 20000
      */
   excludeRows?: number[];
+  /**
+     * Consistency token returned by the preview. Required in apply mode; the apply is rejected with 409 if the re-computed plan no longer matches (data changed between preview and apply).
+     * @maxLength 128
+     */
+  planToken?: string;
 }

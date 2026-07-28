@@ -1342,6 +1342,11 @@ export interface ImportDataInput {
      * @maxItems 20000
      */
   excludeRows?: number[];
+  /**
+     * Consistency token returned by the preview. Required in apply mode; the apply is rejected with 409 if the re-computed plan no longer matches (data changed between preview and apply).
+     * @maxLength 128
+     */
+  planToken?: string;
 }
 
 export interface ImportRowChange {
@@ -1405,6 +1410,8 @@ export interface ImportDataResult {
   rows: ImportPreviewRow[];
   summary: ImportDataSummary;
   applied?: ImportDataApplied;
+  /** Present in preview mode. Pass back as planToken when applying so the server can detect data drift between preview and apply. */
+  planToken?: string;
 }
 
 export interface ExtractEmployeesInput {

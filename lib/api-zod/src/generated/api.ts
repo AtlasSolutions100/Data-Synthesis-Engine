@@ -91,13 +91,16 @@ export const importDataBodyFileNameMax = 300;
 
 export const importDataBodyExcludeRowsMax = 20000;
 
+export const importDataBodyPlanTokenMax = 128;
+
 
 
 export const ImportDataBody = zod.object({
   "fileData": zod.string().max(importDataBodyFileDataMax).describe('Base64 data URL of the uploaded .xlsx workbook'),
   "fileName": zod.string().max(importDataBodyFileNameMax).optional(),
   "mode": zod.enum(['preview', 'apply']),
-  "excludeRows": zod.array(zod.number()).max(importDataBodyExcludeRowsMax).optional().describe('Row numbers (from the preview) to skip when applying')
+  "excludeRows": zod.array(zod.number()).max(importDataBodyExcludeRowsMax).optional().describe('Row numbers (from the preview) to skip when applying'),
+  "planToken": zod.string().max(importDataBodyPlanTokenMax).optional().describe('Consistency token returned by the preview. Required in apply mode; the apply is rejected with 409 if the re-computed plan no longer matches (data changed between preview and apply).\n')
 })
 
 export const ImportDataResponse = zod.object({
@@ -123,7 +126,8 @@ export const ImportDataResponse = zod.object({
   "inserted": zod.number(),
   "updated": zod.number(),
   "skipped": zod.number()
-}).optional()
+}).optional(),
+  "planToken": zod.string().optional().describe('Present in preview mode. Pass back as planToken when applying so the server can detect data drift between preview and apply.\n')
 })
 
 

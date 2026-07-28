@@ -77,7 +77,25 @@ export function ImportDataDialog({
         });
       },
       onError: (error: unknown) => {
-        const err = error as { response?: { data?: { error?: string } }; message?: string };
+        const err = error as {
+          response?: { status?: number; data?: { error?: string } };
+          message?: string;
+        };
+        // 409 = the data changed between preview and apply. Re-run the
+        // preview so the user reviews the current state before confirming.
+        if (err?.response?.status === 409 && fileData) {
+          toast({
+            title: "Data changed since your preview",
+            description:
+              "Records were edited while you were reviewing. The preview has been refreshed — please review and confirm again.",
+            variant: "destructive",
+          });
+          importMutation.mutate({
+            entity,
+            data: { fileData, fileName, mode: "preview" },
+          });
+          return;
+        }
         toast({
           title: "Import failed — no changes made",
           description: err?.response?.data?.error ?? err?.message ?? "Unknown error",
@@ -117,6 +135,7 @@ export function ImportDataDialog({
         fileName,
         mode: "apply",
         excludeRows: Array.from(excluded),
+        planToken: preview?.planToken,
       },
     });
   };
