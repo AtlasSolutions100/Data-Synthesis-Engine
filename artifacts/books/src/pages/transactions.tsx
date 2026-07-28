@@ -15,7 +15,7 @@ import {
 } from "@/lib/server-field-error";
 import { DateRangePicker, type DateRangeValue } from "@/components/date-range-picker";
 import { useQueryClient } from "@tanstack/react-query";
-import { Plus, Edit2, Trash2, ArrowLeft, X } from "lucide-react";
+import { Plus, Edit2, Trash2, ArrowLeft, X, ReceiptText } from "lucide-react";
 
 const HIGHLIGHT_FADE_MS = 5000;
 
@@ -235,6 +235,17 @@ export default function Transactions() {
                     <TableCell className="text-right font-medium">{formatCents(txn.amountCents)}</TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2 justify-end">
+                        {txn.billId != null && (
+                          <Link
+                            href={`/bills/${txn.billId}`}
+                            className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900 whitespace-nowrap"
+                            title="View the source bill"
+                            data-testid={`link-bill-${txn.id}`}
+                          >
+                            <ReceiptText className="h-3.5 w-3.5" />
+                            Bill{txn.num ? ` #${txn.num}` : ""}
+                          </Link>
+                        )}
                         <Dialog
                           open={editingId === txn.id}
                           onOpenChange={(val) => {

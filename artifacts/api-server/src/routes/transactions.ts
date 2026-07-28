@@ -125,6 +125,7 @@ function serializeTx(
     jobName,
     customerId: t.customerId,
     vendorId: t.vendorId,
+    billId: t.billId,
     amountCents: t.amountCents,
   };
 }

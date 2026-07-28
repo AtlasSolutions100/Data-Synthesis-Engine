@@ -4,6 +4,7 @@ import {
   text,
   integer,
   bigint,
+  boolean,
   date,
   timestamp,
 } from "drizzle-orm/pg-core";
@@ -25,6 +26,11 @@ export const billsTable = pgTable("bills", {
   date: date("date", { mode: "string" }).notNull(),
   dueDate: date("due_date", { mode: "string" }),
   memo: text("memo"),
+  // Provenance marker: true for bills posted to the ledger by the API
+  // (POST /bills), which generate billId-linked transactions and stay in
+  // sync on edit. Legacy/imported bills stay false and are never
+  // back-filled onto the ledger.
+  postedToLedger: boolean("posted_to_ledger").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
