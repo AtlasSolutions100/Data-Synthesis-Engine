@@ -6,7 +6,7 @@ import express, {
   type NextFunction,
 } from "express";
 import request from "supertest";
-import { inArray, eq } from "drizzle-orm";
+import { inArray, eq, sql } from "drizzle-orm";
 import writeXlsxFile from "write-excel-file/node";
 import {
   db,
@@ -57,6 +57,7 @@ async function previewToken(entity: string, fileData: string): Promise<string> {
 }
 
 async function cleanup(): Promise<void> {
+  await db.delete(customersTable).where(sql`${customersTable.name} like ${`${TP}Bulk %`}`);
   const bills = await db
     .select({ id: billsTable.id })
     .from(billsTable)
@@ -306,4 +307,42 @@ describe("input validation", () => {
     expect(res.status).toBe(400);
     expect(res.body.error).toMatch(/header row/i);
   });
+});
+
+describe("structural limits & batching", () => {
+  it("fails fast when a workbook exceeds the row cap", async () => {
+    const { MAX_IMPORT_ROWS } = await import("./importData");
+    const rows: (string | number)[][] = [["Name", "Email"]];
+    for (let i = 0; i < MAX_IMPORT_ROWS + 1; i++) rows.push([`${TP}Cap ${i}`, ""]);
+    const fileData = await workbook(rows);
+    const res = await request(app)
+      .post("/api/import/customers")
+      .send({ fileData, mode: "preview" });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/too large to import/i);
+    expect(res.body.error).toMatch(/10,000/);
+  }, 60_000);
+
+  it("applies a few thousand new rows quickly via batched inserts", async () => {
+    const N = 3000;
+    const rows: (string | number)[][] = [["Name", "Email"]];
+    for (let i = 0; i < N; i++) rows.push([`${TP}Bulk ${i}`, `bulk${i}@x.com`]);
+    const fileData = await workbook(rows);
+
+    const start = Date.now();
+    const res = await request(app)
+      .post("/api/import/customers")
+      .send({ fileData, mode: "apply" });
+    const elapsed = Date.now() - start;
+
+    expect(res.status).toBe(200);
+    expect(res.body.applied).toMatchObject({ inserted: N, updated: 0 });
+    expect(elapsed).toBeLessThan(20_000);
+
+    const [{ count }] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(customersTable)
+      .where(sql`${customersTable.name} like ${`${TP}Bulk %`}`);
+    expect(Number(count)).toBe(N);
+  }, 60_000);
 });

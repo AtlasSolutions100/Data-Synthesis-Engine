@@ -119,6 +119,14 @@ function parseBool(c: Cell): boolean | null {
 type Rec = { rowNumber: number; get: (field: string) => Cell };
 
 /**
+ * Structural cap on import size. The upload is already byte-capped, but a
+ * dense workbook can still hold hundreds of thousands of rows — planning
+ * each one (and diffing against the DB) would tie up the server. Fail fast
+ * with a friendly message instead.
+ */
+export const MAX_IMPORT_ROWS = 10_000;
+
+/**
  * Reads the workbook and maps columns to logical fields using per-entity
  * header aliases. The header row is found by scanning for a row containing
  * at least one alias of every required header field.
@@ -175,6 +183,11 @@ async function readRecords(
       values.set(field, v);
     }
     if (!hasAny) continue;
+    if (records.length >= MAX_IMPORT_ROWS) {
+      throw new Error(
+        `This file has more than ${MAX_IMPORT_ROWS.toLocaleString()} data rows — that's too large to import in one go. Split it into smaller files and import them one at a time.`,
+      );
+    }
     records.push({ rowNumber: i + 1, get: (f) => values.get(f) });
   }
   if (records.length === 0) throw new Error("No data rows found under the header row");
@@ -193,8 +206,22 @@ type PlanRow = {
   message: string | null;
   changes: Change[] | null;
   apply?: (tx: Tx) => Promise<"inserted" | "updated">;
+  /**
+   * Simple single-table inserts declare their values instead of an apply
+   * closure so the route can batch them into chunked multi-row INSERTs —
+   * a few thousand per-row awaits inside one transaction is what used to
+   * make large applies crawl.
+   */
+  bulkInsert?: { table: BulkTable; values: Record<string, unknown> };
 };
+type BulkTable =
+  | typeof customersTable
+  | typeof vendorsTable
+  | typeof employeesTable
+  | typeof jobsTable;
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+const INSERT_CHUNK_SIZE = 500;
 
 function centsToDollars(cents: number | null | undefined): string | null {
   if (cents == null) return null;
@@ -253,10 +280,7 @@ async function planContacts(buffer: Buffer, entity: "customers" | "vendors"): Pr
         ...base,
         status: "new",
         message: null,
-        apply: async (tx) => {
-          await tx.insert(table).values({ name, email, phone, notes });
-          return "inserted";
-        },
+        bulkInsert: { table, values: { name, email, phone, notes } },
       };
     }
     const changes: Change[] = [];
@@ -340,15 +364,15 @@ async function planEmployees(buffer: Buffer): Promise<PlanRow[]> {
         ...base,
         status: "new",
         message: null,
-        apply: async (tx) => {
-          await tx.insert(employeesTable).values({
+        bulkInsert: {
+          table: employeesTable,
+          values: {
             name,
             straightTimeRateCents: straight,
             overtimeRateCents: overtime,
             taxExempt: taxExempt ?? false,
             active: active ?? true,
-          });
-          return "inserted";
+          },
         },
       };
     }
@@ -475,8 +499,9 @@ async function planJobs(buffer: Buffer): Promise<PlanRow[]> {
         ...base,
         status: "new",
         message: null,
-        apply: async (tx) => {
-          await tx.insert(jobsTable).values({
+        bulkInsert: {
+          table: jobsTable,
+          values: {
             name,
             jobNumber: `JOB-${Date.now()}-${Math.floor(Math.random() * 100000)}`,
             customerId,
@@ -484,8 +509,7 @@ async function planJobs(buffer: Buffer): Promise<PlanRow[]> {
             status: status ?? "active",
             contractAmountCents: contract ?? 0,
             description,
-          });
-          return "inserted";
+          },
         },
       };
     }
@@ -961,14 +985,30 @@ router.post("/import/:entity", async (req, res): Promise<void> => {
   let skipped = 0;
   try {
     await db.transaction(async (tx) => {
+      // Collect simple inserts and run them as chunked multi-row INSERTs;
+      // everything else (updates, multi-table docs) applies per row.
+      const bulkByTable = new Map<BulkTable, Record<string, unknown>[]>();
       for (const row of plan) {
-        if (row.status === "error" || excluded.has(row.row) || !row.apply) {
+        if (row.status === "error" || excluded.has(row.row) || (!row.apply && !row.bulkInsert)) {
           skipped++;
           continue;
         }
-        const outcome = await row.apply(tx);
+        if (row.bulkInsert) {
+          const list = bulkByTable.get(row.bulkInsert.table) ?? [];
+          list.push(row.bulkInsert.values);
+          bulkByTable.set(row.bulkInsert.table, list);
+          continue;
+        }
+        const outcome = await row.apply!(tx);
         if (outcome === "inserted") inserted++;
         else updated++;
+      }
+      for (const [table, values] of bulkByTable) {
+        for (let i = 0; i < values.length; i += INSERT_CHUNK_SIZE) {
+          const chunk = values.slice(i, i + INSERT_CHUNK_SIZE);
+          await tx.insert(table).values(chunk as never);
+          inserted += chunk.length;
+        }
       }
     });
   } catch (err) {
