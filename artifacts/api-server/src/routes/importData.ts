@@ -20,30 +20,6 @@ import { ImportDataBody, ImportDataParams, ImportDataResponse } from "@workspace
 
 const router: IRouter = Router();
 
-/**
- * Sum of payments (+ vendor credits for bills) already applied to a document.
- * Used both at plan time (to flag rows) and re-checked inside the apply
- * transaction after locking the document row, so a payment posted between
- * preview and apply can never leave a bill/invoice smaller than what's paid.
- */
-async function billPaidCents(dbc: Tx | typeof db, billId: number): Promise<number> {
-  const [row] = await dbc
-    .select({
-      total: sql<number>`coalesce((select sum(amount_cents) from bill_payments where bill_id = ${billId}), 0)
-        + coalesce((select sum(amount_cents) from vendor_credits where bill_id = ${billId}), 0)`,
-    })
-    .from(sql`(select 1) as one`);
-  return Number(row?.total ?? 0);
-}
-
-async function invoicePaidCents(dbc: Tx | typeof db, invoiceId: number): Promise<number> {
-  const [row] = await dbc
-    .select({ total: sql<number>`coalesce(sum(${invoicePaymentsTable.amountCents}), 0)::bigint` })
-    .from(invoicePaymentsTable)
-    .where(eq(invoicePaymentsTable.invoiceId, invoiceId));
-  return Number(row?.total ?? 0);
-}
-
 /* ------------------------------------------------------------------ */
 /* Cell parsing helpers                                                */
 /* ------------------------------------------------------------------ */
@@ -669,7 +645,19 @@ async function planBills(buffer: Buffer): Promise<PlanRow[]> {
     if (key) groupByKey.set(key, group);
   }
 
-  return await Promise.all(groups.map(async (group): Promise<PlanRow> => {
+  // Paid totals for every matched bill in one batched query — a file that
+  // mostly updates existing bills must not run one query per duplicate.
+  const matchedBillIds = groups.flatMap((group) => {
+    const first = group.recs[0];
+    const vendorName = cellText(first.get("vendor"));
+    const billNumber = cellText(first.get("billNumber"));
+    const vendor = vendorName ? vendorByName.get(normName(vendorName)) : undefined;
+    const current = vendor && billNumber ? existingByKey.get(billKey(vendor.id, billNumber)) : undefined;
+    return current ? [current.id] : [];
+  });
+  const paidByBillId = await billPaidCentsBatch(db, matchedBillIds);
+
+  return groups.map((group): PlanRow => {
     const first = group.recs[0];
     const vendorName = cellText(first.get("vendor"));
     const billNumber = cellText(first.get("billNumber")) || null;
@@ -745,7 +733,7 @@ async function planBills(buffer: Buffer): Promise<PlanRow[]> {
 
     // Never let an import shrink a bill below what's already been paid or
     // credited. Flag at preview time; re-checked under lock in apply.
-    const paidNow = await billPaidCents(db, current.id);
+    const paidNow = paidByBillId.get(current.id) ?? 0;
     if (paidNow > totalCents) {
       return {
         ...base,
@@ -772,7 +760,7 @@ async function planBills(buffer: Buffer): Promise<PlanRow[]> {
         lines,
       },
     };
-  }));
+  });
 }
 
 async function planInvoices(buffer: Buffer): Promise<PlanRow[]> {
@@ -814,8 +802,16 @@ async function planInvoices(buffer: Buffer): Promise<PlanRow[]> {
     if (key) groupByKey.set(key, group);
   }
 
-  return await Promise.all(
-    groups.map(async (group): Promise<PlanRow> => {
+  // Paid totals for every matched invoice in one batched query — a file that
+  // mostly updates existing invoices must not run one query per duplicate.
+  const matchedInvoiceIds = groups.flatMap((group) => {
+    const num = cellText(group.recs[0].get("invoiceNumber"));
+    const current = num ? existingByNumber.get(normName(num)) : undefined;
+    return current ? [current.id] : [];
+  });
+  const paidByInvoiceId = await invoicePaidCentsBatch(db, matchedInvoiceIds);
+
+  return groups.map((group): PlanRow => {
       const first = group.recs[0];
       const invoiceNumber = cellText(first.get("invoiceNumber"));
       const base = { row: group.rowNumber, label: invoiceNumber || "(no number)", changes: null };
@@ -884,7 +880,7 @@ async function planInvoices(buffer: Buffer): Promise<PlanRow[]> {
 
       // Guard: never let an import shrink an invoice below what's been paid.
       // Flagged at preview time; re-checked under lock inside apply.
-      const paidNow = await invoicePaidCents(db, current.id);
+      const paidNow = paidByInvoiceId.get(current.id) ?? 0;
       if (paidNow > totalCents) {
         return {
           ...base,
@@ -911,8 +907,7 @@ async function planInvoices(buffer: Buffer): Promise<PlanRow[]> {
           lines,
         },
       };
-    }),
-  );
+  });
 }
 
 /**
@@ -921,7 +916,7 @@ async function planInvoices(buffer: Buffer): Promise<PlanRow[]> {
  * paid guard for thousands of updated documents must not run one query per
  * document inside the apply transaction.
  */
-async function billPaidCentsBatch(tx: Tx, ids: number[]): Promise<Map<number, number>> {
+async function billPaidCentsBatch(tx: Tx | typeof db, ids: number[]): Promise<Map<number, number>> {
   if (ids.length === 0) return new Map();
   const idList = sql.join(ids.map((id) => sql`${id}`), sql`, `);
   const result = await tx.execute(sql`
@@ -1029,6 +1024,12 @@ router.post("/import/:entity", async (req, res): Promise<void> => {
       const bulkByTable = new Map<BulkTable, Record<string, unknown>[]>();
 
       const docPlans: DocPlan[] = [];
+      for (const row of plan) {
+        if (row.status === "error" || excluded.has(row.row)) {
+          skipped++;
+          continue;
+        }
+        if (row.bulkInsert) {
           const list = bulkByTable.get(row.bulkInsert.table) ?? [];
           list.push(row.bulkInsert.values);
           bulkByTable.set(row.bulkInsert.table, list);
@@ -1039,8 +1040,15 @@ router.post("/import/:entity", async (req, res): Promise<void> => {
           continue;
         }
         const outcome = await row.apply!(tx);
+        if (outcome === "inserted") inserted++;
+        else updated++;
+      }
 
-        const result = await applyDocPlans(tx, docPlans);
+      const result = await applyDocPlans(tx, docPlans);
+      inserted += result.inserted;
+      updated += result.updated;
+
+      for (const [table, values] of bulkByTable) {
         for (let i = 0; i < values.length; i += INSERT_CHUNK_SIZE) {
           const chunk = values.slice(i, i + INSERT_CHUNK_SIZE);
           await tx.insert(table).values(chunk as never);
@@ -1068,7 +1076,7 @@ router.post("/import/:entity", async (req, res): Promise<void> => {
 
 export default router;
 
-async function invoicePaidCentsBatch(tx: Tx, ids: number[]): Promise<Map<number, number>> {
+async function invoicePaidCentsBatch(tx: Tx | typeof db, ids: number[]): Promise<Map<number, number>> {
   if (ids.length === 0) return new Map();
   const idList = sql.join(ids.map((id) => sql`${id}`), sql`, `);
   const result = await tx.execute(sql`

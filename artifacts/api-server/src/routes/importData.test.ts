@@ -434,6 +434,18 @@ describe("structural limits & batching", () => {
     expect(resB.body.applied).toMatchObject({ inserted: 0, updated: BILLS });
     expect(elapsedB).toBeLessThan(20_000);
 
+    // Preview of a file matching thousands of existing bills must batch the
+    // paid-total lookups (one query, not one per matched document).
+    const fileC = await workbook(build("Preview", "30.00"));
+    const startC = Date.now();
+    const resC = await request(app)
+      .post("/api/import/bills")
+      .send({ fileData: fileC, mode: "preview" });
+    const elapsedC = Date.now() - startC;
+    expect(resC.status).toBe(200);
+    expect(resC.body.summary.duplicates).toBe(BILLS);
+    expect(elapsedC).toBeLessThan(15_000);
+
     const [{ count }] = await db
       .select({ count: sql<number>`count(*)::int` })
       .from(billLinesTable)
