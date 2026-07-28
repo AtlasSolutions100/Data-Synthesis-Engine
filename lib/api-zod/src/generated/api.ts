@@ -188,6 +188,7 @@ export const ListCustomersResponseItem = zod.object({
   "name": zod.string(),
   "email": zod.string().nullish(),
   "phone": zod.string().nullish(),
+  "address": zod.string().nullish(),
   "notes": zod.string().nullish()
 }).and(zod.object({
   "jobCount": zod.number()
@@ -205,6 +206,7 @@ export const CreateCustomerBody = zod.object({
   "name": zod.string().min(1),
   "email": zod.string().nullish(),
   "phone": zod.string().nullish(),
+  "address": zod.string().nullish(),
   "notes": zod.string().nullish()
 })
 
@@ -213,6 +215,7 @@ export const CreateCustomerResponse = zod.object({
   "name": zod.string(),
   "email": zod.string().nullish(),
   "phone": zod.string().nullish(),
+  "address": zod.string().nullish(),
   "notes": zod.string().nullish()
 })
 
@@ -229,6 +232,7 @@ export const GetCustomerResponse = zod.object({
   "name": zod.string(),
   "email": zod.string().nullish(),
   "phone": zod.string().nullish(),
+  "address": zod.string().nullish(),
   "notes": zod.string().nullish()
 })
 
@@ -247,6 +251,7 @@ export const UpdateCustomerBody = zod.object({
   "name": zod.string().min(1).optional(),
   "email": zod.string().nullish(),
   "phone": zod.string().nullish(),
+  "address": zod.string().nullish(),
   "notes": zod.string().nullish()
 })
 
@@ -255,6 +260,7 @@ export const UpdateCustomerResponse = zod.object({
   "name": zod.string(),
   "email": zod.string().nullish(),
   "phone": zod.string().nullish(),
+  "address": zod.string().nullish(),
   "notes": zod.string().nullish()
 })
 
@@ -546,7 +552,9 @@ export const ListJobsResponseItem = zod.object({
   "remainingCents": zod.number().describe('contractAmountCents minus costCents (contract budget remaining)'),
   "billedToDateCents": zod.number().describe('Sum of invoice line items billed against this job, in cents'),
   "remainingContractCents": zod.number().describe('contractAmountCents minus billedToDateCents (left to bill)'),
-  "overUnderBillingCents": zod.number().describe('billedToDateCents minus costCents (positive = overbilled, negative = underbilled)')
+  "overUnderBillingCents": zod.number().describe('billedToDateCents minus costCents (positive = overbilled, negative = underbilled)'),
+  "invoiceCount": zod.number().optional().describe('Number of invoices billed against this job'),
+  "lastInvoicedDate": zod.string().nullish().describe('Date of the most recent invoice for this job (YYYY-MM-DD)')
 })
 export const ListJobsResponse = zod.array(ListJobsResponseItem)
 
@@ -584,7 +592,9 @@ export const CreateJobResponse = zod.object({
   "remainingCents": zod.number().describe('contractAmountCents minus costCents (contract budget remaining)'),
   "billedToDateCents": zod.number().describe('Sum of invoice line items billed against this job, in cents'),
   "remainingContractCents": zod.number().describe('contractAmountCents minus billedToDateCents (left to bill)'),
-  "overUnderBillingCents": zod.number().describe('billedToDateCents minus costCents (positive = overbilled, negative = underbilled)')
+  "overUnderBillingCents": zod.number().describe('billedToDateCents minus costCents (positive = overbilled, negative = underbilled)'),
+  "invoiceCount": zod.number().optional().describe('Number of invoices billed against this job'),
+  "lastInvoicedDate": zod.string().nullish().describe('Date of the most recent invoice for this job (YYYY-MM-DD)')
 })
 
 
@@ -611,7 +621,9 @@ export const GetJobResponse = zod.object({
   "remainingCents": zod.number().describe('contractAmountCents minus costCents (contract budget remaining)'),
   "billedToDateCents": zod.number().describe('Sum of invoice line items billed against this job, in cents'),
   "remainingContractCents": zod.number().describe('contractAmountCents minus billedToDateCents (left to bill)'),
-  "overUnderBillingCents": zod.number().describe('billedToDateCents minus costCents (positive = overbilled, negative = underbilled)')
+  "overUnderBillingCents": zod.number().describe('billedToDateCents minus costCents (positive = overbilled, negative = underbilled)'),
+  "invoiceCount": zod.number().optional().describe('Number of invoices billed against this job'),
+  "lastInvoicedDate": zod.string().nullish().describe('Date of the most recent invoice for this job (YYYY-MM-DD)')
 })
 
 
@@ -652,7 +664,9 @@ export const UpdateJobResponse = zod.object({
   "remainingCents": zod.number().describe('contractAmountCents minus costCents (contract budget remaining)'),
   "billedToDateCents": zod.number().describe('Sum of invoice line items billed against this job, in cents'),
   "remainingContractCents": zod.number().describe('contractAmountCents minus billedToDateCents (left to bill)'),
-  "overUnderBillingCents": zod.number().describe('billedToDateCents minus costCents (positive = overbilled, negative = underbilled)')
+  "overUnderBillingCents": zod.number().describe('billedToDateCents minus costCents (positive = overbilled, negative = underbilled)'),
+  "invoiceCount": zod.number().optional().describe('Number of invoices billed against this job'),
+  "lastInvoicedDate": zod.string().nullish().describe('Date of the most recent invoice for this job (YYYY-MM-DD)')
 })
 
 
@@ -1012,7 +1026,9 @@ export const GetDashboardSummaryResponse = zod.object({
   "remainingCents": zod.number().describe('contractAmountCents minus costCents (contract budget remaining)'),
   "billedToDateCents": zod.number().describe('Sum of invoice line items billed against this job, in cents'),
   "remainingContractCents": zod.number().describe('contractAmountCents minus billedToDateCents (left to bill)'),
-  "overUnderBillingCents": zod.number().describe('billedToDateCents minus costCents (positive = overbilled, negative = underbilled)')
+  "overUnderBillingCents": zod.number().describe('billedToDateCents minus costCents (positive = overbilled, negative = underbilled)'),
+  "invoiceCount": zod.number().optional().describe('Number of invoices billed against this job'),
+  "lastInvoicedDate": zod.string().nullish().describe('Date of the most recent invoice for this job (YYYY-MM-DD)')
 })).optional(),
   "recentTransactions": zod.array(zod.object({
   "id": zod.number(),
@@ -1249,6 +1265,7 @@ export const ListInvoicesResponseItem = zod.object({
   "lines": zod.array(zod.object({
   "id": zod.number(),
   "description": zod.string().nullish(),
+  "category": zod.union([zod.literal('material'),zod.literal('labor'),zod.literal('rental'),zod.literal(null)]).nullish(),
   "amountCents": zod.number()
 })),
   "payments": zod.array(zod.object({
@@ -1280,6 +1297,7 @@ export const CreateInvoiceBody = zod.object({
   "memo": zod.string().nullish(),
   "lines": zod.array(zod.object({
   "description": zod.string().nullish(),
+  "category": zod.union([zod.literal('material'),zod.literal('labor'),zod.literal('rental'),zod.literal(null)]).nullish(),
   "amountCents": zod.number()
 })).min(1)
 })
@@ -1305,6 +1323,7 @@ export const CreateInvoiceResponse = zod.object({
   "lines": zod.array(zod.object({
   "id": zod.number(),
   "description": zod.string().nullish(),
+  "category": zod.union([zod.literal('material'),zod.literal('labor'),zod.literal('rental'),zod.literal(null)]).nullish(),
   "amountCents": zod.number()
 })),
   "payments": zod.array(zod.object({
@@ -1315,6 +1334,14 @@ export const CreateInvoiceResponse = zod.object({
   "amountCents": zod.number(),
   "memo": zod.string().nullish()
 })).optional()
+})
+
+
+/**
+ * @summary Next sequential invoice number across all customers
+ */
+export const GetNextInvoiceNumberResponse = zod.object({
+  "nextNumber": zod.string()
 })
 
 
@@ -1346,6 +1373,7 @@ export const GetInvoiceResponse = zod.object({
   "lines": zod.array(zod.object({
   "id": zod.number(),
   "description": zod.string().nullish(),
+  "category": zod.union([zod.literal('material'),zod.literal('labor'),zod.literal('rental'),zod.literal(null)]).nullish(),
   "amountCents": zod.number()
 })),
   "payments": zod.array(zod.object({
@@ -1380,6 +1408,7 @@ export const UpdateInvoiceBody = zod.object({
   "memo": zod.string().nullish(),
   "lines": zod.array(zod.object({
   "description": zod.string().nullish(),
+  "category": zod.union([zod.literal('material'),zod.literal('labor'),zod.literal('rental'),zod.literal(null)]).nullish(),
   "amountCents": zod.number()
 })).min(1).optional()
 })
@@ -1405,6 +1434,7 @@ export const UpdateInvoiceResponse = zod.object({
   "lines": zod.array(zod.object({
   "id": zod.number(),
   "description": zod.string().nullish(),
+  "category": zod.union([zod.literal('material'),zod.literal('labor'),zod.literal('rental'),zod.literal(null)]).nullish(),
   "amountCents": zod.number()
 })),
   "payments": zod.array(zod.object({
@@ -1467,6 +1497,7 @@ export const CreateInvoicePaymentResponse = zod.object({
   "lines": zod.array(zod.object({
   "id": zod.number(),
   "description": zod.string().nullish(),
+  "category": zod.union([zod.literal('material'),zod.literal('labor'),zod.literal('rental'),zod.literal(null)]).nullish(),
   "amountCents": zod.number()
 })),
   "payments": zod.array(zod.object({

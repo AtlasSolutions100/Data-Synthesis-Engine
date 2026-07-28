@@ -1,19 +1,27 @@
 import { useState } from "react";
-import { useParams, Link } from "wouter";
+import { useParams, Link, useLocation } from "wouter";
 import {
   useGetInvoice,
   getGetInvoiceQueryKey,
   useUpdateInvoice,
+  useCreateInvoice,
   useCreateInvoicePayment,
   useDeleteInvoicePayment,
   getListInvoicesQueryKey,
   getListJobsQueryKey,
   getGetArAgingQueryKey,
+  useGetCustomer,
+  getGetCustomerQueryKey,
+  useListJobs,
 } from "@workspace/api-client-react";
 import {
   toServerFieldError,
+  toSuggestedNumber,
   type ServerFieldError,
 } from "@/lib/server-field-error";
+import { InvoicePrintView } from "@/components/invoice-print-view";
+import { downloadInvoicePdf } from "@/lib/invoice-pdf";
+import type { InvoicePrintData } from "@/lib/invoice-print";
 import { formatCents } from "@/lib/format";
 import {
   Card,
@@ -41,7 +49,7 @@ import {
 import { PaymentForm } from "@/components/forms/payment-form";
 import { InvoiceForm } from "@/components/forms/invoice-form";
 import { useQueryClient } from "@tanstack/react-query";
-import { Plus, Trash2, ArrowLeft, Pencil } from "lucide-react";
+import { Plus, Trash2, ArrowLeft, Pencil, Eye, Download, Copy } from "lucide-react";
 
 const statusVariant: Record<string, "default" | "secondary" | "outline"> = {
   paid: "secondary",
@@ -55,6 +63,13 @@ export default function InvoiceDetail() {
   const queryClient = useQueryClient();
   const [isPayOpen, setIsPayOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [isCopyOpen, setIsCopyOpen] = useState(false);
+  const [copyError, setCopyError] = useState<ServerFieldError | null>(null);
+  const [copySuggested, setCopySuggested] = useState<string | null>(null);
+  const [editSuggested, setEditSuggested] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
+  const [, navigate] = useLocation();
   const [editError, setEditError] = useState<ServerFieldError | null>(null);
   const [paymentError, setPaymentError] = useState<ServerFieldError | null>(
     null,
@@ -78,6 +93,7 @@ export default function InvoiceDetail() {
       onSuccess: () => {
         invalidate();
         setEditError(null);
+        setEditSuggested(null);
         setIsEditOpen(false);
       },
       onError: (error) => {
@@ -87,9 +103,71 @@ export default function InvoiceDetail() {
             "Failed to save the invoice. Please try again.",
           ),
         );
+        setEditSuggested(toSuggestedNumber(error));
       },
     },
   });
+
+  // Copy / Duplicate: a brand-new invoice with a fresh number, all fields
+  // copied and fully editable. The original is untouched.
+  const copyInvoice = useCreateInvoice({
+    mutation: {
+      onSuccess: (created) => {
+        invalidate();
+        setCopyError(null);
+        setCopySuggested(null);
+        setIsCopyOpen(false);
+        navigate(`/invoices/${created.id}`);
+      },
+      onError: (error) => {
+        setCopyError(
+          toServerFieldError(error, "Failed to save the invoice. Please try again."),
+        );
+        setCopySuggested(toSuggestedNumber(error));
+      },
+    },
+  });
+
+  const customerId = invoice?.customerId ?? 0;
+  const { data: customer } = useGetCustomer(customerId, {
+    query: {
+      enabled: customerId > 0,
+      queryKey: getGetCustomerQueryKey(customerId),
+    },
+  });
+  const { data: jobs } = useListJobs(undefined, {
+    query: { queryKey: getListJobsQueryKey() },
+  });
+
+  const buildPrintData = (): InvoicePrintData | null => {
+    if (!invoice) return null;
+    const job = (jobs ?? []).find((j) => j.id === invoice.jobId);
+    return {
+      invoiceNumber: invoice.invoiceNumber,
+      date: invoice.date,
+      dueDate: invoice.dueDate ?? null,
+      customerName: invoice.customerName ?? null,
+      customerAddress: customer?.address ?? null,
+      poNumber: job?.poNumber ?? null,
+      memo: invoice.memo ?? null,
+      lines: invoice.lines.map((l) => ({
+        description: l.description ?? null,
+        category: l.category ?? null,
+        amountCents: l.amountCents,
+      })),
+      paidCents: invoice.paidCents,
+    };
+  };
+
+  const handleExportPdf = async () => {
+    setExporting(true);
+    try {
+      const data = buildPrintData();
+      if (data) await downloadInvoicePdf(data);
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const createPayment = useCreateInvoicePayment({
     mutation: {
@@ -169,6 +247,7 @@ export default function InvoiceDetail() {
                     memo: invoice.memo ?? "",
                     lines: invoice.lines.map((l) => ({
                       description: l.description ?? "",
+                      category: l.category ?? "",
                       amount: (l.amountCents / 100).toFixed(2),
                     })),
                   }}
@@ -178,7 +257,95 @@ export default function InvoiceDetail() {
                   }}
                   isLoading={updateInvoice.isPending}
                   serverError={editError}
+                  suggestedNumber={editSuggested}
                   paidCents={invoice.paidCents}
+                />
+              )}
+            </DialogContent>
+          </Dialog>
+          <Dialog open={isPreviewOpen} onOpenChange={setIsPreviewOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline" size="sm" data-testid="button-preview-invoice-detail">
+                <Eye className="mr-2 h-4 w-4" /> Preview
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Invoice Preview</DialogTitle>
+              </DialogHeader>
+              {isPreviewOpen && buildPrintData() ? (
+                <div className="rounded-md border">
+                  <InvoicePrintView data={buildPrintData()!} />
+                </div>
+              ) : null}
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setIsPreviewOpen(false)}>
+                  Back
+                </Button>
+                <Button
+                  onClick={handleExportPdf}
+                  disabled={exporting}
+                  className="bg-blue-600 hover:bg-blue-700"
+                  data-testid="button-export-pdf-preview"
+                >
+                  <Download className="mr-2 h-4 w-4" />
+                  {exporting ? "Exporting…" : "Export to PDF"}
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleExportPdf}
+            disabled={exporting}
+            data-testid="button-export-pdf"
+          >
+            <Download className="mr-2 h-4 w-4" />
+            {exporting ? "Exporting…" : "Export PDF"}
+          </Button>
+          <Dialog
+            open={isCopyOpen}
+            onOpenChange={(open) => {
+              setIsCopyOpen(open);
+              if (!open) {
+                setCopyError(null);
+                setCopySuggested(null);
+              }
+            }}
+          >
+            <DialogTrigger asChild>
+              <Button variant="outline" size="sm" data-testid="button-duplicate-invoice">
+                <Copy className="mr-2 h-4 w-4" /> Duplicate
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[640px]">
+              <DialogHeader>
+                <DialogTitle>Duplicate Invoice {invoice.invoiceNumber}</DialogTitle>
+              </DialogHeader>
+              {isCopyOpen && (
+                <InvoiceForm
+                  defaultValues={{
+                    jobId: String(invoice.jobId),
+                    customerId:
+                      invoice.customerId != null ? String(invoice.customerId) : "",
+                    date: new Date().toISOString().split("T")[0],
+                    dueDate: invoice.dueDate ?? "",
+                    memo: invoice.memo ?? "",
+                    lines: invoice.lines.map((l) => ({
+                      description: l.description ?? "",
+                      category: l.category ?? "",
+                      amount: (l.amountCents / 100).toFixed(2),
+                    })),
+                  }}
+                  autoNumber
+                  onSubmit={(data) => {
+                    setCopyError(null);
+                    copyInvoice.mutate({ data });
+                  }}
+                  isLoading={copyInvoice.isPending}
+                  serverError={copyError}
+                  suggestedNumber={copySuggested}
                 />
               )}
             </DialogContent>

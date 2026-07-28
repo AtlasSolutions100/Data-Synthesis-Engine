@@ -1,5 +1,5 @@
 import { useState, useMemo, Fragment } from "react";
-import { useParams, Link } from "wouter";
+import { useParams, Link, useLocation } from "wouter";
 import { 
   useGetJob, 
   getGetJobQueryKey, 
@@ -9,8 +9,14 @@ import {
   getListTransactionsQueryKey,
   useCreateTransaction,
   useUpdateTransaction,
-  useDeleteTransaction
+  useDeleteTransaction,
+  useCreateInvoice,
+  getListInvoicesQueryKey,
+  getListJobsQueryKey
 } from "@workspace/api-client-react";
+import { InvoiceForm } from "@/components/forms/invoice-form";
+import { toSuggestedNumber } from "@/lib/server-field-error";
+import { FileText } from "lucide-react";
 import { formatCents } from "@/lib/format";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -37,6 +43,30 @@ export default function JobDetail() {
     null,
   );
   const [editError, setEditError] = useState<ServerFieldError | null>(null);
+  const [, navigate] = useLocation();
+  const [isInvoiceOpen, setIsInvoiceOpen] = useState(false);
+  const [invoiceError, setInvoiceError] = useState<ServerFieldError | null>(null);
+  const [suggestedNumber, setSuggestedNumber] = useState<string | null>(null);
+
+  const createInvoice = useCreateInvoice({
+    mutation: {
+      onSuccess: (created) => {
+        queryClient.invalidateQueries({ queryKey: getListInvoicesQueryKey() });
+        queryClient.invalidateQueries({ queryKey: getListJobsQueryKey() });
+        queryClient.invalidateQueries({ queryKey: getGetJobQueryKey(jobId) });
+        setInvoiceError(null);
+        setSuggestedNumber(null);
+        setIsInvoiceOpen(false);
+        navigate(`/invoices/${created.id}`);
+      },
+      onError: (error) => {
+        setInvoiceError(
+          toServerFieldError(error, "Failed to save the invoice. Please try again."),
+        );
+        setSuggestedNumber(toSuggestedNumber(error));
+      },
+    },
+  });
 
   const { data: job, isLoading: jobLoading } = useGetJob(jobId, {
     query: { enabled: !!jobId, queryKey: getGetJobQueryKey(jobId) }
@@ -187,7 +217,54 @@ export default function JobDetail() {
             )}
             {job.poNumber ? <span className="ml-3">PO Number: <span className="font-medium text-slate-700">{job.poNumber}</span></span> : null}
           </p>
+          <p className="text-sm text-slate-500 mt-1" data-testid="text-job-invoice-stats">
+            {(job.invoiceCount ?? 0) > 0
+              ? `${job.invoiceCount} invoice${job.invoiceCount === 1 ? "" : "s"}${
+                  job.lastInvoicedDate
+                    ? ` · last billed ${job.lastInvoicedDate.slice(5, 7)}/${job.lastInvoicedDate.slice(8, 10)}`
+                    : ""
+                }`
+              : "No invoices yet"}
+          </p>
         </div>
+        <Dialog
+          open={isInvoiceOpen}
+          onOpenChange={(open) => {
+            setIsInvoiceOpen(open);
+            if (!open) {
+              setInvoiceError(null);
+              setSuggestedNumber(null);
+            }
+          }}
+        >
+          <DialogTrigger asChild>
+            <Button className="bg-blue-600 hover:bg-blue-700" data-testid="button-create-invoice-from-job">
+              <FileText className="mr-2 h-4 w-4" /> Create Invoice
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-[640px]">
+            <DialogHeader>
+              <DialogTitle>Create Invoice — {job.name}</DialogTitle>
+            </DialogHeader>
+            {isInvoiceOpen && (
+              <InvoiceForm
+                defaultValues={{
+                  jobId: String(job.id),
+                  customerId: job.customerId != null ? String(job.customerId) : "",
+                }}
+                lockJob
+                autoNumber
+                onSubmit={(data) => {
+                  setInvoiceError(null);
+                  createInvoice.mutate({ data });
+                }}
+                isLoading={createInvoice.isPending}
+                serverError={invoiceError}
+                suggestedNumber={suggestedNumber}
+              />
+            )}
+          </DialogContent>
+        </Dialog>
       </div>
 
       <div className="grid gap-6 md:grid-cols-4">

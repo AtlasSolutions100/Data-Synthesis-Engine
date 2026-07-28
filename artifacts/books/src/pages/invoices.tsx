@@ -30,6 +30,7 @@ import {
 import { InvoiceForm } from "@/components/forms/invoice-form";
 import {
   toServerFieldError,
+  toSuggestedNumber,
   type ServerFieldError,
 } from "@/lib/server-field-error";
 import { DateRangePicker, type DateRangeValue } from "@/components/date-range-picker";
@@ -56,6 +57,7 @@ export default function Invoices() {
   const [createError, setCreateError] = useState<ServerFieldError | null>(
     null,
   );
+  const [suggestedNumber, setSuggestedNumber] = useState<string | null>(null);
 
   const createInvoice = useCreateInvoice({
     mutation: {
@@ -64,6 +66,7 @@ export default function Invoices() {
         queryClient.invalidateQueries({ queryKey: getListJobsQueryKey() });
         queryClient.invalidateQueries({ queryKey: getGetArAgingQueryKey() });
         setCreateError(null);
+        setSuggestedNumber(null);
         setIsCreateOpen(false);
       },
       onError: (error) => {
@@ -73,6 +76,7 @@ export default function Invoices() {
             "Failed to save the invoice. Please try again.",
           ),
         );
+        setSuggestedNumber(toSuggestedNumber(error));
       },
     },
   });
@@ -129,6 +133,8 @@ export default function Invoices() {
               }}
               isLoading={createInvoice.isPending}
               serverError={createError}
+              suggestedNumber={suggestedNumber}
+              autoNumber
             />
           </DialogContent>
         </Dialog>

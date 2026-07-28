@@ -14,5 +14,7 @@ export interface CustomerUpdate {
   /** @nullable */
   phone?: string | null;
   /** @nullable */
+  address?: string | null;
+  /** @nullable */
   notes?: string | null;
 }

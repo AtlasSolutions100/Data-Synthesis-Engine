@@ -14,7 +14,7 @@ import { customersTable } from "./customers";
 
 export const invoicesTable = pgTable("invoices", {
   id: serial("id").primaryKey(),
-  invoiceNumber: text("invoice_number").notNull(),
+  invoiceNumber: text("invoice_number").notNull().unique(),
   jobId: integer("job_id")
     .notNull()
     .references(() => jobsTable.id, { onDelete: "restrict" }),
@@ -39,6 +39,8 @@ export const invoiceLinesTable = pgTable("invoice_lines", {
     .notNull()
     .references(() => invoicesTable.id, { onDelete: "cascade" }),
   description: text("description"),
+  /** Optional breakdown bucket: material | labor | rental. */
+  category: text("category"),
   amountCents: bigint("amount_cents", { mode: "number" }).notNull(),
 });
 

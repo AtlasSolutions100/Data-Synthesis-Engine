@@ -7,6 +7,8 @@ export const customersTable = pgTable("customers", {
   name: text("name").notNull(),
   email: text("email"),
   phone: text("phone"),
+  /** Billing address, shown as Bill To / Ship To on invoices (multi-line). */
+  address: text("address"),
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()

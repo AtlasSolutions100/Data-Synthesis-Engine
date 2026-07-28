@@ -125,6 +125,7 @@ async function getFullInvoice(id: number) {
     lines: lines.map((l) => ({
       id: l.id,
       description: l.description,
+      category: (l.category as "material" | "labor" | "rental" | null) ?? null,
       amountCents: Number(l.amountCents),
     })),
     payments: payments.map((p) => ({
@@ -213,6 +214,63 @@ router.get("/invoices", async (req, res): Promise<void> => {
   res.json(ListInvoicesResponse.parse(items));
 });
 
+/**
+ * Next sequential invoice number, global across customers: take the highest
+ * purely-numeric invoice number and add 1 (e.g. 9067 -> 9068). Suffixed
+ * numbers like "9067-1" don't advance the sequence.
+ */
+async function nextInvoiceNumber(): Promise<string> {
+  const [row] = await db
+    .select({
+      max: sql<string | null>`max(case when invoice_number ~ '^[0-9]+$' then invoice_number::bigint else null end)`,
+    })
+    .from(invoicesTable);
+  const max = row?.max != null ? Number(row.max) : null;
+  return String((max ?? 1000) + 1);
+}
+
+/**
+ * If `invoiceNumber` is already taken (excluding `excludeId` when editing),
+ * respond 409 with the first free "-1"/"-2"... variant and return true.
+ * Duplicates are never saved silently — the client prompts the user.
+ */
+async function rejectDuplicateNumber(
+  invoiceNumber: string,
+  excludeId: number | null,
+  res: Response,
+): Promise<boolean> {
+  const taken = async (num: string): Promise<boolean> => {
+    const [hit] = await db
+      .select({ id: invoicesTable.id })
+      .from(invoicesTable)
+      .where(eq(invoicesTable.invoiceNumber, num));
+    return !!hit && hit.id !== excludeId;
+  };
+  if (!(await taken(invoiceNumber))) return false;
+  let suggestion = `${invoiceNumber}-1`;
+  for (let i = 1; await taken(suggestion); i++) {
+    suggestion = `${invoiceNumber}-${i + 1}`;
+  }
+  res.status(409).json({
+    error: `Invoice number ${invoiceNumber} is already in use`,
+    field: "invoiceNumber",
+    suggestedNumber: suggestion,
+  });
+  return true;
+}
+
+/** Postgres unique-violation on the invoice_number constraint. */
+function isUniqueNumberViolation(err: unknown): boolean {
+  const e = err as { code?: string; constraint?: string; cause?: { code?: string; constraint?: string } };
+  const code = e?.code ?? e?.cause?.code;
+  const constraint = e?.constraint ?? e?.cause?.constraint ?? "";
+  return code === "23505" && constraint.includes("invoice_number");
+}
+
+router.get("/invoices/next-number", async (_req, res): Promise<void> => {
+  res.json({ nextNumber: await nextInvoiceNumber() });
+});
+
 router.post("/invoices", async (req, res): Promise<void> => {
   if (rejectEmptyLines(req.body, res)) return;
   const parsed = CreateInvoiceBody.safeParse(req.body);
@@ -254,7 +312,17 @@ router.post("/invoices", async (req, res): Promise<void> => {
     return;
   }
 
-  const newId = await db.transaction(async (tx) => {
+  // The invoice number override is admin-only: non-owners always get the
+  // server-assigned sequential number, whatever the client sent.
+  if (req.currentUser?.role !== "owner") {
+    data.invoiceNumber = await nextInvoiceNumber();
+  }
+
+  if (await rejectDuplicateNumber(data.invoiceNumber, null, res)) return;
+
+  let newId: number;
+  try {
+    newId = await db.transaction(async (tx) => {
     const [inv] = await tx
       .insert(invoicesTable)
       .values({
@@ -270,11 +338,21 @@ router.post("/invoices", async (req, res): Promise<void> => {
       data.lines.map((l) => ({
         invoiceId: inv.id,
         description: l.description ?? null,
+        category: l.category ?? null,
         amountCents: l.amountCents,
       })),
     );
-    return inv.id;
-  });
+      return inv.id;
+    });
+  } catch (err) {
+    // Two simultaneous saves can pass the pre-check; the DB unique constraint
+    // is the backstop. Surface the same 409 + suggestion instead of a 500.
+    if (isUniqueNumberViolation(err)) {
+      await rejectDuplicateNumber(data.invoiceNumber, null, res);
+      return;
+    }
+    throw err;
+  }
 
   const full = await getFullInvoice(newId);
   res.status(201).json(CreateInvoiceResponse.parse(full));
@@ -313,11 +391,26 @@ router.patch("/invoices/:id", async (req, res): Promise<void> => {
       id: invoicesTable.id,
       jobId: invoicesTable.jobId,
       customerId: invoicesTable.customerId,
+      invoiceNumber: invoicesTable.invoiceNumber,
     })
     .from(invoicesTable)
     .where(eq(invoicesTable.id, params.data.id));
   if (!existing) {
     res.status(404).json({ error: "Invoice not found" });
+    return;
+  }
+
+  // Changing an invoice's number is admin-only; bookkeepers may edit
+  // everything else but must keep the assigned number.
+  if (
+    data.invoiceNumber !== undefined &&
+    data.invoiceNumber !== existing.invoiceNumber &&
+    req.currentUser?.role !== "owner"
+  ) {
+    res.status(403).json({
+      error: "Only the owner can change an invoice number",
+      field: "invoiceNumber",
+    });
     return;
   }
 
@@ -374,7 +467,15 @@ router.patch("/invoices/:id", async (req, res): Promise<void> => {
     }
   }
 
-  await db.transaction(async (tx) => {
+  if (
+    data.invoiceNumber !== undefined &&
+    (await rejectDuplicateNumber(data.invoiceNumber, params.data.id, res))
+  ) {
+    return;
+  }
+
+  try {
+    await db.transaction(async (tx) => {
     const set: Record<string, unknown> = {};
     if (data.invoiceNumber !== undefined) set.invoiceNumber = data.invoiceNumber;
     if (data.jobId !== undefined) set.jobId = data.jobId;
@@ -396,11 +497,19 @@ router.patch("/invoices/:id", async (req, res): Promise<void> => {
         data.lines.map((l) => ({
           invoiceId: params.data.id,
           description: l.description ?? null,
+          category: l.category ?? null,
           amountCents: l.amountCents,
         })),
       );
     }
-  });
+    });
+  } catch (err) {
+    if (data.invoiceNumber !== undefined && isUniqueNumberViolation(err)) {
+      await rejectDuplicateNumber(data.invoiceNumber, params.data.id, res);
+      return;
+    }
+    throw err;
+  }
 
   const full = await getFullInvoice(params.data.id);
   res.json(UpdateInvoiceResponse.parse(full));

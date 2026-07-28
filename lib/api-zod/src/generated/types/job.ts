@@ -39,4 +39,11 @@ export interface Job {
   remainingContractCents: number;
   /** billedToDateCents minus costCents (positive = overbilled, negative = underbilled) */
   overUnderBillingCents: number;
+  /** Number of invoices billed against this job */
+  invoiceCount?: number;
+  /**
+     * Date of the most recent invoice for this job (YYYY-MM-DD)
+     * @nullable
+     */
+  lastInvoicedDate?: string | null;
 }

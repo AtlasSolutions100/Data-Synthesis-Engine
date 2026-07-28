@@ -19,4 +19,5 @@
 - [Pay period numbering](pay-periods.md) — periods numbered by pay-date year, not start year; anchor Period 13 = 2026-06-08.
 - [Job/PO labeling](job-po-labeling.md) — jobs identified by Job Name only; PO Number is the sole reference field; job_number stays in DB but is auto-generated and never shown.
 - [Clerk owner self-heal](clerk-user-owner-selfheal.md) — new Clerk keys duplicate users as bookkeepers; promote by fresh *verified* email match to an owner row, never stored/unverified email.
+- [Drizzle push + unique constraints](drizzle-push-unique-constraint.md) — push-force needs a TTY when adding a unique constraint to a populated table; apply via direct ALTER TABLE with drizzle's constraint name instead.
 - [Hours-import job confirmation](import-job-confirmation.md) — person-like extracted job names always require explicit confirmation, even if a job with that exact name exists.

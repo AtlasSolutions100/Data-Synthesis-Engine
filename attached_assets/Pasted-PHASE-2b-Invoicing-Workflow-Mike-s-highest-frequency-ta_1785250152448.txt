@@ -1,0 +1,22 @@
+PHASE 2b — Invoicing Workflow
+Mike's highest-frequency task. He almost never creates an invoice from scratch — he enters through the customer.
+ID	Tab	Edit	Acceptance criteria
+P2-INV-01	Customers → Job detail	Add a "Create Invoice" button on the job view.	Button visible from within a job under a customer.
+P2-INV-02	Invoices	Clicking Create Invoice from a job auto-populates: next invoice number, customer name, job name, job number.	New invoice opens pre-filled; Mike only edits description + amount.
+P2-INV-03	Invoices	Auto-increment invoice number — next sequential number globally, regardless of customer.	Two invoices created back-to-back for different customers get consecutive numbers.
+P2-INV-04	Invoices	Allow Mike (admin only) to override the invoice number. Warn on duplicate; offer to append -1, -2, etc.	Duplicate number triggers a prompt, not a silent save.
+P2-INV-05	Invoices	Add Copy / Duplicate Invoice action. Creates a new invoice with a new number, all fields copied, fully editable. Original is untouched.	Duplicating $36,000 invoice → new invoice, new number, editable to $14,000. Original still reads $36,000.
+P2-INV-06	Invoices	Add Preview screen between edit and export.	Preview renders the invoice as the customer will see it; "Back" returns to edit without data loss.
+P2-INV-07	Invoices	Add Export to PDF button on the invoice and preview screens.	PDF downloads to local documents folder, ready to attach to an email manually.
+P2-INV-08	Invoices	Keep Add Line Item + undo. Line items support material / labor / rental breakdowns.	Can add and remove multiple lines cleanly.
+P2-INV-09	Customers → Job detail	Show invoice count and last-invoiced date per job (progress-billing reminder).	Job tile shows "3 invoices · last billed 06/17".
+Invoice PDF layout spec
+Mirror Mike's existing QuickBooks invoice format — minimal, clean:
+* Bill To / Ship To
+* Customer name
+* Invoice number
+* Date (top right — and repeat in body if a date field exists there; QBO's version is inconsistent)
+* Net terms
+* Description block (Mike writes: customer PO #, job name, address, scope, "per quote dated ___", and "FINAL BILLING" when applicable)
+* Line items + amount
+* Footer: "Thank you for your business."

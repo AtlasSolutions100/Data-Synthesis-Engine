@@ -115,16 +115,17 @@ export default function CustomerDetail() {
                 <TableHead className="text-right">Billed</TableHead>
                 <TableHead className="text-right">Cost to Date</TableHead>
                 <TableHead className="text-right">Profit</TableHead>
+                <TableHead>Invoices</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {jobsLoading ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-8 text-slate-500">Loading jobs...</TableCell>
+                  <TableCell colSpan={8} className="text-center py-8 text-slate-500">Loading jobs...</TableCell>
                 </TableRow>
               ) : customerJobs.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-8 text-slate-500">No jobs for this customer yet.</TableCell>
+                  <TableCell colSpan={8} className="text-center py-8 text-slate-500">No jobs for this customer yet.</TableCell>
                 </TableRow>
               ) : (
                 customerJobs.map((job) => (
@@ -145,6 +146,15 @@ export default function CustomerDetail() {
                     <TableCell className="text-right">{formatCents(job.costCents)}</TableCell>
                     <TableCell className={`text-right font-medium ${job.profitCents >= 0 ? "text-emerald-600" : "text-red-600"}`}>
                       {formatCents(job.profitCents)}
+                    </TableCell>
+                    <TableCell className="text-sm text-slate-500 whitespace-nowrap" data-testid={`text-job-invoices-${job.id}`}>
+                      {(job.invoiceCount ?? 0) > 0
+                        ? `${job.invoiceCount} invoice${job.invoiceCount === 1 ? "" : "s"}${
+                            job.lastInvoicedDate
+                              ? ` · last billed ${job.lastInvoicedDate.slice(5, 7)}/${job.lastInvoicedDate.slice(8, 10)}`
+                              : ""
+                          }`
+                        : "—"}
                     </TableCell>
                   </TableRow>
                 ))

@@ -18,3 +18,12 @@ export function toServerFieldError(
   }
   return { message: fallbackMessage };
 }
+
+/** Suggested free invoice number from a 409 duplicate-number response. */
+export function toSuggestedNumber(error: unknown): string | null {
+  if (error instanceof ApiError) {
+    const data = error.data as { suggestedNumber?: string } | null;
+    return data?.suggestedNumber ?? null;
+  }
+  return null;
+}

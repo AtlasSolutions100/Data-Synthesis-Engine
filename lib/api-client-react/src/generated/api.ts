@@ -37,6 +37,7 @@ import type {
   CustomerListItem,
   CustomerUpdate,
   DashboardSummary,
+  DuplicateInvoiceNumberError,
   Employee,
   EmployeeInput,
   EmployeeTimecardRow,
@@ -55,6 +56,7 @@ import type {
   GetArAgingParams,
   GetCostByAccountParams,
   GetDashboardSummaryParams,
+  GetNextInvoiceNumber200,
   GetPayrollByJobParams,
   HealthStatus,
   ImportChartOfAccountsInput,
@@ -3925,7 +3927,7 @@ export const createInvoice = async (invoiceInput: InvoiceInput, options?: Reques
 
 
 
-export const getCreateInvoiceMutationOptions = <TError = ErrorType<ErrorResponse>,
+export const getCreateInvoiceMutationOptions = <TError = ErrorType<ErrorResponse | DuplicateInvoiceNumberError>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createInvoice>>, TError,{data: BodyType<InvoiceInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof createInvoice>>, TError,{data: BodyType<InvoiceInput>}, TContext> => {
 
@@ -3954,12 +3956,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type CreateInvoiceMutationResult = NonNullable<Awaited<ReturnType<typeof createInvoice>>>
     export type CreateInvoiceMutationBody = BodyType<InvoiceInput>
-    export type CreateInvoiceMutationError = ErrorType<ErrorResponse>
+    export type CreateInvoiceMutationError = ErrorType<ErrorResponse | DuplicateInvoiceNumberError>
 
     /**
  * @summary Create a progress invoice
  */
-export const useCreateInvoice = <TError = ErrorType<ErrorResponse>,
+export const useCreateInvoice = <TError = ErrorType<ErrorResponse | DuplicateInvoiceNumberError>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createInvoice>>, TError,{data: BodyType<InvoiceInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof createInvoice>>,
@@ -3969,6 +3971,83 @@ export const useCreateInvoice = <TError = ErrorType<ErrorResponse>,
       > => {
       return useMutation(getCreateInvoiceMutationOptions(options));
     }
+
+export const getGetNextInvoiceNumberUrl = () => {
+
+
+
+
+  return `/api/invoices/next-number`
+}
+
+/**
+ * @summary Next sequential invoice number across all customers
+ */
+export const getNextInvoiceNumber = async ( options?: RequestInit): Promise<GetNextInvoiceNumber200> => {
+
+  return customFetch<GetNextInvoiceNumber200>(getGetNextInvoiceNumberUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetNextInvoiceNumberQueryKey = () => {
+    return [
+    `/api/invoices/next-number`
+    ] as const;
+    }
+
+
+export const getGetNextInvoiceNumberQueryOptions = <TData = Awaited<ReturnType<typeof getNextInvoiceNumber>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getNextInvoiceNumber>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetNextInvoiceNumberQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getNextInvoiceNumber>>> = ({ signal }) => getNextInvoiceNumber({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getNextInvoiceNumber>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetNextInvoiceNumberQueryResult = NonNullable<Awaited<ReturnType<typeof getNextInvoiceNumber>>>
+export type GetNextInvoiceNumberQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Next sequential invoice number across all customers
+ */
+
+export function useGetNextInvoiceNumber<TData = Awaited<ReturnType<typeof getNextInvoiceNumber>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getNextInvoiceNumber>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetNextInvoiceNumberQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getGetInvoiceUrl = (id: number,) => {
 
@@ -4073,7 +4152,7 @@ export const updateInvoice = async (id: number,
 
 
 
-export const getUpdateInvoiceMutationOptions = <TError = ErrorType<ErrorResponse>,
+export const getUpdateInvoiceMutationOptions = <TError = ErrorType<ErrorResponse | DuplicateInvoiceNumberError>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateInvoice>>, TError,{id: number;data: BodyType<InvoiceUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof updateInvoice>>, TError,{id: number;data: BodyType<InvoiceUpdate>}, TContext> => {
 
@@ -4102,12 +4181,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type UpdateInvoiceMutationResult = NonNullable<Awaited<ReturnType<typeof updateInvoice>>>
     export type UpdateInvoiceMutationBody = BodyType<InvoiceUpdate>
-    export type UpdateInvoiceMutationError = ErrorType<ErrorResponse>
+    export type UpdateInvoiceMutationError = ErrorType<ErrorResponse | DuplicateInvoiceNumberError>
 
     /**
  * @summary Update an invoice (replaces line items)
  */
-export const useUpdateInvoice = <TError = ErrorType<ErrorResponse>,
+export const useUpdateInvoice = <TError = ErrorType<ErrorResponse | DuplicateInvoiceNumberError>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateInvoice>>, TError,{id: number;data: BodyType<InvoiceUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof updateInvoice>>,

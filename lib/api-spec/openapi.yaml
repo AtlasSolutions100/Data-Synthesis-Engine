@@ -987,6 +987,28 @@ paths:
                 $ref: "#/components/schemas/Invoice"
         "400":
           $ref: "#/components/responses/Error"
+        "409":
+          description: Duplicate invoice number (response includes a suggested free number)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DuplicateInvoiceNumberError"
+  /invoices/next-number:
+    get:
+      operationId: getNextInvoiceNumber
+      tags: [invoices]
+      summary: Next sequential invoice number across all customers
+      responses:
+        "200":
+          description: Next invoice number
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [nextNumber]
+                properties:
+                  nextNumber:
+                    type: string
   /invoices/{id}:
     get:
       operationId: getInvoice
@@ -1026,6 +1048,12 @@ paths:
           $ref: "#/components/responses/Error"
         "404":
           $ref: "#/components/responses/Error"
+        "409":
+          description: Duplicate invoice number (response includes a suggested free number)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DuplicateInvoiceNumberError"
     delete:
       operationId: deleteInvoice
       tags: [invoices]
@@ -1625,6 +1653,18 @@ components:
             Machine-readable path of the form field the error relates to,
             e.g. "vendorId", "jobId", or "lines.1.accountId".
 
+    DuplicateInvoiceNumberError:
+      type: object
+      required: [error, field, suggestedNumber]
+      properties:
+        error:
+          type: string
+        field:
+          type: string
+        suggestedNumber:
+          type: string
+          description: First free variant, e.g. "9067-1"
+
     Account:
       type: object
       required: [id, number, name, type]
@@ -1705,6 +1745,8 @@ components:
           type: ["string", "null"]
         phone:
           type: ["string", "null"]
+        address:
+          type: ["string", "null"]
         notes:
           type: ["string", "null"]
     CustomerListItem:
@@ -1726,6 +1768,8 @@ components:
           type: ["string", "null"]
         phone:
           type: ["string", "null"]
+        address:
+          type: ["string", "null"]
         notes:
           type: ["string", "null"]
     CustomerUpdate:
@@ -1737,6 +1781,8 @@ components:
         email:
           type: ["string", "null"]
         phone:
+          type: ["string", "null"]
+        address:
           type: ["string", "null"]
         notes:
           type: ["string", "null"]
@@ -1885,6 +1931,12 @@ components:
         overUnderBillingCents:
           type: integer
           description: billedToDateCents minus costCents (positive = overbilled, negative = underbilled)
+        invoiceCount:
+          type: integer
+          description: Number of invoices billed against this job
+        lastInvoicedDate:
+          type: ["string", "null"]
+          description: Date of the most recent invoice for this job (YYYY-MM-DD)
     JobInput:
       type: object
       required: [name]
@@ -2256,6 +2308,9 @@ components:
           type: integer
         description:
           type: ["string", "null"]
+        category:
+          type: ["string", "null"]
+          enum: [material, labor, rental, null]
         amountCents:
           type: integer
     InvoiceLineInput:
@@ -2264,6 +2319,9 @@ components:
       properties:
         description:
           type: ["string", "null"]
+        category:
+          type: ["string", "null"]
+          enum: [material, labor, rental, null]
         amountCents:
           type: integer
     InvoicePayment:

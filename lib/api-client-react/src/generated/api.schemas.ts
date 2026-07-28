@@ -15,6 +15,13 @@ export interface Error {
   field?: string;
 }
 
+export interface DuplicateInvoiceNumberError {
+  error: string;
+  field: string;
+  /** First free variant, e.g. "9067-1" */
+  suggestedNumber: string;
+}
+
 export type AccountType = typeof AccountType[keyof typeof AccountType];
 
 
@@ -130,6 +137,8 @@ export interface Customer {
   /** @nullable */
   phone?: string | null;
   /** @nullable */
+  address?: string | null;
+  /** @nullable */
   notes?: string | null;
 }
 
@@ -145,6 +154,8 @@ export interface CustomerInput {
   /** @nullable */
   phone?: string | null;
   /** @nullable */
+  address?: string | null;
+  /** @nullable */
   notes?: string | null;
 }
 
@@ -155,6 +166,8 @@ export interface CustomerUpdate {
   email?: string | null;
   /** @nullable */
   phone?: string | null;
+  /** @nullable */
+  address?: string | null;
   /** @nullable */
   notes?: string | null;
 }
@@ -281,6 +294,13 @@ export interface Job {
   remainingContractCents: number;
   /** billedToDateCents minus costCents (positive = overbilled, negative = underbilled) */
   overUnderBillingCents: number;
+  /** Number of invoices billed against this job */
+  invoiceCount?: number;
+  /**
+     * Date of the most recent invoice for this job (YYYY-MM-DD)
+     * @nullable
+     */
+  lastInvoicedDate?: string | null;
 }
 
 export type JobInputStatus = typeof JobInputStatus[keyof typeof JobInputStatus];
@@ -637,16 +657,44 @@ export interface DashboardSummary {
   recentTransactions?: Transaction[];
 }
 
+/**
+ * @nullable
+ */
+export type InvoiceLineCategory = typeof InvoiceLineCategory[keyof typeof InvoiceLineCategory] | null;
+
+
+export const InvoiceLineCategory = {
+  material: 'material',
+  labor: 'labor',
+  rental: 'rental',
+} as const;
+
 export interface InvoiceLine {
   id: number;
   /** @nullable */
   description?: string | null;
+  /** @nullable */
+  category?: InvoiceLineCategory;
   amountCents: number;
 }
+
+/**
+ * @nullable
+ */
+export type InvoiceLineInputCategory = typeof InvoiceLineInputCategory[keyof typeof InvoiceLineInputCategory] | null;
+
+
+export const InvoiceLineInputCategory = {
+  material: 'material',
+  labor: 'labor',
+  rental: 'rental',
+} as const;
 
 export interface InvoiceLineInput {
   /** @nullable */
   description?: string | null;
+  /** @nullable */
+  category?: InvoiceLineInputCategory;
   amountCents: number;
 }
 
@@ -1729,6 +1777,10 @@ export const ListInvoicesStatus = {
   partial: 'partial',
   paid: 'paid',
 } as const;
+
+export type GetNextInvoiceNumber200 = {
+  nextNumber: string;
+};
 
 export type ListBillsParams = {
 vendorId?: number;

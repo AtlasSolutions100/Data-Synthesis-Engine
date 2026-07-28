@@ -6,6 +6,7 @@ import {
   customersTable,
   transactionsTable,
   accountsTable,
+  invoicesTable,
 } from "@workspace/db";
 import {
   ListJobsQueryParams,
@@ -49,11 +50,38 @@ async function customerExists(customerId: number): Promise<boolean> {
 
 type JobRow = typeof jobsTable.$inferSelect;
 
+type InvoiceStats = { invoiceCount: number; lastInvoicedDate: string | null };
+
+/** Per-job invoice count + most recent invoice date (progress-billing reminder). */
+async function getInvoiceStatsMap(
+  jobIds?: number[],
+): Promise<Map<number, InvoiceStats>> {
+  if (jobIds && jobIds.length === 0) return new Map();
+  const base = db
+    .select({
+      jobId: invoicesTable.jobId,
+      invoiceCount: sql<number>`count(*)::int`,
+      lastInvoicedDate: sql<string | null>`max(${invoicesTable.date})`,
+    })
+    .from(invoicesTable)
+    .groupBy(invoicesTable.jobId);
+  const rows = await (jobIds
+    ? base.where(sql`${invoicesTable.jobId} in ${jobIds}`)
+    : base);
+  return new Map(
+    rows.map((r) => [
+      r.jobId,
+      { invoiceCount: r.invoiceCount, lastInvoicedDate: r.lastInvoicedDate },
+    ]),
+  );
+}
+
 function serializeJob(
   job: JobRow,
   customerName: string | null,
   totals: JobTotals | undefined,
   billedToDateCents: number,
+  invoiceStats?: InvoiceStats,
 ) {
   const incomeCents = totals?.incomeCents ?? 0;
   const costCents = totals?.costCents ?? 0;
@@ -74,6 +102,8 @@ function serializeJob(
     billedToDateCents,
     remainingContractCents: job.contractAmountCents - billedToDateCents,
     overUnderBillingCents: billedToDateCents - costCents,
+    invoiceCount: invoiceStats?.invoiceCount ?? 0,
+    lastInvoicedDate: invoiceStats?.lastInvoicedDate ?? null,
   };
 }
 
@@ -104,9 +134,10 @@ router.get("/jobs", async (req, res): Promise<void> => {
   ).orderBy(jobsTable.name);
   const jobIds =
     query.data.customerId != null ? rows.map((r) => r.job.id) : undefined;
-  const [totals, billing] = await Promise.all([
+  const [totals, billing, invoiceStats] = await Promise.all([
     getJobTotalsMap(undefined, jobIds),
     getJobBillingMap(undefined, jobIds),
+    getInvoiceStatsMap(jobIds),
   ]);
   res.json(
     ListJobsResponse.parse(
@@ -116,6 +147,7 @@ router.get("/jobs", async (req, res): Promise<void> => {
           r.customerName,
           totals.get(r.job.id),
           billing.get(r.job.id) ?? 0,
+          invoiceStats.get(r.job.id),
         ),
       ),
     ),
@@ -167,9 +199,10 @@ router.get("/jobs/:id", async (req, res): Promise<void> => {
     return;
   }
   const customerName = await fetchCustomerName(job.customerId);
-  const [totalsMap, billing] = await Promise.all([
+  const [totalsMap, billing, invoiceStats] = await Promise.all([
     getJobTotalsMap(undefined, [job.id]),
     getJobBillingMap(undefined, [job.id]),
+    getInvoiceStatsMap([job.id]),
   ]);
   res.json(
     GetJobResponse.parse(
@@ -178,6 +211,7 @@ router.get("/jobs/:id", async (req, res): Promise<void> => {
         customerName,
         totalsMap.get(job.id),
         billing.get(job.id) ?? 0,
+        invoiceStats.get(job.id),
       ),
     ),
   );

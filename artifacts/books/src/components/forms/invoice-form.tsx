@@ -20,13 +20,35 @@ import {
   getListCustomersQueryKey,
   useListJobs,
   getListJobsQueryKey,
+  useGetNextInvoiceNumber,
+  getGetNextInvoiceNumberQueryKey,
+  useGetCurrentUser,
+  getGetCurrentUserQueryKey,
 } from "@workspace/api-client-react";
 import type { InvoiceInput } from "@workspace/api-client-react";
 import { EntityCombobox } from "@/components/forms/entity-combobox";
 import type { ServerFieldError } from "@/lib/server-field-error";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { InvoicePrintView } from "@/components/invoice-print-view";
+import type { InvoicePrintData } from "@/lib/invoice-print";
+
+const CATEGORY_VALUES = ["material", "labor", "rental"] as const;
 
 const lineSchema = z.object({
   description: z.string().optional(),
+  category: z.string().optional(),
   amount: z.string().min(1, "Amount is required"),
 });
 
@@ -56,6 +78,10 @@ interface InvoiceFormProps {
   /** Amount already paid on this invoice (cents). When the edited total drops
    * below this, the form asks for confirmation before submitting. */
   paidCents?: number;
+  /** Auto-fill the next sequential invoice number (for new invoices). */
+  autoNumber?: boolean;
+  /** Free number offered by the server after a duplicate-number rejection. */
+  suggestedNumber?: string | null;
 }
 
 export function InvoiceForm({
@@ -65,6 +91,8 @@ export function InvoiceForm({
   lockJob,
   serverError,
   paidCents,
+  autoNumber,
+  suggestedNumber,
 }: InvoiceFormProps) {
   const { data: customers } = useListCustomers({
     query: { queryKey: getListCustomersQueryKey() },
@@ -90,6 +118,28 @@ export function InvoiceForm({
     control: form.control,
     name: "lines",
   });
+
+  // Auto-increment invoice number: next sequential number across all
+  // customers. Only the owner (Mike) may override it manually.
+  const { data: nextNumber } = useGetNextInvoiceNumber({
+    query: {
+      queryKey: getGetNextInvoiceNumberQueryKey(),
+      enabled: !!autoNumber,
+      gcTime: 0,
+      staleTime: 0,
+    },
+  });
+  const { data: me } = useGetCurrentUser({
+    query: { queryKey: getGetCurrentUserQueryKey() },
+  });
+  const canOverrideNumber = me?.role === "owner";
+  useEffect(() => {
+    if (autoNumber && nextNumber?.nextNumber && !form.getValues("invoiceNumber")) {
+      form.setValue("invoiceNumber", nextNumber.nextNumber);
+    }
+  }, [autoNumber, nextNumber, form]);
+
+  const [previewOpen, setPreviewOpen] = useState(false);
 
   const fieldError =
     serverError?.field &&
@@ -160,9 +210,36 @@ export function InvoiceForm({
       memo: values.memo || null,
       lines: values.lines.map((l) => ({
         description: l.description || null,
+        category: (CATEGORY_VALUES as readonly string[]).includes(l.category ?? "")
+          ? (l.category as (typeof CATEGORY_VALUES)[number])
+          : null,
         amountCents: parseDollars(l.amount),
       })),
     });
+  };
+
+  const buildPreviewData = (): InvoicePrintData => {
+    const v = form.getValues();
+    const job = (jobs ?? []).find((j) => String(j.id) === v.jobId);
+    const customerId = v.customerId || (job ? String(job.customerId ?? "") : "");
+    const customer = (customers ?? []).find((c) => String(c.id) === customerId);
+    return {
+      invoiceNumber: v.invoiceNumber,
+      date: v.date,
+      dueDate: v.dueDate || null,
+      customerName: customer?.name ?? job?.customerName ?? null,
+      customerAddress: customer?.address ?? null,
+      poNumber: job?.poNumber ?? null,
+      memo: v.memo || null,
+      lines: v.lines.map((l) => ({
+        description: l.description || null,
+        category: (CATEGORY_VALUES as readonly string[]).includes(l.category ?? "")
+          ? (l.category as (typeof CATEGORY_VALUES)[number])
+          : null,
+        amountCents: parseDollars(l.amount || "0"),
+      })),
+      paidCents: paidCents ?? 0,
+    };
   };
 
   return (
@@ -176,8 +253,29 @@ export function InvoiceForm({
               <FormItem>
                 <FormLabel>Invoice Number</FormLabel>
                 <FormControl>
-                  <Input {...field} />
+                  <Input
+                    {...field}
+                    disabled={!canOverrideNumber}
+                    data-testid="input-invoice-number"
+                  />
                 </FormControl>
+                {suggestedNumber ? (
+                  <div
+                    role="alert"
+                    className="rounded-md border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900"
+                    data-testid="text-duplicate-number-warning"
+                  >
+                    That invoice number is already in use.{" "}
+                    <button
+                      type="button"
+                      className="font-semibold underline"
+                      onClick={() => form.setValue("invoiceNumber", suggestedNumber)}
+                      data-testid="button-use-suggested-number"
+                    >
+                      Use {suggestedNumber}
+                    </button>
+                  </div>
+                ) : null}
                 <FormMessage />
               </FormItem>
             )}
@@ -276,6 +374,31 @@ export function InvoiceForm({
             <div key={fieldItem.id} className="flex gap-2 items-start">
               <FormField
                 control={form.control}
+                name={`lines.${index}.category`}
+                render={({ field }) => (
+                  <FormItem className="w-32">
+                    <FormControl>
+                      <Select
+                        value={field.value || "none"}
+                        onValueChange={(v) => field.onChange(v === "none" ? "" : v)}
+                      >
+                        <SelectTrigger data-testid={`select-line-category-${index}`}>
+                          <SelectValue placeholder="Type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">—</SelectItem>
+                          <SelectItem value="material">Material</SelectItem>
+                          <SelectItem value="labor">Labor</SelectItem>
+                          <SelectItem value="rental">Rental</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
                 name={`lines.${index}.description`}
                 render={({ field }) => (
                   <FormItem className="flex-1">
@@ -354,13 +477,47 @@ export function InvoiceForm({
             {formLevelError.message}
           </p>
         ) : null}
-        <Button type="submit" disabled={isLoading} className="w-full">
-          {isLoading
-            ? "Saving..."
-            : overpaid && overpaidConfirmationPending
-              ? "Save Anyway"
-              : "Save Invoice"}
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            className="flex-1"
+            onClick={() => setPreviewOpen(true)}
+            data-testid="button-preview-invoice"
+          >
+            Preview
+          </Button>
+          <Button type="submit" disabled={isLoading} className="flex-1">
+            {isLoading
+              ? "Saving..."
+              : overpaid && overpaidConfirmationPending
+                ? "Save Anyway"
+                : "Save Invoice"}
+          </Button>
+        </div>
+
+        <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
+          <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Invoice Preview</DialogTitle>
+            </DialogHeader>
+            {previewOpen ? (
+              <div className="rounded-md border">
+                <InvoicePrintView data={buildPreviewData()} />
+              </div>
+            ) : null}
+            <div className="flex justify-end">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setPreviewOpen(false)}
+                data-testid="button-preview-back"
+              >
+                Back to Edit
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </form>
     </Form>
   );

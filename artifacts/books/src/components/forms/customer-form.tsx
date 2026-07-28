@@ -11,6 +11,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { parseDollars } from "@/lib/format";
 import { CustomerInput, CustomerUpdate } from "@workspace/api-client-react";
 
@@ -18,6 +19,7 @@ const customerSchema = z.object({
   name: z.string().min(1, "Name is required"),
   email: z.string().email("Invalid email").or(z.literal("")),
   phone: z.string().optional(),
+  address: z.string().optional(),
   notes: z.string().optional(),
 });
 
@@ -36,6 +38,7 @@ export function CustomerForm({ defaultValues, onSubmit, isLoading }: CustomerFor
       name: defaultValues?.name || "",
       email: defaultValues?.email || "",
       phone: defaultValues?.phone || "",
+      address: defaultValues?.address || "",
       notes: defaultValues?.notes || "",
     },
   });
@@ -45,6 +48,7 @@ export function CustomerForm({ defaultValues, onSubmit, isLoading }: CustomerFor
       name: values.name,
       email: values.email || null,
       phone: values.phone || null,
+      address: values.address || null,
       notes: values.notes || null,
     });
   };
@@ -93,6 +97,24 @@ export function CustomerForm({ defaultValues, onSubmit, isLoading }: CustomerFor
             )}
           />
         </div>
+        <FormField
+          control={form.control}
+          name="address"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Billing Address (Optional)</FormLabel>
+              <FormControl>
+                <Textarea
+                  rows={3}
+                  placeholder={"Street\nCity, State ZIP"}
+                  data-testid="input-customer-address"
+                  {...field}
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
         <FormField
           control={form.control}
           name="notes"

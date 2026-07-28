@@ -89,6 +89,7 @@
   "dependencies": {
     "@clerk/react": "^6.11.2",
     "@clerk/themes": "^2.4.57",
+    "@react-pdf/renderer": "^4.5.1",
     "@tanstack/react-virtual": "^3.14.6",
     "fflate": "^0.8.3",
     "pdfjs-dist": "^6.1.200",

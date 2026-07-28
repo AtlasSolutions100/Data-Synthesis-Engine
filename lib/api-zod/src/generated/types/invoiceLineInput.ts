@@ -5,9 +5,12 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { InvoiceLineInputCategory } from './invoiceLineInputCategory';
 
 export interface InvoiceLineInput {
   /** @nullable */
   description?: string | null;
+  /** @nullable */
+  category?: InvoiceLineInputCategory;
   amountCents: number;
 }
