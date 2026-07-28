@@ -54,6 +54,8 @@ type BillPrefill = {
   dueDate?: string;
   memo?: string;
   lines?: { accountId: string; description: string; amount: string }[];
+  /** Extracted vendor name that didn't match any vendor on file. */
+  vendorCreateName?: string;
 };
 
 function UploadInvoiceDialog({
@@ -111,6 +113,9 @@ function UploadInvoiceDialog({
           }))
         : undefined,
     };
+    if (!vendorMatch.vendor && result.vendorName) {
+      prefill.vendorCreateName = result.vendorName.trim();
+    }
     const notes: string[] = [];
     if (vendorMatch.note) notes.push(vendorMatch.note);
     if (jobMatch.note) notes.push(jobMatch.note);
@@ -337,6 +342,7 @@ export default function Bills() {
               <BillForm
                 key={prefill ? `prefilled-${prefillVersion}` : "blank"}
                 defaultValues={prefill ?? undefined}
+                suggestedVendorName={prefill?.vendorCreateName ?? null}
                 onSubmit={(data) => {
                   setCreateError(null);
                   createBill.mutate({ data });

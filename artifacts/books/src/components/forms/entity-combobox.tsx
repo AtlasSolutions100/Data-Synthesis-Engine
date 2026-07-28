@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Check, ChevronsUpDown, X } from "lucide-react";
+import { Check, ChevronsUpDown, Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Command,
@@ -30,6 +30,12 @@ interface EntityComboboxProps
   emptyText?: string;
   clearable?: boolean;
   disabled?: boolean;
+  /**
+   * When set, typing a name with no exact match shows a trailing
+   * "Create '<text>'" option that calls this with the typed text.
+   */
+  onCreate?: (name: string) => void;
+  createPending?: boolean;
 }
 
 export function EntityCombobox({
@@ -41,9 +47,20 @@ export function EntityCombobox({
   emptyText = "No results found.",
   clearable = true,
   disabled,
+  onCreate,
+  createPending,
   ...buttonProps
 }: EntityComboboxProps) {
   const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+
+  const trimmedSearch = search.trim();
+  const showCreateOption =
+    Boolean(onCreate) &&
+    trimmedSearch.length > 0 &&
+    !options.some(
+      (o) => o.label.trim().toLowerCase() === trimmedSearch.toLowerCase()
+    );
 
   const selected = useMemo(
     () => options.find((o) => String(o.id) === value),
@@ -51,7 +68,13 @@ export function EntityCombobox({
   );
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        if (!next) setSearch("");
+      }}
+    >
       <PopoverTrigger asChild>
         <Button
           type="button"
@@ -87,9 +110,15 @@ export function EntityCombobox({
       </PopoverTrigger>
       <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
         <Command>
-          <CommandInput placeholder={searchPlaceholder} />
+          <CommandInput
+            placeholder={searchPlaceholder}
+            value={search}
+            onValueChange={setSearch}
+          />
           <CommandList>
-            <CommandEmpty>{emptyText}</CommandEmpty>
+            <CommandEmpty>
+              {showCreateOption ? null : emptyText}
+            </CommandEmpty>
             <CommandGroup>
               {options.map((option) => (
                 <CommandItem
@@ -110,6 +139,27 @@ export function EntityCombobox({
                   <span className="truncate">{option.label}</span>
                 </CommandItem>
               ))}
+              {showCreateOption ? (
+                <CommandItem
+                  // cmdk filters items by value against the search text;
+                  // embedding the search text keeps this item visible.
+                  value={`__create__ ${trimmedSearch}`}
+                  disabled={createPending}
+                  onSelect={() => {
+                    onCreate?.(trimmedSearch);
+                    setOpen(false);
+                    setSearch("");
+                  }}
+                  data-testid="option-create-entity"
+                >
+                  <Plus className="mr-2 h-4 w-4" />
+                  <span className="truncate">
+                    {createPending
+                      ? `Creating "${trimmedSearch}"…`
+                      : `Create "${trimmedSearch}"`}
+                  </span>
+                </CommandItem>
+              ) : null}
             </CommandGroup>
           </CommandList>
         </Command>

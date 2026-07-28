@@ -26,8 +26,10 @@ import {
   getListCustomersQueryKey,
   useGetVendorDefaultAccount,
   getGetVendorDefaultAccountQueryKey,
+  useCreateVendor,
 } from "@workspace/api-client-react";
-import type { BillInput } from "@workspace/api-client-react";
+import type { BillInput, Vendor } from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { EntityCombobox } from "@/components/forms/entity-combobox";
 import type { ServerFieldError } from "@/lib/server-field-error";
 
@@ -59,6 +61,11 @@ interface BillFormProps {
   onSubmit: (data: BillInput) => void;
   isLoading?: boolean;
   serverError?: ServerFieldError | null;
+  /**
+   * Vendor name extracted from an uploaded invoice that didn't match any
+   * existing vendor — offers a one-click "create & select" shortcut.
+   */
+  suggestedVendorName?: string | null;
 }
 
 export function BillForm({
@@ -66,7 +73,9 @@ export function BillForm({
   onSubmit,
   isLoading,
   serverError,
+  suggestedVendorName,
 }: BillFormProps) {
+  const queryClient = useQueryClient();
   const { data: vendors } = useListVendors({
     query: { queryKey: getListVendorsQueryKey() },
   });
@@ -117,6 +126,50 @@ export function BillForm({
       message: fieldError.message,
     });
   }, [fieldError, form]);
+
+  const createVendor = useCreateVendor();
+
+  const handleCreateVendor = (name: string) => {
+    const trimmed = name.trim();
+    if (!trimmed || createVendor.isPending) return;
+    const existing = (vendors ?? []).find(
+      (v) => v.name.trim().toLowerCase() === trimmed.toLowerCase(),
+    );
+    if (existing) {
+      form.clearErrors("vendorId");
+      form.setValue("vendorId", String(existing.id), { shouldValidate: true });
+      return;
+    }
+    createVendor.mutate(
+      { data: { name: trimmed } },
+      {
+        onSuccess: (vendor) => {
+          // Inject into the local cache so the combobox immediately shows
+          // the new vendor as selected, then refetch for canonical order.
+          queryClient.setQueryData<Vendor[]>(
+            getListVendorsQueryKey(),
+            (old) =>
+              [...(old ?? []), vendor].sort((a, b) =>
+                a.name.localeCompare(b.name),
+              ),
+          );
+          queryClient.invalidateQueries({
+            queryKey: getListVendorsQueryKey(),
+          });
+          form.clearErrors("vendorId");
+          form.setValue("vendorId", String(vendor.id), {
+            shouldValidate: true,
+          });
+        },
+        onError: () => {
+          form.setError("vendorId", {
+            type: "server",
+            message: `Couldn't create vendor "${trimmed}". Please try again.`,
+          });
+        },
+      },
+    );
+  };
 
   const watchedVendorId = form.watch("vendorId");
   const watchedCustomerId = form.watch("customerId");
@@ -243,8 +296,26 @@ export function BillForm({
                     searchPlaceholder="Search vendors..."
                     emptyText="No vendors found."
                     clearable={false}
+                    onCreate={handleCreateVendor}
+                    createPending={createVendor.isPending}
                   />
                 </FormControl>
+                {suggestedVendorName && !watchedVendorId ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="w-full justify-start text-blue-700 border-blue-200 hover:bg-blue-50"
+                    disabled={createVendor.isPending}
+                    onClick={() => handleCreateVendor(suggestedVendorName)}
+                    data-testid="button-create-suggested-vendor"
+                  >
+                    <Plus className="mr-2 h-4 w-4" />
+                    {createVendor.isPending
+                      ? `Creating "${suggestedVendorName}"…`
+                      : `Create vendor "${suggestedVendorName}"`}
+                  </Button>
+                ) : null}
                 <FormMessage />
               </FormItem>
             )}

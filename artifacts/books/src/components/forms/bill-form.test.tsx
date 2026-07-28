@@ -1,22 +1,40 @@
-import { describe, it, expect, vi, beforeAll, afterEach } from "vitest";
 import {
-  render,
+  describe,
+  it,
+  expect,
+  vi,
+  beforeAll,
+  beforeEach,
+  afterEach,
+} from "vitest";
+import {
+  render as rtlRender,
   screen,
   cleanup,
   fireEvent,
   waitFor,
   within,
 } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BillForm } from "./bill-form";
+
+// Overridable per-test mock for the inline vendor-creation mutation.
+const createVendorMutate = vi.fn();
+let createVendorPending = false;
+
+// Mutable so the create-vendor mock can grow the list mid-test, mirroring
+// the real cache injection after POST /api/vendors.
+let mockVendors: { id: number; name: string }[] = [];
 
 // The form pulls list data via generated react-query hooks; mock them so the
 // dropdowns are populated without a live API.
 vi.mock("@workspace/api-client-react", () => ({
-  useListVendors: () => ({
-    data: [
-      { id: 1, name: "Acme Supply" },
-      { id: 2, name: "Bolt Electric" },
-    ],
+  useListVendors: () => ({ data: mockVendors }),
+  useCreateVendor: () => ({
+    mutate: createVendorMutate,
+    get isPending() {
+      return createVendorPending;
+    },
   }),
   getListVendorsQueryKey: () => ["/api/vendors"],
   useListJobs: () => ({
@@ -54,9 +72,28 @@ beforeAll(() => {
   } as unknown as typeof ResizeObserver;
 });
 
+beforeEach(() => {
+  createVendorMutate.mockReset();
+  createVendorPending = false;
+  mockVendors = [
+    { id: 1, name: "Acme Supply" },
+    { id: 2, name: "Bolt Electric" },
+  ];
+});
+
 afterEach(() => {
   cleanup();
 });
+
+// The form uses useQueryClient for vendor cache injection.
+function render(ui: React.ReactElement) {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  return rtlRender(
+    <QueryClientProvider client={client}>{ui}</QueryClientProvider>,
+  );
+}
 
 // Find a combobox trigger button by the text it currently displays. Index-based
 // lookup is unreliable because the cmdk search input also has role "combobox"
@@ -397,5 +434,131 @@ describe("BillForm dangling id validation", () => {
     await submit();
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
     expect(onSubmit.mock.calls[0][0].vendorId).toBe(1);
+  });
+});
+
+describe("BillForm inline vendor creation", () => {
+  function mockCreateSucceeds(id: number) {
+    createVendorMutate.mockImplementation(
+      (
+        vars: { data: { name: string } },
+        opts: { onSuccess?: (v: { id: number; name: string }) => void },
+      ) => {
+        const vendor = { id, name: vars.data.name };
+        mockVendors = [...mockVendors, vendor];
+        opts.onSuccess?.(vendor);
+      },
+    );
+  }
+
+  it("shows a Create option for unmatched search text and selects the new vendor", async () => {
+    mockCreateSucceeds(3);
+    const onSubmit = vi.fn();
+    render(<BillForm onSubmit={onSubmit} />);
+
+    fireEvent.click(await triggerShowing("Select vendor"));
+    const search = await screen.findByPlaceholderText("Search vendors...");
+    fireEvent.change(search, { target: { value: "Radiant AI" } });
+
+    const createOption = await screen.findByText('Create "Radiant AI"');
+    fireEvent.click(createOption.closest("[cmdk-item]") ?? createOption);
+
+    await waitFor(() =>
+      expect(createVendorMutate).toHaveBeenCalledWith(
+        { data: { name: "Radiant AI" } },
+        expect.anything(),
+      ),
+    );
+    // The combobox now shows the created vendor as selected.
+    await triggerShowing(/Radiant AI/);
+
+    fireEvent.change(screen.getByPlaceholderText("Amount"), {
+      target: { value: "10" },
+    });
+    await submit();
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    expect(onSubmit.mock.calls[0][0].vendorId).toBe(3);
+  });
+
+  it("does not offer a Create option when the typed name matches an existing vendor exactly", async () => {
+    render(<BillForm onSubmit={vi.fn()} />);
+
+    fireEvent.click(await triggerShowing("Select vendor"));
+    const search = await screen.findByPlaceholderText("Search vendors...");
+    fireEvent.change(search, { target: { value: "acme supply" } });
+
+    await screen.findByText(/Acme Supply/);
+    expect(screen.queryByTestId("option-create-entity")).toBeNull();
+  });
+
+  it("selects the existing vendor instead of creating a duplicate via the suggestion button", async () => {
+    render(<BillForm onSubmit={vi.fn()} suggestedVendorName="  acme supply " />);
+
+    fireEvent.click(
+      await screen.findByTestId("button-create-suggested-vendor"),
+    );
+
+    expect(createVendorMutate).not.toHaveBeenCalled();
+    await triggerShowing(/Acme Supply/);
+  });
+
+  it("pre-offers a one-click create button for an unmatched extracted vendor name", async () => {
+    mockCreateSucceeds(9);
+    const onSubmit = vi.fn();
+    render(
+      <BillForm
+        onSubmit={onSubmit}
+        suggestedVendorName="Radiant AI"
+        defaultValues={{
+          date: "2026-07-28",
+          lines: [{ accountId: "", description: "", amount: "25" }],
+        }}
+      />,
+    );
+
+    // Vendor field is empty, so submitting is blocked until confirmed.
+    await submit();
+    await waitFor(() =>
+      expect(screen.getByText(/vendor is required/i)).toBeTruthy(),
+    );
+    expect(onSubmit).not.toHaveBeenCalled();
+
+    const button = screen.getByTestId("button-create-suggested-vendor");
+    expect(button.textContent).toContain('Create vendor "Radiant AI"');
+    fireEvent.click(button);
+
+    await triggerShowing(/Radiant AI/);
+    // Suggestion disappears once a vendor is selected.
+    await waitFor(() =>
+      expect(
+        screen.queryByTestId("button-create-suggested-vendor"),
+      ).toBeNull(),
+    );
+
+    await submit();
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    expect(onSubmit.mock.calls[0][0].vendorId).toBe(9);
+  });
+
+  it("surfaces a field error when vendor creation fails", async () => {
+    createVendorMutate.mockImplementation(
+      (
+        _vars: unknown,
+        opts: { onError?: (e: unknown) => void },
+      ) => {
+        opts.onError?.(new Error("boom"));
+      },
+    );
+    render(<BillForm onSubmit={vi.fn()} suggestedVendorName="Radiant AI" />);
+
+    fireEvent.click(
+      await screen.findByTestId("button-create-suggested-vendor"),
+    );
+
+    await waitFor(() =>
+      expect(
+        screen.getByText(/couldn't create vendor "Radiant AI"/i),
+      ).toBeTruthy(),
+    );
   });
 });
