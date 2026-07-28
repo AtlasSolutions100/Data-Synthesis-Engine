@@ -58,13 +58,43 @@ export function ImportDataDialog({
   // (server 409). The user refreshes explicitly instead of the dialog
   // silently re-uploading a possibly huge file in a loop.
   const [stale, setStale] = useState(false);
+  // Snapshot of the user's exclusions taken when they click "Refresh preview",
+  // so their carefully unchecked rows survive the refresh. Rows are matched by
+  // row number AND label — if a row moved or its content changed, we drop the
+  // exclusion rather than uncheck the wrong record.
+  const carryOverRef = useRef<{
+    excluded: Set<number>;
+    rows: ImportPreviewRow[];
+  } | null>(null);
 
   const importMutation = useImportData({
     mutation: {
       onSuccess: (result) => {
         if (result.mode === "preview") {
+          const carry = carryOverRef.current;
+          carryOverRef.current = null;
+          let nextExcluded = new Set<number>();
+          if (carry && carry.excluded.size > 0) {
+            const prevLabelByRow = new Map(carry.rows.map((r) => [r.row, r.label]));
+            for (const r of result.rows ?? []) {
+              if (
+                carry.excluded.has(r.row) &&
+                r.status !== "error" &&
+                prevLabelByRow.get(r.row) === r.label
+              ) {
+                nextExcluded.add(r.row);
+              }
+            }
+            const dropped = carry.excluded.size - nextExcluded.size;
+            if (dropped > 0) {
+              toast({
+                title: "Some unchecked rows no longer apply",
+                description: `${dropped} of your unchecked row${dropped === 1 ? "" : "s"} changed or disappeared in the refreshed preview. Please review the list again.`,
+              });
+            }
+          }
           setPreview(result);
-          setExcluded(new Set());
+          setExcluded(nextExcluded);
           setStale(false);
           setOpen(true);
           return;
@@ -107,6 +137,8 @@ export function ImportDataDialog({
     if (!file) return;
     const reader = new FileReader();
     reader.onload = () => {
+      // A newly picked file is a fresh review — never carry exclusions into it.
+      carryOverRef.current = null;
       const data = String(reader.result);
       setFileData(data);
       setFileName(file.name);
@@ -126,6 +158,7 @@ export function ImportDataDialog({
 
   const refreshPreview = () => {
     if (!fileData) return;
+    carryOverRef.current = { excluded, rows: preview?.rows ?? [] };
     importMutation.mutate({
       entity,
       data: { fileData, fileName, mode: "preview" },

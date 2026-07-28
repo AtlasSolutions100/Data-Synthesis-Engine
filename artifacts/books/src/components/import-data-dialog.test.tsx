@@ -90,6 +90,82 @@ describe("ImportDataDialog stale preview handling", () => {
     ).toBe(false);
   });
 
+  it("keeps previously unchecked rows checked-off after a refresh when they still match", async () => {
+    // Preview with three rows; user unchecks rows 2 and 3.
+    const threeRows = {
+      ...previewResult,
+      summary: { total: 3, newRows: 3, duplicates: 0, errors: 0 },
+      rows: [
+        { row: 2, status: "new", label: "Acme", message: null, changes: null },
+        { row: 3, status: "new", label: "Beta", message: null, changes: null },
+        { row: 4, status: "new", label: "Gamma", message: null, changes: null },
+      ],
+    };
+    await openWithPreview();
+    act(() => handlers.onSuccess!(threeRows));
+    fireEvent.click(screen.getByTestId("checkbox-import-row-2"));
+    fireEvent.click(screen.getByTestId("checkbox-import-row-3"));
+
+    // Apply → 409 → refresh.
+    fireEvent.click(screen.getByTestId("button-import-apply"));
+    act(() => handlers.onError!({ response: { status: 409 } }));
+    fireEvent.click(await screen.findByTestId("button-import-refresh-preview"));
+
+    // Refreshed preview: row 2 unchanged, row 3 relabeled (reordered file),
+    // row 4 unchanged.
+    act(() =>
+      handlers.onSuccess!({
+        ...threeRows,
+        planToken: "tok-2",
+        rows: [
+          { row: 2, status: "new", label: "Acme", message: null, changes: null },
+          { row: 3, status: "new", label: "Delta", message: null, changes: null },
+          { row: 4, status: "new", label: "Gamma", message: null, changes: null },
+        ],
+      }),
+    );
+
+    // Row 2's exclusion carried over; row 3's was dropped (label changed).
+    await waitFor(() =>
+      expect(
+        screen.getByTestId("checkbox-import-row-2").getAttribute("data-state"),
+      ).toBe("unchecked"),
+    );
+    expect(
+      screen.getByTestId("checkbox-import-row-3").getAttribute("data-state"),
+    ).toBe("checked");
+    expect(
+      screen.getByTestId("checkbox-import-row-4").getAttribute("data-state"),
+    ).toBe("checked");
+
+    // The user is told one exclusion no longer applies.
+    expect(mockToast).toHaveBeenCalledWith(
+      expect.objectContaining({ title: "Some unchecked rows no longer apply" }),
+    );
+
+    // Apply after refresh only excludes the surviving row.
+    fireEvent.click(screen.getByTestId("button-import-apply"));
+    expect(mutateCalls[mutateCalls.length - 1]).toMatchObject({
+      data: { mode: "apply", excludeRows: [2], planToken: "tok-2" },
+    });
+  });
+
+  it("does not toast when all exclusions survive the refresh", async () => {
+    await openWithPreview();
+    fireEvent.click(screen.getByTestId("checkbox-import-row-2"));
+    fireEvent.click(screen.getByTestId("button-import-apply"));
+    act(() => handlers.onError!({ response: { status: 409 } }));
+    fireEvent.click(await screen.findByTestId("button-import-refresh-preview"));
+    act(() => handlers.onSuccess!({ ...previewResult, planToken: "tok-2" }));
+
+    await waitFor(() =>
+      expect(
+        screen.getByTestId("checkbox-import-row-2").getAttribute("data-state"),
+      ).toBe("unchecked"),
+    );
+    expect(mockToast).not.toHaveBeenCalled();
+  });
+
   it("non-409 errors still surface as a failure toast without the stale banner", async () => {
     await openWithPreview();
 
