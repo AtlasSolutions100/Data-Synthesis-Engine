@@ -72,6 +72,15 @@ async function previewToken(entity: string, fileData: string): Promise<string> {
 
 async function cleanup(): Promise<void> {
   await db.delete(customersTable).where(sql`${customersTable.name} like ${`${TP}Bulk %`}`);
+  const bulkBills = await db
+    .select({ id: billsTable.id })
+    .from(billsTable)
+    .where(sql`${billsTable.billNumber} like ${`${TP}BB-%`}`);
+  if (bulkBills.length) {
+    const ids = bulkBills.map((b) => b.id);
+    await db.delete(billLinesTable).where(inArray(billLinesTable.billId, ids));
+    await db.delete(billsTable).where(inArray(billsTable.id, ids));
+  }
   const bills = await db
     .select({ id: billsTable.id })
     .from(billsTable)
@@ -384,4 +393,62 @@ describe("structural limits & batching", () => {
       .where(sql`${customersTable.name} like ${`${TP}Bulk %`}`);
     expect(Number(count)).toBe(N);
   }, 60_000);
+
+  it("applies thousands of bill lines quickly, both as new bills and as line replacements", async () => {
+    await db
+      .insert(vendorsTable)
+      .values({ name: `${TP}Vendor X` })
+      .onConflictDoNothing();
+
+    // 1,000 bills × 3 lines = 3,000 line rows.
+    const BILLS = 1000;
+    const build = (desc: string, amount: string): (string | number)[][] => {
+      const rows: (string | number)[][] = [["Vendor", "Bill Number", "Date", "Description", "Amount"]];
+      for (let i = 0; i < BILLS; i++) {
+        for (let l = 0; l < 3; l++) {
+          rows.push([`${TP}Vendor X`, `${TP}BB-${i}`, "07/01/2026", `${desc} ${l}`, amount]);
+        }
+      }
+      return rows;
+    };
+
+    // First apply: all new bills.
+    const fileA = await workbook(build("Line", "10.00"));
+    const startA = Date.now();
+    const resA = await request(app)
+      .post("/api/import/bills")
+      .send({ fileData: fileA, mode: "apply", planToken: await previewToken("bills", fileA) });
+    const elapsedA = Date.now() - startA;
+    expect(resA.status).toBe(200);
+    expect(resA.body.applied).toMatchObject({ inserted: BILLS, updated: 0 });
+    expect(elapsedA).toBeLessThan(20_000);
+
+    // Second apply: same bills → lock + replace lines, batched.
+    const fileB = await workbook(build("Revised", "20.00"));
+    const startB = Date.now();
+    const resB = await request(app)
+      .post("/api/import/bills")
+      .send({ fileData: fileB, mode: "apply", planToken: await previewToken("bills", fileB) });
+    const elapsedB = Date.now() - startB;
+    expect(resB.status).toBe(200);
+    expect(resB.body.applied).toMatchObject({ inserted: 0, updated: BILLS });
+    expect(elapsedB).toBeLessThan(20_000);
+
+    const [{ count }] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(billLinesTable)
+      .innerJoin(billsTable, eq(billLinesTable.billId, billsTable.id))
+      .where(sql`${billsTable.billNumber} like ${`${TP}BB-%`}`);
+    expect(Number(count)).toBe(BILLS * 3);
+    const [sample] = await db
+      .select()
+      .from(billsTable)
+      .where(eq(billsTable.billNumber, `${TP}BB-0`));
+    const sampleLines = await db
+      .select()
+      .from(billLinesTable)
+      .where(eq(billLinesTable.billId, sample.id));
+    expect(sampleLines).toHaveLength(3);
+    expect(sampleLines.every((l) => Number(l.amountCents) === 2000)).toBe(true);
+  }, 120_000);
 });

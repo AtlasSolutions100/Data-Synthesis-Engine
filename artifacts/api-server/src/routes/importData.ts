@@ -248,7 +248,38 @@ type PlanRow = {
    * make large applies crawl.
    */
   bulkInsert?: { table: BulkTable; values: Record<string, unknown> };
+  /**
+   * Bill/invoice documents declare a structured plan instead of an apply
+   * closure so the route can batch work across documents: header inserts
+   * and line inserts become chunked multi-row INSERTs, and update locks /
+   * paid-guards / line deletes each collapse into one statement per batch.
+   * Without this, a file with thousands of multi-line bills ran several
+   * sequential awaits per document inside the apply transaction.
+   */
+  docPlan?: DocPlan;
 };
+
+type DocPlan =
+  | { doc: "bill"; op: "insert"; header: BillHeader; lines: DocLine[] }
+  | {
+      doc: "bill";
+      op: "update";
+      id: number;
+      label: string;
+      totalCents: number;
+      set: Partial<BillHeader>;
+      lines: DocLine[];
+    }
+  | { doc: "invoice"; op: "insert"; header: InvoiceHeader; lines: DocLine[] }
+  | {
+      doc: "invoice";
+      op: "update";
+      id: number;
+      label: string;
+      totalCents: number;
+      set: Partial<InvoiceHeader>;
+      lines: DocLine[];
+    };
 type BulkTable =
   | typeof customersTable
   | typeof vendorsTable
@@ -703,20 +734,11 @@ async function planBills(buffer: Buffer): Promise<PlanRow[]> {
         ...base,
         status: "new",
         message: null,
-        apply: async (tx) => {
-          const [bill] = await tx
-            .insert(billsTable)
-            .values({ vendorId: vendor.id, billNumber, date, dueDate, jobId, memo })
-            .returning();
-          await tx.insert(billLinesTable).values(
-            lines.map((l) => ({
-              billId: bill.id,
-              accountId: l.accountId ?? null,
-              description: l.description,
-              amountCents: l.amountCents,
-            })),
-          );
-          return "inserted";
+        docPlan: {
+          doc: "bill",
+          op: "insert",
+          header: { vendorId: vendor.id, billNumber, date, dueDate, jobId, memo },
+          lines,
         },
       };
     }
@@ -740,31 +762,14 @@ async function planBills(buffer: Buffer): Promise<PlanRow[]> {
         { field: "date", from: String(current.date), to: date },
         { field: "total", from: null, to: centsToDollars(totalCents) },
       ].filter((c) => c.field !== "date" || c.from !== c.to),
-      apply: async (tx) => {
-        // Lock the bill row, then re-validate the paid guard inside the
-        // transaction — a payment posted between preview and apply must
-        // still abort rather than shrink the bill below what's paid.
-        await tx.execute(sql`select id from bills where id = ${current.id} for update`);
-        const paid = await billPaidCents(tx, current.id);
-        if (paid > totalCents) {
-          throw new Error(
-            `Bill ${billNumber} has $${centsToDollars(paid)} in payments/credits — the imported total $${centsToDollars(totalCents)} is less than that`,
-          );
-        }
-        await tx
-          .update(billsTable)
-          .set({ date, dueDate, jobId: jobId ?? current.jobId, memo: memo ?? current.memo })
-          .where(eq(billsTable.id, current.id));
-        await tx.delete(billLinesTable).where(eq(billLinesTable.billId, current.id));
-        await tx.insert(billLinesTable).values(
-          lines.map((l) => ({
-            billId: current.id,
-            accountId: l.accountId ?? null,
-            description: l.description,
-            amountCents: l.amountCents,
-          })),
-        );
-        return "updated";
+      docPlan: {
+        doc: "bill",
+        op: "update",
+        id: current.id,
+        label: `Bill ${billNumber}`,
+        totalCents,
+        set: { date, dueDate, jobId: jobId ?? current.jobId, memo: memo ?? current.memo },
+        lines,
       },
     };
   }));
@@ -868,15 +873,11 @@ async function planInvoices(buffer: Buffer): Promise<PlanRow[]> {
           ...base,
           status: "new",
           message: null,
-          apply: async (tx) => {
-            const [inv] = await tx
-              .insert(invoicesTable)
-              .values({ invoiceNumber, jobId: finalJobId, customerId: finalCustomerId, date, dueDate, memo })
-              .returning();
-            await tx
-              .insert(invoiceLinesTable)
-              .values(lines.map((l) => ({ invoiceId: inv.id, description: l.description, amountCents: l.amountCents })));
-            return "inserted";
+          docPlan: {
+            doc: "invoice",
+            op: "insert",
+            header: { invoiceNumber, jobId: finalJobId, customerId: finalCustomerId, date, dueDate, memo },
+            lines,
           },
         };
       }
@@ -900,36 +901,39 @@ async function planInvoices(buffer: Buffer): Promise<PlanRow[]> {
           { field: "date", from: String(current.date), to: date },
           { field: "total", from: null, to: centsToDollars(totalCents) },
         ].filter((c) => c.field !== "date" || c.from !== c.to),
-        apply: async (tx) => {
-          // Lock the invoice row and re-validate the paid guard inside the
-          // transaction — a payment posted between preview and apply must
-          // abort rather than shrink the invoice below what's been paid.
-          await tx.execute(sql`select id from invoices where id = ${current.id} for update`);
-          const paid = await invoicePaidCents(tx, current.id);
-          if (paid > totalCents) {
-            throw new Error(
-              `Invoice ${invoiceNumber} has $${centsToDollars(paid)} in payments — the imported total $${centsToDollars(totalCents)} is less than that`,
-            );
-          }
-          await tx
-            .update(invoicesTable)
-            .set({ jobId: finalJobId, customerId: finalCustomerId, date, dueDate, memo: memo ?? current.memo })
-            .where(eq(invoicesTable.id, current.id));
-          await tx.delete(invoiceLinesTable).where(eq(invoiceLinesTable.invoiceId, current.id));
-          await tx
-            .insert(invoiceLinesTable)
-            .values(lines.map((l) => ({ invoiceId: current.id, description: l.description, amountCents: l.amountCents })));
-          return "updated";
+        docPlan: {
+          doc: "invoice",
+          op: "update",
+          id: current.id,
+          label: `Invoice ${invoiceNumber}`,
+          totalCents,
+          set: { jobId: finalJobId, customerId: finalCustomerId, date, dueDate, memo: memo ?? current.memo },
+          lines,
         },
       };
     }),
   );
 }
 
-/* ------------------------------------------------------------------ */
-/* Route                                                               */
-/* ------------------------------------------------------------------ */
-
+/**
+ * Paid totals for a set of bills/invoices in one query each, keyed by
+ * document id. Mirrors billPaidCents/invoicePaidCents but batched — the
+ * paid guard for thousands of updated documents must not run one query per
+ * document inside the apply transaction.
+ */
+async function billPaidCentsBatch(tx: Tx, ids: number[]): Promise<Map<number, number>> {
+  if (ids.length === 0) return new Map();
+  const idList = sql.join(ids.map((id) => sql`${id}`), sql`, `);
+  const result = await tx.execute(sql`
+    select b.id as id,
+      coalesce((select sum(amount_cents) from bill_payments where bill_id = b.id), 0)
+      + coalesce((select sum(amount_cents) from vendor_credits where bill_id = b.id), 0) as paid
+    from bills b where b.id in (${idList})
+  `);
+  const rows = (result as unknown as { rows?: Record<string, unknown>[] }).rows ??
+    (result as unknown as Record<string, unknown>[]);
+  return new Map(rows.map((r) => [Number(r.id), Number(r.paid)]));
+}
 const PLANNERS: Record<string, (buffer: Buffer) => Promise<PlanRow[]>> = {
   customers: (b) => planContacts(b, "customers"),
   vendors: (b) => planContacts(b, "vendors"),
@@ -1023,22 +1027,20 @@ router.post("/import/:entity", async (req, res): Promise<void> => {
       // Collect simple inserts and run them as chunked multi-row INSERTs;
       // everything else (updates, multi-table docs) applies per row.
       const bulkByTable = new Map<BulkTable, Record<string, unknown>[]>();
-      for (const row of plan) {
-        if (row.status === "error" || excluded.has(row.row) || (!row.apply && !row.bulkInsert)) {
-          skipped++;
-          continue;
-        }
-        if (row.bulkInsert) {
+
+      const docPlans: DocPlan[] = [];
           const list = bulkByTable.get(row.bulkInsert.table) ?? [];
           list.push(row.bulkInsert.values);
           bulkByTable.set(row.bulkInsert.table, list);
           continue;
         }
+        if (row.docPlan) {
+          docPlans.push(row.docPlan);
+          continue;
+        }
         const outcome = await row.apply!(tx);
-        if (outcome === "inserted") inserted++;
-        else updated++;
-      }
-      for (const [table, values] of bulkByTable) {
+
+        const result = await applyDocPlans(tx, docPlans);
         for (let i = 0; i < values.length; i += INSERT_CHUNK_SIZE) {
           const chunk = values.slice(i, i + INSERT_CHUNK_SIZE);
           await tx.insert(table).values(chunk as never);
@@ -1065,3 +1067,131 @@ router.post("/import/:entity", async (req, res): Promise<void> => {
 });
 
 export default router;
+
+async function invoicePaidCentsBatch(tx: Tx, ids: number[]): Promise<Map<number, number>> {
+  if (ids.length === 0) return new Map();
+  const idList = sql.join(ids.map((id) => sql`${id}`), sql`, `);
+  const result = await tx.execute(sql`
+    select i.id as id,
+      coalesce((select sum(amount_cents) from invoice_payments where invoice_id = i.id), 0) as paid
+    from invoices i where i.id in (${idList})
+  `);
+  const rows = (result as unknown as { rows?: Record<string, unknown>[] }).rows ??
+    (result as unknown as Record<string, unknown>[]);
+  return new Map(rows.map((r) => [Number(r.id), Number(r.paid)]));
+}
+
+/**
+ * Applies bill/invoice document plans with cross-document batching:
+ * - new document headers insert as chunked multi-row INSERT ... RETURNING
+ *   (returned ids line up with the VALUES order, so lines attach by index)
+ * - updated documents lock in one FOR UPDATE, re-check the paid guard from
+ *   one batched query, and delete old lines in one statement
+ * - all line inserts across all documents go out as chunked multi-row INSERTs
+ * Header updates stay per-document (each has distinct values), which is one
+ * short statement per updated document.
+ */
+async function applyDocPlans(
+  tx: Tx,
+  plans: DocPlan[],
+): Promise<{ inserted: number; updated: number }> {
+  let inserted = 0;
+  let updated = 0;
+
+  for (const doc of ["bill", "invoice"] as const) {
+    const table = doc === "bill" ? billsTable : invoicesTable;
+    const linesTable = doc === "bill" ? billLinesTable : invoiceLinesTable;
+    const toLineRow = (parentId: number, l: DocLine): Record<string, unknown> =>
+      doc === "bill"
+        ? {
+            billId: parentId,
+            accountId: l.accountId ?? null,
+            description: l.description,
+            amountCents: l.amountCents,
+          }
+        : { invoiceId: parentId, description: l.description, amountCents: l.amountCents };
+
+    const inserts = plans.filter((p) => p.doc === doc && p.op === "insert");
+    const updates = plans.filter(
+      (p): p is Extract<DocPlan, { op: "update" }> => p.doc === doc && p.op === "update",
+    );
+    const lineRows: Record<string, unknown>[] = [];
+
+    // New documents: chunked multi-row header inserts, ids matched by order.
+    for (let i = 0; i < inserts.length; i += INSERT_CHUNK_SIZE) {
+      const chunk = inserts.slice(i, i + INSERT_CHUNK_SIZE);
+      const returned = await tx
+        .insert(table)
+        .values(chunk.map((p) => (p as Extract<DocPlan, { op: "insert" }>).header) as never)
+        .returning({ id: table.id });
+      chunk.forEach((p, idx) => {
+        for (const l of p.lines) lineRows.push(toLineRow(returned[idx].id, l));
+      });
+      inserted += chunk.length;
+    }
+
+    if (updates.length > 0) {
+      const ids = updates.map((p) => p.id);
+      const idList = sql.join(ids.map((id) => sql`${id}`), sql`, `);
+      // Lock all updated documents, then re-validate the paid guard inside
+      // the transaction — a payment posted between preview and apply must
+      // still abort rather than shrink a document below what's been paid.
+      await tx.execute(
+        doc === "bill"
+          ? sql`select id from bills where id in (${idList}) for update`
+          : sql`select id from invoices where id in (${idList}) for update`,
+      );
+      const paidById =
+        doc === "bill" ? await billPaidCentsBatch(tx, ids) : await invoicePaidCentsBatch(tx, ids);
+      for (const p of updates) {
+        const paid = paidById.get(p.id) ?? 0;
+        if (paid > p.totalCents) {
+          const kind = doc === "bill" ? "payments/credits" : "payments";
+          throw new Error(
+            `${p.label} has $${centsToDollars(paid)} in ${kind} — the imported total $${centsToDollars(p.totalCents)} is less than that`,
+          );
+        }
+      }
+      for (const p of updates) {
+        await tx
+          .update(table)
+          .set(p.set as never)
+          .where(eq(table.id, p.id));
+        updated++;
+      }
+      // Replace lines: one batched delete, then batched inserts below.
+      await tx.execute(
+        doc === "bill"
+          ? sql`delete from bill_lines where bill_id in (${idList})`
+          : sql`delete from invoice_lines where invoice_id in (${idList})`,
+      );
+      for (const p of updates) {
+        for (const l of p.lines) lineRows.push(toLineRow(p.id, l));
+      }
+    }
+
+    for (let i = 0; i < lineRows.length; i += INSERT_CHUNK_SIZE) {
+      await tx.insert(linesTable).values(lineRows.slice(i, i + INSERT_CHUNK_SIZE) as never);
+    }
+  }
+
+  return { inserted, updated };
+}
+
+type InvoiceHeader = {
+  invoiceNumber: string;
+  jobId: number;
+  customerId: number;
+  date: string;
+  dueDate: string | null;
+  memo: string | null;
+};
+
+type BillHeader = {
+  vendorId: number;
+  billNumber: string | null;
+  date: string;
+  dueDate: string | null;
+  jobId: number | null;
+  memo: string | null;
+};
