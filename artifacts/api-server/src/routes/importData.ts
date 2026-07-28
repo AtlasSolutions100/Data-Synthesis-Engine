@@ -17,6 +17,7 @@ import {
   invoicePaymentsTable,
 } from "@workspace/db";
 import { ImportDataBody, ImportDataParams, ImportDataResponse } from "@workspace/api-zod";
+import { syncBillTransactionsBatch } from "./bills";
 
 const router: IRouter = Router();
 
@@ -1022,10 +1023,13 @@ router.post("/import/:entity", async (req, res): Promise<void> => {
       // Collect simple inserts and run them as chunked multi-row INSERTs;
       // everything else (updates, multi-table docs) applies per row.
       const bulkByTable = new Map<BulkTable, Record<string, unknown>[]>();
-
       const docPlans: DocPlan[] = [];
       for (const row of plan) {
-        if (row.status === "error" || excluded.has(row.row)) {
+        if (
+          row.status === "error" ||
+          excluded.has(row.row) ||
+          (!row.apply && !row.bulkInsert && !row.docPlan)
+        ) {
           skipped++;
           continue;
         }
@@ -1043,11 +1047,9 @@ router.post("/import/:entity", async (req, res): Promise<void> => {
         if (outcome === "inserted") inserted++;
         else updated++;
       }
-
       const result = await applyDocPlans(tx, docPlans);
       inserted += result.inserted;
       updated += result.updated;
-
       for (const [table, values] of bulkByTable) {
         for (let i = 0; i < values.length; i += INSERT_CHUNK_SIZE) {
           const chunk = values.slice(i, i + INSERT_CHUNK_SIZE);
@@ -1124,17 +1126,30 @@ async function applyDocPlans(
       (p): p is Extract<DocPlan, { op: "update" }> => p.doc === doc && p.op === "update",
     );
     const lineRows: Record<string, unknown>[] = [];
+    // All bill ids touched by this apply (inserts + updates) — their ledger
+    // transactions are re-synced in one batch at the end so imported bills
+    // get the same "Bill #num" links as API-created ones.
+    const touchedBillIds: number[] = [];
 
     // New documents: chunked multi-row header inserts, ids matched by order.
     for (let i = 0; i < inserts.length; i += INSERT_CHUNK_SIZE) {
       const chunk = inserts.slice(i, i + INSERT_CHUNK_SIZE);
       const returned = await tx
         .insert(table)
-        .values(chunk.map((p) => (p as Extract<DocPlan, { op: "insert" }>).header) as never)
+        .values(
+          chunk.map((p) => {
+            const header = (p as Extract<DocPlan, { op: "insert" }>).header;
+            // Imported bills post to the ledger below, so they carry the
+            // same provenance flag as API-created bills — future edits via
+            // the API keep their generated transactions in sync.
+            return doc === "bill" ? { ...header, postedToLedger: true } : header;
+          }) as never,
+        )
         .returning({ id: table.id });
       chunk.forEach((p, idx) => {
         for (const l of p.lines) lineRows.push(toLineRow(returned[idx].id, l));
       });
+      if (doc === "bill") touchedBillIds.push(...returned.map((r) => r.id));
       inserted += chunk.length;
     }
 
@@ -1163,7 +1178,7 @@ async function applyDocPlans(
       for (const p of updates) {
         await tx
           .update(table)
-          .set(p.set as never)
+          .set((doc === "bill" ? { ...p.set, postedToLedger: true } : p.set) as never)
           .where(eq(table.id, p.id));
         updated++;
       }
@@ -1176,10 +1191,18 @@ async function applyDocPlans(
       for (const p of updates) {
         for (const l of p.lines) lineRows.push(toLineRow(p.id, l));
       }
+      if (doc === "bill") touchedBillIds.push(...ids);
     }
 
     for (let i = 0; i < lineRows.length; i += INSERT_CHUNK_SIZE) {
       await tx.insert(linesTable).values(lineRows.slice(i, i + INSERT_CHUNK_SIZE) as never);
+    }
+
+    // Post/refresh ledger transactions for every imported bill in one batch,
+    // mirroring what POST/PATCH /bills does per document. The helper deletes
+    // existing rows first, so re-importing a bill can't double-post.
+    if (doc === "bill") {
+      await syncBillTransactionsBatch(tx, touchedBillIds);
     }
   }
 

@@ -16,6 +16,8 @@ import {
   billsTable,
   billLinesTable,
   billPaymentsTable,
+  accountsTable,
+  transactionsTable,
 } from "@workspace/db";
 
 /**
@@ -84,12 +86,14 @@ async function cleanup(): Promise<void> {
   const bills = await db
     .select({ id: billsTable.id })
     .from(billsTable)
-    .where(inArray(billsTable.billNumber, [`${TP}B-1`, `${TP}B-2`]));
+    .where(inArray(billsTable.billNumber, [`${TP}B-1`, `${TP}B-2`, `${TP}B-3`]));
   if (bills.length) {
+    await db.delete(transactionsTable).where(inArray(transactionsTable.billId, bills.map((b) => b.id)));
     await db.delete(billPaymentsTable).where(inArray(billPaymentsTable.billId, bills.map((b) => b.id)));
     await db.delete(billLinesTable).where(inArray(billLinesTable.billId, bills.map((b) => b.id)));
     await db.delete(billsTable).where(inArray(billsTable.id, bills.map((b) => b.id)));
   }
+  await db.delete(accountsTable).where(eq(accountsTable.name, `${TP}Supplies Exp`));
   await db.delete(jobsTable).where(inArray(jobsTable.name, [`${TP}Job A`, `${TP}Job B`]));
   await db.delete(vendorsTable).where(inArray(vendorsTable.name, [`${TP}Vendor X`]));
   await db
@@ -223,6 +227,52 @@ describe("POST /import/bills", () => {
     const lines = await db.select().from(billLinesTable).where(eq(billLinesTable.billId, bill.id));
     expect(lines).toHaveLength(1);
     expect(Number(lines[0].amountCents)).toBe(99999);
+  });
+
+  it("posts bill-linked ledger transactions for imported bills, without double-posting on re-import", async () => {
+    const [account] = await db
+      .insert(accountsTable)
+      .values({ number: "99997", name: `${TP}Supplies Exp`, type: "expense" })
+      .returning();
+
+    const fileData = await workbook([
+      ["Vendor", "Bill Number", "Date", "Account", "Description", "Amount"],
+      [`${TP}Vendor X`, `${TP}B-3`, "07/15/2026", `${TP}Supplies Exp`, "Tape", "25.00"],
+      [`${TP}Vendor X`, `${TP}B-3`, "07/15/2026", `${TP}Supplies Exp`, "Wire nuts", "75.00"],
+    ]);
+    const res = await request(app)
+      .post("/api/import/bills")
+      .send({ fileData, mode: "apply", planToken: await previewToken("bills", fileData) });
+    expect(res.status).toBe(200);
+    expect(res.body.applied).toMatchObject({ inserted: 1 });
+
+    const [bill] = await db.select().from(billsTable).where(eq(billsTable.billNumber, `${TP}B-3`));
+    // Same provenance flag as API-created bills, so later API edits re-sync.
+    expect(bill.postedToLedger).toBe(true);
+    let txns = await db
+      .select()
+      .from(transactionsTable)
+      .where(eq(transactionsTable.billId, bill.id));
+    expect(txns).toHaveLength(2);
+    expect(txns.every((t) => t.accountId === account.id && t.type === "bill")).toBe(true);
+    expect(txns.map((t) => Number(t.amountCents)).sort((a, b) => a - b)).toEqual([2500, 7500]);
+
+    // Re-import the same bill with revised lines: transactions are replaced,
+    // not duplicated.
+    const fileData2 = await workbook([
+      ["Vendor", "Bill Number", "Date", "Account", "Description", "Amount"],
+      [`${TP}Vendor X`, `${TP}B-3`, "07/16/2026", `${TP}Supplies Exp`, "Revised", "120.00"],
+    ]);
+    const res2 = await request(app)
+      .post("/api/import/bills")
+      .send({ fileData: fileData2, mode: "apply", planToken: await previewToken("bills", fileData2) });
+    expect(res2.body.applied).toMatchObject({ updated: 1 });
+    txns = await db
+      .select()
+      .from(transactionsTable)
+      .where(eq(transactionsTable.billId, bill.id));
+    expect(txns).toHaveLength(1);
+    expect(Number(txns[0].amountCents)).toBe(12000);
   });
 });
 

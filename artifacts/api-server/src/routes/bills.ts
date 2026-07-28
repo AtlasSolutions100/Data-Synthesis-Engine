@@ -334,36 +334,61 @@ async function sumLineCents(tx: Tx, billId: number): Promise<number> {
  * Transactions page navigate back to the source bill and its scanned PDF.
  */
 async function syncBillTransactions(tx: Tx, billId: number): Promise<void> {
-  const [row] = await tx
+  await syncBillTransactionsBatch(tx, [billId]);
+}
+
+/**
+ * Batched form of syncBillTransactions: rewrites the ledger transactions for
+ * many bills with a constant number of statements (plus chunked inserts),
+ * so bulk callers like the spreadsheet import don't pay several queries per
+ * bill. Deleting before re-inserting also makes it safe to call for bills
+ * whose transactions already exist (no double-posting).
+ */
+const TRANSACTION_INSERT_CHUNK_SIZE = 500;
+
+export async function syncBillTransactionsBatch(
+  tx: Tx,
+  billIds: number[],
+): Promise<void> {
+  if (billIds.length === 0) return;
+  const bills = await tx
     .select({ bill: billsTable, vendorName: vendorsTable.name })
     .from(billsTable)
     .leftJoin(vendorsTable, eq(vendorsTable.id, billsTable.vendorId))
-    .where(eq(billsTable.id, billId));
-  if (!row) return;
+    .where(inArray(billsTable.id, billIds));
   const lines = await tx
     .select()
     .from(billLinesTable)
-    .where(eq(billLinesTable.billId, billId))
-    .orderBy(billLinesTable.id);
+    .where(inArray(billLinesTable.billId, billIds))
+    .orderBy(billLinesTable.billId, billLinesTable.id);
   await tx
     .delete(transactionsTable)
-    .where(eq(transactionsTable.billId, billId));
-  const postable = lines.filter((l) => l.accountId != null);
-  if (postable.length === 0) return;
-  await tx.insert(transactionsTable).values(
-    postable.map((l) => ({
-      date: row.bill.date,
-      type: "bill",
-      num: row.bill.billNumber,
-      partyName: row.vendorName,
-      description: l.description,
-      accountId: l.accountId as number,
-      jobId: row.bill.jobId,
-      vendorId: row.bill.vendorId,
-      amountCents: Number(l.amountCents),
-      billId,
-    })),
-  );
+    .where(inArray(transactionsTable.billId, billIds));
+  const byBillId = new Map(bills.map((r) => [r.bill.id, r]));
+  const values = lines.flatMap((l) => {
+    if (l.accountId == null) return [];
+    const row = byBillId.get(l.billId);
+    if (!row) return [];
+    return [
+      {
+        date: row.bill.date,
+        type: "bill",
+        num: row.bill.billNumber,
+        partyName: row.vendorName,
+        description: l.description,
+        accountId: l.accountId,
+        jobId: row.bill.jobId,
+        vendorId: row.bill.vendorId,
+        amountCents: Number(l.amountCents),
+        billId: l.billId,
+      },
+    ];
+  });
+  for (let i = 0; i < values.length; i += TRANSACTION_INSERT_CHUNK_SIZE) {
+    await tx
+      .insert(transactionsTable)
+      .values(values.slice(i, i + TRANSACTION_INSERT_CHUNK_SIZE));
+  }
 }
 
 function computeStatus(totalCents: number, paidCents: number): BillStatus {

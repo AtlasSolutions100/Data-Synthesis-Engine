@@ -554,12 +554,26 @@ describe("GET /api/reports/dashboard date filtering", () => {
   });
 
   it("returns all-time results when both bounds are omitted (unbounded range)", async () => {
-    const [allTime, fullRange] = await Promise.all([
-      request(reportsApp).get("/api/reports/dashboard"),
-      request(reportsApp)
-        .get("/api/reports/dashboard")
-        .query({ startDate: "0001-01-01", endDate: "9999-12-31" }),
-    ]);
+    // This assertion compares GLOBAL totals from two separate requests, so a
+    // transaction written by another test file running in parallel between
+    // the two reads makes them disagree even though the endpoint is correct.
+    // Retry a few times until the two reads land on the same snapshot.
+    let allTime!: request.Response;
+    let fullRange!: request.Response;
+    for (let attempt = 0; attempt < 5; attempt++) {
+      [allTime, fullRange] = await Promise.all([
+        request(reportsApp).get("/api/reports/dashboard"),
+        request(reportsApp)
+          .get("/api/reports/dashboard")
+          .query({ startDate: "0001-01-01", endDate: "9999-12-31" }),
+      ]);
+      if (
+        allTime.body.totalIncomeCents === fullRange.body.totalIncomeCents &&
+        allTime.body.transactionCount === fullRange.body.transactionCount
+      ) {
+        break;
+      }
+    }
 
     // Omitting the bounds must behave identically to an all-encompassing range.
     expect(allTime.body.totalIncomeCents).toBe(fullRange.body.totalIncomeCents);
