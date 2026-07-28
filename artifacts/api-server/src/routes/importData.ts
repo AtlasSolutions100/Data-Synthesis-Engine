@@ -127,6 +127,46 @@ type Rec = { rowNumber: number; get: (field: string) => Cell };
 export const MAX_IMPORT_ROWS = 10_000;
 
 /**
+ * Parsed-workbook cache. Repeated previews of the same file (the common case
+ * when a big import keeps drifting and the user refreshes the preview) skip
+ * re-parsing the xlsx — parsing is the CPU-heavy part; the plan itself is
+ * always recomputed against live data. Keyed by content hash, small and
+ * short-lived so memory stays bounded.
+ */
+const parsedWorkbookCache = new Map<string, { rows: Cell[][]; at: number }>();
+const PARSE_CACHE_MAX_ENTRIES = 8;
+const PARSE_CACHE_TTL_MS = 10 * 60 * 1000;
+
+async function parseWorkbook(buffer: Buffer): Promise<Cell[][]> {
+  const key = createHash("sha256").update(buffer).digest("hex");
+  const now = Date.now();
+  const hit = parsedWorkbookCache.get(key);
+  if (hit && now - hit.at < PARSE_CACHE_TTL_MS) {
+    // Refresh LRU position.
+    parsedWorkbookCache.delete(key);
+    parsedWorkbookCache.set(key, { rows: hit.rows, at: hit.at });
+    return hit.rows;
+  }
+  let rows: Cell[][];
+  try {
+    rows = (await readXlsxFile(buffer)) as Cell[][];
+  } catch {
+    throw new Error("Could not read the file — please upload an .xlsx spreadsheet");
+  }
+  // Evict expired entries, then the oldest if still over capacity.
+  for (const [k, v] of parsedWorkbookCache) {
+    if (now - v.at >= PARSE_CACHE_TTL_MS) parsedWorkbookCache.delete(k);
+  }
+  while (parsedWorkbookCache.size >= PARSE_CACHE_MAX_ENTRIES) {
+    const oldest = parsedWorkbookCache.keys().next().value;
+    if (oldest === undefined) break;
+    parsedWorkbookCache.delete(oldest);
+  }
+  parsedWorkbookCache.set(key, { rows, at: now });
+  return rows;
+}
+
+/**
  * Reads the workbook and maps columns to logical fields using per-entity
  * header aliases. The header row is found by scanning for a row containing
  * at least one alias of every required header field.
@@ -136,12 +176,7 @@ async function readRecords(
   aliases: Record<string, string[]>,
   requiredHeaders: string[],
 ): Promise<Rec[]> {
-  let rows: Cell[][];
-  try {
-    rows = (await readXlsxFile(buffer)) as Cell[][];
-  } catch {
-    throw new Error("Could not read the file — please upload an .xlsx spreadsheet");
-  }
+  const rows = await parseWorkbook(buffer);
   const aliasToField = new Map<string, string>();
   for (const [field, list] of Object.entries(aliases)) {
     for (const a of list) aliasToField.set(normKey(a), field);

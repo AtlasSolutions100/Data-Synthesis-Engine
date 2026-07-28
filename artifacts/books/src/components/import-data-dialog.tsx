@@ -54,6 +54,10 @@ export function ImportDataDialog({
   const [fileName, setFileName] = useState<string>("");
   const [preview, setPreview] = useState<ImportDataResult | null>(null);
   const [excluded, setExcluded] = useState<Set<number>>(new Set());
+  // Set when apply was rejected because the data changed since the preview
+  // (server 409). The user refreshes explicitly instead of the dialog
+  // silently re-uploading a possibly huge file in a loop.
+  const [stale, setStale] = useState(false);
 
   const importMutation = useImportData({
     mutation: {
@@ -61,6 +65,7 @@ export function ImportDataDialog({
         if (result.mode === "preview") {
           setPreview(result);
           setExcluded(new Set());
+          setStale(false);
           setOpen(true);
           return;
         }
@@ -81,19 +86,12 @@ export function ImportDataDialog({
           response?: { status?: number; data?: { error?: string } };
           message?: string;
         };
-        // 409 = the data changed between preview and apply. Re-run the
-        // preview so the user reviews the current state before confirming.
+        // 409 = the data changed between preview and apply. Don't silently
+        // re-upload (large files make that feel like a frozen dialog when the
+        // data keeps changing) — mark the preview stale and let the user
+        // refresh it explicitly from the inline banner.
         if (err?.response?.status === 409 && fileData) {
-          toast({
-            title: "Data changed since your preview",
-            description:
-              "Records were edited while you were reviewing. The preview has been refreshed — please review and confirm again.",
-            variant: "destructive",
-          });
-          importMutation.mutate({
-            entity,
-            data: { fileData, fileName, mode: "preview" },
-          });
+          setStale(true);
           return;
         }
         toast({
@@ -123,6 +121,14 @@ export function ImportDataDialog({
       if (next.has(row)) next.delete(row);
       else next.add(row);
       return next;
+    });
+  };
+
+  const refreshPreview = () => {
+    if (!fileData) return;
+    importMutation.mutate({
+      entity,
+      data: { fileData, fileName, mode: "preview" },
     });
   };
 
@@ -180,6 +186,32 @@ export function ImportDataDialog({
                 : ""}
             </DialogDescription>
           </DialogHeader>
+          {stale && (
+            <div
+              className="flex items-center justify-between gap-3 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900"
+              data-testid="banner-import-stale"
+            >
+              <div className="flex items-start gap-2">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                <span>
+                  Records changed while you were reviewing, so this preview is out of date.
+                  Refresh it to review the current state before importing.
+                </span>
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={refreshPreview}
+                disabled={importMutation.isPending}
+                data-testid="button-import-refresh-preview"
+              >
+                {importMutation.isPending ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : null}
+                Refresh preview
+              </Button>
+            </div>
+          )}
           <div className="max-h-[50vh] overflow-y-auto rounded-md border">
             <Table>
               <TableHeader>
@@ -241,7 +273,7 @@ export function ImportDataDialog({
             </Button>
             <Button
               onClick={apply}
-              disabled={importMutation.isPending || importable === 0}
+              disabled={importMutation.isPending || importable === 0 || stale}
               className="bg-blue-600 hover:bg-blue-700"
               data-testid="button-import-apply"
             >

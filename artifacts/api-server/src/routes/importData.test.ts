@@ -26,6 +26,20 @@ import {
  * jobs enforce the customer-required rule. TEST-prefixed fixtures torn down.
  */
 
+// Counting passthrough around the xlsx parser so the parsed-workbook cache
+// test can assert that repeat previews of the same file skip re-parsing.
+const parseCalls = vi.hoisted(() => ({ count: 0 }));
+vi.mock("read-excel-file/node", async (importOriginal) => {
+  const mod = await importOriginal<typeof import("read-excel-file/node")>();
+  return {
+    ...mod,
+    default: (...args: Parameters<typeof mod.default>) => {
+      parseCalls.count++;
+      return mod.default(...args);
+    },
+  };
+});
+
 const TP = "TESTIMP ";
 
 let app: Express;
@@ -291,6 +305,30 @@ describe("plan consistency token", () => {
   });
 });
 
+describe("parsed-workbook cache", () => {
+  it("re-previewing the same file skips re-parsing the xlsx", async () => {
+    const fileData = await workbook([
+      ["Name", "Email"],
+      [`${TP}Cust Three`, "three@x.com"],
+    ]);
+
+    const before = parseCalls.count;
+    const first = await request(app)
+      .post("/api/import/customers")
+      .send({ fileData, mode: "preview" });
+    expect(first.status).toBe(200);
+    expect(parseCalls.count).toBe(before + 1);
+
+    const second = await request(app)
+      .post("/api/import/customers")
+      .send({ fileData, mode: "preview" });
+    expect(second.status).toBe(200);
+    // Same bytes → parse served from cache; plan still recomputed.
+    expect(parseCalls.count).toBe(before + 1);
+    expect(second.body.summary).toEqual(first.body.summary);
+  });
+});
+
 describe("input validation", () => {
   it("rejects an unknown entity", async () => {
     const res = await request(app)
@@ -329,10 +367,11 @@ describe("structural limits & batching", () => {
     for (let i = 0; i < N; i++) rows.push([`${TP}Bulk ${i}`, `bulk${i}@x.com`]);
     const fileData = await workbook(rows);
 
+    const planToken = await previewToken("customers", fileData);
     const start = Date.now();
     const res = await request(app)
       .post("/api/import/customers")
-      .send({ fileData, mode: "apply" });
+      .send({ fileData, mode: "apply", planToken });
     const elapsed = Date.now() - start;
 
     expect(res.status).toBe(200);
