@@ -1,9 +1,9 @@
-import { useParams, Link } from "wouter";
+import { useParams, Link, useLocation } from "wouter";
 import {
   useGetVendor,
   getGetVendorQueryKey,
-  useListTransactions,
-  getListTransactionsQueryKey,
+  useListBills,
+  getListBillsQueryKey,
 } from "@workspace/api-client-react";
 import { formatCents } from "@/lib/format";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,28 +11,35 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft } from "lucide-react";
 
+const statusVariant: Record<string, "default" | "secondary" | "outline"> = {
+  paid: "secondary",
+  partial: "outline",
+  open: "default",
+};
+
 export default function VendorDetail() {
   const { id } = useParams<{ id: string }>();
   const vendorId = parseInt(id || "0", 10);
+  const [, navigate] = useLocation();
 
   const { data: vendor, isLoading: vendorLoading } = useGetVendor(vendorId, {
     query: { enabled: !!vendorId, queryKey: getGetVendorQueryKey(vendorId) },
   });
 
-  const { data: transactions, isLoading: txnsLoading } = useListTransactions(
+  const { data: bills, isLoading: billsLoading } = useListBills(
     { vendorId },
     {
       query: {
         enabled: !!vendorId,
-        queryKey: getListTransactionsQueryKey({ vendorId }),
+        queryKey: getListBillsQueryKey({ vendorId }),
       },
     },
   );
 
-  const totalCents = (transactions ?? []).reduce((s, t) => s + t.amountCents, 0);
-  const jobCount = new Set((transactions ?? []).map((t) => t.jobId).filter((j) => j != null)).size;
-
-  const formatType = (t: string) => t.replace(/_/g, " ");
+  const totalCents = (bills ?? []).reduce((s, b) => s + b.totalCents, 0);
+  const jobCount = new Set(
+    (bills ?? []).map((b) => b.jobId).filter((j) => j != null),
+  ).size;
 
   if (vendorLoading) {
     return <div className="p-8">Loading vendor...</div>;
@@ -63,10 +70,12 @@ export default function VendorDetail() {
       <div className="grid gap-6 md:grid-cols-3">
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-slate-500">Total Transactions</CardTitle>
+            <CardTitle className="text-sm font-medium text-slate-500">Total Bills</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-slate-900">{transactions?.length ?? 0}</div>
+            <div className="text-2xl font-bold text-slate-900" data-testid="text-bill-count">
+              {bills?.length ?? 0}
+            </div>
           </CardContent>
         </Card>
         <Card>
@@ -74,7 +83,9 @@ export default function VendorDetail() {
             <CardTitle className="text-sm font-medium text-slate-500">Total Amount</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-slate-900">{formatCents(totalCents)}</div>
+            <div className="text-2xl font-bold text-slate-900" data-testid="text-total-amount">
+              {formatCents(totalCents)}
+            </div>
           </CardContent>
         </Card>
         <Card>
@@ -82,65 +93,87 @@ export default function VendorDetail() {
             <CardTitle className="text-sm font-medium text-slate-500">Jobs Involved</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-slate-900">{jobCount}</div>
+            <div className="text-2xl font-bold text-slate-900" data-testid="text-job-count">
+              {jobCount}
+            </div>
           </CardContent>
         </Card>
       </div>
 
       <Card>
         <CardHeader className="pb-4 border-b">
-          <CardTitle>All Transactions for {vendor.name}</CardTitle>
+          <CardTitle>Bills for {vendor.name}</CardTitle>
           <p className="text-sm text-slate-500 mt-1">
-            Every transaction for this vendor across all jobs.
+            Every bill for this vendor, with the job each bill is coded to.
           </p>
         </CardHeader>
         <CardContent className="p-0">
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead>Bill #</TableHead>
                 <TableHead>Date</TableHead>
-                <TableHead>Type</TableHead>
-                <TableHead>Num</TableHead>
-                <TableHead>Account</TableHead>
+                <TableHead>Due Date</TableHead>
+                <TableHead>Status</TableHead>
                 <TableHead>Job Name</TableHead>
-                <TableHead>Description</TableHead>
                 <TableHead className="text-right">Amount</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {txnsLoading ? (
+              {billsLoading ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-8 text-slate-500">Loading transactions...</TableCell>
+                  <TableCell colSpan={6} className="text-center py-8 text-slate-500">Loading bills...</TableCell>
                 </TableRow>
-              ) : transactions?.length === 0 ? (
+              ) : bills?.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-8 text-slate-500">No transactions for this vendor yet.</TableCell>
+                  <TableCell colSpan={6} className="text-center py-8 text-slate-500">No bills for this vendor yet.</TableCell>
                 </TableRow>
               ) : (
                 <>
-                  {transactions?.map((txn) => (
-                    <TableRow key={txn.id}>
-                      <TableCell className="whitespace-nowrap">{txn.date}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className="capitalize text-xs">{formatType(txn.type)}</Badge>
+                  {bills?.map((bill) => (
+                    <TableRow
+                      key={bill.id}
+                      className="cursor-pointer hover:bg-slate-50"
+                      onClick={() => navigate(`/bills/${bill.id}`)}
+                      data-testid={`row-bill-${bill.id}`}
+                    >
+                      <TableCell className="font-medium">
+                        <Link
+                          href={`/bills/${bill.id}`}
+                          className="text-blue-600 hover:underline"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          {bill.billNumber || `Bill #${bill.id}`}
+                        </Link>
                       </TableCell>
-                      <TableCell>{txn.num || "-"}</TableCell>
-                      <TableCell>{txn.accountNumber} - {txn.accountName}</TableCell>
+                      <TableCell className="whitespace-nowrap">{bill.date}</TableCell>
+                      <TableCell className="whitespace-nowrap">{bill.dueDate || "-"}</TableCell>
                       <TableCell>
-                        {txn.jobId ? (
-                          <Link href={`/jobs/${txn.jobId}`} className="text-blue-600 hover:underline">
-                            {txn.jobName || `Job ${txn.jobId}`}
+                        <Badge
+                          variant={statusVariant[bill.status] ?? "default"}
+                          className="capitalize"
+                        >
+                          {bill.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        {bill.jobId ? (
+                          <Link
+                            href={`/jobs/${bill.jobId}`}
+                            className="text-blue-600 hover:underline"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            {bill.jobName || `Job ${bill.jobId}`}
                           </Link>
                         ) : (
                           "-"
                         )}
                       </TableCell>
-                      <TableCell className="text-slate-500">{txn.description || "-"}</TableCell>
-                      <TableCell className="text-right font-medium">{formatCents(txn.amountCents)}</TableCell>
+                      <TableCell className="text-right font-medium">{formatCents(bill.totalCents)}</TableCell>
                     </TableRow>
                   ))}
                   <TableRow className="bg-slate-50 hover:bg-slate-50">
-                    <TableCell colSpan={6} className="text-right font-semibold text-slate-700">
+                    <TableCell colSpan={5} className="text-right font-semibold text-slate-700">
                       Total for {vendor.name}
                     </TableCell>
                     <TableCell className="text-right font-bold text-slate-900">{formatCents(totalCents)}</TableCell>
