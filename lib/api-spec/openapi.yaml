@@ -3052,6 +3052,9 @@ components:
         amountCents:
           type: integer
           description: Line amount in integer cents
+        accountId:
+          type: ["integer", "null"]
+          description: Suggested chart-of-accounts id for this line, when the AI could match one
     ExtractBillResult:
       type: object
       required: [lines]

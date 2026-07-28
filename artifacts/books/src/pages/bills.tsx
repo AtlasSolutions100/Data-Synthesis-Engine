@@ -105,7 +105,7 @@ function UploadInvoiceDialog({
       memo: result.memo ?? "",
       lines: result.lines.length
         ? result.lines.map((l) => ({
-            accountId: "",
+            accountId: l.accountId != null ? String(l.accountId) : "",
             description: l.description ?? "",
             amount: (l.amountCents / 100).toFixed(2),
           }))

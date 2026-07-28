@@ -1665,7 +1665,8 @@ export const ExtractBillResponse = zod.object({
   "poNumber": zod.string().nullish().describe('Purchase order (PO) number referenced on the invoice, when visible'),
   "lines": zod.array(zod.object({
   "description": zod.string().nullish(),
-  "amountCents": zod.number().describe('Line amount in integer cents')
+  "amountCents": zod.number().describe('Line amount in integer cents'),
+  "accountId": zod.number().nullish().describe('Suggested chart-of-accounts id for this line, when the AI could match one')
 }))
 })
 

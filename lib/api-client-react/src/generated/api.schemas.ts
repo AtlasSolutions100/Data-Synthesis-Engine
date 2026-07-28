@@ -1265,6 +1265,11 @@ export interface ExtractedBillLine {
   description?: string | null;
   /** Line amount in integer cents */
   amountCents: number;
+  /**
+     * Suggested chart-of-accounts id for this line, when the AI could match one
+     * @nullable
+     */
+  accountId?: number | null;
 }
 
 export interface ExtractBillResult {

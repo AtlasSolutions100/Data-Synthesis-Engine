@@ -39,7 +39,7 @@ const router: IRouter = Router();
 const EXTRACT_BILL_SYSTEM_PROMPT = `You extract vendor bill details from invoices: uploaded scans/photos (images or PDFs) or pasted text. Formats vary widely.
 
 Return ONLY a JSON object of this exact shape:
-{"vendorName": string|null, "billNumber": string|null, "date": string|null, "dueDate": string|null, "memo": string|null, "jobName": string|null, "poNumber": string|null, "lines": [{"description": string|null, "amount": number}]}
+{"vendorName": string|null, "billNumber": string|null, "date": string|null, "dueDate": string|null, "memo": string|null, "jobName": string|null, "poNumber": string|null, "lines": [{"description": string|null, "amount": number, "accountNumber": string|null}]}
 
 Rules:
 - vendorName: the company issuing the invoice (the seller/supplier), exactly as written. null if unclear.
@@ -51,6 +51,7 @@ Rules:
 - poNumber: the customer purchase order number when shown (e.g. "PO #4482"). Just the number/reference as written, without the "PO" label. null if not present. Do not confuse it with the invoice number.
 - lines: one entry per billed line item with description and amount in DOLLARS (e.g. 125.50). If only a grand total is visible, return a single line with the total. Exclude sales tax lines only if they are clearly separate — otherwise include everything so the lines sum to the invoice total.
 - amount must be a plain number in dollars (no currency symbols, no strings).
+- accountNumber: for each line, the account number from the CHART OF ACCOUNTS list appended below that best categorizes the expense based on the line description (e.g. fuel -> a gas/oil account). Use ONLY numbers that appear in the list, copied exactly. If no account in the list is a clear fit, or no list is provided, use null. Never invent an account number.
 - Ignore remittance addresses, logos, and marketing text.
 - If the content is not an invoice at all, return {"vendorName": null, "billNumber": null, "date": null, "dueDate": null, "memo": null, "jobName": null, "poNumber": null, "lines": []}.`;
 
@@ -145,6 +146,20 @@ router.post("/bills/extract", async (req, res): Promise<void> => {
     userParts.push(filePart);
   }
 
+  const accounts = await db
+    .select({
+      id: accountsTable.id,
+      number: accountsTable.number,
+      name: accountsTable.name,
+    })
+    .from(accountsTable)
+    .orderBy(accountsTable.number);
+  const systemPrompt = accounts.length
+    ? `${EXTRACT_BILL_SYSTEM_PROMPT}\n\nCHART OF ACCOUNTS (number — name):\n${accounts
+        .map((a) => `${a.number} — ${a.name}`)
+        .join("\n")}`
+    : EXTRACT_BILL_SYSTEM_PROMPT;
+
   let content: string;
   try {
     const completion = await openai.chat.completions.create({
@@ -152,7 +167,7 @@ router.post("/bills/extract", async (req, res): Promise<void> => {
       max_completion_tokens: 8192,
       response_format: { type: "json_object" },
       messages: [
-        { role: "system", content: EXTRACT_BILL_SYSTEM_PROMPT },
+        { role: "system", content: systemPrompt },
         // Cast: the OpenAI SDK's union type for content parts lags behind the
         // API, which accepts file parts on chat completions.
         { role: "user", content: userParts as never },
@@ -183,6 +198,9 @@ router.post("/bills/extract", async (req, res): Promise<void> => {
     const s = str(v);
     return s && /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : null;
   };
+  // Map suggested account numbers back to ids; drop any number the model
+  // returns that isn't in the chart of accounts (no hallucinated codes).
+  const accountIdByNumber = new Map(accounts.map((a) => [a.number, a.id]));
   const lines = (Array.isArray(raw.lines) ? raw.lines : [])
     .map((l) => {
       const line = (l ?? {}) as Record<string, unknown>;
@@ -191,13 +209,24 @@ router.post("/bills/extract", async (req, res): Promise<void> => {
           ? line.amount
           : null;
       if (amount == null) return null;
+      const accountNumber = str(line.accountNumber);
       return {
         description: str(line.description),
         amountCents: Math.round(amount * 100),
+        accountId:
+          accountNumber != null
+            ? (accountIdByNumber.get(accountNumber) ?? null)
+            : null,
       };
     })
-    .filter((l): l is { description: string | null; amountCents: number } =>
-      Boolean(l),
+    .filter(
+      (
+        l,
+      ): l is {
+        description: string | null;
+        amountCents: number;
+        accountId: number | null;
+      } => Boolean(l),
     );
 
   res.json(
