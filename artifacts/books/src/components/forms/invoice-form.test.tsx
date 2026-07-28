@@ -20,6 +20,14 @@ vi.mock("@workspace/api-client-react", () => ({
     data: [{ id: 10, jobNumber: "J-100", name: "Warehouse" }],
   }),
   getListJobsQueryKey: () => ["/api/jobs"],
+  useGetNextInvoiceNumber: () => ({
+    data: { nextNumber: "INV-2" },
+  }),
+  getGetNextInvoiceNumberQueryKey: () => ["/api/invoices/next-number"],
+  useGetCurrentUser: () => ({
+    data: { id: 1, role: "owner" },
+  }),
+  getGetCurrentUserQueryKey: () => ["/api/users/me"],
 }));
 
 beforeAll(() => {
