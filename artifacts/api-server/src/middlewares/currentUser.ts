@@ -1,7 +1,7 @@
 import type { Request, Response, NextFunction } from "express";
 import { getAuth, clerkClient } from "@clerk/express";
-import { and, eq, ne, sql } from "drizzle-orm";
-import { db, usersTable, type User } from "@workspace/db";
+import { and, eq, inArray, ne, sql } from "drizzle-orm";
+import { db, usersTable, jobDocumentsTable, type User } from "@workspace/db";
 import { logger } from "../lib/logger";
 
 declare global {
@@ -19,7 +19,7 @@ function normalizeEmail(email: string): string {
 
 /**
  * Fetches the user's primary email from Clerk and returns it (normalized)
- * only when Clerk reports it as verified. Used for the owner self-heal —
+ * only when Clerk reports it as verified. Used for merging duplicate logins —
  * an authorization decision must never rely on an unverified or stored email.
  */
 async function getVerifiedClerkEmail(userId: string): Promise<string | null> {
@@ -30,16 +30,73 @@ async function getVerifiedClerkEmail(userId: string): Promise<string | null> {
     if (primary.verification?.status !== "verified") return null;
     return normalizeEmail(primary.emailAddress);
   } catch (err) {
-    logger.warn({ err }, "Failed to fetch Clerk user for owner self-heal");
+    logger.warn({ err }, "Failed to fetch Clerk user for duplicate-login merge");
     return null;
   }
+}
+
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+/**
+ * Picks the row to keep when several rows belong to the same person:
+ * prefer an owner row (so the role survives), otherwise the oldest row.
+ */
+function pickKeeper(rows: User[]): User {
+  const owners = rows.filter((r) => r.role === "owner");
+  const pool = owners.length > 0 ? owners : rows;
+  return pool.reduce((a, b) => (a.id <= b.id ? a : b));
+}
+
+/**
+ * Merges duplicate user rows for one person into `keeper`: repoints foreign
+ * keys off the losing rows, deletes them, and repoints the keeper at the
+ * clerkUserId that is signing in right now. Returns the updated keeper.
+ * Must run inside a transaction.
+ */
+async function mergeUserRows(
+  tx: Tx,
+  keeper: User,
+  losers: User[],
+  clerkUserId: string,
+): Promise<User> {
+  const anyOwner =
+    keeper.role === "owner" || losers.some((r) => r.role === "owner");
+  if (losers.length > 0) {
+    const loserIds = losers.map((r) => r.id);
+    await tx
+      .update(jobDocumentsTable)
+      .set({ uploadedByUserId: keeper.id })
+      .where(inArray(jobDocumentsTable.uploadedByUserId, loserIds));
+    await tx.delete(usersTable).where(inArray(usersTable.id, loserIds));
+  }
+  const [updated] = await tx
+    .update(usersTable)
+    .set({
+      clerkUserId,
+      role: anyOwner ? "owner" : keeper.role,
+    })
+    .where(eq(usersTable.id, keeper.id))
+    .returning();
+  return updated ?? keeper;
 }
 
 /**
  * Resolves the signed-in Clerk user to a local `users` row, creating it on
  * first sight. The very first user to sign in becomes the owner/admin; everyone
  * after is a bookkeeper. Both roles have full financial access — the role only
- * gates user management. Attaches the row as `req.currentUser`.
+ * gates user management.
+ *
+ * Duplicate-login handling: the same person can arrive with a new clerkUserId
+ * (different sign-in method, or Clerk dev keys → production keys). Rows are
+ * merged by *verified* Clerk email so each person keeps exactly one row:
+ * - On first sight, a new login whose verified email matches existing row(s)
+ *   adopts the existing row instead of inserting a duplicate.
+ * - On later sign-ins, any leftover rows with the same verified email are
+ *   merged into one (preferring the owner row, so owner access survives).
+ * The email must come fresh from Clerk and be verified; never trust the
+ * stored DB value for an authorization decision.
+ *
+ * Attaches the row as `req.currentUser`.
  */
 export async function withCurrentUser(
   req: Request,
@@ -80,36 +137,49 @@ export async function withCurrentUser(
       .limit(1);
 
     if (existing) {
-      // Self-heal: Clerk instances can change (e.g. dev keys → production
-      // keys), giving the same person a new clerkUserId. If this login was
-      // created as a bookkeeper but another row with the same *verified*
-      // email is the owner, this is the owner signing in from a new Clerk
-      // account — promote the new row so owner-only features stay
-      // accessible. The email must come fresh from Clerk and be verified;
-      // never trust the stored DB value for an authorization decision.
-      if (existing.role !== "owner") {
+      // Decide whether to consult Clerk for the verified email. Non-owner
+      // logins always check (their row may need to merge into an owner row —
+      // the owner self-heal). Owner logins only check when a stored-email
+      // twin suggests a leftover duplicate, to avoid a Clerk API call on
+      // every request.
+      let shouldCheck = existing.role !== "owner";
+      if (!shouldCheck && existing.email) {
+        const [candidate] = await db
+          .select({ id: usersTable.id })
+          .from(usersTable)
+          .where(
+            and(
+              sql`lower(${usersTable.email}) = ${normalizeEmail(existing.email)}`,
+              ne(usersTable.id, existing.id),
+            ),
+          )
+          .limit(1);
+        shouldCheck = Boolean(candidate);
+      }
+
+      if (shouldCheck) {
         const verifiedEmail = await getVerifiedClerkEmail(userId);
         if (verifiedEmail) {
-          const [ownerTwin] = await db
-            .select({ id: usersTable.id })
+          const twins = await db
+            .select()
             .from(usersTable)
             .where(
               and(
                 sql`lower(${usersTable.email}) = ${verifiedEmail}`,
-                eq(usersTable.role, "owner"),
-                ne(usersTable.clerkUserId, userId),
+                ne(usersTable.id, existing.id),
               ),
-            )
-            .limit(1);
-          if (ownerTwin) {
-            const [promoted] = await db
-              .update(usersTable)
-              .set({ role: "owner" })
-              .where(
-                and(eq(usersTable.id, existing.id), ne(usersTable.role, "owner")),
-              )
-              .returning();
-            req.currentUser = promoted ?? existing;
+            );
+          if (twins.length > 0) {
+            const rows = [existing, ...twins];
+            const keeper = pickKeeper(rows);
+            const losers = rows.filter((r) => r.id !== keeper.id);
+            const merged = await db.transaction(async (tx) => {
+              await tx.execute(
+                sql`SELECT pg_advisory_xact_lock(hashtext('users_bootstrap'))`,
+              );
+              return mergeUserRows(tx, keeper, losers, userId);
+            });
+            req.currentUser = merged;
             next();
             return;
           }
@@ -144,27 +214,33 @@ export async function withCurrentUser(
     const created = await db.transaction(async (tx) => {
       await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext('users_bootstrap'))`);
 
+      // First sight of this clerkUserId: if row(s) with the same *verified*
+      // email already exist, this is an existing person arriving via a new
+      // Clerk account — reuse (merge into) their row instead of inserting a
+      // duplicate.
+      if (verifiedEmail) {
+        const twins = await tx
+          .select()
+          .from(usersTable)
+          .where(sql`lower(${usersTable.email}) = ${verifiedEmail}`);
+        if (twins.length > 0) {
+          const keeper = pickKeeper(twins);
+          const losers = twins.filter((r) => r.id !== keeper.id);
+          const merged = await mergeUserRows(tx, keeper, losers, userId);
+          // Refresh profile fields from the current Clerk account.
+          const [refreshed] = await tx
+            .update(usersTable)
+            .set({ email, name: name ?? merged.name })
+            .where(eq(usersTable.id, merged.id))
+            .returning();
+          return refreshed ?? merged;
+        }
+      }
+
       const [{ count }] = await tx
         .select({ count: sql<number>`count(*)::int` })
         .from(usersTable);
-      let role: "owner" | "bookkeeper" = count === 0 ? "owner" : "bookkeeper";
-
-      // Same self-heal as above, applied at creation time: a *verified*
-      // email that already belongs to an owner row means this is the owner
-      // arriving via a new Clerk account.
-      if (role !== "owner" && verifiedEmail) {
-        const [ownerTwin] = await tx
-          .select({ id: usersTable.id })
-          .from(usersTable)
-          .where(
-            and(
-              sql`lower(${usersTable.email}) = ${verifiedEmail}`,
-              eq(usersTable.role, "owner"),
-            ),
-          )
-          .limit(1);
-        if (ownerTwin) role = "owner";
-      }
+      const role: "owner" | "bookkeeper" = count === 0 ? "owner" : "bookkeeper";
 
       const [row] = await tx
         .insert(usersTable)
