@@ -39,6 +39,7 @@ import {
 } from "@/lib/server-field-error";
 import { useQueryClient } from "@tanstack/react-query";
 import { matchExtractedJob } from "@/lib/match-extracted-job";
+import { matchExtractedVendor } from "@/lib/match-extracted-vendor";
 import { Plus, Trash2, Upload, Loader2 } from "lucide-react";
 import { ImportDataDialog } from "@/components/import-data-dialog";
 
@@ -81,23 +82,17 @@ function UploadInvoiceDialog({
   };
 
   const finish = (result: ExtractBillResult) => {
-    const norm = (s: string) => s.trim().toLowerCase();
-    const matched =
-      result.vendorName && vendors
-        ? vendors.find(
-            (v) =>
-              norm(v.name) === norm(result.vendorName!) ||
-              norm(v.name).includes(norm(result.vendorName!)) ||
-              norm(result.vendorName!).includes(norm(v.name)),
-          )
-        : undefined;
+    const vendorMatch = matchExtractedVendor(
+      vendors ?? [],
+      result.vendorName ?? null,
+    );
     const jobMatch = matchExtractedJob(
       jobs ?? [],
       result.jobName ?? null,
       result.poNumber ?? null,
     );
     const prefill: BillPrefill = {
-      vendorId: matched ? String(matched.id) : "",
+      vendorId: vendorMatch.vendor ? String(vendorMatch.vendor.id) : "",
       customerId:
         jobMatch.job && jobMatch.confident && jobMatch.job.customerId != null
           ? String(jobMatch.job.customerId)
@@ -117,11 +112,7 @@ function UploadInvoiceDialog({
         : undefined,
     };
     const notes: string[] = [];
-    if (result.vendorName && !matched) {
-      notes.push(
-        `Vendor "${result.vendorName}" was read from the invoice but doesn't match any vendor on file — pick the right vendor below.`,
-      );
-    }
+    if (vendorMatch.note) notes.push(vendorMatch.note);
     if (jobMatch.note) notes.push(jobMatch.note);
     setOpen(false);
     reset();
