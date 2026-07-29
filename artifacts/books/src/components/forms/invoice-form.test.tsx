@@ -585,3 +585,54 @@ describe("InvoiceForm inline job creation", () => {
     );
   });
 });
+
+describe("InvoiceForm customer/job cascading filter", () => {
+  beforeEach(() => {
+    mockCustomers = [
+      { id: 20, name: "Northside Mall" },
+      { id: 21, name: "Douglas County" },
+    ];
+    mockJobs = [
+      { id: 10, jobNumber: "J-100", name: "Warehouse", customerId: 20 },
+      { id: 11, jobNumber: "J-101", name: "Courthouse", customerId: 21 },
+    ];
+  });
+
+  it("lists every job when no customer is selected", async () => {
+    renderForm(<InvoiceForm onSubmit={vi.fn()} defaultValues={baseDefaults} />);
+    fireEvent.click(await triggerShowing(/select job name/i));
+    expect(await screen.findByText("Warehouse")).toBeTruthy();
+    expect(screen.getByText("Courthouse")).toBeTruthy();
+  });
+
+  it("only lists the selected customer's jobs", async () => {
+    renderForm(<InvoiceForm onSubmit={vi.fn()} defaultValues={baseDefaults} />);
+    await pickOption(/defaults to job/i, /Douglas County/);
+    fireEvent.click(await triggerShowing(/select job name/i));
+    expect(await screen.findByText("Courthouse")).toBeTruthy();
+    expect(screen.queryByText("Warehouse")).toBeNull();
+  });
+
+  it("clears a selected job that doesn't belong to the newly chosen customer", async () => {
+    renderForm(
+      <InvoiceForm
+        onSubmit={vi.fn()}
+        defaultValues={{ ...baseDefaults, jobId: "10" }}
+      />,
+    );
+    await pickOption(/defaults to job/i, /Douglas County/);
+    // Job selection no longer matches -> combobox resets to placeholder.
+    expect(await triggerShowing(/select job name/i)).toBeTruthy();
+  });
+
+  it("keeps a selected job that belongs to the newly chosen customer", async () => {
+    renderForm(
+      <InvoiceForm
+        onSubmit={vi.fn()}
+        defaultValues={{ ...baseDefaults, jobId: "10" }}
+      />,
+    );
+    await pickOption(/defaults to job/i, /Northside Mall/);
+    expect(await triggerShowing("Warehouse")).toBeTruthy();
+  });
+});

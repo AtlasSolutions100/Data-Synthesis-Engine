@@ -150,6 +150,18 @@ export function InvoiceForm({
 
   const createCustomer = useCreateCustomer();
 
+  // If the currently selected job doesn't belong to the newly chosen
+  // customer, clear it so the form can't submit a mismatched pair.
+  const clearJobIfMismatched = (nextCustomerId: string) => {
+    if (lockJob) return;
+    const jobId = form.getValues("jobId");
+    if (!jobId || !nextCustomerId) return;
+    const job = (jobs ?? []).find((j) => String(j.id) === jobId);
+    if (job && String(job.customerId ?? "") !== nextCustomerId) {
+      form.setValue("jobId", "");
+    }
+  };
+
   const handleCreateCustomer = (name: string) => {
     const trimmed = name.trim();
     if (!trimmed || createCustomer.isPending) return;
@@ -161,6 +173,7 @@ export function InvoiceForm({
       form.setValue("customerId", String(existing.id), {
         shouldValidate: true,
       });
+      clearJobIfMismatched(String(existing.id));
       return;
     }
     createCustomer.mutate(
@@ -183,6 +196,7 @@ export function InvoiceForm({
           form.setValue("customerId", String(customer.id), {
             shouldValidate: true,
           });
+          clearJobIfMismatched(String(customer.id));
         },
         onError: () => {
           form.setError("customerId", {
@@ -253,6 +267,14 @@ export function InvoiceForm({
   };
 
   const [previewOpen, setPreviewOpen] = useState(false);
+
+  const watchedCustomerId = form.watch("customerId");
+
+  // Mirror bill-form: when a customer is selected, only list their jobs.
+  const filteredJobs = (jobs ?? []).filter(
+    (j) =>
+      !watchedCustomerId || String(j.customerId ?? "") === watchedCustomerId,
+  );
 
   const fieldError =
     serverError?.field &&
@@ -401,7 +423,7 @@ export function InvoiceForm({
                 <FormLabel>Job Name</FormLabel>
                 <FormControl>
                   <EntityCombobox
-                    options={(jobs ?? []).map((j) => ({
+                    options={filteredJobs.map((j) => ({
                       id: j.id,
                       label: j.name,
                     }))}
@@ -435,7 +457,10 @@ export function InvoiceForm({
                       label: c.name,
                     }))}
                     value={field.value ?? ""}
-                    onChange={field.onChange}
+                    onChange={(next) => {
+                      field.onChange(next);
+                      clearJobIfMismatched(next);
+                    }}
                     placeholder="Defaults to job"
                     searchPlaceholder="Search customers..."
                     emptyText="No customers found."
