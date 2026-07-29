@@ -55,7 +55,12 @@ export function ImportEmployeesDialog() {
   const [rows, setRows] = useState<EmployeeReviewRow[]>([]);
   const [saving, setSaving] = useState(false);
 
-  const { data: employeesData } = useListEmployees({
+  const {
+    data: employeesData,
+    isSuccess: employeesLoaded,
+    isError: employeesFailed,
+    refetch: refetchEmployees,
+  } = useListEmployees({
     query: { queryKey: getListEmployeesQueryKey(), enabled: open },
   });
   const employees = employeesData ?? [];
@@ -102,6 +107,10 @@ export function ImportEmployeesDialog() {
 
   const handleExtract = async () => {
     setError("");
+    if (!employeesLoaded) {
+      setError("Your current employee list hasn't loaded yet, so matches can't be checked. Wait a moment and try again.");
+      return;
+    }
     if (!text.trim() && !fileData) {
       setError("Paste some text or upload a file first.");
       return;
@@ -271,11 +280,31 @@ export function ImportEmployeesDialog() {
               ) : null}
             </div>
             {error ? <p className="text-sm text-red-600">{error}</p> : null}
-            <div className="flex justify-end">
+            {!employeesLoaded && employeesFailed ? (
+              <p className="text-sm text-amber-600">
+                Couldn't load your current employee list, so extracted names can't be
+                matched against existing employees.{" "}
+                <button
+                  type="button"
+                  className="underline"
+                  onClick={() => refetchEmployees()}
+                >
+                  Retry loading
+                </button>
+              </p>
+            ) : null}
+            <div className="flex items-center justify-end gap-3">
+              {!employeesLoaded && !employeesFailed ? (
+                <span className="text-xs text-slate-500">Loading current employee list…</span>
+              ) : null}
               <Button
                 type="button"
                 onClick={handleExtract}
-                disabled={extract.isPending || text.length > MAX_EXTRACT_TEXT_LENGTH}
+                disabled={
+                  extract.isPending ||
+                  !employeesLoaded ||
+                  text.length > MAX_EXTRACT_TEXT_LENGTH
+                }
               >
                 {extract.isPending ? "Extracting…" : "Extract employees"}
               </Button>
