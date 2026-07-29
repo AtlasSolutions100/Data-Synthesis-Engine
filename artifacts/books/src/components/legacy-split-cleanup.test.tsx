@@ -33,21 +33,24 @@ let undoOpts: MutateOpts;
 const mapMutate = vi.fn();
 const undoMutate = vi.fn();
 
-vi.mock("@workspace/api-client-react", () => ({
-  useListLegacySplits: () => ({ data: groups, isLoading: false }),
-  getListLegacySplitsQueryKey: () => ["/api/transactions/legacy-splits"],
-  useListAccounts: () => ({ data: accounts, isLoading: false }),
-  getListAccountsQueryKey: () => ["/api/accounts"],
-  getListTransactionsQueryKey: () => ["/api/transactions"],
-  useMapLegacySplit: (opts: MutateOpts) => {
-    mapOpts = opts;
-    return { mutate: mapMutate, isPending: false };
-  },
-  useUndoLegacySplitMapping: (opts: MutateOpts) => {
-    undoOpts = opts;
-    return { mutate: undoMutate, isPending: false };
-  },
-}));
+// Shared factory: every generated hook is stubbed with safe defaults so new
+// hooks used by the dialog can't break this suite; only the hooks under test
+// are overridden.
+vi.mock("@workspace/api-client-react", async (importOriginal) => {
+  const { createApiClientReactMock } = await import("@/test/mock-api-client");
+  return createApiClientReactMock(importOriginal, {
+    useListLegacySplits: () => ({ data: groups, isLoading: false }),
+    useListAccounts: () => ({ data: accounts, isLoading: false }),
+    useMapLegacySplit: (opts: MutateOpts) => {
+      mapOpts = opts;
+      return { mutate: mapMutate, isPending: false };
+    },
+    useUndoLegacySplitMapping: (opts: MutateOpts) => {
+      undoOpts = opts;
+      return { mutate: undoMutate, isPending: false };
+    },
+  });
+});
 
 beforeEach(() => {
   // Radix select needs these in jsdom.

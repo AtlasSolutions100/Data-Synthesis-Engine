@@ -85,31 +85,20 @@ let listResult: { data: unknown; isLoading: boolean } = {
   isLoading: false,
 };
 
-vi.mock("@workspace/api-client-react", () => ({
-  useListTransactions: () => listResult,
-  getListTransactionsQueryKey: (params?: unknown) => [
-    "/api/transactions",
-    params,
-  ],
-  useCreateTransaction: () => ({ mutate: vi.fn(), isPending: false }),
-  useUpdateTransaction: () => ({ mutate: vi.fn(), isPending: false }),
-  useDeleteTransaction: () => ({ mutate: vi.fn(), isPending: false }),
-  // Used by the LegacySplitCleanup dialog rendered on the page header.
-  useListLegacySplits: () => ({ data: [], isLoading: false }),
-  getListLegacySplitsQueryKey: () => ["/api/transactions/legacy-splits"],
-  useMapLegacySplit: () => ({ mutate: vi.fn(), isPending: false }),
-  useUndoLegacySplitMapping: () => ({ mutate: vi.fn(), isPending: false }),
-  useListAccounts: () => ({ data: [], isLoading: false }),
-  getListAccountsQueryKey: () => ["/api/accounts"],
-  // Used by the BillLinkReview dialog rendered on the page header.
-  useListUnlinkedBillTransactions: () => ({ data: [], isLoading: false }),
-  getListUnlinkedBillTransactionsQueryKey: () => [
-    "/api/transactions/unlinked-bills",
-  ],
-  useLinkTransactionBill: () => ({ mutate: vi.fn(), isPending: false }),
-  useListBills: () => ({ data: [], isLoading: false }),
-  getListBillsQueryKey: () => ["/api/bills"],
-}));
+// Shared factory: every generated hook is stubbed with safe defaults so new
+// hooks used by the page (or its header dialogs) can't break this suite; only
+// the hooks under test are overridden.
+vi.mock("@workspace/api-client-react", async (importOriginal) => {
+  const { createApiClientReactMock } = await import("@/test/mock-api-client");
+  return createApiClientReactMock(importOriginal, {
+    useListTransactions: () => listResult,
+    // Lists consumed by the header dialogs (LegacySplitCleanup, BillLinkReview).
+    useListLegacySplits: () => ({ data: [], isLoading: false }),
+    useListAccounts: () => ({ data: [], isLoading: false }),
+    useListUnlinkedBillTransactions: () => ({ data: [], isLoading: false }),
+    useListBills: () => ({ data: [], isLoading: false }),
+  });
+});
 
 const scrollIntoView = vi.fn();
 

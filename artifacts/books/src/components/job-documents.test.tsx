@@ -34,12 +34,16 @@ import {
 // JobDocuments pulls in generated react-query hooks and the upload hook; mock
 // them so render tests can control the document list without a live API.
 const mockUseListJobDocuments = vi.fn();
-vi.mock("@workspace/api-client-react", () => ({
-  useListJobDocuments: (...args: unknown[]) => mockUseListJobDocuments(...args),
-  getListJobDocumentsQueryKey: (id: number) => ["jobDocuments", id],
-  useCreateJobDocument: () => ({ mutate: vi.fn(), isPending: false }),
-  useDeleteJobDocument: () => ({ mutate: vi.fn(), isPending: false }),
-}));
+// Shared factory: every generated hook is stubbed with safe defaults so new
+// hooks used by the component can't break this suite; only the hooks under
+// test are overridden.
+vi.mock("@workspace/api-client-react", async (importOriginal) => {
+  const { createApiClientReactMock } = await import("@/test/mock-api-client");
+  return createApiClientReactMock(importOriginal, {
+    useListJobDocuments: (...args: unknown[]) =>
+      mockUseListJobDocuments(...args),
+  });
+});
 
 vi.mock("@workspace/object-storage-web", () => ({
   useUpload: () => ({ uploadFile: vi.fn(), isUploading: false }),

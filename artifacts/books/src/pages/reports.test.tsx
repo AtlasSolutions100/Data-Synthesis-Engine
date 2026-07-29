@@ -153,84 +153,69 @@ const emptyBuckets = {
 const arAging: ArAging = { asOf: "2026-07-17", customers: [], totals: emptyBuckets };
 const apAging: ApAging = { asOf: "2026-07-17", vendors: [], totals: emptyBuckets };
 
-vi.mock("@workspace/api-client-react", () => ({
-  useListTransactions: () => ({ data: [], isLoading: false }),
-  getListTransactionsQueryKey: (params: unknown) => [
-    "/api/transactions",
-    params,
-  ],
-  useListCustomers: () => ({ data: [], isLoading: false }),
-  getListCustomersQueryKey: () => ["/api/customers"],
-  useListJobs: () => ({ data: [], isLoading: false }),
-  getListJobsQueryKey: () => ["/api/jobs"],
-  useGetCostByAccount: (params: { startDate?: string; endDate?: string }) => ({
-    data: costFor(params),
-    isLoading: false,
-  }),
-  getGetCostByAccountQueryKey: (params: unknown) => [
-    "/api/reports/cost-by-account",
-    params,
-  ],
-  useGetPayrollByJob: (params: { startDate?: string; endDate?: string }) => ({
-    data: payrollFor(params),
-    isLoading: false,
-  }),
-  getGetPayrollByJobQueryKey: (params: unknown) => [
-    "/api/reports/payroll-by-job",
-    params,
-  ],
-  useGetArAging: () => ({ data: arAging, isLoading: false }),
-  getGetArAgingQueryKey: (params: unknown) => ["/api/reports/ar-aging", params],
-  useGetApAging: () => ({ data: apAging, isLoading: false }),
-  getGetApAgingQueryKey: (params: unknown) => ["/api/reports/ap-aging", params],
-  useGetAccountBalances: () => ({
-    data: {
-      rows: [
-        {
-          accountId: 1,
-          accountNumber: "1000",
-          accountName: "Checking",
-          type: "bank",
-          balanceCents: 1234500,
-        },
-        {
-          accountId: 2,
-          accountNumber: "2100",
-          accountName: "Home Depot CC",
-          type: "credit_card",
-          balanceCents: 45600,
-        },
-      ],
-    },
-    isLoading: false,
-  }),
-  getGetAccountBalancesQueryKey: () => ["/api/reports/account-balances"],
-  useGetAccountBalanceTransactions: () => ({
-    data: {
-      accountId: 1,
-      balanceCents: 50000,
-      lines: [
-        {
-          transactionId: 42,
-          role: "primary",
-          date: "2026-07-01",
-          type: "check",
-          num: "1001",
-          partyName: "Volt Supply Co",
-          description: "Wire spools",
-          otherAccountName: "Materials",
-          effectCents: 50000,
-        },
-      ],
-    },
-    isLoading: false,
-    isError: false,
-  }),
-  getGetAccountBalanceTransactionsQueryKey: (id: number, params: unknown) => [
-    `/api/reports/account-balances/${id}/transactions`,
-    params,
-  ],
-}));
+// Shared factory: every generated hook is stubbed with safe defaults so new
+// hooks used by the page can't break this suite; only the hooks under test
+// are overridden.
+vi.mock("@workspace/api-client-react", async (importOriginal) => {
+  const { createApiClientReactMock } = await import("@/test/mock-api-client");
+  return createApiClientReactMock(importOriginal, {
+    useListTransactions: () => ({ data: [], isLoading: false }),
+    useListCustomers: () => ({ data: [], isLoading: false }),
+    useListJobs: () => ({ data: [], isLoading: false }),
+    useGetCostByAccount: (params: { startDate?: string; endDate?: string }) => ({
+      data: costFor(params),
+      isLoading: false,
+    }),
+    useGetPayrollByJob: (params: { startDate?: string; endDate?: string }) => ({
+      data: payrollFor(params),
+      isLoading: false,
+    }),
+    useGetArAging: () => ({ data: arAging, isLoading: false }),
+    useGetApAging: () => ({ data: apAging, isLoading: false }),
+    useGetAccountBalances: () => ({
+      data: {
+        rows: [
+          {
+            accountId: 1,
+            accountNumber: "1000",
+            accountName: "Checking",
+            type: "bank",
+            balanceCents: 1234500,
+          },
+          {
+            accountId: 2,
+            accountNumber: "2100",
+            accountName: "Home Depot CC",
+            type: "credit_card",
+            balanceCents: 45600,
+          },
+        ],
+      },
+      isLoading: false,
+    }),
+    useGetAccountBalanceTransactions: () => ({
+      data: {
+        accountId: 1,
+        balanceCents: 50000,
+        lines: [
+          {
+            transactionId: 42,
+            role: "primary",
+            date: "2026-07-01",
+            type: "check",
+            num: "1001",
+            partyName: "Volt Supply Co",
+            description: "Wire spools",
+            otherAccountName: "Materials",
+            effectCents: 50000,
+          },
+        ],
+      },
+      isLoading: false,
+      isError: false,
+    }),
+  });
+});
 
 function renderReports() {
   const queryClient = new QueryClient({

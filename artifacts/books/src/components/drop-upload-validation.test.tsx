@@ -24,31 +24,31 @@ import { PayrollRunForm } from "./forms/payroll-run-form";
 const createJobDocMutate = vi.fn();
 const extractMutateAsync = vi.fn();
 
-vi.mock("@workspace/api-client-react", () => ({
-  // quick-upload-dialog + job-documents
-  useListJobs: () => ({
-    data: [{ id: 1, name: "Larkspur Gear" }],
-    isLoading: false,
-  }),
-  getListJobsQueryKey: () => ["jobs"],
-  useCreateJobDocument: () => ({
-    mutate: createJobDocMutate,
-    isPending: false,
-  }),
-  getListJobDocumentsQueryKey: (id: number) => ["jobDocuments", id],
-  useListJobDocuments: () => ({ data: [], isLoading: false }),
-  useDeleteJobDocument: () => ({ mutate: vi.fn(), isPending: false }),
-  // payroll-run-form (ImportHoursDialog)
-  useExtractPayrollHours: () => ({
-    mutateAsync: extractMutateAsync,
-    isPending: false,
-    reset: vi.fn(),
-  }),
-  useListEmployees: () => ({ data: [], isLoading: false }),
-  getListEmployeesQueryKey: () => ["employees"],
-  getListCustomersQueryKey: () => ["customers"],
-  useCreateJob: () => ({ mutateAsync: vi.fn(), isPending: false }),
-}));
+// Shared factory: every generated hook is stubbed with safe defaults so new
+// hooks used by these components can't break this suite; only the hooks under
+// test are overridden.
+vi.mock("@workspace/api-client-react", async (importOriginal) => {
+  const { createApiClientReactMock } = await import("@/test/mock-api-client");
+  return createApiClientReactMock(importOriginal, {
+    // quick-upload-dialog + job-documents
+    useListJobs: () => ({
+      data: [{ id: 1, name: "Larkspur Gear" }],
+      isLoading: false,
+    }),
+    useCreateJobDocument: () => ({
+      mutate: createJobDocMutate,
+      isPending: false,
+    }),
+    useListJobDocuments: () => ({ data: [], isLoading: false }),
+    // payroll-run-form (ImportHoursDialog)
+    useExtractPayrollHours: () => ({
+      mutateAsync: extractMutateAsync,
+      isPending: false,
+      reset: vi.fn(),
+    }),
+    useListEmployees: () => ({ data: [], isLoading: false }),
+  });
+});
 
 const uploadFileMock = vi.fn();
 vi.mock("@workspace/object-storage-web", () => ({
