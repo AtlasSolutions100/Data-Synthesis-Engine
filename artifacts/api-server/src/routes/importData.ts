@@ -23,73 +23,21 @@ import {
   normalizeHeaderKey,
 } from "./importHeaderAliases";
 import { syncBillTransactionsBatch } from "./bills";
+import {
+  type ImportCell as Cell,
+  cellText,
+  parseMoneyCents,
+  parseDate,
+  parseBool,
+  JOB_STATUS_MAP,
+} from "./importCellParsers";
 
 const router: IRouter = Router();
-
-/* ------------------------------------------------------------------ */
-/* Cell parsing helpers                                                */
-/* ------------------------------------------------------------------ */
-
-type Cell = string | number | boolean | Date | null | undefined;
-
-function cellText(c: Cell): string {
-  if (c == null) return "";
-  if (c instanceof Date) return c.toISOString().slice(0, 10);
-  return String(c).trim();
-}
 
 const normKey = normalizeHeaderKey;
 
 function normName(s: string): string {
   return s.trim().toLowerCase().replace(/\s+/g, " ");
-}
-
-/** "$1,234.56" / "(500)" / 1234.5 → integer cents, or null if not a number. */
-function parseMoneyCents(c: Cell): number | null {
-  if (c == null || c === "") return null;
-  if (typeof c === "number") return Math.round(c * 100);
-  let s = String(c).trim();
-  if (!s) return null;
-  let negative = false;
-  if (/^\(.*\)$/.test(s)) {
-    negative = true;
-    s = s.slice(1, -1);
-  }
-  s = s.replace(/[$,\s]/g, "");
-  if (s.startsWith("-")) {
-    negative = true;
-    s = s.slice(1);
-  }
-  if (!/^\d*\.?\d*$/.test(s) || s === "" || s === ".") return null;
-  const cents = Math.round(parseFloat(s) * 100);
-  return negative ? -cents : cents;
-}
-
-/** Excel date cell, "MM/DD/YYYY", or "YYYY-MM-DD" → "YYYY-MM-DD" or null. */
-function parseDate(c: Cell): string | null {
-  if (c == null || c === "") return null;
-  if (c instanceof Date) {
-    if (Number.isNaN(c.getTime())) return null;
-    return c.toISOString().slice(0, 10);
-  }
-  const s = String(c).trim();
-  let m = /^(\d{4})-(\d{1,2})-(\d{1,2})/.exec(s);
-  if (m) return `${m[1]}-${m[2].padStart(2, "0")}-${m[3].padStart(2, "0")}`;
-  m = /^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})$/.exec(s);
-  if (m) {
-    const year = m[3].length === 2 ? `20${m[3]}` : m[3];
-    return `${year}-${m[1].padStart(2, "0")}-${m[2].padStart(2, "0")}`;
-  }
-  return null;
-}
-
-function parseBool(c: Cell): boolean | null {
-  if (c == null || c === "") return null;
-  if (typeof c === "boolean") return c;
-  const s = String(c).trim().toLowerCase();
-  if (["yes", "y", "true", "1", "x"].includes(s)) return true;
-  if (["no", "n", "false", "0"].includes(s)) return false;
-  return null;
 }
 
 /* ------------------------------------------------------------------ */
@@ -440,19 +388,6 @@ async function planEmployees(buffer: Buffer): Promise<PlanRow[]> {
 /* ------------------------------------------------------------------ */
 /* Jobs                                                                */
 /* ------------------------------------------------------------------ */
-
-const JOB_STATUS_MAP: Record<string, string> = {
-  active: "active",
-  open: "active",
-  inprogress: "active",
-  completed: "completed",
-  complete: "completed",
-  closed: "completed",
-  done: "completed",
-  onhold: "on_hold",
-  hold: "on_hold",
-  paused: "on_hold",
-};
 
 async function planJobs(buffer: Buffer): Promise<PlanRow[]> {
   const records = await readRecords(
