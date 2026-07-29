@@ -155,4 +155,31 @@ describe("employee profile fields (P4-EMP-02)", () => {
     expect(patch.body.active).toBe(false);
     expect(patch.body.email).toBe("brendan@example.com");
   });
+
+  it("omits the SSN from the employee list but returns it on the detail endpoint", async () => {
+    currentRole = "bookkeeper";
+    const create = await request(app).post("/api/employees").send({
+      name: `${TP} Ssn Scope`,
+      ssn: "987-65-4321",
+    });
+    expect(create.status).toBe(201);
+    const id = create.body.id;
+
+    const list = await request(app).get("/api/employees");
+    expect(list.status).toBe(200);
+    const row = list.body.find((e: { id: number }) => e.id === id);
+    expect(row).toBeDefined();
+    expect(row).not.toHaveProperty("ssn");
+
+    const detail = await request(app).get(`/api/employees/${id}`);
+    expect(detail.status).toBe(200);
+    expect(detail.body.ssn).toBe("987-65-4321");
+
+    // A PATCH that doesn't mention ssn must not wipe it (list-page edits omit it).
+    const patch = await request(app)
+      .patch(`/api/employees/${id}`)
+      .send({ phone: "303-555-9999" });
+    expect(patch.status).toBe(200);
+    expect(patch.body.ssn).toBe("987-65-4321");
+  });
 });

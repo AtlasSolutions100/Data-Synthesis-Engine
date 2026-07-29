@@ -233,10 +233,47 @@ export interface Employee {
      */
   terminationDate?: string | null;
   /**
-     * Social Security number as entered
+     * Social Security number as entered. Only returned by the single-employee endpoint; the list endpoint never includes it.
      * @nullable
      */
   ssn?: string | null;
+  /**
+     * Hourly straight-time pay rate in integer cents
+     * @nullable
+     */
+  straightTimeRateCents?: number | null;
+  /**
+     * Hourly overtime pay rate in integer cents
+     * @nullable
+     */
+  overtimeRateCents?: number | null;
+  /** When true, employer payroll taxes are not applied to this worker */
+  taxExempt?: boolean;
+  active?: boolean;
+}
+
+/**
+ * Employee row for list views. Deliberately excludes the SSN so it never travels to screens that don't need it.
+ */
+export interface EmployeeListItem {
+  id: number;
+  name: string;
+  /** @nullable */
+  address?: string | null;
+  /** @nullable */
+  email?: string | null;
+  /** @nullable */
+  phone?: string | null;
+  /**
+     * Date of hire (YYYY-MM-DD)
+     * @nullable
+     */
+  hireDate?: string | null;
+  /**
+     * Termination date (YYYY-MM-DD); null while employed
+     * @nullable
+     */
+  terminationDate?: string | null;
   /**
      * Hourly straight-time pay rate in integer cents
      * @nullable

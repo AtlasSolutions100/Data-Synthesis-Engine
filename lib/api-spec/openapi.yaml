@@ -383,7 +383,7 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/Employee"
+                  $ref: "#/components/schemas/EmployeeListItem"
     post:
       operationId: createEmployee
       tags: [employees]
@@ -1909,7 +1909,39 @@ components:
           description: Termination date (YYYY-MM-DD); null while employed
         ssn:
           type: ["string", "null"]
-          description: Social Security number as entered
+          description: Social Security number as entered. Only returned by the single-employee endpoint; the list endpoint never includes it.
+        straightTimeRateCents:
+          type: ["integer", "null"]
+          description: Hourly straight-time pay rate in integer cents
+        overtimeRateCents:
+          type: ["integer", "null"]
+          description: Hourly overtime pay rate in integer cents
+        taxExempt:
+          type: boolean
+          description: When true, employer payroll taxes are not applied to this worker
+        active:
+          type: boolean
+    EmployeeListItem:
+      type: object
+      required: [id, name]
+      description: Employee row for list views. Deliberately excludes the SSN so it never travels to screens that don't need it.
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        address:
+          type: ["string", "null"]
+        email:
+          type: ["string", "null"]
+        phone:
+          type: ["string", "null"]
+        hireDate:
+          type: ["string", "null"]
+          description: Date of hire (YYYY-MM-DD)
+        terminationDate:
+          type: ["string", "null"]
+          description: Termination date (YYYY-MM-DD); null while employed
         straightTimeRateCents:
           type: ["integer", "null"]
           description: Hourly straight-time pay rate in integer cents

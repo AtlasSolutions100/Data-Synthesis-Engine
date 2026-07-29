@@ -292,12 +292,12 @@ export default function Employees() {
                                 phone: employee.phone ?? "",
                                 hireDate: employee.hireDate ?? "",
                                 terminationDate: employee.terminationDate ?? "",
-                                ssn: employee.ssn ?? "",
                                 straightTimeRate: employee.straightTimeRateCents ? (employee.straightTimeRateCents / 100).toString() : "",
                                 overtimeRate: employee.overtimeRateCents ? (employee.overtimeRateCents / 100).toString() : "",
                                 taxExempt: employee.taxExempt ?? false,
                                 active: employee.active !== false,
                               }}
+                              includeSsn={false}
                               onSubmit={(data) => updateEmployee.mutate({ id: employee.id, data: data as any })} 
                               isLoading={updateEmployee.isPending} 
                             />

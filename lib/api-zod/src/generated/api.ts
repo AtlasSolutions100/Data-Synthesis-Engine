@@ -404,12 +404,11 @@ export const ListEmployeesResponseItem = zod.object({
   "phone": zod.string().nullish(),
   "hireDate": zod.string().nullish().describe('Date of hire (YYYY-MM-DD)'),
   "terminationDate": zod.string().nullish().describe('Termination date (YYYY-MM-DD); null while employed'),
-  "ssn": zod.string().nullish().describe('Social Security number as entered'),
   "straightTimeRateCents": zod.number().nullish().describe('Hourly straight-time pay rate in integer cents'),
   "overtimeRateCents": zod.number().nullish().describe('Hourly overtime pay rate in integer cents'),
   "taxExempt": zod.boolean().optional().describe('When true, employer payroll taxes are not applied to this worker'),
   "active": zod.boolean().optional()
-})
+}).describe('Employee row for list views. Deliberately excludes the SSN so it never travels to screens that don\'t need it.')
 export const ListEmployeesResponse = zod.array(ListEmployeesResponseItem)
 
 
@@ -441,7 +440,7 @@ export const CreateEmployeeResponse = zod.object({
   "phone": zod.string().nullish(),
   "hireDate": zod.string().nullish().describe('Date of hire (YYYY-MM-DD)'),
   "terminationDate": zod.string().nullish().describe('Termination date (YYYY-MM-DD); null while employed'),
-  "ssn": zod.string().nullish().describe('Social Security number as entered'),
+  "ssn": zod.string().nullish().describe('Social Security number as entered. Only returned by the single-employee endpoint; the list endpoint never includes it.'),
   "straightTimeRateCents": zod.number().nullish().describe('Hourly straight-time pay rate in integer cents'),
   "overtimeRateCents": zod.number().nullish().describe('Hourly overtime pay rate in integer cents'),
   "taxExempt": zod.boolean().optional().describe('When true, employer payroll taxes are not applied to this worker'),
@@ -500,7 +499,7 @@ export const GetEmployeeResponse = zod.object({
   "phone": zod.string().nullish(),
   "hireDate": zod.string().nullish().describe('Date of hire (YYYY-MM-DD)'),
   "terminationDate": zod.string().nullish().describe('Termination date (YYYY-MM-DD); null while employed'),
-  "ssn": zod.string().nullish().describe('Social Security number as entered'),
+  "ssn": zod.string().nullish().describe('Social Security number as entered. Only returned by the single-employee endpoint; the list endpoint never includes it.'),
   "straightTimeRateCents": zod.number().nullish().describe('Hourly straight-time pay rate in integer cents'),
   "overtimeRateCents": zod.number().nullish().describe('Hourly overtime pay rate in integer cents'),
   "taxExempt": zod.boolean().optional().describe('When true, employer payroll taxes are not applied to this worker'),
@@ -540,7 +539,7 @@ export const UpdateEmployeeResponse = zod.object({
   "phone": zod.string().nullish(),
   "hireDate": zod.string().nullish().describe('Date of hire (YYYY-MM-DD)'),
   "terminationDate": zod.string().nullish().describe('Termination date (YYYY-MM-DD); null while employed'),
-  "ssn": zod.string().nullish().describe('Social Security number as entered'),
+  "ssn": zod.string().nullish().describe('Social Security number as entered. Only returned by the single-employee endpoint; the list endpoint never includes it.'),
   "straightTimeRateCents": zod.number().nullish().describe('Hourly straight-time pay rate in integer cents'),
   "overtimeRateCents": zod.number().nullish().describe('Hourly overtime pay rate in integer cents'),
   "taxExempt": zod.boolean().optional().describe('When true, employer payroll taxes are not applied to this worker'),

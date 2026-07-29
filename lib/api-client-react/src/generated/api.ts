@@ -40,6 +40,7 @@ import type {
   DuplicateInvoiceNumberError,
   Employee,
   EmployeeInput,
+  EmployeeListItem,
   EmployeeTimecardRow,
   EmployeeUpdate,
   Error,
@@ -1535,9 +1536,9 @@ export const getListEmployeesUrl = () => {
 /**
  * @summary List employees
  */
-export const listEmployees = async ( options?: RequestInit): Promise<Employee[]> => {
+export const listEmployees = async ( options?: RequestInit): Promise<EmployeeListItem[]> => {
 
-  return customFetch<Employee[]>(getListEmployeesUrl(),
+  return customFetch<EmployeeListItem[]>(getListEmployeesUrl(),
   {
     ...options,
     method: 'GET'

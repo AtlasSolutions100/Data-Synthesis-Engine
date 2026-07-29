@@ -35,9 +35,15 @@ interface EmployeeFormProps {
   defaultValues?: Partial<EmployeeFormValues>;
   onSubmit: (data: EmployeeInput | EmployeeUpdate) => void;
   isLoading?: boolean;
+  /**
+   * When false, the SSN field is hidden and ssn is omitted from the submitted
+   * payload entirely (so a PATCH never touches the stored SSN). Used by list
+   * views, which no longer receive the SSN from the API.
+   */
+  includeSsn?: boolean;
 }
 
-export function EmployeeForm({ defaultValues, onSubmit, isLoading }: EmployeeFormProps) {
+export function EmployeeForm({ defaultValues, onSubmit, isLoading, includeSsn = true }: EmployeeFormProps) {
   const form = useForm<EmployeeFormValues>({
     resolver: zodResolver(employeeSchema),
     defaultValues: {
@@ -63,7 +69,7 @@ export function EmployeeForm({ defaultValues, onSubmit, isLoading }: EmployeeFor
       phone: values.phone?.trim() || null,
       hireDate: values.hireDate || null,
       terminationDate: values.terminationDate || null,
-      ssn: values.ssn?.trim() || null,
+      ...(includeSsn ? { ssn: values.ssn?.trim() || null } : {}),
       straightTimeRateCents: values.straightTimeRate ? parseDollars(values.straightTimeRate) : null,
       overtimeRateCents: values.overtimeRate ? parseDollars(values.overtimeRate) : null,
       taxExempt: values.taxExempt,
@@ -156,6 +162,7 @@ export function EmployeeForm({ defaultValues, onSubmit, isLoading }: EmployeeFor
             )}
           />
         </div>
+        {includeSsn && (
         <FormField
           control={form.control}
           name="ssn"
@@ -169,6 +176,7 @@ export function EmployeeForm({ defaultValues, onSubmit, isLoading }: EmployeeFor
             </FormItem>
           )}
         />
+        )}
         <div className="grid grid-cols-2 gap-4">
           <FormField
             control={form.control}

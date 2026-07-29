@@ -49,6 +49,7 @@ export * from './dashboardSummary';
 export * from './duplicateInvoiceNumberError';
 export * from './employee';
 export * from './employeeInput';
+export * from './employeeListItem';
 export * from './employeeTimecardRow';
 export * from './employeeUpdate';
 export * from './endDateParamParameter';
