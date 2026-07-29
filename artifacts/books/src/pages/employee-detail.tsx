@@ -60,7 +60,12 @@ export default function EmployeeDetail() {
 
   // Default fetch: the server masks the SSN, so the raw value never travels
   // during normal browsing.
-  const { data: employee, isLoading } = useGetEmployee(employeeId, undefined, {
+  const {
+    data: employee,
+    isLoading,
+    isError: employeeError,
+    refetch: refetchEmployee,
+  } = useGetEmployee(employeeId, undefined, {
     query: {
       enabled: !!employeeId,
       queryKey: getGetEmployeeQueryKey(employeeId),
@@ -108,6 +113,23 @@ export default function EmployeeDetail() {
 
   if (isLoading) {
     return <div className="p-8">Loading employee...</div>;
+  }
+  if (employeeError) {
+    return (
+      <div className="space-y-3 p-8" data-testid="employee-load-error">
+        <p className="text-red-600">
+          Couldn&apos;t load this employee. Check your connection and try again.
+        </p>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => refetchEmployee()}
+          data-testid="button-retry-employee"
+        >
+          Retry
+        </Button>
+      </div>
+    );
   }
   if (!employee) {
     return <div className="p-8 text-red-500">Employee not found.</div>;

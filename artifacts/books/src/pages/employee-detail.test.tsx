@@ -39,6 +39,12 @@ const revealStore = {
   },
 };
 
+// Controls the base (masked) employee fetch outcome; set before render.
+const baseStore = {
+  errored: false,
+  refetch: vi.fn(),
+};
+
 vi.mock("wouter", () => ({
   useParams: () => ({ id: "7" }),
   Link: ({ href, children, ...rest }: { href: string; children: React.ReactNode }) => (
@@ -83,7 +89,15 @@ vi.mock("@workspace/api-client-react", async (importOriginal) => {
           refetch: revealStore.refetch,
         };
       }
-      return { data: maskedEmployee, isLoading: false };
+      if (baseStore.errored) {
+        return {
+          data: undefined,
+          isLoading: false,
+          isError: true,
+          refetch: baseStore.refetch,
+        };
+      }
+      return { data: maskedEmployee, isLoading: false, isError: false };
     },
     useListEmployeeTimecards: () => ({ data: [], isLoading: false }),
     useUpdateEmployee: () => ({ mutate: vi.fn(), isPending: false }),
@@ -106,10 +120,24 @@ describe("Employee detail SSN reveal", () => {
     revealStore.resolved = false;
     revealStore.errored = false;
     revealStore.refetch = vi.fn();
+    baseStore.errored = false;
+    baseStore.refetch = vi.fn();
   });
 
   afterEach(() => {
     cleanup();
+  });
+
+  it("shows a couldn't-load error with retry (not 'Employee not found') when the base fetch fails", async () => {
+    baseStore.errored = true;
+    const user = userEvent.setup();
+    renderPage();
+
+    expect(screen.queryByText("Employee not found.")).toBeNull();
+    expect(screen.getByTestId("employee-load-error")).toBeTruthy();
+
+    await user.click(screen.getByTestId("button-retry-employee"));
+    expect(baseStore.refetch).toHaveBeenCalled();
   });
 
   it("shows the masked SSN by default, the full SSN after Reveal, and re-masks on Hide", async () => {
