@@ -540,6 +540,49 @@ export interface LegacySplitUndoResponse {
   skippedCount: number;
 }
 
+export interface UnlinkedBillCandidate {
+  billId: number;
+  /** @nullable */
+  billNumber?: string | null;
+  /** @nullable */
+  vendorName?: string | null;
+  date: string;
+  /** Sum of the bill's line items in cents */
+  totalCents: number;
+}
+
+/**
+ * Why the automatic backfill did not link this transaction. "linkable" means a clean match appeared after the last backfill run.
+ */
+export type UnlinkedBillTransactionReason = typeof UnlinkedBillTransactionReason[keyof typeof UnlinkedBillTransactionReason];
+
+
+export const UnlinkedBillTransactionReason = {
+  ambiguous: 'ambiguous',
+  amount_mismatch: 'amount_mismatch',
+  no_match: 'no_match',
+  linkable: 'linkable',
+} as const;
+
+export interface UnlinkedBillTransaction {
+  transactionId: number;
+  date: string;
+  /** @nullable */
+  num?: string | null;
+  /** @nullable */
+  partyName?: string | null;
+  amountCents: number;
+  /** Why the automatic backfill did not link this transaction. "linkable" means a clean match appeared after the last backfill run. */
+  reason: UnlinkedBillTransactionReason;
+  /** Bills that matched on vendor, bill number, and date */
+  candidates: UnlinkedBillCandidate[];
+}
+
+export interface ManualBillLinkBody {
+  /** Bill to link the transaction to (only bill_id is written) */
+  billId: number;
+}
+
 export type AccountTotalType = typeof AccountTotalType[keyof typeof AccountTotalType];
 
 

@@ -84,6 +84,7 @@ import type {
   ListJobsParams,
   ListPayrollRunsParams,
   ListTransactionsParams,
+  ManualBillLinkBody,
   PayrollByJob,
   PayrollRun,
   PayrollRunInput,
@@ -91,6 +92,7 @@ import type {
   Transaction,
   TransactionInput,
   TransactionUpdate,
+  UnlinkedBillTransaction,
   UploadUrlRequest,
   UploadUrlResponse,
   User,
@@ -3303,6 +3305,156 @@ export const useUndoLegacySplitMapping = <TError = ErrorType<ErrorResponse>,
         TContext
       > => {
       return useMutation(getUndoLegacySplitMappingMutationOptions(options));
+    }
+
+export const getListUnlinkedBillTransactionsUrl = () => {
+
+
+
+
+  return `/api/transactions/unlinked-bills`
+}
+
+/**
+ * Every ledger transaction of type "bill" with no bill link, with the reason the automatic backfill skipped it (ambiguous match, amount mismatch, or no matching bill) and its candidate bills so a user can link it by hand.
+ * @summary Legacy bill transactions the auto-link backfill could not link
+ */
+export const listUnlinkedBillTransactions = async ( options?: RequestInit): Promise<UnlinkedBillTransaction[]> => {
+
+  return customFetch<UnlinkedBillTransaction[]>(getListUnlinkedBillTransactionsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListUnlinkedBillTransactionsQueryKey = () => {
+    return [
+    `/api/transactions/unlinked-bills`
+    ] as const;
+    }
+
+
+export const getListUnlinkedBillTransactionsQueryOptions = <TData = Awaited<ReturnType<typeof listUnlinkedBillTransactions>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listUnlinkedBillTransactions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListUnlinkedBillTransactionsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listUnlinkedBillTransactions>>> = ({ signal }) => listUnlinkedBillTransactions({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listUnlinkedBillTransactions>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListUnlinkedBillTransactionsQueryResult = NonNullable<Awaited<ReturnType<typeof listUnlinkedBillTransactions>>>
+export type ListUnlinkedBillTransactionsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Legacy bill transactions the auto-link backfill could not link
+ */
+
+export function useListUnlinkedBillTransactions<TData = Awaited<ReturnType<typeof listUnlinkedBillTransactions>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listUnlinkedBillTransactions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListUnlinkedBillTransactionsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getLinkTransactionBillUrl = (id: number,) => {
+
+
+
+
+  return `/api/transactions/${id}/link-bill`
+}
+
+/**
+ * Sets transactions.bill_id only; amounts, dates, and report totals are never touched.
+ * @summary Manually link a legacy bill transaction to a bill
+ */
+export const linkTransactionBill = async (id: number,
+    manualBillLinkBody: ManualBillLinkBody, options?: RequestInit): Promise<Transaction> => {
+
+  return customFetch<Transaction>(getLinkTransactionBillUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(manualBillLinkBody)
+  }
+);}
+
+
+
+
+export const getLinkTransactionBillMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof linkTransactionBill>>, TError,{id: number;data: BodyType<ManualBillLinkBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof linkTransactionBill>>, TError,{id: number;data: BodyType<ManualBillLinkBody>}, TContext> => {
+
+const mutationKey = ['linkTransactionBill'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof linkTransactionBill>>, {id: number;data: BodyType<ManualBillLinkBody>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  linkTransactionBill(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type LinkTransactionBillMutationResult = NonNullable<Awaited<ReturnType<typeof linkTransactionBill>>>
+    export type LinkTransactionBillMutationBody = BodyType<ManualBillLinkBody>
+    export type LinkTransactionBillMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Manually link a legacy bill transaction to a bill
+ */
+export const useLinkTransactionBill = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof linkTransactionBill>>, TError,{id: number;data: BodyType<ManualBillLinkBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof linkTransactionBill>>,
+        TError,
+        {id: number;data: BodyType<ManualBillLinkBody>},
+        TContext
+      > => {
+      return useMutation(getLinkTransactionBillMutationOptions(options));
     }
 
 export const getGetDashboardSummaryUrl = (params?: GetDashboardSummaryParams,) => {

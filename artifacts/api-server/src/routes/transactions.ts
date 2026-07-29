@@ -23,8 +23,13 @@ import {
   MapLegacySplitResponse,
   UndoLegacySplitMappingBody,
   UndoLegacySplitMappingResponse,
+  ListUnlinkedBillTransactionsResponse,
+  LinkTransactionBillParams,
+  LinkTransactionBillBody,
 } from "@workspace/api-zod";
 import { dateRangeConds } from "../lib/finance";
+import { listUnlinkedBillTransactions } from "../lib/billLinkBackfill";
+import { billsTable } from "@workspace/db";
 
 const router: IRouter = Router();
 
@@ -337,6 +342,86 @@ router.post(
         skippedCount: transactionIds.length - reverted.length,
       }),
     );
+  },
+);
+
+/**
+ * Manual bill linking: legacy bill transactions the startup backfill could
+ * not confidently link (ambiguous matches, amount mismatches, or no match)
+ * are listed here so a user can pick the right bill by hand. Linking only
+ * ever writes transactions.bill_id — amounts stay untouched.
+ *
+ * NOTE: registered before /transactions/:id so "unlinked-bills" is not
+ * parsed as an id.
+ */
+
+router.get("/transactions/unlinked-bills", async (_req, res): Promise<void> => {
+  const report = await listUnlinkedBillTransactions();
+  res.json(ListUnlinkedBillTransactionsResponse.parse(report));
+});
+
+router.post(
+  "/transactions/:id/link-bill",
+  async (req, res): Promise<void> => {
+    const params = LinkTransactionBillParams.safeParse(req.params);
+    if (!params.success) {
+      res.status(400).json({ error: params.error.message });
+      return;
+    }
+    const parsed = LinkTransactionBillBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+    const [txn] = await db
+      .select({
+        id: transactionsTable.id,
+        type: transactionsTable.type,
+        billId: transactionsTable.billId,
+      })
+      .from(transactionsTable)
+      .where(eq(transactionsTable.id, params.data.id))
+      .limit(1);
+    if (!txn) {
+      res.status(404).json({ error: "Transaction not found" });
+      return;
+    }
+    if (txn.type !== "bill") {
+      res.status(400).json({
+        field: "id",
+        error: "Only transactions of type 'bill' can be linked to a bill",
+      });
+      return;
+    }
+    if (txn.billId != null) {
+      res.status(400).json({
+        field: "id",
+        error: `Transaction ${txn.id} is already linked to bill ${txn.billId}`,
+      });
+      return;
+    }
+    const [bill] = await db
+      .select({ id: billsTable.id })
+      .from(billsTable)
+      .where(eq(billsTable.id, parsed.data.billId))
+      .limit(1);
+    if (!bill) {
+      res.status(400).json({
+        field: "billId",
+        error: `Bill ${parsed.data.billId} does not exist`,
+      });
+      return;
+    }
+    // Only bill_id is ever written — amounts, dates, and accounts are
+    // deliberately untouched so report totals cannot shift.
+    await db
+      .update(transactionsTable)
+      .set({ billId: bill.id })
+      .where(
+        and(eq(transactionsTable.id, txn.id), isNull(transactionsTable.billId)),
+      );
+    const enriched = await fetchEnrichedTx(txn.id);
+    res.json(GetTransactionResponse.parse(enriched));
   },
 );
 

@@ -821,6 +821,47 @@ paths:
         "400":
           $ref: "#/components/responses/Error"
 
+  /transactions/unlinked-bills:
+    get:
+      operationId: listUnlinkedBillTransactions
+      tags: [transactions]
+      summary: Legacy bill transactions the auto-link backfill could not link
+      description: Every ledger transaction of type "bill" with no bill link, with the reason the automatic backfill skipped it (ambiguous match, amount mismatch, or no matching bill) and its candidate bills so a user can link it by hand.
+      responses:
+        "200":
+          description: Unlinked legacy bill transactions with candidate bills
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/UnlinkedBillTransaction"
+  /transactions/{id}/link-bill:
+    post:
+      operationId: linkTransactionBill
+      tags: [transactions]
+      summary: Manually link a legacy bill transaction to a bill
+      description: Sets transactions.bill_id only; amounts, dates, and report totals are never touched.
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ManualBillLinkBody"
+      responses:
+        "200":
+          description: Transaction after linking
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Transaction"
+        "400":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+
   /reports/dashboard:
     get:
       operationId: getDashboardSummary
@@ -2166,6 +2207,54 @@ components:
         skippedCount:
           type: integer
           description: Rows not reverted because they changed since the mapping
+
+    UnlinkedBillCandidate:
+      type: object
+      required: [billId, date, totalCents]
+      properties:
+        billId:
+          type: integer
+        billNumber:
+          type: ["string", "null"]
+        vendorName:
+          type: ["string", "null"]
+        date:
+          type: string
+        totalCents:
+          type: integer
+          description: Sum of the bill's line items in cents
+
+    UnlinkedBillTransaction:
+      type: object
+      required: [transactionId, date, amountCents, reason, candidates]
+      properties:
+        transactionId:
+          type: integer
+        date:
+          type: string
+        num:
+          type: ["string", "null"]
+        partyName:
+          type: ["string", "null"]
+        amountCents:
+          type: integer
+        reason:
+          type: string
+          enum: [ambiguous, amount_mismatch, no_match, linkable]
+          description: Why the automatic backfill did not link this transaction. "linkable" means a clean match appeared after the last backfill run.
+        candidates:
+          type: array
+          items:
+            $ref: "#/components/schemas/UnlinkedBillCandidate"
+          description: Bills that matched on vendor, bill number, and date
+
+    ManualBillLinkBody:
+      type: object
+      required: [billId]
+      properties:
+        billId:
+          type: integer
+          description: Bill to link the transaction to (only bill_id is written)
 
     JobCostSummary:
       type: object

@@ -101,6 +101,14 @@ vi.mock("@workspace/api-client-react", () => ({
   useUndoLegacySplitMapping: () => ({ mutate: vi.fn(), isPending: false }),
   useListAccounts: () => ({ data: [], isLoading: false }),
   getListAccountsQueryKey: () => ["/api/accounts"],
+  // Used by the BillLinkReview dialog rendered on the page header.
+  useListUnlinkedBillTransactions: () => ({ data: [], isLoading: false }),
+  getListUnlinkedBillTransactionsQueryKey: () => [
+    "/api/transactions/unlinked-bills",
+  ],
+  useLinkTransactionBill: () => ({ mutate: vi.fn(), isPending: false }),
+  useListBills: () => ({ data: [], isLoading: false }),
+  getListBillsQueryKey: () => ["/api/bills"],
 }));
 
 const scrollIntoView = vi.fn();

@@ -184,6 +184,158 @@ export async function backfillBillLinks(): Promise<BillLinkBackfillResult> {
   };
 }
 
+export type UnlinkedBillReason =
+  | "ambiguous"
+  | "amount_mismatch"
+  | "no_match"
+  | "linkable";
+
+export interface UnlinkedBillTransactionReport {
+  transactionId: number;
+  date: string;
+  num: string | null;
+  partyName: string | null;
+  amountCents: number;
+  reason: UnlinkedBillReason;
+  candidates: {
+    billId: number;
+    billNumber: string | null;
+    vendorName: string | null;
+    date: string;
+    totalCents: number;
+  }[];
+}
+
+/**
+ * Read-only report of every legacy "bill" transaction that still has no
+ * bill link, with the reason the automatic backfill skipped it and the
+ * candidate bills that matched on vendor + bill number + date. Nothing is
+ * written; this powers the manual-linking UI.
+ */
+export async function listUnlinkedBillTransactions(): Promise<
+  UnlinkedBillTransactionReport[]
+> {
+  const txnResult = await db.execute(sql`
+    SELECT t.id,
+           t.date::text AS date,
+           t.num,
+           t.party_name,
+           t.amount_cents::bigint AS amount_cents
+    FROM transactions t
+    WHERE t.type = 'bill'
+      AND t.bill_id IS NULL
+    ORDER BY t.date DESC, t.id DESC
+  `);
+  if (txnResult.rows.length === 0) return [];
+
+  // Same confident-match pairing the backfill uses, plus display fields.
+  const matchResult = await db.execute(sql`
+    WITH bill_totals AS (
+      SELECT b.id,
+             b.vendor_id,
+             btrim(b.bill_number) AS bill_number,
+             b.date,
+             coalesce(sum(bl.amount_cents), 0)::bigint AS total_cents
+      FROM bills b
+      LEFT JOIN bill_lines bl ON bl.bill_id = b.id
+      WHERE b.bill_number IS NOT NULL
+        AND btrim(b.bill_number) <> ''
+        AND NOT EXISTS (
+          SELECT 1 FROM transactions lt WHERE lt.bill_id = b.id
+        )
+      GROUP BY b.id
+    )
+    SELECT t.id AS txn_id,
+           t.amount_cents::bigint AS txn_cents,
+           b.id AS bill_id,
+           b.bill_number,
+           b.date::text AS bill_date,
+           b.total_cents AS bill_cents,
+           v.name AS vendor_name
+    FROM transactions t
+    JOIN bill_totals b
+      ON b.bill_number = btrim(t.num)
+     AND b.date = t.date
+     AND (
+       t.vendor_id = b.vendor_id
+       OR (
+         t.vendor_id IS NULL
+         AND t.party_name IS NOT NULL
+         AND lower(btrim(t.party_name)) = (
+           SELECT lower(btrim(v2.name)) FROM vendors v2 WHERE v2.id = b.vendor_id
+         )
+       )
+     )
+    LEFT JOIN vendors v ON v.id = b.vendor_id
+    WHERE t.type = 'bill'
+      AND t.bill_id IS NULL
+      AND t.num IS NOT NULL
+      AND btrim(t.num) <> ''
+    ORDER BY t.id, b.id
+  `);
+
+  type CandidateRow = {
+    txnCents: number;
+    billId: number;
+    billNumber: string | null;
+    vendorName: string | null;
+    date: string;
+    totalCents: number;
+  };
+  const candidatesByTxn = new Map<number, CandidateRow[]>();
+  for (const r of matchResult.rows) {
+    const txnId = Number(r["txn_id"]);
+    const list = candidatesByTxn.get(txnId) ?? [];
+    list.push({
+      txnCents: Number(r["txn_cents"]),
+      billId: Number(r["bill_id"]),
+      billNumber: (r["bill_number"] as string | null) ?? null,
+      vendorName: (r["vendor_name"] as string | null) ?? null,
+      date: String(r["bill_date"]),
+      totalCents: Number(r["bill_cents"]),
+    });
+    candidatesByTxn.set(txnId, list);
+  }
+
+  // Per-bill matched totals over unambiguous transactions, mirroring the
+  // backfill's amount check.
+  const matchedTotalByBill = new Map<number, number>();
+  for (const [, matches] of candidatesByTxn) {
+    if (matches.length !== 1) continue;
+    const m = matches[0];
+    matchedTotalByBill.set(
+      m.billId,
+      (matchedTotalByBill.get(m.billId) ?? 0) + m.txnCents,
+    );
+  }
+
+  return txnResult.rows.map((r) => {
+    const transactionId = Number(r["id"]);
+    const matches = candidatesByTxn.get(transactionId) ?? [];
+    let reason: UnlinkedBillReason;
+    if (matches.length === 0) {
+      reason = "no_match";
+    } else if (matches.length > 1) {
+      reason = "ambiguous";
+    } else {
+      const m = matches[0];
+      reason =
+        matchedTotalByBill.get(m.billId) === m.totalCents
+          ? "linkable"
+          : "amount_mismatch";
+    }
+    return {
+      transactionId,
+      date: String(r["date"]),
+      num: (r["num"] as string | null) ?? null,
+      partyName: (r["party_name"] as string | null) ?? null,
+      amountCents: Number(r["amount_cents"]),
+      reason,
+      candidates: matches.map(({ txnCents: _txnCents, ...bill }) => bill),
+    };
+  });
+}
+
 /**
  * Startup wrapper: runs the backfill, logs the outcome, and never throws —
  * the server must come up even if the backfill fails; the failure is loud
