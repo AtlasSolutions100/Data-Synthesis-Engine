@@ -1155,6 +1155,7 @@ function ImportHoursDialog({
           const created = await createJob.mutateAsync({
             data: {
               name: OVERHEAD_JOB_NAME,
+              isInternal: true,
               description:
                 "Internal non-billable time (office, shop, overhead)",
             },

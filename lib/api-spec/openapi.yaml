@@ -1954,6 +1954,12 @@ components:
           type: ["string", "null"]
         customerId:
           type: ["integer", "null"]
+        isInternal:
+          type: boolean
+          description: >-
+            Explicit override to save an internal (non-billable) job without a
+            customer. When true, customerId is ignored and stored as null.
+            Without it, a missing customerId is rejected.
         description:
           type: ["string", "null"]
         status:
@@ -1974,6 +1980,12 @@ components:
           type: ["string", "null"]
         customerId:
           type: ["integer", "null"]
+        isInternal:
+          type: boolean
+          description: >-
+            Explicit override allowing this job to have no customer. When true,
+            customerId is stored as null. An update that would leave the job
+            without a customer is rejected unless this flag is sent as true.
         description:
           type: ["string", "null"]
         status:

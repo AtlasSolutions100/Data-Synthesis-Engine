@@ -85,21 +85,36 @@ describe("job customer requirement", () => {
     expect(res.body.customerId).toBe(customerId);
   });
 
-  it("allows the internal Overhead / Office job without a customer", async () => {
+  it("allows a customerless job with the explicit isInternal override", async () => {
     const res = await request(app)
       .post("/api/jobs")
-      .send({ name: "Overhead / Office", status: "active" });
+      .send({ name: "Overhead / Office", status: "active", isInternal: true });
     track(res);
     expect(res.status).toBe(201);
     expect(res.body.customerId).toBeNull();
   });
 
-  it("rejects other customerless names that merely sound internal", async () => {
+  it("rejects a customerless internal-sounding name without the override", async () => {
     const res = await request(app)
       .post("/api/jobs")
-      .send({ name: "Office", status: "active" });
+      .send({ name: "Overhead / Office", status: "active" });
     track(res);
     expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/customer is required/i);
+  });
+
+  it("stores customerId as null when isInternal is sent alongside a customer", async () => {
+    const res = await request(app)
+      .post("/api/jobs")
+      .send({
+        name: "TEST-JCR Internal",
+        status: "active",
+        customerId,
+        isInternal: true,
+      });
+    track(res);
+    expect(res.status).toBe(201);
+    expect(res.body.customerId).toBeNull();
   });
 
   it("rejects removing the customer from a normal job via PATCH", async () => {
@@ -114,7 +129,7 @@ describe("job customer requirement", () => {
     expect(res.body.error).toMatch(/customer is required/i);
   });
 
-  it("allows unrelated PATCHes to the internal overhead job", async () => {
+  it("allows PATCHes to a customerless job when isInternal is sent", async () => {
     const [job] = await db
       .insert(jobsTable)
       .values({
@@ -126,8 +141,26 @@ describe("job customer requirement", () => {
     createdJobIds.push(job.id);
     const res = await request(app)
       .patch(`/api/jobs/${job.id}`)
-      .send({ status: "on_hold" });
+      .send({ status: "on_hold", isInternal: true });
     expect(res.status).toBe(200);
+    expect(res.body.customerId).toBeNull();
+  });
+
+  it("rejects PATCHes to a customerless job without the override", async () => {
+    const [job] = await db
+      .insert(jobsTable)
+      .values({
+        jobNumber: "TEST-JCR-OH2",
+        name: "Overhead / Office",
+        status: "active",
+      })
+      .returning();
+    createdJobIds.push(job.id);
+    const res = await request(app)
+      .patch(`/api/jobs/${job.id}`)
+      .send({ status: "on_hold" });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/customer is required/i);
   });
 
   it("requires assigning a customer when editing a legacy orphaned job", async () => {

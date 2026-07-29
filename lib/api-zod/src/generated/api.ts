@@ -575,6 +575,7 @@ export const CreateJobBody = zod.object({
   "name": zod.string().min(1),
   "poNumber": zod.string().nullish(),
   "customerId": zod.number().nullish(),
+  "isInternal": zod.boolean().optional().describe('Explicit override to save an internal (non-billable) job without a customer. When true, customerId is ignored and stored as null. Without it, a missing customerId is rejected.'),
   "description": zod.string().nullish(),
   "status": zod.enum(['active', 'completed', 'on_hold']).optional(),
   "contractAmountCents": zod.number().optional()
@@ -647,6 +648,7 @@ export const UpdateJobBody = zod.object({
   "name": zod.string().min(1).optional(),
   "poNumber": zod.string().nullish(),
   "customerId": zod.number().nullish(),
+  "isInternal": zod.boolean().optional().describe('Explicit override allowing this job to have no customer. When true, customerId is stored as null. An update that would leave the job without a customer is rejected unless this flag is sent as true.'),
   "description": zod.string().nullish(),
   "status": zod.enum(['active', 'completed', 'on_hold']).optional(),
   "contractAmountCents": zod.number().optional()

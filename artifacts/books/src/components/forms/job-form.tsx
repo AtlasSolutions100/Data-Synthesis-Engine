@@ -21,28 +21,20 @@ import {
   getListCustomersQueryKey,
 } from "@workspace/api-client-react";
 import { EntityCombobox } from "@/components/forms/entity-combobox";
-
-/**
- * Internal (non-billable) job names that may be saved without a customer.
- * Keep in sync with INTERNAL_JOB_NAMES in the jobs API route.
- */
-const INTERNAL_JOB_NAMES = new Set(["overhead / office", "overhead/office"]);
-
-function isInternalJobName(name: string): boolean {
-  return INTERNAL_JOB_NAMES.has(name.trim().toLowerCase().replace(/\s+/g, " "));
-}
+import { Checkbox } from "@/components/ui/checkbox";
 
 const jobSchema = z
   .object({
     name: z.string().min(1, "Job name is required"),
     poNumber: z.string().optional(),
     customerId: z.string().optional(),
+    internalJob: z.boolean(),
     description: z.string().optional(),
     status: z.enum(["active", "completed", "on_hold"]),
     contractAmount: z.string().optional(),
   })
   .superRefine((values, ctx) => {
-    if (!values.customerId && !isInternalJobName(values.name)) {
+    if (!values.internalJob && !values.customerId) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["customerId"],
@@ -54,7 +46,7 @@ const jobSchema = z
 type JobFormValues = z.infer<typeof jobSchema>;
 
 interface JobFormProps {
-  defaultValues?: Partial<JobFormValues>;
+  defaultValues?: Partial<Omit<JobFormValues, "internalJob">>;
   onSubmit: (data: JobInput | JobUpdate) => void;
   isLoading?: boolean;
 }
@@ -64,23 +56,34 @@ export function JobForm({ defaultValues, onSubmit, isLoading }: JobFormProps) {
     query: { queryKey: getListCustomersQueryKey() },
   });
 
+  // Editing an existing customer-less job (e.g. Overhead / Office) opens with
+  // the internal-job override pre-checked so it can be saved unchanged.
+  const isEditingWithoutCustomer = !!defaultValues && !defaultValues.customerId;
+
   const form = useForm<JobFormValues>({
     resolver: zodResolver(jobSchema),
     defaultValues: {
       name: defaultValues?.name || "",
       poNumber: defaultValues?.poNumber || "",
       customerId: defaultValues?.customerId || "",
+      internalJob: isEditingWithoutCustomer,
       description: defaultValues?.description || "",
       status: defaultValues?.status || "active",
       contractAmount: defaultValues?.contractAmount || "",
     },
   });
 
+  const internalJob = form.watch("internalJob");
+
   const handleSubmit = (values: JobFormValues) => {
     onSubmit({
       name: values.name,
       poNumber: values.poNumber || null,
-      customerId: values.customerId ? parseInt(values.customerId, 10) : null,
+      customerId:
+        !values.internalJob && values.customerId
+          ? parseInt(values.customerId, 10)
+          : null,
+      isInternal: values.internalJob,
       description: values.description || null,
       status: values.status as JobInputStatus,
       contractAmountCents: values.contractAmount ? parseDollars(values.contractAmount) : 0,
@@ -131,6 +134,7 @@ export function JobForm({ defaultValues, onSubmit, isLoading }: JobFormProps) {
                     placeholder="Select customer"
                     searchPlaceholder="Search customers..."
                     emptyText="No customers found."
+                    disabled={internalJob}
                   />
                 </FormControl>
                 <FormMessage />
@@ -160,6 +164,31 @@ export function JobForm({ defaultValues, onSubmit, isLoading }: JobFormProps) {
             )}
           />
         </div>
+        <FormField
+          control={form.control}
+          name="internalJob"
+          render={({ field }) => (
+            <FormItem className="flex flex-row items-center gap-2 space-y-0">
+              <FormControl>
+                <Checkbox
+                  checked={field.value}
+                  onCheckedChange={(checked) => {
+                    const next = checked === true;
+                    field.onChange(next);
+                    if (next) {
+                      form.setValue("customerId", "");
+                      form.clearErrors("customerId");
+                    }
+                  }}
+                  data-testid="checkbox-internal-job"
+                />
+              </FormControl>
+              <FormLabel className="font-normal text-slate-600 cursor-pointer">
+                No customer — internal job (e.g. Overhead / Office)
+              </FormLabel>
+            </FormItem>
+          )}
+        />
         <FormField
           control={form.control}
           name="contractAmount"

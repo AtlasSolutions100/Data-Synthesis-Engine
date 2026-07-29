@@ -324,6 +324,8 @@ export interface JobInput {
   poNumber?: string | null;
   /** @nullable */
   customerId?: number | null;
+  /** Explicit override to save an internal (non-billable) job without a customer. When true, customerId is ignored and stored as null. Without it, a missing customerId is rejected. */
+  isInternal?: boolean;
   /** @nullable */
   description?: string | null;
   status?: JobInputStatus;
@@ -348,6 +350,8 @@ export interface JobUpdate {
   poNumber?: string | null;
   /** @nullable */
   customerId?: number | null;
+  /** Explicit override allowing this job to have no customer. When true, customerId is stored as null. An update that would leave the job without a customer is rejected unless this flag is sent as true. */
+  isInternal?: boolean;
   /** @nullable */
   description?: string | null;
   status?: JobUpdateStatus;

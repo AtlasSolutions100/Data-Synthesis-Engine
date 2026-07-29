@@ -16,6 +16,8 @@ export interface JobUpdate {
   poNumber?: string | null;
   /** @nullable */
   customerId?: number | null;
+  /** Explicit override allowing this job to have no customer. When true, customerId is stored as null. An update that would leave the job without a customer is rejected unless this flag is sent as true. */
+  isInternal?: boolean;
   /** @nullable */
   description?: string | null;
   status?: JobUpdateStatus;

@@ -29,6 +29,7 @@ vi.mock("@workspace/api-client-react", () => ({
     return { mutate: vi.fn(), isPending: false };
   },
   useCreateJobDocument: () => ({ mutate: vi.fn(), isPending: false }),
+  useImportData: () => ({ mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false }),
   getListJobDocumentsQueryKey: (id: number) => ["/api/jobs", id, "documents"],
 }));
 

@@ -30,16 +30,6 @@ import {
 
 const router: IRouter = Router();
 
-/**
- * The single internal (non-billable) job that may exist without a customer.
- * Keep in sync with OVERHEAD_JOB_NAME in the payroll import form.
- */
-const INTERNAL_JOB_NAMES = new Set(["overhead / office", "overhead/office"]);
-
-function isInternalJobName(name: string): boolean {
-  return INTERNAL_JOB_NAMES.has(name.trim().toLowerCase().replace(/\s+/g, " "));
-}
-
 async function customerExists(customerId: number): Promise<boolean> {
   const [customer] = await db
     .select({ id: customersTable.id })
@@ -160,23 +150,24 @@ router.post("/jobs", async (req, res): Promise<void> => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
-  // Customer is required for real jobs (P1-JOB-01/02). The single internal
-  // "Overhead / Office" job used for non-billable time is the only exception.
-  if (parsed.data.customerId == null) {
-    if (!isInternalJobName(parsed.data.name)) {
-      res.status(400).json({ error: "Customer is required" });
-      return;
-    }
-  } else if (!(await customerExists(parsed.data.customerId))) {
+  // Customer is required for real jobs (P1-JOB-01/02). An internal
+  // (non-billable) job may skip it only via the explicit isInternal override.
+  const { isInternal, ...jobData } = parsed.data;
+  if (isInternal) {
+    jobData.customerId = null;
+  } else if (jobData.customerId == null) {
+    res.status(400).json({ error: "Customer is required" });
+    return;
+  } else if (!(await customerExists(jobData.customerId))) {
     res.status(400).json({ error: "Customer not found" });
     return;
   }
   const jobNumber =
-    parsed.data.jobNumber ??
+    jobData.jobNumber ??
     `JOB-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
   const [job] = await db
     .insert(jobsTable)
-    .values({ ...parsed.data, jobNumber })
+    .values({ ...jobData, jobNumber })
     .returning();
   const customerName = await fetchCustomerName(job.customerId);
   res
@@ -305,25 +296,29 @@ router.patch("/jobs/:id", async (req, res): Promise<void> => {
     return;
   }
   // Enforce the same customer-required rule on edits: the effective state
-  // after this update must have a customer unless it's the internal job.
-  const effectiveCustomerId =
-    "customerId" in parsed.data ? parsed.data.customerId : existing.customerId;
-  const effectiveName = parsed.data.name ?? existing.name;
-  if (effectiveCustomerId == null) {
-    if (!isInternalJobName(effectiveName)) {
+  // after this update must have a customer unless the explicit isInternal
+  // override is sent with this request.
+  const { isInternal, ...jobData } = parsed.data;
+  if (isInternal) {
+    jobData.customerId = null;
+  } else {
+    const effectiveCustomerId =
+      "customerId" in jobData ? jobData.customerId : existing.customerId;
+    if (effectiveCustomerId == null) {
       res.status(400).json({ error: "Customer is required" });
       return;
     }
-  } else if (
-    effectiveCustomerId !== existing.customerId &&
-    !(await customerExists(effectiveCustomerId))
-  ) {
-    res.status(400).json({ error: "Customer not found" });
-    return;
+    if (
+      effectiveCustomerId !== existing.customerId &&
+      !(await customerExists(effectiveCustomerId))
+    ) {
+      res.status(400).json({ error: "Customer not found" });
+      return;
+    }
   }
   const [job] = await db
     .update(jobsTable)
-    .set(parsed.data)
+    .set(jobData)
     .where(eq(jobsTable.id, params.data.id))
     .returning();
   if (!job) {
