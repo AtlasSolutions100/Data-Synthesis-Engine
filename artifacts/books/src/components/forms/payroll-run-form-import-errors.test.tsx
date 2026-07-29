@@ -21,19 +21,19 @@ function renderForm(ui: React.ReactElement) {
 // Mock the generated react-query hook so we can simulate the API server's
 // 502/503 error contract without a live backend.
 const mutateAsync = vi.fn();
-vi.mock("@workspace/api-client-react", () => ({
-  useExtractPayrollHours: () => ({
-    mutateAsync,
-    isPending: false,
-    reset: vi.fn(),
-  }),
-  useListEmployees: () => ({ data: [], isLoading: false }),
-  getListEmployeesQueryKey: () => ["employees"],
-  useListJobs: () => ({ data: [], isLoading: false }),
-  getListJobsQueryKey: () => ["jobs"],
-  getListCustomersQueryKey: () => ["customers"],
-  useCreateJob: () => ({ mutateAsync: vi.fn(), isPending: false }),
-}));
+vi.mock("@workspace/api-client-react", async (importOriginal) => {
+  const { createApiClientReactMock } = await import("@/test/mock-api-client");
+  return createApiClientReactMock(importOriginal, {
+    useExtractPayrollHours: () => ({
+      mutateAsync,
+      isPending: false,
+      reset: vi.fn(),
+    }),
+    useListEmployees: () => ({ data: [], isLoading: false }),
+    useListJobs: () => ({ data: [], isLoading: false }),
+    useCreateJob: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  });
+});
 
 beforeAll(() => {
   // jsdom lacks these DOM APIs used by radix dialog/select.

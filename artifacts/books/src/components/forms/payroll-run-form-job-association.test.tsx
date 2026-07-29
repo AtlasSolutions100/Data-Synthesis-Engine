@@ -15,7 +15,9 @@ import { PayrollRunForm } from "./payroll-run-form";
 // truth: the Employee Center and the Customer → Job Name hierarchy.
 const mutateAsync = vi.fn();
 const createJobMutateAsync = vi.fn();
-vi.mock("@workspace/api-client-react", () => ({
+vi.mock("@workspace/api-client-react", async (importOriginal) => {
+  const { createApiClientReactMock } = await import("@/test/mock-api-client");
+  return createApiClientReactMock(importOriginal, {
   useExtractPayrollHours: () => ({
     mutateAsync,
     isPending: false,
@@ -63,13 +65,12 @@ vi.mock("@workspace/api-client-react", () => ({
     ],
     isLoading: false,
   }),
-  getListJobsQueryKey: () => ["jobs"],
-  getListCustomersQueryKey: () => ["customers"],
   useCreateJob: () => ({
     mutateAsync: createJobMutateAsync,
     isPending: false,
   }),
-}));
+  });
+});
 
 function renderForm(ui: React.ReactElement) {
   const queryClient = new QueryClient({

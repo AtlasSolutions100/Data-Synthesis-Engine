@@ -28,36 +28,32 @@ let mockVendors: { id: number; name: string }[] = [];
 
 // The form pulls list data via generated react-query hooks; mock them so the
 // dropdowns are populated without a live API.
-vi.mock("@workspace/api-client-react", () => ({
-  useListVendors: () => ({ data: mockVendors }),
-  useCreateVendor: () => ({
-    mutate: createVendorMutate,
-    get isPending() {
-      return createVendorPending;
-    },
-  }),
-  getListVendorsQueryKey: () => ["/api/vendors"],
-  useListJobs: () => ({
-    data: [{ id: 10, jobNumber: "J-100", name: "Warehouse" }],
-  }),
-  getListJobsQueryKey: () => ["/api/jobs"],
-  useListAccounts: () => ({
-    data: [
-      { id: 501, number: "5000", name: "Materials" },
-      { id: 502, number: "5100", name: "Subcontractors" },
-      { id: 503, number: "6000", name: "Office Supplies" },
-    ],
-  }),
-  getListAccountsQueryKey: () => ["/api/accounts"],
-  useListCustomers: () => ({
-    data: [{ id: 7, name: "HR Stadium LLC" }],
-  }),
-  getListCustomersQueryKey: () => ["/api/customers"],
-  useGetVendorDefaultAccount: () => ({ data: undefined }),
-  getGetVendorDefaultAccountQueryKey: (id: number) => [
-    `/api/vendors/${id}/default-account`,
-  ],
-}));
+vi.mock("@workspace/api-client-react", async (importOriginal) => {
+  const { createApiClientReactMock } = await import("@/test/mock-api-client");
+  return createApiClientReactMock(importOriginal, {
+    useListVendors: () => ({ data: mockVendors }),
+    useCreateVendor: () => ({
+      mutate: createVendorMutate,
+      get isPending() {
+        return createVendorPending;
+      },
+    }),
+    useListJobs: () => ({
+      data: [{ id: 10, jobNumber: "J-100", name: "Warehouse" }],
+    }),
+    useListAccounts: () => ({
+      data: [
+        { id: 501, number: "5000", name: "Materials" },
+        { id: 502, number: "5100", name: "Subcontractors" },
+        { id: 503, number: "6000", name: "Office Supplies" },
+      ],
+    }),
+    useListCustomers: () => ({
+      data: [{ id: 7, name: "HR Stadium LLC" }],
+    }),
+    useGetVendorDefaultAccount: () => ({ data: undefined }),
+  });
+});
 
 beforeAll(() => {
   // jsdom lacks these DOM APIs used by radix popover + cmdk.

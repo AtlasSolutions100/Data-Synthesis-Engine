@@ -11,35 +11,31 @@ import { TransactionForm } from "./transaction-form";
 
 // The form pulls list data via generated react-query hooks; mock them so the
 // dropdowns are populated without a live API.
-vi.mock("@workspace/api-client-react", () => ({
-  useListCustomers: () => ({
-    data: [{ id: 20, name: "Northside Mall" }],
-  }),
-  getListCustomersQueryKey: () => ["/api/customers"],
-  useListVendors: () => ({
-    data: [
-      { id: 1, name: "Acme Supply" },
-      { id: 2, name: "Bolt Electric" },
-    ],
-  }),
-  getListVendorsQueryKey: () => ["/api/vendors"],
-  useListJobs: () => ({
-    data: [{ id: 10, jobNumber: "J-100", name: "Warehouse" }],
-  }),
-  getListJobsQueryKey: () => ["/api/jobs"],
-  useListAccounts: () => ({
-    data: [
-      { id: 501, number: "5000", name: "Materials" },
-      { id: 502, number: "5100", name: "Subcontractors" },
-      { id: 503, number: "6000", name: "Office Supplies" },
-    ],
-  }),
-  getListAccountsQueryKey: () => ["/api/accounts"],
-  useGetVendorDefaultAccount: () => ({ data: undefined }),
-  getGetVendorDefaultAccountQueryKey: (id: number) => [
-    `/api/vendors/${id}/default-account`,
-  ],
-}));
+vi.mock("@workspace/api-client-react", async (importOriginal) => {
+  const { createApiClientReactMock } = await import("@/test/mock-api-client");
+  return createApiClientReactMock(importOriginal, {
+    useListCustomers: () => ({
+      data: [{ id: 20, name: "Northside Mall" }],
+    }),
+    useListVendors: () => ({
+      data: [
+        { id: 1, name: "Acme Supply" },
+        { id: 2, name: "Bolt Electric" },
+      ],
+    }),
+    useListJobs: () => ({
+      data: [{ id: 10, jobNumber: "J-100", name: "Warehouse" }],
+    }),
+    useListAccounts: () => ({
+      data: [
+        { id: 501, number: "5000", name: "Materials" },
+        { id: 502, number: "5100", name: "Subcontractors" },
+        { id: 503, number: "6000", name: "Office Supplies" },
+      ],
+    }),
+    useGetVendorDefaultAccount: () => ({ data: undefined }),
+  });
+});
 
 beforeAll(() => {
   // jsdom lacks these DOM APIs used by radix popover + cmdk.

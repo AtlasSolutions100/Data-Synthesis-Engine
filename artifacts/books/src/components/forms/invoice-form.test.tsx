@@ -9,26 +9,26 @@ import {
 } from "@testing-library/react";
 import { InvoiceForm } from "./invoice-form";
 
-// The form pulls list data via generated react-query hooks; mock them so the
-// dropdowns are populated without a live API.
-vi.mock("@workspace/api-client-react", () => ({
-  useListCustomers: () => ({
-    data: [{ id: 20, name: "Northside Mall" }],
-  }),
-  getListCustomersQueryKey: () => ["/api/customers"],
-  useListJobs: () => ({
-    data: [{ id: 10, jobNumber: "J-100", name: "Warehouse" }],
-  }),
-  getListJobsQueryKey: () => ["/api/jobs"],
-  useGetNextInvoiceNumber: () => ({
-    data: { nextNumber: "INV-2" },
-  }),
-  getGetNextInvoiceNumberQueryKey: () => ["/api/invoices/next-number"],
-  useGetCurrentUser: () => ({
-    data: { id: 1, role: "owner" },
-  }),
-  getGetCurrentUserQueryKey: () => ["/api/users/me"],
-}));
+// The form pulls list data via generated react-query hooks. The shared
+// factory stubs every generated hook with a safe default; we override only
+// the ones this suite cares about, so new hooks in the form don't break it.
+vi.mock("@workspace/api-client-react", async (importOriginal) => {
+  const { createApiClientReactMock } = await import("@/test/mock-api-client");
+  return createApiClientReactMock(importOriginal, {
+    useListCustomers: () => ({
+      data: [{ id: 20, name: "Northside Mall" }],
+    }),
+    useListJobs: () => ({
+      data: [{ id: 10, jobNumber: "J-100", name: "Warehouse" }],
+    }),
+    useGetNextInvoiceNumber: () => ({
+      data: { nextNumber: "INV-2" },
+    }),
+    useGetCurrentUser: () => ({
+      data: { id: 1, role: "owner" },
+    }),
+  });
+});
 
 beforeAll(() => {
   // jsdom lacks these DOM APIs used by radix popover + cmdk.
