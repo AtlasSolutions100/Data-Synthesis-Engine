@@ -223,6 +223,9 @@ export default function Employees() {
             <TableHeader>
               <TableRow>
                 <TableHead>Name</TableHead>
+                <TableHead>Contact</TableHead>
+                <TableHead>Address</TableHead>
+                <TableHead>Hired</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Straight Time</TableHead>
                 <TableHead className="text-right">Overtime</TableHead>
@@ -232,11 +235,11 @@ export default function Employees() {
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-8 text-slate-500">Loading employees...</TableCell>
+                  <TableCell colSpan={8} className="text-center py-8 text-slate-500">Loading employees...</TableCell>
                 </TableRow>
               ) : employees?.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-8 text-slate-500">No employees found.</TableCell>
+                  <TableCell colSpan={8} className="text-center py-8 text-slate-500">No employees found.</TableCell>
                 </TableRow>
               ) : (
                 employees?.map((employee) => (
@@ -249,6 +252,33 @@ export default function Employees() {
                       >
                         {employee.name}
                       </Link>
+                    </TableCell>
+                    <TableCell data-testid={`text-contact-${employee.id}`}>
+                      {employee.email || employee.phone ? (
+                        <div className="space-y-0.5">
+                          {employee.email ? (
+                            <div className="text-sm text-slate-700">{employee.email}</div>
+                          ) : null}
+                          {employee.phone ? (
+                            <div className="text-xs text-slate-500">{employee.phone}</div>
+                          ) : null}
+                        </div>
+                      ) : (
+                        <span className="text-slate-400">—</span>
+                      )}
+                    </TableCell>
+                    <TableCell
+                      className="max-w-[220px] truncate text-sm text-slate-600"
+                      title={employee.address ?? undefined}
+                      data-testid={`text-address-${employee.id}`}
+                    >
+                      {employee.address || <span className="text-slate-400">—</span>}
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap text-sm text-slate-600" data-testid={`text-hired-${employee.id}`}>
+                      {employee.hireDate || <span className="text-slate-400">—</span>}
+                      {employee.terminationDate ? (
+                        <div className="text-xs text-red-500">Term. {employee.terminationDate}</div>
+                      ) : null}
                     </TableCell>
                     <TableCell>
                       <Badge variant={employee.active !== false ? "default" : "secondary"}>
