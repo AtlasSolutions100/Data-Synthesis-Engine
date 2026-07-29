@@ -92,6 +92,8 @@
     "@react-pdf/renderer": "^4.5.1",
     "@tanstack/react-virtual": "^3.14.6",
     "fflate": "^0.8.3",
+    "jspdf": "^4.2.1",
+    "jspdf-autotable": "^5.0.8",
     "pdfjs-dist": "^6.1.200",
     "read-excel-file": "5.8.7",
     "write-excel-file": "^4.1.1"

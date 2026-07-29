@@ -715,6 +715,29 @@ export interface JobCostSummary {
   lines: AccountTotal[];
 }
 
+export type PnlSectionType = typeof PnlSectionType[keyof typeof PnlSectionType];
+
+
+export const PnlSectionType = {
+  income: 'income',
+  cogs: 'cogs',
+  expense: 'expense',
+  other_income: 'other_income',
+  other_expense: 'other_expense',
+} as const;
+
+export interface PnlSection {
+  type: PnlSectionType;
+  accounts: AccountTotal[];
+  totalCents: number;
+}
+
+export interface PnlReport {
+  sections: PnlSection[];
+  grossProfitCents: number;
+  netIncomeCents: number;
+}
+
 export type AccountBalanceType = typeof AccountBalanceType[keyof typeof AccountBalanceType];
 
 
@@ -1926,6 +1949,31 @@ customerId?: number;
  * Only include costs on this job
  */
 jobId?: number;
+/**
+ * Only include costs on transactions linked to this vendor
+ */
+vendorId?: number;
+};
+
+export type GetPnlParams = {
+/**
+ * Inclusive start of the date range (YYYY-MM-DD). Omit for no lower bound.
+ * @pattern ^\d{4}-\d{2}-\d{2}$
+ */
+startDate?: StartDateParamParameter;
+/**
+ * Inclusive end of the date range (YYYY-MM-DD). Omit for no upper bound.
+ * @pattern ^\d{4}-\d{2}-\d{2}$
+ */
+endDate?: EndDateParamParameter;
+/**
+ * Only include activity on this job
+ */
+jobId?: number;
+/**
+ * Only include activity linked to this vendor
+ */
+vendorId?: number;
 };
 
 export type GetAccountBalancesParams = {

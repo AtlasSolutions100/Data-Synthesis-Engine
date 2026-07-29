@@ -1192,7 +1192,8 @@ export const GetCostByAccountQueryParams = zod.object({
   "startDate": zod.coerce.string().regex(getCostByAccountQueryStartDateRegExp).optional().describe('Inclusive start of the date range (YYYY-MM-DD). Omit for no lower bound.'),
   "endDate": zod.coerce.string().regex(getCostByAccountQueryEndDateRegExp).optional().describe('Inclusive end of the date range (YYYY-MM-DD). Omit for no upper bound.'),
   "customerId": zod.coerce.number().optional().describe('Only include costs on jobs belonging to this customer'),
-  "jobId": zod.coerce.number().optional().describe('Only include costs on this job')
+  "jobId": zod.coerce.number().optional().describe('Only include costs on this job'),
+  "vendorId": zod.coerce.number().optional().describe('Only include costs on transactions linked to this vendor')
 })
 
 export const GetCostByAccountResponseItem = zod.object({
@@ -1203,6 +1204,38 @@ export const GetCostByAccountResponseItem = zod.object({
   "amountCents": zod.number()
 })
 export const GetCostByAccountResponse = zod.array(GetCostByAccountResponseItem)
+
+
+/**
+ * Income, COGS, expense, and other income/expense accounts with period totals, gross profit, and net income. Optional jobId or vendorId narrows the statement to that job's or vendor's activity.
+ * @summary Profit and loss statement grouped by account
+ */
+export const getPnlQueryStartDateRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+export const getPnlQueryEndDateRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+
+
+export const GetPnlQueryParams = zod.object({
+  "startDate": zod.coerce.string().regex(getPnlQueryStartDateRegExp).optional().describe('Inclusive start of the date range (YYYY-MM-DD). Omit for no lower bound.'),
+  "endDate": zod.coerce.string().regex(getPnlQueryEndDateRegExp).optional().describe('Inclusive end of the date range (YYYY-MM-DD). Omit for no upper bound.'),
+  "jobId": zod.coerce.number().optional().describe('Only include activity on this job'),
+  "vendorId": zod.coerce.number().optional().describe('Only include activity linked to this vendor')
+})
+
+export const GetPnlResponse = zod.object({
+  "sections": zod.array(zod.object({
+  "type": zod.enum(['income', 'cogs', 'expense', 'other_income', 'other_expense']),
+  "accounts": zod.array(zod.object({
+  "accountId": zod.number(),
+  "accountNumber": zod.string(),
+  "accountName": zod.string(),
+  "type": zod.enum(['income', 'cogs', 'expense', 'other_income', 'other_expense', 'asset', 'bank', 'liability', 'credit_card', 'equity']),
+  "amountCents": zod.number()
+})),
+  "totalCents": zod.number()
+})),
+  "grossProfitCents": zod.number(),
+  "netIncomeCents": zod.number()
+})
 
 
 /**

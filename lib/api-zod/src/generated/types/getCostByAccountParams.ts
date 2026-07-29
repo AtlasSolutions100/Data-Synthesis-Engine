@@ -27,4 +27,8 @@ customerId?: number;
  * Only include costs on this job
  */
 jobId?: number;
+/**
+ * Only include costs on transactions linked to this vendor
+ */
+vendorId?: number;
 };

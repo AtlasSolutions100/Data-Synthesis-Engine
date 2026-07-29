@@ -24,6 +24,8 @@ import {
   GetDashboardSummaryQueryParams,
   GetCostByAccountResponse,
   GetCostByAccountQueryParams,
+  GetPnlResponse,
+  GetPnlQueryParams,
   GetArAgingResponse,
   GetArAgingQueryParams,
   GetApAgingResponse,
@@ -266,6 +268,9 @@ router.get("/reports/cost-by-account", async (req, res): Promise<void> => {
       sql`${transactionsTable.jobId} in (select id from ${jobsTable} where ${jobsTable.customerId} = ${query.data.customerId})`,
     );
   }
+  if (query.data.vendorId != null) {
+    conds.push(eq(transactionsTable.vendorId, query.data.vendorId));
+  }
 
   const rows = await db
     .select({
@@ -300,6 +305,86 @@ router.get("/reports/cost-by-account", async (req, res): Promise<void> => {
       })),
     ),
   );
+});
+
+const PNL_SECTION_ORDER = [
+  "income",
+  "cogs",
+  "expense",
+  "other_income",
+  "other_expense",
+] as const;
+
+router.get("/reports/pnl", async (req, res): Promise<void> => {
+  const query = GetPnlQueryParams.safeParse(req.query);
+  if (!query.success) {
+    res.status(400).json({ error: query.error.message });
+    return;
+  }
+  const range: DateRange = {
+    startDate: query.data.startDate,
+    endDate: query.data.endDate,
+  };
+  const conds = [
+    inArray(accountsTable.type, [...PNL_SECTION_ORDER]),
+    ...dateRangeConds(transactionsTable.date, range),
+  ];
+  if (query.data.jobId != null) {
+    conds.push(eq(transactionsTable.jobId, query.data.jobId));
+  }
+  if (query.data.vendorId != null) {
+    conds.push(eq(transactionsTable.vendorId, query.data.vendorId));
+  }
+
+  const rows = await db
+    .select({
+      accountId: accountsTable.id,
+      accountNumber: accountsTable.number,
+      accountName: accountsTable.name,
+      type: accountsTable.type,
+      amountCents: sql<number>`coalesce(sum(${transactionsTable.amountCents}), 0)::bigint`,
+    })
+    .from(accountsTable)
+    .innerJoin(
+      transactionsTable,
+      eq(transactionsTable.accountId, accountsTable.id),
+    )
+    .where(and(...conds))
+    .groupBy(
+      accountsTable.id,
+      accountsTable.number,
+      accountsTable.name,
+      accountsTable.type,
+    )
+    .orderBy(accountsTable.number);
+
+  const sections = PNL_SECTION_ORDER.map((type) => {
+    const accounts = rows
+      .filter((r) => r.type === type)
+      .map((r) => ({
+        accountId: r.accountId,
+        accountNumber: r.accountNumber,
+        accountName: r.accountName,
+        type: r.type,
+        amountCents: Number(r.amountCents),
+      }));
+    return {
+      type,
+      accounts,
+      totalCents: accounts.reduce((s, a) => s + a.amountCents, 0),
+    };
+  });
+
+  const totalFor = (type: string) =>
+    sections.find((s) => s.type === type)?.totalCents ?? 0;
+  const grossProfitCents = totalFor("income") - totalFor("cogs");
+  const netIncomeCents =
+    grossProfitCents -
+    totalFor("expense") +
+    totalFor("other_income") -
+    totalFor("other_expense");
+
+  res.json(GetPnlResponse.parse({ sections, grossProfitCents, netIncomeCents }));
 });
 
 router.get("/reports/account-balances", async (req, res): Promise<void> => {

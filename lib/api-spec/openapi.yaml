@@ -912,6 +912,12 @@ paths:
           schema:
             type: integer
           description: Only include costs on this job
+        - name: vendorId
+          in: query
+          required: false
+          schema:
+            type: integer
+          description: Only include costs on transactions linked to this vendor
       responses:
         "200":
           description: Account totals
@@ -921,6 +927,34 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/AccountTotal"
+  /reports/pnl:
+    get:
+      operationId: getPnl
+      tags: [reports]
+      summary: Profit and loss statement grouped by account
+      description: Income, COGS, expense, and other income/expense accounts with period totals, gross profit, and net income. Optional jobId or vendorId narrows the statement to that job's or vendor's activity.
+      parameters:
+        - $ref: "#/components/parameters/StartDateParam"
+        - $ref: "#/components/parameters/EndDateParam"
+        - name: jobId
+          in: query
+          required: false
+          schema:
+            type: integer
+          description: Only include activity on this job
+        - name: vendorId
+          in: query
+          required: false
+          schema:
+            type: integer
+          description: Only include activity linked to this vendor
+      responses:
+        "200":
+          description: Profit and loss statement
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PnlReport"
   /reports/account-balances:
     get:
       operationId: getAccountBalances
@@ -2387,6 +2421,33 @@ components:
           type: string
           enum: [income, cogs, expense, other_income, other_expense, asset, bank, liability, credit_card, equity]
         amountCents:
+          type: integer
+
+    PnlSection:
+      type: object
+      required: [type, accounts, totalCents]
+      properties:
+        type:
+          type: string
+          enum: [income, cogs, expense, other_income, other_expense]
+        accounts:
+          type: array
+          items:
+            $ref: "#/components/schemas/AccountTotal"
+        totalCents:
+          type: integer
+
+    PnlReport:
+      type: object
+      required: [sections, grossProfitCents, netIncomeCents]
+      properties:
+        sections:
+          type: array
+          items:
+            $ref: "#/components/schemas/PnlSection"
+        grossProfitCents:
+          type: integer
+        netIncomeCents:
           type: integer
 
     AccountBalance:

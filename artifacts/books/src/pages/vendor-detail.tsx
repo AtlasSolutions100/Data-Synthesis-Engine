@@ -54,7 +54,7 @@ export default function VendorDetail() {
     <div className="space-y-8">
       <div>
         <Link
-          href="/reports#ap-aging"
+          href="/reports/ap-aging"
           className="inline-flex items-center gap-1 text-sm text-blue-600 hover:underline mb-2"
           data-testid="link-back-to-aging"
         >

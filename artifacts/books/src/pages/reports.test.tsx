@@ -9,6 +9,10 @@ import type {
   ApAging,
 } from "@workspace/api-client-react";
 import Reports from "./reports";
+import ReportCosts from "./report-costs";
+import ReportBalanceSheet from "./report-balance-sheet";
+import ReportArAging from "./report-ar-aging";
+import ReportApAging from "./report-ap-aging";
 import { unzipSync, strFromU8 } from "fflate";
 import { downloadAgingXlsx } from "@/lib/aging-xlsx";
 import { Toaster } from "@/components/ui/toaster";
@@ -217,15 +221,40 @@ vi.mock("@workspace/api-client-react", async (importOriginal) => {
   });
 });
 
-function renderReports() {
+function renderPage(ui: React.ReactNode) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
   render(
     <QueryClientProvider client={queryClient}>
-      <Reports />
+      {ui}
       <Toaster />
     </QueryClientProvider>,
+  );
+}
+
+// Month-end exports live on the Reports landing page.
+function renderReports() {
+  renderPage(<Reports />);
+}
+
+// The costs report page owns the job-reports CSV export and cost table.
+function renderCosts() {
+  renderPage(<ReportCosts />);
+}
+
+// Balance sheet page owns account balances and their drill-downs.
+function renderBalanceSheet() {
+  renderPage(<ReportBalanceSheet />);
+}
+
+// Aging pages own the AR/AP summary tables.
+function renderAging() {
+  renderPage(
+    <>
+      <ReportArAging />
+      <ReportApAging />
+    </>,
   );
 }
 
@@ -322,7 +351,7 @@ describe("Aging summary rows link to customer/vendor pages", () => {
   });
 
   it("renders customer and vendor names as links to their detail pages", () => {
-    renderReports();
+    renderAging();
 
     const customerLink = screen.getByTestId(
       "link-ar-customer-7",
@@ -339,7 +368,7 @@ describe("Aging summary rows link to customer/vendor pages", () => {
 
   it("does not link unassigned rows and clicking the name doesn't toggle expansion", async () => {
     const user = userEvent.setup();
-    renderReports();
+    renderAging();
 
     expect(screen.queryByTestId("link-ar-customer-none")).toBeNull();
     expect(screen.getByText("Unassigned")).toBeTruthy();
@@ -361,7 +390,7 @@ describe("Account balance drill-down lines link to the transaction", () => {
 
   it("links each ledger line to the Transactions page with highlight context", async () => {
     const user = userEvent.setup();
-    renderReports();
+    renderBalanceSheet();
 
     await user.click(screen.getByTestId("row-account-balance-1"));
 
@@ -444,8 +473,6 @@ describe("Export All (Zip) downloads a valid zip with four CSVs", () => {
 
     await user.click(screen.getByTestId("pick-full-range"));
     expect(screen.getByText("Jun 1, 2026 – Jun 30, 2026")).toBeTruthy();
-    // On-screen totals come from the full-range mocked dataset.
-    expect(screen.getAllByText("$1,111.00").length).toBeGreaterThan(0);
 
     await user.click(screen.getByTestId("button-export-all-zip"));
     const { data, filename } = lastZip();
@@ -599,7 +626,7 @@ describe("Export Job Reports CSV with partial date ranges", () => {
 
   it("no range: exports job-reports-all-time.csv with All time labels and on-screen totals", async () => {
     const user = userEvent.setup();
-    renderReports();
+    renderCosts();
 
     expect(screen.getAllByText("All time").length).toBeGreaterThan(0);
     // On-screen all-time totals rendered from the same mocked data.
@@ -617,7 +644,7 @@ describe("Export Job Reports CSV with partial date ranges", () => {
 
   it("start only: exports job-reports-from-<start>.csv with From label and matching totals", async () => {
     const user = userEvent.setup();
-    renderReports();
+    renderCosts();
 
     await user.click(screen.getByTestId("pick-start-only"));
     expect(screen.getByText("From Jun 1, 2026")).toBeTruthy();
@@ -635,7 +662,7 @@ describe("Export Job Reports CSV with partial date ranges", () => {
 
   it("end only: exports job-reports-through-<end>.csv with Through label and matching totals", async () => {
     const user = userEvent.setup();
-    renderReports();
+    renderCosts();
 
     await user.click(screen.getByTestId("pick-end-only"));
     expect(screen.getByText("Until Jun 30, 2026")).toBeTruthy();
@@ -653,7 +680,7 @@ describe("Export Job Reports CSV with partial date ranges", () => {
 
   it("clearing the range returns the export to all-time filename and labels", async () => {
     const user = userEvent.setup();
-    renderReports();
+    renderCosts();
 
     await user.click(screen.getByTestId("pick-start-only"));
     await user.click(screen.getByTestId("pick-clear"));
@@ -671,7 +698,7 @@ describe("Account Balances as-of label", () => {
   });
 
   it("shows All time when no range is selected", () => {
-    renderReports();
+    renderBalanceSheet();
     expect(screen.getByTestId("text-balances-as-of").textContent).toBe(
       "All time",
     );
@@ -679,7 +706,7 @@ describe("Account Balances as-of label", () => {
 
   it("shows As of the end date when a range with an end date is picked", async () => {
     const user = userEvent.setup();
-    renderReports();
+    renderBalanceSheet();
 
     await user.click(screen.getByTestId("pick-full-range"));
     expect(screen.getByTestId("text-balances-as-of").textContent).toBe(
@@ -689,7 +716,7 @@ describe("Account Balances as-of label", () => {
 
   it("returns to All time when the range is cleared", async () => {
     const user = userEvent.setup();
-    renderReports();
+    renderBalanceSheet();
 
     await user.click(screen.getByTestId("pick-end-only"));
     expect(screen.getByTestId("text-balances-as-of").textContent).toBe(

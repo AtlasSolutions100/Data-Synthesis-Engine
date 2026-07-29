@@ -60,6 +60,7 @@ import type {
   GetEmployeeParams,
   GetNextInvoiceNumber200,
   GetPayrollByJobParams,
+  GetPnlParams,
   HealthStatus,
   ImportChartOfAccountsInput,
   ImportChartOfAccountsResult,
@@ -91,6 +92,7 @@ import type {
   PayrollRun,
   PayrollRunInput,
   PayrollRunUpdate,
+  PnlReport,
   Transaction,
   TransactionInput,
   TransactionUpdate,
@@ -3628,6 +3630,91 @@ export function useGetCostByAccount<TData = Awaited<ReturnType<typeof getCostByA
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetCostByAccountQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetPnlUrl = (params?: GetPnlParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/reports/pnl?${stringifiedParams}` : `/api/reports/pnl`
+}
+
+/**
+ * Income, COGS, expense, and other income/expense accounts with period totals, gross profit, and net income. Optional jobId or vendorId narrows the statement to that job's or vendor's activity.
+ * @summary Profit and loss statement grouped by account
+ */
+export const getPnl = async (params?: GetPnlParams, options?: RequestInit): Promise<PnlReport> => {
+
+  return customFetch<PnlReport>(getGetPnlUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPnlQueryKey = (params?: GetPnlParams,) => {
+    return [
+    `/api/reports/pnl`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetPnlQueryOptions = <TData = Awaited<ReturnType<typeof getPnl>>, TError = ErrorType<unknown>>(params?: GetPnlParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPnl>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPnlQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPnl>>> = ({ signal }) => getPnl(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPnl>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetPnlQueryResult = NonNullable<Awaited<ReturnType<typeof getPnl>>>
+export type GetPnlQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Profit and loss statement grouped by account
+ */
+
+export function useGetPnl<TData = Awaited<ReturnType<typeof getPnl>>, TError = ErrorType<unknown>>(
+ params?: GetPnlParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPnl>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetPnlQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

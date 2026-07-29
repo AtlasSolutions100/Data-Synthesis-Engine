@@ -26,6 +26,11 @@ import EmployeeDetail from "./pages/employee-detail";
 import Payroll from "./pages/payroll";
 import PayrollDetail from "./pages/payroll-detail";
 import Reports from "./pages/reports";
+import ReportPnl from "./pages/report-pnl";
+import ReportBalanceSheet from "./pages/report-balance-sheet";
+import ReportCosts from "./pages/report-costs";
+import ReportArAging from "./pages/report-ar-aging";
+import ReportApAging from "./pages/report-ap-aging";
 import UsersPage from "./pages/users";
 import { Layout } from "./components/layout";
 import {
@@ -269,6 +274,11 @@ function ClerkProviderWithRoutes() {
           <Route path="/payroll"><ProtectedRoute component={Payroll} /></Route>
           <Route path="/payroll/:id"><ProtectedRoute component={PayrollDetail} /></Route>
           <Route path="/reports"><ProtectedRoute component={Reports} /></Route>
+          <Route path="/reports/pnl"><ProtectedRoute component={ReportPnl} /></Route>
+          <Route path="/reports/balance-sheet"><ProtectedRoute component={ReportBalanceSheet} /></Route>
+          <Route path="/reports/costs"><ProtectedRoute component={ReportCosts} /></Route>
+          <Route path="/reports/ar-aging"><ProtectedRoute component={ReportArAging} /></Route>
+          <Route path="/reports/ap-aging"><ProtectedRoute component={ReportApAging} /></Route>
           <Route path="/users"><OwnerRoute component={UsersPage} /></Route>
           <Route component={NotFound} />
         </Switch>

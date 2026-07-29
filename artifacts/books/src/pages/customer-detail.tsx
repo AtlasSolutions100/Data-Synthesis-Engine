@@ -48,7 +48,7 @@ export default function CustomerDetail() {
     <div className="space-y-8">
       <div>
         <Link
-          href="/reports#ar-aging"
+          href="/reports/ar-aging"
           className="inline-flex items-center gap-1 text-sm text-blue-600 hover:underline mb-2"
           data-testid="link-back-to-aging"
         >
