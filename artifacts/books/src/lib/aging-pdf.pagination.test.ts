@@ -179,6 +179,30 @@ function assertNoOrphanedHeaders(doc: jsPDF) {
   }
 }
 
+/**
+ * Every page must carry a "Page X of Y" footer so printed reports stay in
+ * order. jsPDF stores each page's raw content stream in internal.pages;
+ * ASCII text drawn with doc.text appears literally inside parentheses.
+ */
+function assertPageFooters(doc: jsPDF, title: string, asOf: string) {
+  const pageCount = doc.getNumberOfPages();
+  const pages = (doc as unknown as { internal: { pages: string[][] } })
+    .internal.pages;
+  for (let page = 1; page <= pageCount; page++) {
+    const content = pages[page].join("\n");
+    expect(content).toContain(`(Page ${page} of ${pageCount})`);
+    if (page > 1) {
+      // Continuation pages repeat the report title and as-of date.
+      // Parentheses inside PDF strings are escaped, and the em-dash is
+      // re-encoded, so assert on stable ASCII fragments instead of the
+      // full literal.
+      expect(content).toContain(title);
+      expect(content).toContain(`As of ${asOf}`);
+      expect(content).toContain("continued");
+    }
+  }
+}
+
 describe("aging PDF pagination with real jspdf/jspdf-autotable", () => {
   it("AR: renders dozens of customers with long detail tables across pages without overflow", () => {
     const fixture = bigArAging(30, 12);
@@ -189,6 +213,7 @@ describe("aging PDF pagination with real jspdf/jspdf-autotable", () => {
     // 1 summary + 30 detail tables
     assertPaginatesCleanly(doc, 31);
     assertNoOrphanedHeaders(doc);
+    assertPageFooters(doc, "Accounts Receivable Aging", "2026-06-30");
     expect(saveSpy).toHaveBeenCalledWith("ar-aging-2026-06-30.pdf");
   });
 
@@ -202,6 +227,7 @@ describe("aging PDF pagination with real jspdf/jspdf-autotable", () => {
     expect(detail.bodyRows).toBe(300);
     expect(detail.endPageNumber).toBeGreaterThan(detail.startPageNumber);
     assertNoOrphanedHeaders(doc);
+    assertPageFooters(doc, "Accounts Receivable Aging", "2026-06-30");
   });
 
   it("AP: renders dozens of vendors with long detail tables across pages without overflow", () => {
@@ -212,6 +238,7 @@ describe("aging PDF pagination with real jspdf/jspdf-autotable", () => {
     const doc = savedDocs[0];
     assertPaginatesCleanly(doc, 26);
     assertNoOrphanedHeaders(doc);
+    assertPageFooters(doc, "Accounts Payable Aging", "2026-06-30");
     expect(saveSpy).toHaveBeenCalledWith("ap-aging-2026-06-30.pdf");
   });
 });

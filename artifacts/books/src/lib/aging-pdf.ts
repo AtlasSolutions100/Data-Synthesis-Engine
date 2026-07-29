@@ -132,6 +132,28 @@ function buildAgingPdf(spec: AgingPdfSpec): jsPDF {
       headStyles: { fillColor: [71, 85, 105] },
     });
   }
+
+  // Header on continuation pages + "Page X of Y" footer on every page.
+  const pageCount = doc.getNumberOfPages();
+  const pageWidth = doc.internal.pageSize.getWidth();
+  for (let page = 1; page <= pageCount; page++) {
+    doc.setPage(page);
+    if (page > 1) {
+      doc.setFontSize(10);
+      doc.text(
+        `${spec.title} — As of ${spec.asOf} (continued)`,
+        40,
+        24,
+      );
+    }
+    doc.setFontSize(9);
+    doc.text(
+      `Page ${page} of ${pageCount}`,
+      pageWidth - 40,
+      pageHeight - 20,
+      { align: "right" },
+    );
+  }
   return doc;
 }
 

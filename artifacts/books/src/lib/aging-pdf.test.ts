@@ -6,7 +6,11 @@ interface MockDoc {
   text: ReturnType<typeof vi.fn>;
   save: ReturnType<typeof vi.fn>;
   addPage: ReturnType<typeof vi.fn>;
-  internal: { pageSize: { getHeight: () => number } };
+  setPage: ReturnType<typeof vi.fn>;
+  getNumberOfPages: ReturnType<typeof vi.fn>;
+  internal: {
+    pageSize: { getHeight: () => number; getWidth: () => number };
+  };
   lastAutoTable?: { finalY: number };
 }
 
@@ -19,8 +23,12 @@ vi.mock("jspdf", () => ({
       text: vi.fn(),
       save: vi.fn(),
       addPage: vi.fn(),
+      setPage: vi.fn(),
+      getNumberOfPages: vi.fn(() => 1),
       // Landscape A4 in points, matching the real jsPDF config.
-      internal: { pageSize: { getHeight: () => 595.28 } },
+      internal: {
+        pageSize: { getHeight: () => 595.28, getWidth: () => 841.89 },
+      },
       __ctorArgs: args,
     };
     docs.push(doc);
@@ -176,6 +184,7 @@ describe("downloadArAgingPdf", () => {
       "Allied Power Services",
       "Accounts Receivable Aging",
       "As of 2026-06-30",
+      "Page 1 of 1",
     ]);
   });
 
