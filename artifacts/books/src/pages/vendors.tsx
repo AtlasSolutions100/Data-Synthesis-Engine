@@ -1,15 +1,28 @@
 import { useState } from "react";
-import { useListVendors, useCreateVendor, useUpdateVendor, useDeleteVendor, getListVendorsQueryKey } from "@workspace/api-client-react";
+import { useListVendors, useCreateVendor, useUpdateVendor, useDeleteVendor, getListVendorsQueryKey, type Vendor } from "@workspace/api-client-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { VendorForm } from "@/components/forms/vendor-form";
 import { useQueryClient } from "@tanstack/react-query";
-import { Plus, Edit2, Trash2, Search } from "lucide-react";
+import { Plus, Edit2, Trash2, Search, Download } from "lucide-react";
 import { Link } from "wouter";
 import { Input } from "@/components/ui/input";
 import { ImportDataDialog } from "@/components/import-data-dialog";
+import { buildCsv, csvFilename, downloadCsv } from "@/lib/csv-export";
+
+/** Download the visible vendors list as CSV (same columns as the table). */
+function exportVendorsCsv(vendors: Vendor[]) {
+  const header = ["Name", "Email", "Phone", "Notes"];
+  const rows = vendors.map((v) => [
+    v.name,
+    v.email ?? "",
+    v.phone ?? "",
+    v.notes ?? "",
+  ]);
+  downloadCsv(buildCsv(header, rows), csvFilename("vendors"));
+}
 
 export default function Vendors() {
   const queryClient = useQueryClient();
@@ -64,6 +77,14 @@ export default function Vendors() {
           <p className="text-slate-500 mt-1">Manage suppliers and subcontractors</p>
         </div>
         <div className="flex items-center gap-2">
+        <Button
+          variant="outline"
+          onClick={() => exportVendorsCsv(filteredVendors ?? [])}
+          disabled={!filteredVendors?.length}
+          data-testid="button-export-vendors"
+        >
+          <Download className="mr-2 h-4 w-4" /> Export CSV
+        </Button>
         <ImportDataDialog
           entity="vendors"
           onDone={() =>

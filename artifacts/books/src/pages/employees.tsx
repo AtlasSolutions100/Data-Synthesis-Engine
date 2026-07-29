@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ImportDataDialog } from "@/components/import-data-dialog";
+import { buildCsv, csvFilename, downloadCsv } from "@/lib/csv-export";
 
 const CURRENT_YEAR = new Date().getFullYear();
 const YEAR_OPTIONS = Array.from({ length: 6 }, (_, i) => CURRENT_YEAR - i);
@@ -158,10 +159,6 @@ function isArchived(e: EmployeeRow): boolean {
   return e.active === false || !!e.terminationDate;
 }
 
-function csvEscape(value: string): string {
-  return /[",\n]/.test(value) ? `"${value.replaceAll('"', '""')}"` : value;
-}
-
 /** Download all employees (never SSNs — those stay off this screen) as CSV. */
 function exportEmployeesCsv(employees: EmployeeRow[]) {
   const header = [
@@ -176,30 +173,19 @@ function exportEmployeesCsv(employees: EmployeeRow[]) {
     "Overtime Rate",
     "Tax Exempt",
   ];
-  const lines = employees.map((e) =>
-    [
-      e.name,
-      e.email ?? "",
-      e.phone ?? "",
-      e.address ?? "",
-      e.hireDate ?? "",
-      e.terminationDate ?? "",
-      isArchived(e) ? "Archived" : "Active",
-      e.straightTimeRateCents != null ? (e.straightTimeRateCents / 100).toFixed(2) : "",
-      e.overtimeRateCents != null ? (e.overtimeRateCents / 100).toFixed(2) : "",
-      e.taxExempt ? "Yes" : "No",
-    ]
-      .map(csvEscape)
-      .join(","),
-  );
-  const csv = [header.join(","), ...lines].join("\r\n");
-  const blob = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `employees-${new Date().toISOString().slice(0, 10)}.csv`;
-  a.click();
-  URL.revokeObjectURL(url);
+  const rows = employees.map((e) => [
+    e.name,
+    e.email ?? "",
+    e.phone ?? "",
+    e.address ?? "",
+    e.hireDate ?? "",
+    e.terminationDate ?? "",
+    isArchived(e) ? "Archived" : "Active",
+    e.straightTimeRateCents != null ? (e.straightTimeRateCents / 100).toFixed(2) : "",
+    e.overtimeRateCents != null ? (e.overtimeRateCents / 100).toFixed(2) : "",
+    e.taxExempt ? "Yes" : "No",
+  ]);
+  downloadCsv(buildCsv(header, rows), csvFilename("employees"));
 }
 
 export default function Employees() {

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useListJobs, useCreateJob, useUpdateJob, useDeleteJob, getListJobsQueryKey, getListCustomersQueryKey } from "@workspace/api-client-react";
+import { useListJobs, useCreateJob, useUpdateJob, useDeleteJob, getListJobsQueryKey, getListCustomersQueryKey, type Job } from "@workspace/api-client-react";
 import { formatCents } from "@/lib/format";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -10,9 +10,37 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { JobForm } from "@/components/forms/job-form";
 import { useQueryClient } from "@tanstack/react-query";
-import { Plus, Edit2, Trash2 } from "lucide-react";
+import { Plus, Edit2, Trash2, Download } from "lucide-react";
 import { QuickJobDocUploadDialog } from "@/components/quick-upload-dialog";
 import { ImportDataDialog } from "@/components/import-data-dialog";
+import { buildCsv, csvFilename, downloadCsv } from "@/lib/csv-export";
+
+/** Download the visible jobs list as CSV (same columns as the table). */
+function exportJobsCsv(jobs: Job[]) {
+  const header = [
+    "Job Name",
+    "PO Number",
+    "Customer",
+    "Status",
+    "Contract",
+    "Billed",
+    "Unbilled",
+    "Cost to Date",
+    "Profit",
+  ];
+  const rows = jobs.map((job) => [
+    job.name,
+    job.poNumber ?? "",
+    job.customerName ?? (job.customerId == null ? "Internal" : ""),
+    job.status,
+    (job.contractAmountCents / 100).toFixed(2),
+    (job.billedToDateCents / 100).toFixed(2),
+    (job.remainingContractCents / 100).toFixed(2),
+    (job.costCents / 100).toFixed(2),
+    (job.profitCents / 100).toFixed(2),
+  ]);
+  downloadCsv(buildCsv(header, rows), csvFilename("jobs"));
+}
 
 export default function Jobs() {
   const queryClient = useQueryClient();
@@ -70,6 +98,14 @@ export default function Jobs() {
           />
           Show inactive
         </label>
+        <Button
+          variant="outline"
+          onClick={() => exportJobsCsv(jobs ?? [])}
+          disabled={!jobs?.length}
+          data-testid="button-export-jobs"
+        >
+          <Download className="mr-2 h-4 w-4" /> Export CSV
+        </Button>
         <ImportDataDialog
           entity="jobs"
           onDone={() =>

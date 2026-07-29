@@ -8,6 +8,7 @@ import {
   useListJobs,
   getListJobsQueryKey,
   type Job,
+  type Customer,
 } from "@workspace/api-client-react";
 import { formatCents } from "@/lib/format";
 import { Card, CardContent } from "@/components/ui/card";
@@ -18,9 +19,23 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { CustomerForm } from "@/components/forms/customer-form";
 import { useQueryClient } from "@tanstack/react-query";
-import { Plus, Edit2, Trash2, Search, ChevronRight } from "lucide-react";
+import { Plus, Edit2, Trash2, Search, ChevronRight, Download } from "lucide-react";
 import { Link } from "wouter";
 import { ImportDataDialog } from "@/components/import-data-dialog";
+import { buildCsv, csvFilename, downloadCsv } from "@/lib/csv-export";
+
+/** Download the visible customers list as CSV (same fields as the cards). */
+function exportCustomersCsv(customers: Customer[], jobsByCustomer: Map<number, Job[]>) {
+  const header = ["Name", "Email", "Phone", "Notes", "Jobs"];
+  const rows = customers.map((c) => [
+    c.name,
+    c.email ?? "",
+    c.phone ?? "",
+    c.notes ?? "",
+    String((jobsByCustomer.get(c.id) ?? []).length),
+  ]);
+  downloadCsv(buildCsv(header, rows), csvFilename("customers"));
+}
 
 export default function Customers() {
   const queryClient = useQueryClient();
@@ -92,6 +107,14 @@ export default function Customers() {
           <p className="text-slate-500 mt-1">Every customer with their jobs listed underneath</p>
         </div>
         <div className="flex items-center gap-2">
+        <Button
+          variant="outline"
+          onClick={() => exportCustomersCsv(filteredCustomers, jobsByCustomer)}
+          disabled={!filteredCustomers.length}
+          data-testid="button-export-customers"
+        >
+          <Download className="mr-2 h-4 w-4" /> Export CSV
+        </Button>
         <ImportDataDialog
           entity="customers"
           onDone={() =>
