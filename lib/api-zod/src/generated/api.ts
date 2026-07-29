@@ -865,7 +865,7 @@ export const ListTransactionsQueryParams = zod.object({
 export const ListTransactionsResponseItem = zod.object({
   "id": zod.number(),
   "date": zod.string().describe('ISO date (YYYY-MM-DD)'),
-  "type": zod.enum(['invoice', 'bill', 'expense', 'check', 'payment', 'journal', 'vendor_credit', 'credit_card', 'payroll']),
+  "type": zod.enum(['invoice', 'bill', 'expense', 'check', 'payment', 'journal', 'vendor_credit', 'credit_card', 'payroll', 'deposit']),
   "num": zod.string().nullish(),
   "partyName": zod.string().nullish().describe('Customer or vendor name as displayed'),
   "description": zod.string().nullish(),
@@ -893,7 +893,7 @@ export const ListTransactionsResponse = zod.array(ListTransactionsResponseItem)
 
 export const CreateTransactionBody = zod.object({
   "date": zod.string().min(1),
-  "type": zod.enum(['invoice', 'bill', 'expense', 'check', 'payment', 'journal', 'vendor_credit', 'credit_card', 'payroll']),
+  "type": zod.enum(['invoice', 'bill', 'expense', 'check', 'payment', 'journal', 'vendor_credit', 'credit_card', 'payroll', 'deposit']),
   "num": zod.string().nullish(),
   "partyName": zod.string().nullish(),
   "description": zod.string().nullish(),
@@ -908,7 +908,7 @@ export const CreateTransactionBody = zod.object({
 export const CreateTransactionResponse = zod.object({
   "id": zod.number(),
   "date": zod.string().describe('ISO date (YYYY-MM-DD)'),
-  "type": zod.enum(['invoice', 'bill', 'expense', 'check', 'payment', 'journal', 'vendor_credit', 'credit_card', 'payroll']),
+  "type": zod.enum(['invoice', 'bill', 'expense', 'check', 'payment', 'journal', 'vendor_credit', 'credit_card', 'payroll', 'deposit']),
   "num": zod.string().nullish(),
   "partyName": zod.string().nullish().describe('Customer or vendor name as displayed'),
   "description": zod.string().nullish(),
@@ -937,7 +937,7 @@ export const GetTransactionParams = zod.object({
 export const GetTransactionResponse = zod.object({
   "id": zod.number(),
   "date": zod.string().describe('ISO date (YYYY-MM-DD)'),
-  "type": zod.enum(['invoice', 'bill', 'expense', 'check', 'payment', 'journal', 'vendor_credit', 'credit_card', 'payroll']),
+  "type": zod.enum(['invoice', 'bill', 'expense', 'check', 'payment', 'journal', 'vendor_credit', 'credit_card', 'payroll', 'deposit']),
   "num": zod.string().nullish(),
   "partyName": zod.string().nullish().describe('Customer or vendor name as displayed'),
   "description": zod.string().nullish(),
@@ -968,7 +968,7 @@ export const UpdateTransactionParams = zod.object({
 
 export const UpdateTransactionBody = zod.object({
   "date": zod.string().min(1).optional(),
-  "type": zod.enum(['invoice', 'bill', 'expense', 'check', 'payment', 'journal', 'vendor_credit', 'credit_card', 'payroll']).optional(),
+  "type": zod.enum(['invoice', 'bill', 'expense', 'check', 'payment', 'journal', 'vendor_credit', 'credit_card', 'payroll', 'deposit']).optional(),
   "num": zod.string().nullish(),
   "partyName": zod.string().nullish(),
   "description": zod.string().nullish(),
@@ -983,7 +983,7 @@ export const UpdateTransactionBody = zod.object({
 export const UpdateTransactionResponse = zod.object({
   "id": zod.number(),
   "date": zod.string().describe('ISO date (YYYY-MM-DD)'),
-  "type": zod.enum(['invoice', 'bill', 'expense', 'check', 'payment', 'journal', 'vendor_credit', 'credit_card', 'payroll']),
+  "type": zod.enum(['invoice', 'bill', 'expense', 'check', 'payment', 'journal', 'vendor_credit', 'credit_card', 'payroll', 'deposit']),
   "num": zod.string().nullish(),
   "partyName": zod.string().nullish().describe('Customer or vendor name as displayed'),
   "description": zod.string().nullish(),
@@ -1097,7 +1097,7 @@ export const LinkTransactionBillBody = zod.object({
 export const LinkTransactionBillResponse = zod.object({
   "id": zod.number(),
   "date": zod.string().describe('ISO date (YYYY-MM-DD)'),
-  "type": zod.enum(['invoice', 'bill', 'expense', 'check', 'payment', 'journal', 'vendor_credit', 'credit_card', 'payroll']),
+  "type": zod.enum(['invoice', 'bill', 'expense', 'check', 'payment', 'journal', 'vendor_credit', 'credit_card', 'payroll', 'deposit']),
   "num": zod.string().nullish(),
   "partyName": zod.string().nullish().describe('Customer or vendor name as displayed'),
   "description": zod.string().nullish(),
@@ -1161,7 +1161,7 @@ export const GetDashboardSummaryResponse = zod.object({
   "recentTransactions": zod.array(zod.object({
   "id": zod.number(),
   "date": zod.string().describe('ISO date (YYYY-MM-DD)'),
-  "type": zod.enum(['invoice', 'bill', 'expense', 'check', 'payment', 'journal', 'vendor_credit', 'credit_card', 'payroll']),
+  "type": zod.enum(['invoice', 'bill', 'expense', 'check', 'payment', 'journal', 'vendor_credit', 'credit_card', 'payroll', 'deposit']),
   "num": zod.string().nullish(),
   "partyName": zod.string().nullish().describe('Customer or vendor name as displayed'),
   "description": zod.string().nullish(),

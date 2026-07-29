@@ -98,6 +98,15 @@ beforeAll(async () => {
       accountId: otherExpenseId,
       amountCents: 800,
     },
+    // Deposit in the window: the response schema must accept type "deposit"
+    // (fixtures/imports can create them) or the endpoint 500s. Uses
+    // other_income so the gross-profit assertions below stay untouched.
+    {
+      date: "2098-11-15",
+      type: "deposit",
+      accountId: otherIncomeId,
+      amountCents: 1_234,
+    },
     // Outside the window — must never appear.
     {
       date: "2098-12-05",
@@ -131,8 +140,21 @@ describe("GET /reports/dashboard", () => {
     expect(res.body.totalCogsCents).toBe(40_000);
     expect(res.body.grossProfitCents).toBe(60_000);
     expect(res.body.totalExpensesCents).toBe(5_000);
-    // Net income = gross profit - expense + other income - other expense
-    //            = 60,000 - 5,000 + 2,000 - 800
-    expect(res.body.netIncomeCents).toBe(56_200);
+    // Net income = gross profit - expense + other income (2,000 journal
+    //            + 1,234 deposit) - other expense
+    //            = 60,000 - 5,000 + 3,234 - 800
+    expect(res.body.netIncomeCents).toBe(57_434);
+  });
+
+  it("does not 500 when a deposit transaction is in the window", async () => {
+    const res = await request(app)
+      .get("/api/reports/dashboard")
+      .query({ startDate: START, endDate: END });
+    expect(res.status).toBe(200);
+    const deposit = res.body.recentTransactions.find(
+      (t: { type: string }) => t.type === "deposit",
+    );
+    expect(deposit).toBeDefined();
+    expect(deposit.amountCents).toBe(1_234);
   });
 });

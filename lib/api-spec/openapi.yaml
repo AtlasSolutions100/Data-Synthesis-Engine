@@ -2172,7 +2172,7 @@ components:
           description: ISO date (YYYY-MM-DD)
         type:
           type: string
-          enum: [invoice, bill, expense, check, payment, journal, vendor_credit, credit_card, payroll]
+          enum: [invoice, bill, expense, check, payment, journal, vendor_credit, credit_card, payroll, deposit]
         num:
           type: ["string", "null"]
         partyName:
@@ -2217,7 +2217,7 @@ components:
           minLength: 1
         type:
           type: string
-          enum: [invoice, bill, expense, check, payment, journal, vendor_credit, credit_card, payroll]
+          enum: [invoice, bill, expense, check, payment, journal, vendor_credit, credit_card, payroll, deposit]
         num:
           type: ["string", "null"]
         partyName:
@@ -2244,7 +2244,7 @@ components:
           minLength: 1
         type:
           type: string
-          enum: [invoice, bill, expense, check, payment, journal, vendor_credit, credit_card, payroll]
+          enum: [invoice, bill, expense, check, payment, journal, vendor_credit, credit_card, payroll, deposit]
         num:
           type: ["string", "null"]
         partyName:

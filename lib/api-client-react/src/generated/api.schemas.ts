@@ -466,6 +466,7 @@ export const TransactionType = {
   vendor_credit: 'vendor_credit',
   credit_card: 'credit_card',
   payroll: 'payroll',
+  deposit: 'deposit',
 } as const;
 
 export interface Transaction {
@@ -529,6 +530,7 @@ export const TransactionInputType = {
   vendor_credit: 'vendor_credit',
   credit_card: 'credit_card',
   payroll: 'payroll',
+  deposit: 'deposit',
 } as const;
 
 export interface TransactionInput {
@@ -566,6 +568,7 @@ export const TransactionUpdateType = {
   vendor_credit: 'vendor_credit',
   credit_card: 'credit_card',
   payroll: 'payroll',
+  deposit: 'deposit',
 } as const;
 
 export interface TransactionUpdate {

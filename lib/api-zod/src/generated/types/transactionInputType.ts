@@ -19,4 +19,5 @@ export const TransactionInputType = {
   vendor_credit: 'vendor_credit',
   credit_card: 'credit_card',
   payroll: 'payroll',
+  deposit: 'deposit',
 } as const;
