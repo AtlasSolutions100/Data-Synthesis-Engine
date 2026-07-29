@@ -251,8 +251,7 @@ describe("Customers Export CSV", () => {
 // --- Employees ----------------------------------------------------------------
 
 describe("Employees Export CSV", () => {
-  it("exports all employees (active and archived) with status and rates, never SSNs", async () => {
-    employeesData = [
+  const employees = [
       {
         id: 1,
         name: "Pat Doe",
@@ -280,6 +279,9 @@ describe("Employees Export CSV", () => {
         taxExempt: true,
       },
     ];
+
+  it("exports only the Active tab's employees by default, never SSNs", async () => {
+    employeesData = employees;
     renderPage(<Employees />);
     fireEvent.click(screen.getByTestId("button-export-employees"));
     const rows = await downloadedCsvRows();
@@ -295,11 +297,26 @@ describe("Employees Export CSV", () => {
       "Overtime Rate",
       "Tax Exempt",
     ]);
+    // Only the active employee — the export matches the visible tab.
     expect(rows.slice(1)).toEqual([
       ["Pat Doe", "pat@ex.com", "", "1 Main St", "2024-01-02", "", "Active", "25.50", "38.25", "No"],
-      ["Lee Gone", "", "", "", "2020-05-01", "2025-12-31", "Archived", "", "", "Yes"],
     ]);
     const csvText = (await blobText(capturedBlobs[0])).toLowerCase();
     expect(csvText).not.toContain("ssn");
+  });
+
+  it("exports only archived employees when the Archived tab is selected", async () => {
+    employeesData = employees;
+    renderPage(<Employees />);
+    // Radix tab triggers activate on mousedown, not click, in jsdom.
+    fireEvent.mouseDown(screen.getByTestId("tab-archived"));
+    // Only the archived employee is on screen…
+    expect(screen.queryByText("Pat Doe")).toBeNull();
+    fireEvent.click(screen.getByTestId("button-export-employees"));
+    const rows = await downloadedCsvRows();
+    // …and only it is exported.
+    expect(rows.slice(1)).toEqual([
+      ["Lee Gone", "", "", "", "2020-05-01", "2025-12-31", "Archived", "", "", "Yes"],
+    ]);
   });
 });

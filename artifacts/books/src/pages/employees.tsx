@@ -159,7 +159,12 @@ function isArchived(e: EmployeeRow): boolean {
   return e.active === false || !!e.terminationDate;
 }
 
-/** Download all employees (never SSNs — those stay off this screen) as CSV. */
+/**
+ * Download the employees currently visible on screen (the Active or Archived
+ * tab) as CSV — consistent with the Jobs/Vendors/Customers exports, which all
+ * export exactly the rows shown. Never includes SSNs — those stay off this
+ * screen entirely.
+ */
 function exportEmployeesCsv(employees: EmployeeRow[]) {
   const header = [
     "Name",
@@ -261,8 +266,8 @@ export default function Employees() {
         <div className="flex items-center gap-2">
         <Button
           variant="outline"
-          onClick={() => exportEmployeesCsv(employees ?? [])}
-          disabled={!employees?.length}
+          onClick={() => exportEmployeesCsv(visibleEmployees)}
+          disabled={!visibleEmployees.length}
           data-testid="button-export-employees"
         >
           <Download className="mr-2 h-4 w-4" /> Export CSV
