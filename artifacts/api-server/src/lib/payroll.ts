@@ -70,7 +70,10 @@ export function computeLine(input: {
   }
 
   const straightRate = input.straightRateCents ?? 0;
-  const overtimeRate = input.overtimeRateCents ?? 0;
+  // OT defaults to time-and-a-half of the straight rate when no explicit
+  // overtime rate is on the employee record (P5-TC-09).
+  const overtimeRate =
+    input.overtimeRateCents ?? Math.round(straightRate * 1.5);
   const regularWagesCents = Math.round(input.regularHours * straightRate);
   const overtimeWagesCents = Math.round(input.overtimeHours * overtimeRate);
   const holidayWagesCents = Math.round(input.holidayHours * straightRate);

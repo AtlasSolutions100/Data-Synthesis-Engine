@@ -192,6 +192,36 @@ async function validateLaborAccount(
 }
 
 /**
+ * Default labor account when a run doesn't specify one: the account used by
+ * the most recent payroll run, else the first COGS/expense account whose name
+ * mentions "labor".
+ */
+async function resolveDefaultLaborAccountId(): Promise<number | null> {
+  const [latest] = await db
+    .select({ laborAccountId: payrollRunsTable.laborAccountId })
+    .from(payrollRunsTable)
+    .orderBy(desc(payrollRunsTable.id))
+    .limit(1);
+  if (latest) return latest.laborAccountId;
+  const accounts = await db
+    .select({
+      id: accountsTable.id,
+      name: accountsTable.name,
+      type: accountsTable.type,
+    })
+    .from(accountsTable)
+    .orderBy(accountsTable.id);
+  const candidates = accounts.filter(
+    (a) =>
+      (COST_TYPES as readonly string[]).includes(a.type) &&
+      /labor/i.test(a.name),
+  );
+  // Only auto-pick when the choice is unambiguous — with several labor-like
+  // accounts a silent guess could misclassify payroll costs.
+  return candidates.length === 1 ? candidates[0].id : null;
+}
+
+/**
  * Validate line references (jobs, employees, vendors) and per-line allocation
  * sums. Returns an error message string, or null when valid.
  */
@@ -451,7 +481,21 @@ router.post("/payroll-runs", async (req, res): Promise<void> => {
   }
   const data = parsed.data;
 
-  const accountError = await validateLaborAccount(data.laborAccountId);
+  // The labor account is resolved automatically when omitted (P5-TC-06):
+  // reuse the most recent run's account, else fall back to a cost account
+  // whose name mentions labor.
+  let laborAccountId = data.laborAccountId ?? null;
+  if (laborAccountId == null) {
+    laborAccountId = await resolveDefaultLaborAccountId();
+    if (laborAccountId == null) {
+      res.status(400).json({
+        error:
+          "No labor cost account could be determined automatically. Make sure exactly one COGS/expense account mentions labor (e.g. \"Direct Labor\"), or specify laborAccountId.",
+      });
+      return;
+    }
+  }
+  const accountError = await validateLaborAccount(laborAccountId);
   if (accountError) {
     res.status(400).json({ error: accountError });
     return;
@@ -481,7 +525,7 @@ router.post("/payroll-runs", async (req, res): Promise<void> => {
         payPeriodEnd: data.payPeriodEnd,
         payDate: data.payDate,
         memo: data.memo ?? null,
-        laborAccountId: data.laborAccountId,
+        laborAccountId,
         ssRateBps: rates.ssRateBps,
         medicareRateBps: rates.medicareRateBps,
         futaRateBps: rates.futaRateBps,
@@ -869,7 +913,7 @@ router.post("/payroll/extract-hours", async (req, res): Promise<void> => {
     req.log?.error({ err }, "openai integration unavailable");
     res.status(503).json({
       error:
-        "The hours extraction service is not configured. Please try again later.",
+        "The hours reader is not configured. Please try again later.",
     });
     return;
   }
@@ -910,7 +954,7 @@ router.post("/payroll/extract-hours", async (req, res): Promise<void> => {
   } catch (err) {
     req.log?.error({ err }, "payroll hours extraction failed");
     res.status(502).json({
-      error: "The hours extraction service is unavailable. Please try again.",
+      error: "The hours reader is unavailable. Please try again.",
     });
     return;
   }
@@ -921,7 +965,7 @@ router.post("/payroll/extract-hours", async (req, res): Promise<void> => {
     rawRows = obj?.rows;
   } catch {
     res.status(502).json({
-      error: "Could not read the extracted hours. Please try again.",
+      error: "Could not read the hours from that upload. Please try again.",
     });
     return;
   }

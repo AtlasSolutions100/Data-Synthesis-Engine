@@ -69,6 +69,40 @@ describe("computeLine", () => {
     );
   });
 
+  it("defaults overtime pay to 1.5x the straight rate when no OT rate is set (P5-TC-09)", () => {
+    const result = computeLine({
+      lineType: "employee",
+      regularHours: 40,
+      overtimeHours: 10,
+      holidayHours: 0,
+      straightRateCents: 5000, // $50.00/hr
+      overtimeRateCents: null, // no explicit OT rate on the employee record
+      taxExempt: false,
+      subcontractorAmountCents: null,
+      rates: RATES,
+    });
+
+    // OT falls back to time-and-a-half: $75.00/hr.
+    expect(result.overtimeWagesCents).toBe(10 * 7500);
+    expect(result.regularWagesCents).toBe(40 * 5000);
+    expect(result.grossWagesCents).toBe(40 * 5000 + 10 * 7500);
+  });
+
+  it("an explicit overtime rate still wins over the 1.5x fallback", () => {
+    const result = computeLine({
+      lineType: "employee",
+      regularHours: 0,
+      overtimeHours: 10,
+      holidayHours: 0,
+      straightRateCents: 5000,
+      overtimeRateCents: 8000, // explicit $80.00/hr beats 1.5x ($75.00)
+      taxExempt: false,
+      subcontractorAmountCents: null,
+      rates: RATES,
+    });
+    expect(result.overtimeWagesCents).toBe(10 * 8000);
+  });
+
   it("zeroes every burden component for a tax-exempt employee while keeping gross wages", () => {
     const result = computeLine({
       lineType: "employee",

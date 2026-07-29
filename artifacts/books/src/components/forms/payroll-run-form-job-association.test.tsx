@@ -117,10 +117,10 @@ const defaults = {
 };
 
 async function importText(text: string) {
-  fireEvent.click(screen.getByRole("button", { name: /import hours/i }));
+  fireEvent.click(screen.getByRole("button", { name: /upload hours/i }));
   const textarea = await screen.findByLabelText(/paste hours text/i);
   fireEvent.change(textarea, { target: { value: text } });
-  fireEvent.click(screen.getByRole("button", { name: /extract hours/i }));
+  fireEvent.click(screen.getByRole("button", { name: /enter hours/i }));
   await waitFor(() => expect(screen.getByText(/will be applied/i)).toBeTruthy());
 }
 

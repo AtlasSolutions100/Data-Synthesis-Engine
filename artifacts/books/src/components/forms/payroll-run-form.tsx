@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
   useForm,
   useFieldArray,
@@ -50,12 +50,15 @@ import {
   currentPayPeriod,
   payPeriodsForYear,
   payPeriodForStart,
+  payPeriodForDate,
   payPeriodLabel,
   type PayPeriod,
 } from "@/lib/pay-periods";
 import { Plus, Trash2, Sparkles, Upload, AlertTriangle } from "lucide-react";
 import {
   useExtractPayrollHours,
+  useGetCurrentUser,
+  getGetCurrentUserQueryKey,
   useListEmployees,
   getListEmployeesQueryKey,
   useListJobs,
@@ -112,7 +115,9 @@ const runSchema = z.object({
   payPeriodStart: z.string().min(1, "Required"),
   payPeriodEnd: z.string().min(1, "Required"),
   payDate: z.string().min(1, "Required"),
-  laborAccountId: z.string().min(1, "Labor cost account ID is required"),
+  // Resolved automatically by the server when blank (P5-TC-06); kept in the
+  // form state so editing an existing run preserves its account.
+  laborAccountId: z.string().optional(),
   memo: z.string().optional(),
   ssRate: z.string().optional(),
   medicareRate: z.string().optional(),
@@ -187,7 +192,9 @@ function computeLineCents(
     return { grossCents: 0, burdenCents: 0, totalCents: total };
   }
   const straight = employee?.straightTimeRateCents ?? 0;
-  const overtime = employee?.overtimeRateCents ?? 0;
+  // OT auto-calculates at 1.5x the employee's straight rate when no explicit
+  // overtime rate is set (P5-TC-09).
+  const overtime = employee?.overtimeRateCents ?? Math.round(straight * 1.5);
   const hours = sumHours(line.hourEntries);
   const gross =
     Math.round(hours.regular * straight) +
@@ -417,37 +424,18 @@ function WorkerLine({
     0,
   );
   const unallocated = computed.totalCents - allocated;
+  // Legacy runs may still carry subcontractor lines; new entries are always
+  // employees (P5-TC-04) — subs are tracked as vendors/bills instead.
   const isSub = line?.lineType === "subcontractor";
   const missingRate =
-    !isSub &&
-    (!employee ||
-      employee.straightTimeRateCents == null ||
-      (sumHours(line?.hourEntries ?? []).overtime > 0 &&
-        employee.overtimeRateCents == null));
+    !isSub && (!employee || employee.straightTimeRateCents == null);
 
   return (
     <div className="space-y-3 rounded-lg border p-4">
       <div className="flex items-center justify-between gap-2">
-        <FormField
-          control={control}
-          name={`lines.${index}.lineType`}
-          render={({ field }) => (
-            <FormItem className="w-44">
-              <Select onValueChange={field.onChange} value={field.value}>
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  <SelectItem value="employee">Employee</SelectItem>
-                  <SelectItem value="subcontractor">Subcontractor</SelectItem>
-                </SelectContent>
-              </Select>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+        <span className="text-sm font-medium text-slate-700">
+          {isSub ? "Subcontractor (legacy)" : "Employee"}
+        </span>
         <Button
           type="button"
           variant="ghost"
@@ -579,7 +567,9 @@ function WorkerLine({
               <span className="font-semibold text-slate-900">
                 {employee?.overtimeRateCents != null
                   ? `${formatCents(employee.overtimeRateCents)}/hr`
-                  : "—"}
+                  : employee?.straightTimeRateCents != null
+                    ? `${formatCents(Math.round(employee.straightTimeRateCents * 1.5))}/hr (1.5×)`
+                    : "—"}
               </span>
             </span>
             <span className="text-slate-400">
@@ -666,7 +656,7 @@ function readApiError(err: unknown): string {
   const data = (err as { data?: { error?: string } })?.data;
   if (data?.error) return data.error;
   const msg = (err as { message?: string })?.message;
-  return msg || "Couldn't extract hours. Please try again.";
+  return msg || "Couldn't read the hours. Please try again.";
 }
 
 type ImportStatus = "matched" | "ambiguous" | "unmatched";
@@ -801,12 +791,14 @@ function ImportHoursDialog({
   employees,
   jobs,
   appendLine,
+  applyPeriod,
   autoOpen = false,
 }: {
   form: UseFormReturn<RunFormValues>;
   employees: Employee[];
   jobs: Job[];
   appendLine: (line: RunFormValues["lines"][number]) => void;
+  applyPeriod: (p: PayPeriod) => void;
   autoOpen?: boolean;
 }) {
   const [open, setOpen] = useState(autoOpen);
@@ -820,6 +812,15 @@ function ImportHoursDialog({
   const [customer, setCustomer] = useState(""); // "" = all customers
   const [customerAuto, setCustomerAuto] = useState(false);
   const [dragOver, setDragOver] = useState(false);
+  const [periodNote, setPeriodNote] = useState("");
+  // Guards against a slow earlier extraction overwriting a newer one when
+  // the user drops a second file before the first finishes.
+  const extractSeq = useRef(0);
+
+  const { data: me } = useGetCurrentUser({
+    query: { queryKey: getGetCurrentUserQueryKey() },
+  });
+  const isOwner = me?.role === "owner";
 
   const extract = useExtractPayrollHours();
   const createJob = useCreateJob();
@@ -840,6 +841,7 @@ function ImportHoursDialog({
     setCustomer("");
     setCustomerAuto(false);
     setDragOver(false);
+    setPeriodNote("");
     extract.reset();
   };
 
@@ -865,7 +867,13 @@ function ImportHoursDialog({
       reader.onload = () => setText(String(reader.result ?? ""));
       reader.readAsText(file);
     } else {
-      reader.onload = () => setFileData(String(reader.result ?? ""));
+      // Dropping a time card (PDF/image) is the primary path — parse it
+      // right away instead of waiting for another click (P5-TC-02).
+      reader.onload = () => {
+        const data = String(reader.result ?? "");
+        setFileData(data);
+        void doExtract({ fileData: data, fileName: file.name });
+      };
       reader.readAsDataURL(file);
     }
   };
@@ -1047,24 +1055,65 @@ function ImportHoursDialog({
     return hints.size === 1 ? [...hints][0] : "";
   };
 
-  const handleExtract = async () => {
+  /**
+   * Assign the pay period from the dates on the time card (P5-TC-03): the
+   * period containing the most worked days wins. Returns a user-facing note.
+   */
+  const autoAssignPeriod = (extracted: ExtractedHourRow[]): string => {
+    const dates = extracted.flatMap((r) =>
+      (r.entries ?? [])
+        .map((e) => e.date)
+        .filter((d): d is string => !!d),
+    );
+    if (dates.length === 0) {
+      return form.getValues("payPeriodStart")
+        ? ""
+        : "No dates were detected on the time card and no pay period is set — pick the pay period on the form before saving.";
+    }
+    const counts = new Map<string, { period: PayPeriod; count: number }>();
+    for (const d of dates) {
+      const p = payPeriodForDate(d);
+      if (!p) continue;
+      const cur = counts.get(p.start);
+      if (cur) cur.count += 1;
+      else counts.set(p.start, { period: p, count: 1 });
+    }
+    const best = [...counts.values()].sort((a, b) => b.count - a.count)[0];
+    if (!best) return "";
+    if (form.getValues("payPeriodStart") === best.period.start) return "";
+    applyPeriod(best.period);
+    return `Assigned to ${payPeriodLabel(best.period)} from the dates on the time card. Adjust the pay period on the form if that's not right.`;
+  };
+
+  const doExtract = async (override?: {
+    fileData: string;
+    fileName: string;
+  }) => {
     setError("");
-    if (!text.trim() && !fileData) {
-      setError("Paste some text or upload a file first.");
+    const useText = override ? "" : text;
+    const useFileData = override ? override.fileData : fileData;
+    const useFileName = override ? override.fileName : fileName;
+    if (!useText.trim() && !useFileData) {
+      setError("Drop a time card file or paste some text first.");
       return;
     }
-    if (text.length > MAX_EXTRACT_TEXT_LENGTH) {
-      setError(extractTextTooLargeMessage(text.length));
+    if (useText.length > MAX_EXTRACT_TEXT_LENGTH) {
+      setError(extractTextTooLargeMessage(useText.length));
       return;
     }
+    const seq = ++extractSeq.current;
     try {
       const result = await extract.mutateAsync({
         data: {
-          text: text.trim() ? text : undefined,
-          fileData: fileData || undefined,
-          fileName: fileData ? fileName || undefined : undefined,
+          text: useText.trim() ? useText : undefined,
+          fileData: useFileData || undefined,
+          fileName: useFileData ? useFileName || undefined : undefined,
         },
       });
+      if (seq !== extractSeq.current) return; // a newer upload superseded this one
+      // Assign the pay period first so review flags compare against it.
+      const note = autoAssignPeriod(result.rows);
+      setPeriodNote(note);
       const built = buildReview(result.rows);
       const suggested = suggestCustomer(built.associations);
       setRows(built.rows);
@@ -1073,6 +1122,7 @@ function ImportHoursDialog({
       setCustomerAuto(!!suggested);
       setStage("review");
     } catch (err) {
+      if (seq !== extractSeq.current) return;
       setError(readApiError(err));
     }
   };
@@ -1299,23 +1349,71 @@ function ImportHoursDialog({
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
         <Button type="button" variant="outline" size="sm">
-          <Sparkles className="mr-1 h-4 w-4" /> Import hours
+          <Sparkles className="mr-1 h-4 w-4" /> Upload Hours
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[980px]">
         <DialogHeader>
-          <DialogTitle>Import hours</DialogTitle>
+          <DialogTitle>Upload Hours</DialogTitle>
           <DialogDescription>
-            Paste an hours email, or upload a timesheet as .txt/.csv, image, or
-            PDF. Extracted hours merge into matching worker lines by name and
-            rates come from the Employee Center — nothing posts automatically.
+            Drop a time card (PDF, image, .txt, or .csv) — it's read
+            automatically, the pay period is picked up from the dates on the
+            card, and rates come from the Employee Center. Nothing posts until
+            you review and save.
           </DialogDescription>
         </DialogHeader>
 
         {stage === "input" ? (
           <div className="space-y-4">
+            <div
+              className={`flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed px-6 py-10 text-center transition-colors ${
+                dragOver ? "border-blue-500 bg-blue-50" : "border-slate-300"
+              }`}
+              onDragOver={(e) => {
+                e.preventDefault();
+                setDragOver(true);
+              }}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={(e) => {
+                e.preventDefault();
+                setDragOver(false);
+                handleFile(e.dataTransfer.files?.[0]);
+              }}
+              data-testid="dropzone-import-hours"
+            >
+              <Upload className="h-8 w-8 text-slate-400" />
+              <p className="text-sm font-medium text-slate-700">
+                {extract.isPending
+                  ? "Reading the time card…"
+                  : "Drop a time card here"}
+              </p>
+              <p className="text-xs text-slate-500">
+                PDF, image, .txt, or .csv — up to 10 MB
+              </p>
+              <Label
+                htmlFor="import-hours-file"
+                className="cursor-pointer text-sm font-normal text-blue-600 hover:underline"
+              >
+                or browse for a file
+              </Label>
+              <input
+                id="import-hours-file"
+                type="file"
+                accept=".txt,.csv,text/plain,text/csv,image/*,.pdf,application/pdf"
+                className="hidden"
+                onChange={(e) => {
+                  handleFile(e.target.files?.[0]);
+                  e.target.value = "";
+                }}
+              />
+              {fileName ? (
+                <span className="text-xs text-slate-500">{fileName}</span>
+              ) : null}
+            </div>
             <div className="space-y-2">
-              <Label htmlFor="import-hours-text">Paste hours text</Label>
+              <Label htmlFor="import-hours-text">
+                Or paste hours text instead
+              </Label>
               <Textarea
                 id="import-hours-text"
                 rows={9}
@@ -1343,63 +1441,26 @@ function ImportHoursDialog({
                     : ""}
               </p>
             </div>
-            <div
-              className={`flex items-center gap-3 rounded-md border border-dashed px-3 py-2 transition-colors ${
-                dragOver
-                  ? "border-blue-500 bg-blue-50"
-                  : "border-slate-200"
-              }`}
-              onDragOver={(e) => {
-                e.preventDefault();
-                setDragOver(true);
-              }}
-              onDragLeave={() => setDragOver(false)}
-              onDrop={(e) => {
-                e.preventDefault();
-                setDragOver(false);
-                handleFile(e.dataTransfer.files?.[0]);
-              }}
-              data-testid="dropzone-import-hours"
-            >
-              <Label
-                htmlFor="import-hours-file"
-                className="cursor-pointer text-sm font-normal text-blue-600 hover:underline"
-              >
-                <Upload className="mr-1 inline h-4 w-4" /> Upload or drop .txt
-                / .csv / image / PDF
-              </Label>
-              <input
-                id="import-hours-file"
-                type="file"
-                accept=".txt,.csv,text/plain,text/csv,image/*,.pdf,application/pdf"
-                className="hidden"
-                onChange={(e) => {
-                  handleFile(e.target.files?.[0]);
-                  e.target.value = "";
-                }}
-              />
-              {fileName ? (
-                <span className="text-xs text-slate-500">
-                  {fileName}
-                  {fileData ? " (will be scanned)" : ""}
-                </span>
-              ) : null}
-            </div>
             {error ? <p className="text-sm text-red-600">{error}</p> : null}
             <div className="flex justify-end">
               <Button
                 type="button"
-                onClick={handleExtract}
+                onClick={() => void doExtract()}
                 disabled={
                   extract.isPending || text.length > MAX_EXTRACT_TEXT_LENGTH
                 }
               >
-                {extract.isPending ? "Extracting…" : "Extract hours"}
+                {extract.isPending ? "Reading…" : "Enter Hours"}
               </Button>
             </div>
           </div>
         ) : (
           <div className="space-y-4">
+            {periodNote ? (
+              <p className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+                {periodNote}
+              </p>
+            ) : null}
             <div className="rounded-lg border border-blue-200 bg-blue-50/60 p-4">
               <p className="text-sm font-semibold text-slate-900">
                 Step 1 — Which Client / Customer is this time associated with?
@@ -1444,7 +1505,7 @@ function ImportHoursDialog({
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Extracted name</TableHead>
+                    <TableHead>Worker</TableHead>
                     <TableHead className="w-16 text-right">Reg</TableHead>
                     <TableHead className="w-16 text-right">OT</TableHead>
                     <TableHead className="w-16 text-right">Hol/Vac</TableHead>
@@ -1622,17 +1683,33 @@ function ImportHoursDialog({
               >
                 Back
               </Button>
-              <Button
-                type="button"
-                onClick={handleApply}
-                disabled={
-                  appliedCount === 0 ||
-                  unconfirmedJobCount > 0 ||
-                  createJob.isPending
-                }
-              >
-                {createJob.isPending ? "Applying…" : "Apply hours"}
-              </Button>
+              <div className="flex items-center gap-2">
+                {isOwner && unconfirmedJobCount > 0 && appliedCount > 0 ? (
+                  // Owner override (P5-TC-13): flagged job names are skipped
+                  // for allocation, so the cost lands unallocated — visible
+                  // and fixable on the run, never silently misfiled.
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleApply}
+                    disabled={createJob.isPending}
+                    data-testid="button-apply-override"
+                  >
+                    Apply anyway (leave flagged jobs unallocated)
+                  </Button>
+                ) : null}
+                <Button
+                  type="button"
+                  onClick={handleApply}
+                  disabled={
+                    appliedCount === 0 ||
+                    unconfirmedJobCount > 0 ||
+                    createJob.isPending
+                  }
+                >
+                  {createJob.isPending ? "Applying…" : "Apply hours"}
+                </Button>
+              </div>
             </div>
           </div>
         )}
@@ -1756,7 +1833,9 @@ export function PayrollRunForm({
       payPeriodEnd: values.payPeriodEnd,
       payDate: values.payDate,
       memo: values.memo || null,
-      laborAccountId: parseInt(values.laborAccountId, 10),
+      laborAccountId: values.laborAccountId
+        ? parseInt(values.laborAccountId, 10)
+        : undefined,
       ssRateBps: pctToBps(values.ssRate),
       medicareRateBps: pctToBps(values.medicareRate),
       futaRateBps: pctToBps(values.futaRate),
@@ -1783,7 +1862,11 @@ export function PayrollRunForm({
           overtimeHours: hours.overtime,
           holidayHours: hours.holiday,
           straightRateCents: employee?.straightTimeRateCents ?? null,
-          overtimeRateCents: employee?.overtimeRateCents ?? null,
+          overtimeRateCents:
+            employee?.overtimeRateCents ??
+            (employee?.straightTimeRateCents != null
+              ? Math.round(employee.straightTimeRateCents * 1.5)
+              : null),
           taxExempt: l.lineType === "employee" ? l.taxExempt : false,
           subcontractorAmountCents:
             l.lineType === "subcontractor" && l.subcontractorAmount
@@ -1880,34 +1963,19 @@ export function PayrollRunForm({
           />
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
-          <FormField
-            control={form.control}
-            name="laborAccountId"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Labor Cost Account ID</FormLabel>
-                <FormControl>
-                  <Input type="number" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="memo"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Memo (Optional)</FormLabel>
-                <FormControl>
-                  <Input {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        </div>
+        <FormField
+          control={form.control}
+          name="memo"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Memo (Optional)</FormLabel>
+              <FormControl>
+                <Input {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
 
         <div className="space-y-2 rounded-lg border p-4">
           <p className="text-sm font-medium leading-none">
@@ -1994,6 +2062,7 @@ export function PayrollRunForm({
                 employees={employeeList}
                 jobs={jobList}
                 appendLine={append}
+                applyPeriod={applyPeriod}
                 autoOpen={autoOpenImport}
               />
               <Button
@@ -2002,7 +2071,7 @@ export function PayrollRunForm({
                 size="sm"
                 onClick={() => append({ ...emptyLine })}
               >
-                <Plus className="mr-1 h-4 w-4" /> Add Worker
+                <Plus className="mr-1 h-4 w-4" /> Add Employee
               </Button>
             </div>
           </div>

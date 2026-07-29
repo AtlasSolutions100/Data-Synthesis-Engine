@@ -13,6 +13,7 @@ import {
   type PayrollRun,
 } from "@workspace/api-client-react";
 import { formatCents } from "@/lib/format";
+import { payPeriodForStart, payPeriodLabel } from "@/lib/pay-periods";
 import {
   Card,
   CardContent,
@@ -153,8 +154,16 @@ export default function PayrollDetail() {
         <div className="flex items-center justify-between">
           <div>
             <div className="flex items-center gap-3">
-              <h1 className="text-3xl font-bold tracking-tight text-slate-900">
-                {run.payPeriodStart} – {run.payPeriodEnd}
+              <h1
+                className="text-3xl font-bold tracking-tight text-slate-900"
+                data-testid="text-pay-period"
+              >
+                {(() => {
+                  const p = payPeriodForStart(run.payPeriodStart);
+                  return p
+                    ? payPeriodLabel(p)
+                    : `${run.payPeriodStart} – ${run.payPeriodEnd}`;
+                })()}
               </h1>
               <Badge variant={run.posted ? "secondary" : "default"}>
                 {run.posted ? "Posted" : "Draft"}

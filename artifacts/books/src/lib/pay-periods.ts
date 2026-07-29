@@ -68,6 +68,18 @@ function periodNumberInYear(startMs: number): number {
   return count;
 }
 
+/** The pay period containing an ISO date (YYYY-MM-DD), or null if invalid. */
+export function payPeriodForDate(dateISO: string): PayPeriod | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateISO)) return null;
+  const ms = parseISO(dateISO);
+  if (Number.isNaN(ms)) return null;
+  // Reject non-real calendar dates (e.g. 2026-02-31), which Date.UTC would
+  // silently roll over into the next month.
+  if (toISO(ms) !== dateISO) return null;
+  const offset = Math.floor((ms - ANCHOR_START_UTC) / (PERIOD_DAYS * MS_PER_DAY));
+  return buildPeriod(startAtOffset(offset));
+}
+
 /** The pay period containing the given date (defaults to today). */
 export function currentPayPeriod(today: Date = new Date()): PayPeriod {
   const todayMs = Date.UTC(

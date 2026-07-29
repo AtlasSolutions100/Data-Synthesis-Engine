@@ -13,7 +13,7 @@ export interface PayrollRunInput {
   payDate: string;
   /** @nullable */
   memo?: string | null;
-  laborAccountId: number;
+  laborAccountId?: number;
   /** @minimum 0 */
   ssRateBps?: number;
   /** @minimum 0 */

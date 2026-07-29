@@ -141,7 +141,7 @@ router.post("/employees/extract", async (req, res): Promise<void> => {
     req.log?.error({ err }, "openai integration unavailable");
     res.status(503).json({
       error:
-        "The employee extraction service is not configured. Please try again later.",
+        "The employee reader is not configured. Please try again later.",
     });
     return;
   }
@@ -179,7 +179,7 @@ router.post("/employees/extract", async (req, res): Promise<void> => {
   } catch (err) {
     req.log?.error({ err }, "employee extraction failed");
     res.status(502).json({
-      error: "The employee extraction service is unavailable. Please try again.",
+      error: "The employee reader is unavailable. Please try again.",
     });
     return;
   }
@@ -190,7 +190,7 @@ router.post("/employees/extract", async (req, res): Promise<void> => {
     rawRows = obj?.rows;
   } catch {
     res.status(502).json({
-      error: "Could not read the extracted employees. Please try again.",
+      error: "Could not read the employees from that upload. Please try again.",
     });
     return;
   }

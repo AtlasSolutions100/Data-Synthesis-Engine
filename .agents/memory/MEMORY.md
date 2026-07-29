@@ -20,6 +20,7 @@
 - [Job/PO labeling](job-po-labeling.md) — jobs identified by Job Name only; PO Number is the sole reference field; job_number stays in DB but is auto-generated and never shown.
 - [Clerk owner self-heal](clerk-user-owner-selfheal.md) — new Clerk keys duplicate users as bookkeepers; promote by fresh *verified* email match to an owner row, never stored/unverified email.
 - [Drizzle push + unique constraints](drizzle-push-unique-constraint.md) — push-force needs a TTY when adding a unique constraint to a populated table; apply via direct ALTER TABLE with drizzle's constraint name instead.
+- [Payroll labor account default](payroll-labor-account-default.md) — labor account auto-resolves server-side (latest run, else lone /labor/i cost account); OT falls back to 1.5× straight rate.
 - [Bill ledger posting](bill-ledger-posting.md) — API-created and spreadsheet-imported bills generate billId-linked ledger transactions (batched sync, postedToLedger flag); legacy bills are never back-filled.
 - [api-client-react mock factory](api-client-mock-factory.md) — never hand-list generated hooks in vi.mock; use the shared factory so new hooks don't break suites.
 - [Hours-import job confirmation](import-job-confirmation.md) — person-like extracted job names always require explicit confirmation, even if a job with that exact name exists.

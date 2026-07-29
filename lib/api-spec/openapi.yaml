@@ -3167,7 +3167,7 @@ components:
             $ref: "#/components/schemas/PayrollLine"
     PayrollRunInput:
       type: object
-      required: [payPeriodStart, payPeriodEnd, payDate, laborAccountId]
+      required: [payPeriodStart, payPeriodEnd, payDate]
       properties:
         payPeriodStart:
           type: string

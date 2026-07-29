@@ -114,7 +114,7 @@ describe("POST /api/employees/extract", () => {
 
     expect(res.status).toBe(502);
     expect(res.body.error).toBe(
-      "Could not read the extracted employees. Please try again.",
+      "Could not read the employees from that upload. Please try again.",
     );
   });
 

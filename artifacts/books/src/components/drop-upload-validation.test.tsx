@@ -324,7 +324,7 @@ describe("ImportHoursDialog dropzone validation", () => {
     renderWithClient(
       <PayrollRunForm onSubmit={vi.fn()} defaultValues={payrollDefaults} />,
     );
-    fireEvent.click(screen.getByRole("button", { name: /import hours/i }));
+    fireEvent.click(screen.getByRole("button", { name: /upload hours/i }));
     return await screen.findByTestId("dropzone-import-hours");
   }
 

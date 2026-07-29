@@ -71,11 +71,11 @@ const defaults = {
 
 // Mirrors artifacts/api-server/src/routes/payroll.ts extract-hours contract.
 const ERR_503 =
-  "The hours extraction service is not configured. Please try again later.";
+  "The hours reader is not configured. Please try again later.";
 const ERR_502 =
-  "The hours extraction service is unavailable. Please try again.";
+  "The hours reader is unavailable. Please try again.";
 const ERR_502_UNPARSEABLE =
-  "Could not read the extracted hours. Please try again.";
+  "Could not read the hours from that upload. Please try again.";
 const ERR_400_NO_ROWS =
   "No worker hours were found. Check the format and try again.";
 
@@ -89,7 +89,7 @@ function apiError(status: number, error: string) {
 }
 
 async function openDialogAndPaste(text: string) {
-  fireEvent.click(screen.getByRole("button", { name: /import hours/i }));
+  fireEvent.click(screen.getByRole("button", { name: /upload hours/i }));
   const textarea = await screen.findByLabelText(/paste hours text/i);
   fireEvent.change(textarea, { target: { value: text } });
   return textarea as HTMLTextAreaElement;
@@ -103,13 +103,13 @@ describe("ImportHoursDialog AI-service error handling", () => {
     const pasted = "John Smith — 40 reg, 5 OT";
     const textarea = await openDialogAndPaste(pasted);
 
-    fireEvent.click(screen.getByRole("button", { name: /extract hours/i }));
+    fireEvent.click(screen.getByRole("button", { name: /enter hours/i }));
 
     await waitFor(() => expect(screen.getByText(ERR_503)).toBeTruthy());
     // Still on the input stage with the user's text intact.
     expect(textarea.value).toBe(pasted);
     expect(
-      screen.getByRole("button", { name: /extract hours/i }),
+      screen.getByRole("button", { name: /enter hours/i }),
     ).toBeTruthy();
   });
 
@@ -124,12 +124,12 @@ describe("ImportHoursDialog AI-service error handling", () => {
     const pasted = "John Smith — 40 reg, 5 OT";
     const textarea = await openDialogAndPaste(pasted);
 
-    fireEvent.click(screen.getByRole("button", { name: /extract hours/i }));
+    fireEvent.click(screen.getByRole("button", { name: /enter hours/i }));
     await waitFor(() => expect(screen.getByText(ERR_502)).toBeTruthy());
     expect(textarea.value).toBe(pasted);
 
     // Retry with the same pasted text — no re-typing needed.
-    fireEvent.click(screen.getByRole("button", { name: /extract hours/i }));
+    fireEvent.click(screen.getByRole("button", { name: /enter hours/i }));
 
     // Moves to the review stage and the error is cleared.
     await waitFor(() =>
@@ -153,7 +153,7 @@ describe("ImportHoursDialog AI-service error handling", () => {
     const pasted = "John Smith — 40 reg, 5 OT";
     const textarea = await openDialogAndPaste(pasted);
 
-    fireEvent.click(screen.getByRole("button", { name: /extract hours/i }));
+    fireEvent.click(screen.getByRole("button", { name: /enter hours/i }));
     await waitFor(() =>
       expect(screen.getByText(ERR_502_UNPARSEABLE)).toBeTruthy(),
     );
@@ -161,7 +161,7 @@ describe("ImportHoursDialog AI-service error handling", () => {
     expect(textarea.value).toBe(pasted);
 
     // Retry with the same pasted text — no re-typing needed.
-    fireEvent.click(screen.getByRole("button", { name: /extract hours/i }));
+    fireEvent.click(screen.getByRole("button", { name: /enter hours/i }));
 
     await waitFor(() =>
       expect(screen.getByText(/will be applied/i)).toBeTruthy(),
@@ -183,18 +183,18 @@ describe("ImportHoursDialog AI-service error handling", () => {
     const pasted = "John Smith — 40 reg, 5 OT";
     const textarea = await openDialogAndPaste(pasted);
 
-    fireEvent.click(screen.getByRole("button", { name: /extract hours/i }));
+    fireEvent.click(screen.getByRole("button", { name: /enter hours/i }));
     await waitFor(() =>
       expect(screen.getByText(ERR_400_NO_ROWS)).toBeTruthy(),
     );
     // Still on the input stage with the user's text intact.
     expect(textarea.value).toBe(pasted);
     expect(
-      screen.getByRole("button", { name: /extract hours/i }),
+      screen.getByRole("button", { name: /enter hours/i }),
     ).toBeTruthy();
 
     // Retry with the same pasted text — no re-typing needed.
-    fireEvent.click(screen.getByRole("button", { name: /extract hours/i }));
+    fireEvent.click(screen.getByRole("button", { name: /enter hours/i }));
 
     await waitFor(() =>
       expect(screen.getByText(/will be applied/i)).toBeTruthy(),
@@ -215,7 +215,7 @@ describe("ImportHoursDialog AI-service error handling", () => {
     // Live warning appears immediately and the button is disabled.
     expect(screen.getByText(/too long to import/i)).toBeTruthy();
     const extractButton = screen.getByRole("button", {
-      name: /extract hours/i,
+      name: /enter hours/i,
     }) as HTMLButtonElement;
     expect(extractButton.disabled).toBe(true);
 
@@ -242,7 +242,7 @@ describe("ImportHoursDialog AI-service error handling", () => {
     expect(screen.getByText(/approaching the limit/i)).toBeTruthy();
 
     const extractButton = screen.getByRole("button", {
-      name: /extract hours/i,
+      name: /enter hours/i,
     }) as HTMLButtonElement;
     expect(extractButton.disabled).toBe(false);
   });
@@ -252,7 +252,7 @@ describe("ImportHoursDialog AI-service error handling", () => {
     renderForm(<PayrollRunForm onSubmit={vi.fn()} defaultValues={defaults} />);
 
     await openDialogAndPaste("some hours text");
-    fireEvent.click(screen.getByRole("button", { name: /extract hours/i }));
+    fireEvent.click(screen.getByRole("button", { name: /enter hours/i }));
 
     await waitFor(() =>
       expect(screen.getByText(/network error/i)).toBeTruthy(),

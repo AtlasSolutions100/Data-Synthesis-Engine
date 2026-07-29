@@ -50,7 +50,7 @@ function openDialog() {
 }
 
 function extractButton() {
-  return screen.getByRole("button", { name: /extract employees/i }) as HTMLButtonElement;
+  return screen.getByRole("button", { name: /read employees/i }) as HTMLButtonElement;
 }
 
 describe("ImportEmployeesDialog roster guard", () => {

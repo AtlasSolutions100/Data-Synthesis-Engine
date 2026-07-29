@@ -2178,7 +2178,7 @@ export const CreatePayrollRunBody = zod.object({
   "payPeriodEnd": zod.string(),
   "payDate": zod.string(),
   "memo": zod.string().nullish(),
-  "laborAccountId": zod.number(),
+  "laborAccountId": zod.number().optional(),
   "ssRateBps": zod.number().min(createPayrollRunBodySsRateBpsMin).optional(),
   "medicareRateBps": zod.number().min(createPayrollRunBodyMedicareRateBpsMin).optional(),
   "futaRateBps": zod.number().min(createPayrollRunBodyFutaRateBpsMin).optional(),

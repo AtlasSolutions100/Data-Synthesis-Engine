@@ -228,7 +228,7 @@ export function ImportEmployeesDialog() {
           <DialogDescription>
             Paste an email or rate sheet, or upload a .txt/.csv, image, or PDF.
             Names, hourly rates, overtime rates (or multipliers like 1.5x), and
-            status are extracted for review — nothing saves until you confirm.
+            status are read for review — nothing saves until you confirm.
           </DialogDescription>
         </DialogHeader>
 
@@ -282,7 +282,7 @@ export function ImportEmployeesDialog() {
             {error ? <p className="text-sm text-red-600">{error}</p> : null}
             {!employeesLoaded && employeesFailed ? (
               <p className="text-sm text-amber-600">
-                Couldn't load your current employee list, so extracted names can't be
+                Couldn't load your current employee list, so names from the file can't be
                 matched against existing employees.{" "}
                 <button
                   type="button"
@@ -306,7 +306,7 @@ export function ImportEmployeesDialog() {
                   text.length > MAX_EXTRACT_TEXT_LENGTH
                 }
               >
-                {extract.isPending ? "Extracting…" : "Extract employees"}
+                {extract.isPending ? "Reading…" : "Read employees"}
               </Button>
             </div>
           </div>

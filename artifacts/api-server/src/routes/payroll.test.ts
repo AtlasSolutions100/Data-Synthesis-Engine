@@ -561,7 +561,7 @@ describe("POST /api/payroll/extract-hours error handling", () => {
     // Exact-match: the frontend import dialog contract tests
     // (payroll-run-form-import-errors.test.tsx) assert this precise message.
     expect(res.body.error).toBe(
-      "Could not read the extracted hours. Please try again.",
+      "Could not read the hours from that upload. Please try again.",
     );
     expect(mockCreate).toHaveBeenCalledTimes(1);
   });
@@ -576,7 +576,7 @@ describe("POST /api/payroll/extract-hours error handling", () => {
 
     expect(res.status).toBe(502);
     expect(res.body.error).toBe(
-      "Could not read the extracted hours. Please try again.",
+      "Could not read the hours from that upload. Please try again.",
     );
   });
 
@@ -708,5 +708,19 @@ describe("POST /api/payroll/extract-hours error handling", () => {
     expect(res.status).toBe(400);
     expect(res.body.error).toMatch(/provide some text/i);
     expect(mockCreate).not.toHaveBeenCalled();
+  });
+});
+
+describe("POST /api/payroll-runs default labor account (P5-TC-06)", () => {
+  it("creates a run without laborAccountId by reusing the most recent run's account", async () => {
+    const res = await request(payrollApp).post("/api/payroll-runs").send({
+      payPeriodStart: "2026-06-08",
+      payPeriodEnd: "2026-06-21",
+      payDate: "2026-06-25",
+    });
+
+    expect(res.status).toBe(201);
+    expect(res.body.laborAccountId).toBeTypeOf("number");
+    runIds.push(res.body.id); // cleanup with the other seeded runs
   });
 });
