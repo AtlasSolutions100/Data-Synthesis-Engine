@@ -87,7 +87,7 @@ async function cleanup(): Promise<void> {
   const bills = await db
     .select({ id: billsTable.id })
     .from(billsTable)
-    .where(inArray(billsTable.billNumber, [`${TP}B-1`, `${TP}B-2`, `${TP}B-3`, `${TP}B-DEF`]));
+    .where(inArray(billsTable.billNumber, [`${TP}B-1`, `${TP}B-2`, `${TP}B-3`, `${TP}B-DEF`, `${TP}B-OVR`]));
   if (bills.length) {
     await db.delete(transactionsTable).where(inArray(transactionsTable.billId, bills.map((b) => b.id)));
     await db.delete(billPaymentsTable).where(inArray(billPaymentsTable.billId, bills.map((b) => b.id)));
@@ -99,7 +99,9 @@ async function cleanup(): Promise<void> {
     .where(sql`${invoicesTable.invoiceNumber} like ${`${TP}INV-%`}`);
   await db.delete(jobsTable).where(eq(jobsTable.name, `${TP}Perf Job`));
   await db.delete(customersTable).where(eq(customersTable.name, `${TP}Perf Cust`));
-  await db.delete(accountsTable).where(eq(accountsTable.name, `${TP}Supplies Exp`));
+  await db
+    .delete(accountsTable)
+    .where(inArray(accountsTable.name, [`${TP}Supplies Exp`, `${TP}Override Exp`]));
   await db.delete(jobsTable).where(
     inArray(jobsTable.name, [
       `${TP}Job A`,
@@ -422,6 +424,98 @@ describe("POST /import/bills", () => {
       .where(eq(transactionsTable.billId, bill.id));
     expect(txns).toHaveLength(2);
     expect(txns.every((t) => t.accountId === account.id)).toBe(true);
+  });
+
+  it("exposes per-line accounts in the preview and honors per-line overrides on apply", async () => {
+    const [supplies] = await db
+      .select()
+      .from(accountsTable)
+      .where(eq(accountsTable.name, `${TP}Supplies Exp`));
+    const [override] = await db
+      .insert(accountsTable)
+      .values({ number: "99996", name: `${TP}Override Exp`, type: "expense" })
+      .returning();
+
+    const fileData = await workbook([
+      ["Vendor", "Bill Number", "Date", "Account", "Description", "Amount"],
+      [`${TP}Vendor X`, `${TP}B-OVR`, "07/22/2026", "", "Auto-filled line", "10.00"],
+      [`${TP}Vendor X`, `${TP}B-OVR`, "07/22/2026", `${TP}Supplies Exp`, "Explicit line", "20.00"],
+    ]);
+    const preview = await request(app)
+      .post("/api/import/bills")
+      .send({ fileData, mode: "preview" });
+    expect(preview.status).toBe(200);
+    const row = preview.body.rows.find((r: any) => r.label.includes(`${TP}B-OVR`));
+    // Preview exposes each line, the account it will post to, and whether it
+    // was auto-filled from the vendor's default.
+    expect(row.lines).toEqual([
+      expect.objectContaining({
+        line: 0,
+        description: "Auto-filled line",
+        amountCents: 1000,
+        accountId: supplies.id,
+        accountName: `${TP}Supplies Exp`,
+        autoFilled: true,
+      }),
+      expect.objectContaining({
+        line: 1,
+        accountId: supplies.id,
+        autoFilled: false,
+      }),
+    ]);
+
+    // An override pointing at an unknown account is rejected up front.
+    const bad = await request(app).post("/api/import/bills").send({
+      fileData,
+      mode: "apply",
+      planToken: preview.body.planToken,
+      accountOverrides: [{ row: row.row, line: 0, accountId: 99999999 }],
+    });
+    expect(bad.status).toBe(400);
+    expect(bad.body.error).toMatch(/not found on the Chart of Accounts/);
+
+    // As is one referencing a line the plan doesn't have.
+    const stale = await request(app).post("/api/import/bills").send({
+      fileData,
+      mode: "apply",
+      planToken: preview.body.planToken,
+      accountOverrides: [{ row: row.row, line: 5, accountId: override.id }],
+    });
+    expect(stale.status).toBe(400);
+    expect(stale.body.error).toMatch(/re-preview/);
+
+    // Valid overrides: swap line 0 to the override account, clear line 1.
+    const res = await request(app).post("/api/import/bills").send({
+      fileData,
+      mode: "apply",
+      planToken: preview.body.planToken,
+      accountOverrides: [
+        { row: row.row, line: 0, accountId: override.id },
+        { row: row.row, line: 1, accountId: null },
+      ],
+    });
+    expect(res.status).toBe(200);
+    expect(res.body.applied).toMatchObject({ inserted: 1 });
+
+    const [bill] = await db.select().from(billsTable).where(eq(billsTable.billNumber, `${TP}B-OVR`));
+    const lines = await db
+      .select()
+      .from(billLinesTable)
+      .where(eq(billLinesTable.billId, bill.id));
+    expect(lines.map((l) => [l.description, l.accountId])).toEqual(
+      expect.arrayContaining([
+        ["Auto-filled line", override.id],
+        ["Explicit line", null],
+      ]),
+    );
+    // Ledger follows the chosen accounts: only the overridden line posts.
+    const txns = await db
+      .select()
+      .from(transactionsTable)
+      .where(eq(transactionsTable.billId, bill.id));
+    expect(txns).toHaveLength(1);
+    expect(txns[0].accountId).toBe(override.id);
+    expect(Number(txns[0].amountCents)).toBe(1000);
   });
 });
 

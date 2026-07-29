@@ -13,15 +13,24 @@ let handlers: {
   onError?: (error: unknown) => void;
 } = {};
 
-vi.mock("@workspace/api-client-react", () => ({
-  useImportData: (opts: { mutation: typeof handlers }) => {
-    handlers = opts.mutation;
-    return {
-      mutate: (vars: unknown) => mutateCalls.push(vars),
-      isPending: false,
-    };
-  },
-}));
+vi.mock("@workspace/api-client-react", async (importOriginal) => {
+  const { createApiClientReactMock } = await import("@/test/mock-api-client");
+  return createApiClientReactMock(importOriginal, {
+    useImportData: (opts: { mutation: typeof handlers }) => {
+      handlers = opts.mutation;
+      return {
+        mutate: (vars: unknown) => mutateCalls.push(vars),
+        isPending: false,
+      };
+    },
+    useListAccounts: () => ({
+      data: [
+        { id: 7, number: "5000", name: "Materials" },
+        { id: 9, number: "5100", name: "Small Tools" },
+      ],
+    }),
+  });
+});
 
 const mockToast = vi.hoisted(() => vi.fn());
 vi.mock("@/hooks/use-toast", () => ({
@@ -164,6 +173,77 @@ describe("ImportDataDialog stale preview handling", () => {
       ).toBe("unchecked"),
     );
     expect(mockToast).not.toHaveBeenCalled();
+  });
+
+  it("shows bill lines with auto-filled accounts and sends per-line overrides on apply", async () => {
+    render(<ImportDataDialog entity="bills" onDone={vi.fn()} />);
+    const input = screen.getByTestId("input-import-file-bills");
+    const file = new File(["x"], "bills.xlsx", {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+    fireEvent.change(input, { target: { files: [file] } });
+    await waitFor(() => expect(mutateCalls).toHaveLength(1));
+
+    act(() =>
+      handlers.onSuccess!({
+        mode: "preview",
+        planToken: "tok-b",
+        summary: { total: 1, newRows: 1, duplicates: 0, errors: 0 },
+        rows: [
+          {
+            row: 2,
+            status: "new",
+            label: "Acme — B-1",
+            message: "1 line had no account — filled in with the vendor's usual account",
+            changes: null,
+            lines: [
+              {
+                line: 0,
+                description: "Wire",
+                amountCents: 1000,
+                accountId: 7,
+                accountName: "Materials",
+                autoFilled: true,
+              },
+              {
+                line: 1,
+                description: "Tape",
+                amountCents: 500,
+                accountId: 9,
+                accountName: "Small Tools",
+                autoFilled: false,
+              },
+            ],
+          },
+        ],
+      }),
+    );
+    await screen.findByTestId("button-import-apply");
+
+    // The auto-filled line is called out and each line has an account picker.
+    expect(screen.getByTestId("badge-autofilled-2-0")).toBeTruthy();
+    expect(screen.queryByTestId("badge-autofilled-2-1")).toBeNull();
+
+    // Swap line 0 to another account; clear line 1's account.
+    fireEvent.change(screen.getByTestId("select-import-account-2-0"), {
+      target: { value: "9" },
+    });
+    fireEvent.change(screen.getByTestId("select-import-account-2-1"), {
+      target: { value: "none" },
+    });
+
+    fireEvent.click(screen.getByTestId("button-import-apply"));
+    expect(mutateCalls[mutateCalls.length - 1]).toMatchObject({
+      entity: "bills",
+      data: {
+        mode: "apply",
+        planToken: "tok-b",
+        accountOverrides: [
+          { row: 2, line: 0, accountId: 9 },
+          { row: 2, line: 1, accountId: null },
+        ],
+      },
+    });
   });
 
   it("non-409 errors still surface as a failure toast without the stale banner", async () => {

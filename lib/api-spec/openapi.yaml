@@ -3301,6 +3301,28 @@ components:
             Consistency token returned by the preview. Required in apply mode;
             the apply is rejected with 409 if the re-computed plan no longer
             matches (data changed between preview and apply).
+        accountOverrides:
+          type: array
+          maxItems: 20000
+          items:
+            $ref: "#/components/schemas/ImportAccountOverride"
+          description: >
+            Per-line account overrides chosen during the bill-import review.
+            Each entry targets a preview row and line index and replaces (or
+            clears, when accountId is null) the account the plan chose.
+    ImportAccountOverride:
+      type: object
+      required: [row, line, accountId]
+      properties:
+        row:
+          type: integer
+          description: Row number of the preview row (same id used by excludeRows)
+        line:
+          type: integer
+          description: Zero-based line index within that row's lines
+        accountId:
+          type: ["integer", "null"]
+          description: Account to post the line to, or null to clear the account
     ImportRowChange:
       type: object
       required: [field, from, to]
@@ -3332,6 +3354,32 @@ components:
           items:
             $ref: "#/components/schemas/ImportRowChange"
           description: For duplicates, the fields that would change on update
+        lines:
+          type: array
+          items:
+            $ref: "#/components/schemas/ImportPreviewLine"
+          description: >
+            For bill imports, the individual lines of this document with the
+            account each will post to, so the user can review and override
+            auto-filled accounts before applying.
+    ImportPreviewLine:
+      type: object
+      required: [line, description, amountCents, accountId, accountName, autoFilled]
+      properties:
+        line:
+          type: integer
+          description: Zero-based line index, used by accountOverrides
+        description:
+          type: ["string", "null"]
+        amountCents:
+          type: integer
+        accountId:
+          type: ["integer", "null"]
+        accountName:
+          type: ["string", "null"]
+        autoFilled:
+          type: boolean
+          description: True when the account came from the vendor's default rather than the file
     ImportDataSummary:
       type: object
       required: [total, newRows, duplicates, errors]

@@ -14,26 +14,27 @@ const deleteJobOptions = vi.fn();
 
 let jobsData: unknown[] = [];
 
-vi.mock("@workspace/api-client-react", () => ({
-  useListJobs: () => ({ data: jobsData, isLoading: false }),
-  getListJobsQueryKey: () => ["/api/jobs"],
-  getListCustomersQueryKey: () => ["/api/customers"],
-  useCreateJob: (opts: unknown) => {
-    createJobOptions(opts);
-    return { mutate: vi.fn(), isPending: false };
-  },
-  useUpdateJob: (opts: unknown) => {
-    updateJobOptions(opts);
-    return { mutate: vi.fn(), isPending: false };
-  },
-  useDeleteJob: (opts: unknown) => {
-    deleteJobOptions(opts);
-    return { mutate: vi.fn(), isPending: false };
-  },
-  useCreateJobDocument: () => ({ mutate: vi.fn(), isPending: false }),
-  useImportData: () => ({ mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false }),
-  getListJobDocumentsQueryKey: (id: number) => ["/api/jobs", id, "documents"],
-}));
+// Shared factory: keeps every generated hook stubbed so new hooks used by
+// child components (e.g. the import dialog's account list) can't break this
+// suite; only the hooks under test are overridden.
+vi.mock("@workspace/api-client-react", async (importOriginal) => {
+  const { createApiClientReactMock } = await import("@/test/mock-api-client");
+  return createApiClientReactMock(importOriginal, {
+    useListJobs: () => ({ data: jobsData, isLoading: false }),
+    useCreateJob: (opts: unknown) => {
+      createJobOptions(opts);
+      return { mutate: vi.fn(), isPending: false };
+    },
+    useUpdateJob: (opts: unknown) => {
+      updateJobOptions(opts);
+      return { mutate: vi.fn(), isPending: false };
+    },
+    useDeleteJob: (opts: unknown) => {
+      deleteJobOptions(opts);
+      return { mutate: vi.fn(), isPending: false };
+    },
+  });
+});
 
 vi.mock("@workspace/object-storage-web", () => ({
   useUpload: () => ({ uploadFile: vi.fn(), isUploading: false }),

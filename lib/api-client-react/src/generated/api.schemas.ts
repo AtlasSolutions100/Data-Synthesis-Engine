@@ -1447,6 +1447,18 @@ export const ImportDataInputMode = {
   apply: 'apply',
 } as const;
 
+export interface ImportAccountOverride {
+  /** Row number of the preview row (same id used by excludeRows) */
+  row: number;
+  /** Zero-based line index within that row's lines */
+  line: number;
+  /**
+     * Account to post the line to, or null to clear the account
+     * @nullable
+     */
+  accountId: number | null;
+}
+
 export interface ImportDataInput {
   /**
      * Base64 data URL of the uploaded .xlsx workbook
@@ -1466,6 +1478,11 @@ export interface ImportDataInput {
      * @maxLength 128
      */
   planToken?: string;
+  /**
+     * Per-line account overrides chosen during the bill-import review. Each entry targets a preview row and line index and replaces (or clears, when accountId is null) the account the plan chose.
+     * @maxItems 20000
+     */
+  accountOverrides?: ImportAccountOverride[];
 }
 
 export interface ImportRowChange {
@@ -1485,6 +1502,20 @@ export const ImportPreviewRowStatus = {
   error: 'error',
 } as const;
 
+export interface ImportPreviewLine {
+  /** Zero-based line index, used by accountOverrides */
+  line: number;
+  /** @nullable */
+  description: string | null;
+  amountCents: number;
+  /** @nullable */
+  accountId: number | null;
+  /** @nullable */
+  accountName: string | null;
+  /** True when the account came from the vendor's default rather than the file */
+  autoFilled: boolean;
+}
+
 export interface ImportPreviewRow {
   /** Stable row identifier used in excludeRows */
   row: number;
@@ -1501,6 +1532,8 @@ export interface ImportPreviewRow {
      * @nullable
      */
   changes: ImportRowChange[] | null;
+  /** For bill imports, the individual lines of this document with the account each will post to, so the user can review and override auto-filled accounts before applying. */
+  lines?: ImportPreviewLine[];
 }
 
 export interface ImportDataSummary {

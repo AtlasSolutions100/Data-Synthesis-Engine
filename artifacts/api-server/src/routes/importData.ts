@@ -211,12 +211,26 @@ async function readRecords(
 /* ------------------------------------------------------------------ */
 
 type Change = { field: string; from: string | null; to: string | null };
+type PreviewLine = {
+  line: number;
+  description: string | null;
+  amountCents: number;
+  accountId: number | null;
+  accountName: string | null;
+  autoFilled: boolean;
+};
 type PlanRow = {
   row: number;
   status: "new" | "duplicate" | "error";
   label: string;
   message: string | null;
   changes: Change[] | null;
+  /**
+   * Bill imports expose their individual lines (with the account each will
+   * post to and whether it was auto-filled from the vendor's default) so the
+   * review dialog can offer per-line account overrides before apply.
+   */
+  lines?: PreviewLine[];
   apply?: (tx: Tx) => Promise<"inserted" | "updated">;
   /**
    * Simple single-table inserts declare their values instead of an apply
@@ -730,6 +744,8 @@ async function planBills(buffer: Buffer): Promise<PlanRow[]> {
     }
 
     const lines: DocLine[] = [];
+    const previewLines: PreviewLine[] = [];
+    const accountNameById = new Map(accounts.map((a) => [a.id, a.name]));
     let defaultedCount = 0;
     for (const rec of group.recs) {
       const amountRaw = rec.get("amount");
@@ -743,12 +759,14 @@ async function planBills(buffer: Buffer): Promise<PlanRow[]> {
       }
       const accountRef = cellText(rec.get("account"));
       let accountId: number | null = null;
+      let autoFilled = false;
       if (!accountRef) {
         // Blank Account cell: fall back to the vendor's default (most-used)
         // account so the line still posts to the ledger.
         const fallback = defaultAccountByVendorId.get(vendor.id);
         if (fallback != null) {
           accountId = fallback;
+          autoFilled = true;
           defaultedCount++;
         }
       } else {
@@ -762,7 +780,16 @@ async function planBills(buffer: Buffer): Promise<PlanRow[]> {
         }
         accountId = account.id;
       }
-      lines.push({ description: cellText(rec.get("description")) || null, amountCents: amount, accountId });
+      const description = cellText(rec.get("description")) || null;
+      lines.push({ description, amountCents: amount, accountId });
+      previewLines.push({
+        line: previewLines.length,
+        description,
+        amountCents: amount,
+        accountId,
+        accountName: accountId != null ? (accountNameById.get(accountId) ?? null) : null,
+        autoFilled,
+      });
     }
     const totalCents = lines.reduce((s, l) => s + l.amountCents, 0);
 
@@ -795,6 +822,7 @@ async function planBills(buffer: Buffer): Promise<PlanRow[]> {
         ...base,
         status: "new",
         message: noAccountNote,
+        lines: previewLines,
         docPlan: {
           doc: "bill",
           op: "insert",
@@ -823,6 +851,7 @@ async function planBills(buffer: Buffer): Promise<PlanRow[]> {
         { field: "date", from: String(current.date), to: date },
         { field: "total", from: null, to: centsToDollars(totalCents) },
       ].filter((c) => c.field !== "date" || c.from !== c.to),
+      lines: previewLines,
       docPlan: {
         doc: "bill",
         op: "update",
@@ -1098,12 +1127,13 @@ router.post("/import/:entity", async (req, res): Promise<void> => {
     duplicates: plan.filter((r) => r.status === "duplicate").length,
     errors: plan.filter((r) => r.status === "error").length,
   };
-  const rows = plan.map(({ row, status, label, message, changes }) => ({
+  const rows = plan.map(({ row, status, label, message, changes, lines }) => ({
     row,
     status,
     label,
     message,
     changes,
+    ...(lines ? { lines } : {}),
   }));
 
   const token = planToken(params.data.entity, plan);
@@ -1121,6 +1151,42 @@ router.post("/import/:entity", async (req, res): Promise<void> => {
       error: "Data changed since the preview — please re-preview before importing.",
     });
     return;
+  }
+
+  // Per-line account overrides from the review dialog: swap (or clear) the
+  // account a bill line will post to before the plan is applied. Overrides
+  // are validated against the Chart of Accounts and against the plan — a
+  // stale row/line reference is rejected rather than silently ignored.
+  const overrides = body.data.accountOverrides ?? [];
+  if (overrides.length > 0) {
+    const planByRow = new Map(plan.map((r) => [r.row, r]));
+    const overrideAccountIds = [
+      ...new Set(overrides.flatMap((o) => (o.accountId != null ? [o.accountId] : []))),
+    ];
+    const validAccountIds = new Set(
+      overrideAccountIds.length > 0
+        ? (await db.select({ id: accountsTable.id }).from(accountsTable)).map((a) => a.id)
+        : [],
+    );
+    for (const o of overrides) {
+      if (o.accountId != null && !validAccountIds.has(o.accountId)) {
+        res.status(400).json({ error: `Account ${o.accountId} not found on the Chart of Accounts` });
+        return;
+      }
+      const target = planByRow.get(o.row);
+      const line =
+        target?.docPlan && target.docPlan.doc === "bill"
+          ? target.docPlan.lines[o.line]
+          : undefined;
+      if (!line) {
+        res.status(400).json({
+          error:
+            "An account override no longer matches the preview — please re-preview before importing.",
+        });
+        return;
+      }
+      line.accountId = o.accountId;
+    }
   }
 
   // Apply: everything in one transaction so a failure halfway leaves the

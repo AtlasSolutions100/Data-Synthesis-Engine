@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { ImportPreviewLine } from './importPreviewLine';
 import type { ImportPreviewRowStatus } from './importPreviewRowStatus';
 import type { ImportRowChange } from './importRowChange';
 
@@ -24,4 +25,6 @@ export interface ImportPreviewRow {
      * @nullable
      */
   changes: ImportRowChange[] | null;
+  /** For bill imports, the individual lines of this document with the account each will post to, so the user can review and override auto-filled accounts before applying. */
+  lines?: ImportPreviewLine[];
 }

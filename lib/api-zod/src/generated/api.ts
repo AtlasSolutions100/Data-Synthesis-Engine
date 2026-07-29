@@ -93,6 +93,8 @@ export const importDataBodyExcludeRowsMax = 20000;
 
 export const importDataBodyPlanTokenMax = 128;
 
+export const importDataBodyAccountOverridesMax = 20000;
+
 
 
 export const ImportDataBody = zod.object({
@@ -100,7 +102,12 @@ export const ImportDataBody = zod.object({
   "fileName": zod.string().max(importDataBodyFileNameMax).optional(),
   "mode": zod.enum(['preview', 'apply']),
   "excludeRows": zod.array(zod.number()).max(importDataBodyExcludeRowsMax).optional().describe('Row numbers (from the preview) to skip when applying'),
-  "planToken": zod.string().max(importDataBodyPlanTokenMax).optional().describe('Consistency token returned by the preview. Required in apply mode; the apply is rejected with 409 if the re-computed plan no longer matches (data changed between preview and apply).\n')
+  "planToken": zod.string().max(importDataBodyPlanTokenMax).optional().describe('Consistency token returned by the preview. Required in apply mode; the apply is rejected with 409 if the re-computed plan no longer matches (data changed between preview and apply).\n'),
+  "accountOverrides": zod.array(zod.object({
+  "row": zod.number().describe('Row number of the preview row (same id used by excludeRows)'),
+  "line": zod.number().describe('Zero-based line index within that row\'s lines'),
+  "accountId": zod.number().nullable().describe('Account to post the line to, or null to clear the account')
+})).max(importDataBodyAccountOverridesMax).optional().describe('Per-line account overrides chosen during the bill-import review. Each entry targets a preview row and line index and replaces (or clears, when accountId is null) the account the plan chose.\n')
 })
 
 export const ImportDataResponse = zod.object({
@@ -114,7 +121,15 @@ export const ImportDataResponse = zod.object({
   "field": zod.string(),
   "from": zod.string().nullable(),
   "to": zod.string().nullable()
-})).nullable().describe('For duplicates, the fields that would change on update')
+})).nullable().describe('For duplicates, the fields that would change on update'),
+  "lines": zod.array(zod.object({
+  "line": zod.number().describe('Zero-based line index, used by accountOverrides'),
+  "description": zod.string().nullable(),
+  "amountCents": zod.number(),
+  "accountId": zod.number().nullable(),
+  "accountName": zod.string().nullable(),
+  "autoFilled": zod.boolean().describe('True when the account came from the vendor\'s default rather than the file')
+})).optional().describe('For bill imports, the individual lines of this document with the account each will post to, so the user can review and override auto-filled accounts before applying.\n')
 })),
   "summary": zod.object({
   "total": zod.number(),

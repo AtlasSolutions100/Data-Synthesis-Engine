@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { ImportAccountOverride } from './importAccountOverride';
 import type { ImportDataInputMode } from './importDataInputMode';
 
 export interface ImportDataInput {
@@ -26,4 +27,9 @@ export interface ImportDataInput {
      * @maxLength 128
      */
   planToken?: string;
+  /**
+     * Per-line account overrides chosen during the bill-import review. Each entry targets a preview row and line index and replaces (or clears, when accountId is null) the account the plan chose.
+     * @maxItems 20000
+     */
+  accountOverrides?: ImportAccountOverride[];
 }

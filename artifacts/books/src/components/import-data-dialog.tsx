@@ -1,6 +1,14 @@
 import { useRef, useState } from "react";
-import { useImportData } from "@workspace/api-client-react";
-import type { ImportDataResult, ImportPreviewRow } from "@workspace/api-client-react";
+import {
+  useImportData,
+  useListAccounts,
+  getListAccountsQueryKey,
+} from "@workspace/api-client-react";
+import type {
+  ImportDataResult,
+  ImportPreviewRow,
+  ImportPreviewLine,
+} from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -65,6 +73,13 @@ export function ImportDataDialog({
   const [fileName, setFileName] = useState<string>("");
   const [preview, setPreview] = useState<ImportDataResult | null>(null);
   const [excluded, setExcluded] = useState<Set<number>>(new Set());
+  // Per-line account overrides for bill imports, keyed "row:line". A key is
+  // only present when the user changed something; the value is the chosen
+  // account id, or null for "no account". Reset on every fresh preview so an
+  // override can never target a line that moved.
+  const [accountOverrides, setAccountOverrides] = useState<Map<string, number | null>>(
+    new Map(),
+  );
   // Set when apply was rejected because the data changed since the preview
   // (server 409). The user refreshes explicitly instead of the dialog
   // silently re-uploading a possibly huge file in a loop.
@@ -77,6 +92,13 @@ export function ImportDataDialog({
     excluded: Set<number>;
     rows: ImportPreviewRow[];
   } | null>(null);
+
+  // Chart of Accounts for the per-line account override dropdowns; only bill
+  // imports carry line-level accounts, so only fetch there (and only once
+  // the review dialog is actually open).
+  const { data: accounts } = useListAccounts({
+    query: { queryKey: getListAccountsQueryKey(), enabled: entity === "bills" && open },
+  });
 
   const importMutation = useImportData({
     mutation: {
@@ -106,6 +128,7 @@ export function ImportDataDialog({
           }
           setPreview(result);
           setExcluded(nextExcluded);
+          setAccountOverrides(new Map());
           setStale(false);
           setOpen(true);
           return;
@@ -176,6 +199,15 @@ export function ImportDataDialog({
     });
   };
 
+  const setLineAccount = (row: number, line: number, value: string) => {
+    setAccountOverrides((prev) => {
+      const next = new Map(prev);
+      if (value === "keep") next.delete(`${row}:${line}`);
+      else next.set(`${row}:${line}`, value === "none" ? null : Number(value));
+      return next;
+    });
+  };
+
   const apply = () => {
     if (!fileData) return;
     importMutation.mutate({
@@ -186,6 +218,14 @@ export function ImportDataDialog({
         mode: "apply",
         excludeRows: Array.from(excluded),
         planToken: preview?.planToken,
+        ...(accountOverrides.size > 0
+          ? {
+              accountOverrides: Array.from(accountOverrides, ([key, accountId]) => {
+                const [row, line] = key.split(":").map(Number);
+                return { row, line, accountId };
+              }),
+            }
+          : {}),
       },
     });
   };
@@ -312,6 +352,51 @@ export function ImportDataDialog({
                             </li>
                           ))}
                         </ul>
+                      )}
+                      {r.status !== "error" && r.lines && r.lines.length > 0 && (
+                        <div className="mt-2 space-y-1" data-testid={`lines-import-row-${r.row}`}>
+                          {r.lines.map((l: ImportPreviewLine) => {
+                            const key = `${r.row}:${l.line}`;
+                            const overridden = accountOverrides.has(key);
+                            const value = overridden
+                              ? (accountOverrides.get(key) ?? "none")
+                              : "keep";
+                            return (
+                              <div key={l.line} className="flex flex-wrap items-center gap-2">
+                                <span className="min-w-0 flex-1 truncate">
+                                  {l.description || "(no description)"} — $
+                                  {(l.amountCents / 100).toFixed(2)}
+                                </span>
+                                {l.autoFilled && !overridden && (
+                                  <Badge
+                                    className="bg-blue-100 text-blue-800 hover:bg-blue-100"
+                                    data-testid={`badge-autofilled-${r.row}-${l.line}`}
+                                  >
+                                    Auto-filled
+                                  </Badge>
+                                )}
+                                <select
+                                  className="h-8 rounded-md border border-slate-200 bg-white px-2 text-xs"
+                                  value={String(value)}
+                                  onChange={(e) => setLineAccount(r.row, l.line, e.target.value)}
+                                  data-testid={`select-import-account-${r.row}-${l.line}`}
+                                >
+                                  <option value="keep">
+                                    {l.accountId != null
+                                      ? `${l.accountName ?? "Account"}${l.autoFilled ? " (auto-filled)" : ""}`
+                                      : "No account"}
+                                  </option>
+                                  <option value="none">No account</option>
+                                  {(accounts ?? []).map((a) => (
+                                    <option key={a.id} value={String(a.id)}>
+                                      {a.number} — {a.name}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+                            );
+                          })}
+                        </div>
                       )}
                     </TableCell>
                   </TableRow>
