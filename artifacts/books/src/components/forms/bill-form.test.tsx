@@ -18,9 +18,22 @@ import {
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BillForm } from "./bill-form";
 
-// Overridable per-test mock for the inline vendor-creation mutation.
+// Overridable per-test mocks for the inline creation mutations.
 const createVendorMutate = vi.fn();
 let createVendorPending = false;
+const createCustomerMutate = vi.fn();
+let createCustomerPending = false;
+const createJobMutate = vi.fn();
+let createJobPending = false;
+
+// Mutable so create mocks can grow the lists mid-test.
+let mockCustomers: { id: number; name: string }[] = [];
+let mockJobs: {
+  id: number;
+  jobNumber: string;
+  name: string;
+  customerId?: number | null;
+}[] = [];
 
 // Mutable so the create-vendor mock can grow the list mid-test, mirroring
 // the real cache injection after POST /api/vendors.
@@ -38,8 +51,12 @@ vi.mock("@workspace/api-client-react", async (importOriginal) => {
         return createVendorPending;
       },
     }),
-    useListJobs: () => ({
-      data: [{ id: 10, jobNumber: "J-100", name: "Warehouse" }],
+    useListJobs: () => ({ data: mockJobs }),
+    useCreateJob: () => ({
+      mutate: createJobMutate,
+      get isPending() {
+        return createJobPending;
+      },
     }),
     useListAccounts: () => ({
       data: [
@@ -48,8 +65,12 @@ vi.mock("@workspace/api-client-react", async (importOriginal) => {
         { id: 503, number: "6000", name: "Office Supplies" },
       ],
     }),
-    useListCustomers: () => ({
-      data: [{ id: 7, name: "HR Stadium LLC" }],
+    useListCustomers: () => ({ data: mockCustomers }),
+    useCreateCustomer: () => ({
+      mutate: createCustomerMutate,
+      get isPending() {
+        return createCustomerPending;
+      },
     }),
     useGetVendorDefaultAccount: () => ({ data: undefined }),
   });
@@ -71,10 +92,16 @@ beforeAll(() => {
 beforeEach(() => {
   createVendorMutate.mockReset();
   createVendorPending = false;
+  createCustomerMutate.mockReset();
+  createCustomerPending = false;
+  createJobMutate.mockReset();
+  createJobPending = false;
   mockVendors = [
     { id: 1, name: "Acme Supply" },
     { id: 2, name: "Bolt Electric" },
   ];
+  mockCustomers = [{ id: 7, name: "HR Stadium LLC" }];
+  mockJobs = [{ id: 10, jobNumber: "J-100", name: "Warehouse", customerId: 7 }];
 });
 
 afterEach(() => {
@@ -554,6 +581,206 @@ describe("BillForm inline vendor creation", () => {
     await waitFor(() =>
       expect(
         screen.getByText(/couldn't create vendor "Radiant AI"/i),
+      ).toBeTruthy(),
+    );
+  });
+});
+
+describe("BillForm inline customer creation", () => {
+  function mockCustomerCreateSucceeds(id: number) {
+    createCustomerMutate.mockImplementation(
+      (
+        vars: { data: { name: string } },
+        opts: { onSuccess?: (c: { id: number; name: string }) => void },
+      ) => {
+        const customer = { id, name: vars.data.name };
+        mockCustomers = [...mockCustomers, customer];
+        opts.onSuccess?.(customer);
+      },
+    );
+  }
+
+  it("shows a Create option for unmatched search text and selects the new customer", async () => {
+    mockCustomerCreateSucceeds(8);
+    render(<BillForm onSubmit={vi.fn()} />);
+
+    await pickOption("Select vendor", /Acme Supply/);
+    fireEvent.click(await triggerShowing("Select customer"));
+    const search = await screen.findByPlaceholderText("Search customers...");
+    fireEvent.change(search, { target: { value: "Northside Mall" } });
+
+    const createOption = await screen.findByText('Create "Northside Mall"');
+    fireEvent.click(createOption.closest("[cmdk-item]") ?? createOption);
+
+    await waitFor(() =>
+      expect(createCustomerMutate).toHaveBeenCalledWith(
+        { data: { name: "Northside Mall" } },
+        expect.anything(),
+      ),
+    );
+    await triggerShowing(/Northside Mall/);
+  });
+
+  it("selects the existing customer instead of creating a duplicate", async () => {
+    render(<BillForm onSubmit={vi.fn()} />);
+
+    await pickOption("Select vendor", /Acme Supply/);
+    fireEvent.click(await triggerShowing("Select customer"));
+    const search = await screen.findByPlaceholderText("Search customers...");
+    fireEvent.change(search, { target: { value: "hr stadium llc" } });
+
+    await screen.findByText(/HR Stadium LLC/);
+    expect(screen.queryByTestId("option-create-entity")).toBeNull();
+    expect(createCustomerMutate).not.toHaveBeenCalled();
+  });
+
+  it("surfaces a field error when customer creation fails", async () => {
+    createCustomerMutate.mockImplementation(
+      (_vars: unknown, opts: { onError?: (e: unknown) => void }) => {
+        opts.onError?.(new Error("boom"));
+      },
+    );
+    render(<BillForm onSubmit={vi.fn()} />);
+
+    await pickOption("Select vendor", /Acme Supply/);
+    fireEvent.click(await triggerShowing("Select customer"));
+    const search = await screen.findByPlaceholderText("Search customers...");
+    fireEvent.change(search, { target: { value: "Northside Mall" } });
+    const createOption = await screen.findByText('Create "Northside Mall"');
+    fireEvent.click(createOption.closest("[cmdk-item]") ?? createOption);
+
+    await waitFor(() =>
+      expect(
+        screen.getByText(/couldn't create customer "Northside Mall"/i),
+      ).toBeTruthy(),
+    );
+  });
+});
+
+describe("BillForm inline job creation", () => {
+  function mockJobCreateSucceeds(id: number) {
+    createJobMutate.mockImplementation(
+      (
+        vars: { data: { name: string; customerId: number } },
+        opts: {
+          onSuccess?: (j: {
+            id: number;
+            jobNumber: string;
+            name: string;
+            customerId: number;
+          }) => void;
+        },
+      ) => {
+        const job = {
+          id,
+          jobNumber: `J-${id}`,
+          name: vars.data.name,
+          customerId: vars.data.customerId,
+        };
+        mockJobs = [...mockJobs, job];
+        opts.onSuccess?.(job);
+      },
+    );
+  }
+
+  async function selectVendorAndCustomer() {
+    await pickOption("Select vendor", /Acme Supply/);
+    await pickOption("Select customer", /HR Stadium LLC/);
+  }
+
+  it("creates a job for the selected customer and selects it", async () => {
+    mockJobCreateSucceeds(11);
+    render(<BillForm onSubmit={vi.fn()} />);
+
+    await selectVendorAndCustomer();
+    fireEvent.click(await triggerShowing("Select job name"));
+    const search = await screen.findByPlaceholderText("Search jobs...");
+    fireEvent.change(search, { target: { value: "Stadium Lighting" } });
+
+    const createOption = await screen.findByText('Create "Stadium Lighting"');
+    fireEvent.click(createOption.closest("[cmdk-item]") ?? createOption);
+
+    await waitFor(() =>
+      expect(createJobMutate).toHaveBeenCalledWith(
+        { data: { name: "Stadium Lighting", customerId: 7 } },
+        expect.anything(),
+      ),
+    );
+    await triggerShowing(/Stadium Lighting/);
+  });
+
+  it("selects the existing job instead of creating a duplicate", async () => {
+    render(<BillForm onSubmit={vi.fn()} />);
+
+    await selectVendorAndCustomer();
+    fireEvent.click(await triggerShowing("Select job name"));
+    const search = await screen.findByPlaceholderText("Search jobs...");
+    fireEvent.change(search, { target: { value: "warehouse" } });
+
+    await screen.findByText(/Warehouse/);
+    expect(screen.queryByTestId("option-create-entity")).toBeNull();
+    expect(createJobMutate).not.toHaveBeenCalled();
+  });
+
+  it("asks for confirmation before creating a person-like job name and aborts on cancel", async () => {
+    mockJobCreateSucceeds(12);
+    const confirmSpy = vi
+      .spyOn(window, "confirm")
+      .mockReturnValue(false);
+    render(<BillForm onSubmit={vi.fn()} />);
+
+    await selectVendorAndCustomer();
+    fireEvent.click(await triggerShowing("Select job name"));
+    const search = await screen.findByPlaceholderText("Search jobs...");
+    fireEvent.change(search, { target: { value: "John Smith" } });
+    const createOption = await screen.findByText('Create "John Smith"');
+    fireEvent.click(createOption.closest("[cmdk-item]") ?? createOption);
+
+    expect(confirmSpy).toHaveBeenCalled();
+    expect(createJobMutate).not.toHaveBeenCalled();
+    confirmSpy.mockRestore();
+  });
+
+  it("creates a person-like job name once confirmed", async () => {
+    mockJobCreateSucceeds(13);
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
+    render(<BillForm onSubmit={vi.fn()} />);
+
+    await selectVendorAndCustomer();
+    fireEvent.click(await triggerShowing("Select job name"));
+    const search = await screen.findByPlaceholderText("Search jobs...");
+    fireEvent.change(search, { target: { value: "John Smith" } });
+    const createOption = await screen.findByText('Create "John Smith"');
+    fireEvent.click(createOption.closest("[cmdk-item]") ?? createOption);
+
+    await waitFor(() =>
+      expect(createJobMutate).toHaveBeenCalledWith(
+        { data: { name: "John Smith", customerId: 7 } },
+        expect.anything(),
+      ),
+    );
+    await triggerShowing(/John Smith/);
+    confirmSpy.mockRestore();
+  });
+
+  it("surfaces a field error when job creation fails", async () => {
+    createJobMutate.mockImplementation(
+      (_vars: unknown, opts: { onError?: (e: unknown) => void }) => {
+        opts.onError?.(new Error("boom"));
+      },
+    );
+    render(<BillForm onSubmit={vi.fn()} />);
+
+    await selectVendorAndCustomer();
+    fireEvent.click(await triggerShowing("Select job name"));
+    const search = await screen.findByPlaceholderText("Search jobs...");
+    fireEvent.change(search, { target: { value: "Stadium Lighting" } });
+    const createOption = await screen.findByText('Create "Stadium Lighting"');
+    fireEvent.click(createOption.closest("[cmdk-item]") ?? createOption);
+
+    await waitFor(() =>
+      expect(
+        screen.getByText(/couldn't create job "Stadium Lighting"/i),
       ).toBeTruthy(),
     );
   });

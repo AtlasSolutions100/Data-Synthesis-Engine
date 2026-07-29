@@ -27,8 +27,16 @@ import {
   useGetVendorDefaultAccount,
   getGetVendorDefaultAccountQueryKey,
   useCreateVendor,
+  useCreateCustomer,
+  useCreateJob,
 } from "@workspace/api-client-react";
-import type { BillInput, Vendor } from "@workspace/api-client-react";
+import type {
+  BillInput,
+  Vendor,
+  Customer,
+  Job,
+} from "@workspace/api-client-react";
+import { looksLikePersonName } from "@/lib/person-name";
 import { useQueryClient } from "@tanstack/react-query";
 import { EntityCombobox } from "@/components/forms/entity-combobox";
 import type { ServerFieldError } from "@/lib/server-field-error";
@@ -165,6 +173,110 @@ export function BillForm({
           form.setError("vendorId", {
             type: "server",
             message: `Couldn't create vendor "${trimmed}". Please try again.`,
+          });
+        },
+      },
+    );
+  };
+
+  const createCustomer = useCreateCustomer();
+
+  const handleCreateCustomer = (name: string) => {
+    const trimmed = name.trim();
+    if (!trimmed || createCustomer.isPending) return;
+    const existing = (customers ?? []).find(
+      (c) => c.name.trim().toLowerCase() === trimmed.toLowerCase(),
+    );
+    if (existing) {
+      form.clearErrors("customerId");
+      form.setValue("customerId", String(existing.id), {
+        shouldValidate: true,
+      });
+      form.setValue("jobId", "");
+      return;
+    }
+    createCustomer.mutate(
+      { data: { name: trimmed } },
+      {
+        onSuccess: (customer) => {
+          queryClient.setQueryData<Customer[]>(
+            getListCustomersQueryKey(),
+            (old) =>
+              [...(old ?? []), customer].sort((a, b) =>
+                a.name.localeCompare(b.name),
+              ),
+          );
+          queryClient.invalidateQueries({
+            queryKey: getListCustomersQueryKey(),
+          });
+          form.clearErrors("customerId");
+          form.setValue("customerId", String(customer.id), {
+            shouldValidate: true,
+          });
+          form.setValue("jobId", "");
+        },
+        onError: () => {
+          form.setError("customerId", {
+            type: "server",
+            message: `Couldn't create customer "${trimmed}". Please try again.`,
+          });
+        },
+      },
+    );
+  };
+
+  const createJob = useCreateJob();
+
+  const handleCreateJob = (name: string) => {
+    const trimmed = name.trim();
+    if (!trimmed || createJob.isPending) return;
+    const customerId = form.getValues("customerId");
+    if (!customerId) {
+      form.setError("jobId", {
+        type: "manual",
+        message: "Select a customer before creating a job.",
+      });
+      return;
+    }
+    const existing = (jobs ?? []).find(
+      (j) =>
+        String(j.customerId ?? "") === customerId &&
+        j.name.trim().toLowerCase() === trimmed.toLowerCase(),
+    );
+    if (existing) {
+      form.clearErrors("jobId");
+      form.setValue("jobId", String(existing.id), { shouldValidate: true });
+      return;
+    }
+    // Per convention, person-like names usually indicate a supervisor or
+    // foreman, not a job — require explicit confirmation before creating.
+    if (
+      looksLikePersonName(trimmed) &&
+      !window.confirm(
+        `"${trimmed}" looks like a person's name, not a job. Create it as a job anyway?`,
+      )
+    ) {
+      return;
+    }
+    createJob.mutate(
+      { data: { name: trimmed, customerId: parseInt(customerId, 10) } },
+      {
+        onSuccess: (job) => {
+          queryClient.setQueryData<Job[]>(
+            getListJobsQueryKey(),
+            (old) =>
+              [...(old ?? []), job].sort((a, b) =>
+                a.name.localeCompare(b.name),
+              ),
+          );
+          queryClient.invalidateQueries({ queryKey: getListJobsQueryKey() });
+          form.clearErrors("jobId");
+          form.setValue("jobId", String(job.id), { shouldValidate: true });
+        },
+        onError: () => {
+          form.setError("jobId", {
+            type: "server",
+            message: `Couldn't create job "${trimmed}". Please try again.`,
           });
         },
       },
@@ -360,6 +472,8 @@ export function BillForm({
                     searchPlaceholder="Search customers..."
                     emptyText="No customers found."
                     disabled={!watchedVendorId}
+                    onCreate={handleCreateCustomer}
+                    createPending={createCustomer.isPending}
                   />
                 </FormControl>
                 <FormMessage />
@@ -388,6 +502,8 @@ export function BillForm({
                     searchPlaceholder="Search jobs..."
                     emptyText="No jobs for this customer."
                     disabled={!watchedCustomerId}
+                    onCreate={handleCreateJob}
+                    createPending={createJob.isPending}
                   />
                 </FormControl>
                 <FormMessage />
