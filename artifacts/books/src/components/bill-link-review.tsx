@@ -60,8 +60,9 @@ export function BillLinkReview() {
   const [error, setError] = useState<string | null>(null);
 
   const { data: rows, isLoading } = useListUnlinkedBillTransactions({
-    query: { queryKey: getListUnlinkedBillTransactionsQueryKey(), enabled: open },
+    query: { queryKey: getListUnlinkedBillTransactionsQueryKey() },
   });
+  const unlinkedCount = rows?.length ?? 0;
   const { data: bills } = useListBills(undefined, {
     query: { queryKey: getListBillsQueryKey(), enabled: open },
   });
@@ -113,6 +114,15 @@ export function BillLinkReview() {
       <DialogTrigger asChild>
         <Button variant="outline" data-testid="button-bill-link-review">
           <Link2 className="mr-2 h-4 w-4" /> Review Unlinked Bills
+          {unlinkedCount > 0 && (
+            <Badge
+              variant="secondary"
+              className="ml-2 rounded-full bg-amber-100 text-amber-800 hover:bg-amber-100"
+              data-testid="badge-unlinked-bill-count"
+            >
+              {unlinkedCount}
+            </Badge>
+          )}
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[680px] max-h-[80vh] overflow-y-auto">
