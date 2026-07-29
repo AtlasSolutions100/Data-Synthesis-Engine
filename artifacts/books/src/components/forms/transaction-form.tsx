@@ -45,6 +45,7 @@ const transactionSchema = z.object({
     "vendor_credit",
     "credit_card",
     "payroll",
+    "deposit",
   ]),
   num: z.string().optional(),
   partyName: z.string().optional(),
@@ -257,6 +258,7 @@ export function TransactionForm({
                     <SelectItem value="payment">Payment</SelectItem>
                     <SelectItem value="journal">Journal</SelectItem>
                     <SelectItem value="payroll">Payroll</SelectItem>
+                    <SelectItem value="deposit">Deposit</SelectItem>
                   </SelectContent>
                 </Select>
                 <FormMessage />

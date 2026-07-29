@@ -28,8 +28,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Upload, Download, Loader2, AlertTriangle } from "lucide-react";
-import { downloadImportTemplate } from "@/lib/import-templates";
+import { Upload, Loader2, AlertTriangle } from "lucide-react";
 
 type Entity = "customers" | "vendors" | "jobs" | "employees" | "bills" | "invoices";
 
@@ -294,24 +293,6 @@ export function ImportDataDialog({
         )}
         Import
       </Button>
-      {entity !== "employees" ? (
-      <Button
-        variant="ghost"
-        onClick={() => {
-          downloadImportTemplate(entity).catch(() => {
-            toast({
-              title: "Template download failed",
-              description: "Could not generate the template file. Please try again.",
-              variant: "destructive",
-            });
-          });
-        }}
-        data-testid={`button-download-template-${entity}`}
-      >
-        <Download className="mr-2 h-4 w-4" />
-        Download template
-      </Button>
-      ) : null}
 
       <Dialog open={open} onOpenChange={(o) => !o && setOpen(false)}>
         <DialogContent className="max-w-3xl">
