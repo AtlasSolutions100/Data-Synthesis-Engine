@@ -57,6 +57,7 @@ import type {
   GetArAgingParams,
   GetCostByAccountParams,
   GetDashboardSummaryParams,
+  GetEmployeeParams,
   GetNextInvoiceNumber200,
   GetPayrollByJobParams,
   HealthStatus,
@@ -1743,20 +1744,30 @@ export const useExtractEmployees = <TError = ErrorType<ErrorResponse>,
       return useMutation(getExtractEmployeesMutationOptions(options));
     }
 
-export const getGetEmployeeUrl = (id: number,) => {
+export const getGetEmployeeUrl = (id: number,
+    params?: GetEmployeeParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
 
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
 
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/api/employees/${id}`
+  return stringifiedParams.length > 0 ? `/api/employees/${id}?${stringifiedParams}` : `/api/employees/${id}`
 }
 
 /**
+ * Returns the employee with the SSN masked (last four digits only) by default. Pass reveal=true to receive the full SSN, e.g. when the user explicitly clicks Reveal or opens the edit form.
  * @summary Get an employee
  */
-export const getEmployee = async (id: number, options?: RequestInit): Promise<Employee> => {
+export const getEmployee = async (id: number,
+    params?: GetEmployeeParams, options?: RequestInit): Promise<Employee> => {
 
-  return customFetch<Employee>(getGetEmployeeUrl(id),
+  return customFetch<Employee>(getGetEmployeeUrl(id,params),
   {
     ...options,
     method: 'GET'
@@ -1769,23 +1780,25 @@ export const getEmployee = async (id: number, options?: RequestInit): Promise<Em
 
 
 
-export const getGetEmployeeQueryKey = (id: number,) => {
+export const getGetEmployeeQueryKey = (id: number,
+    params?: GetEmployeeParams,) => {
     return [
-    `/api/employees/${id}`
+    `/api/employees/${id}`, ...(params ? [params] : [])
     ] as const;
     }
 
 
-export const getGetEmployeeQueryOptions = <TData = Awaited<ReturnType<typeof getEmployee>>, TError = ErrorType<ErrorResponse>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getEmployee>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getGetEmployeeQueryOptions = <TData = Awaited<ReturnType<typeof getEmployee>>, TError = ErrorType<ErrorResponse>>(id: number,
+    params?: GetEmployeeParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getEmployee>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetEmployeeQueryKey(id);
+  const queryKey =  queryOptions?.queryKey ?? getGetEmployeeQueryKey(id,params);
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getEmployee>>> = ({ signal }) => getEmployee(id, { signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getEmployee>>> = ({ signal }) => getEmployee(id,params, { signal, ...requestOptions });
 
 
 
@@ -1803,11 +1816,12 @@ export type GetEmployeeQueryError = ErrorType<ErrorResponse>
  */
 
 export function useGetEmployee<TData = Awaited<ReturnType<typeof getEmployee>>, TError = ErrorType<ErrorResponse>>(
- id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getEmployee>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+ id: number,
+    params?: GetEmployeeParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getEmployee>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
-  const queryOptions = getGetEmployeeQueryOptions(id,options)
+  const queryOptions = getGetEmployeeQueryOptions(id,params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

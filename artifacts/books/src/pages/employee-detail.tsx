@@ -36,16 +36,10 @@ import {
 } from "@/components/ui/select";
 import { EmployeeForm } from "@/components/forms/employee-form";
 import { useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Edit2 } from "lucide-react";
+import { ArrowLeft, Edit2, Eye, EyeOff } from "lucide-react";
 
 const CURRENT_YEAR = new Date().getFullYear();
 const YEAR_OPTIONS = Array.from({ length: 6 }, (_, i) => CURRENT_YEAR - i);
-
-function maskSsn(ssn: string): string {
-  const digits = ssn.replace(/\D/g, "");
-  if (digits.length < 4) return ssn;
-  return `•••-••-${digits.slice(-4)}`;
-}
 
 function ProfileField({ label, value }: { label: string; value: string | null | undefined }) {
   return (
@@ -61,10 +55,26 @@ export default function EmployeeDetail() {
   const employeeId = parseInt(id || "0", 10);
   const queryClient = useQueryClient();
   const [isEditOpen, setIsEditOpen] = useState(false);
+  const [ssnRevealed, setSsnRevealed] = useState(false);
   const [year, setYear] = useState<string>(String(CURRENT_YEAR));
 
-  const { data: employee, isLoading } = useGetEmployee(employeeId, {
-    query: { enabled: !!employeeId, queryKey: getGetEmployeeQueryKey(employeeId) },
+  // Default fetch: the server masks the SSN, so the raw value never travels
+  // during normal browsing.
+  const { data: employee, isLoading } = useGetEmployee(employeeId, undefined, {
+    query: {
+      enabled: !!employeeId,
+      queryKey: getGetEmployeeQueryKey(employeeId),
+    },
+  });
+
+  // Full record (unmasked SSN) is only fetched when the user explicitly
+  // reveals it or opens the edit form (which must round-trip the real SSN).
+  const revealParams = { reveal: true } as const;
+  const { data: fullEmployee } = useGetEmployee(employeeId, revealParams, {
+    query: {
+      enabled: !!employeeId && (ssnRevealed || isEditOpen),
+      queryKey: getGetEmployeeQueryKey(employeeId, revealParams),
+    },
   });
 
   const timecardParams = year === "all" ? undefined : { year: Number(year) };
@@ -83,6 +93,9 @@ export default function EmployeeDetail() {
     mutation: {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: getGetEmployeeQueryKey(employeeId) });
+        queryClient.invalidateQueries({
+          queryKey: getGetEmployeeQueryKey(employeeId, revealParams),
+        });
         queryClient.invalidateQueries({ queryKey: getListEmployeesQueryKey() });
         setIsEditOpen(false);
       },
@@ -135,6 +148,11 @@ export default function EmployeeDetail() {
             <DialogHeader>
               <DialogTitle>Edit Employee</DialogTitle>
             </DialogHeader>
+            {employee.ssn && !fullEmployee ? (
+              <div className="py-8 text-center text-sm text-slate-500">
+                Loading employee details...
+              </div>
+            ) : (
             <EmployeeForm
               defaultValues={{
                 name: employee.name,
@@ -143,7 +161,7 @@ export default function EmployeeDetail() {
                 phone: employee.phone ?? "",
                 hireDate: employee.hireDate ?? "",
                 terminationDate: employee.terminationDate ?? "",
-                ssn: employee.ssn ?? "",
+                ssn: fullEmployee?.ssn ?? "",
                 straightTimeRate: employee.straightTimeRateCents
                   ? (employee.straightTimeRateCents / 100).toString()
                   : "",
@@ -158,6 +176,7 @@ export default function EmployeeDetail() {
               }
               isLoading={updateEmployee.isPending}
             />
+            )}
           </DialogContent>
         </Dialog>
       </div>
@@ -173,10 +192,39 @@ export default function EmployeeDetail() {
             <ProfileField label="Phone" value={employee.phone} />
             <ProfileField label="Date of Hire" value={employee.hireDate} />
             <ProfileField label="Termination Date" value={employee.terminationDate} />
-            <ProfileField
-              label="SSN"
-              value={employee.ssn ? maskSsn(employee.ssn) : null}
-            />
+            <div>
+              <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                SSN
+              </p>
+              <div className="mt-0.5 flex items-center gap-2">
+                <p className="text-sm text-slate-900" data-testid="text-ssn">
+                  {employee.ssn
+                    ? ssnRevealed && fullEmployee?.ssn
+                      ? fullEmployee.ssn
+                      : employee.ssn
+                    : "—"}
+                </p>
+                {employee.ssn ? (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 px-2 text-xs"
+                    onClick={() => setSsnRevealed((v) => !v)}
+                    data-testid="button-reveal-ssn"
+                  >
+                    {ssnRevealed ? (
+                      <>
+                        <EyeOff className="mr-1 h-3.5 w-3.5" /> Hide
+                      </>
+                    ) : (
+                      <>
+                        <Eye className="mr-1 h-3.5 w-3.5" /> Reveal
+                      </>
+                    )}
+                  </Button>
+                ) : null}
+              </div>
+            </div>
             <ProfileField
               label="Straight Time Rate"
               value={

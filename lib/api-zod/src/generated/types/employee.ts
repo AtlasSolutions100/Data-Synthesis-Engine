@@ -26,7 +26,7 @@ export interface Employee {
      */
   terminationDate?: string | null;
   /**
-     * Social Security number as entered. Only returned by the single-employee endpoint; the list endpoint never includes it.
+     * Social Security number. The single-employee endpoint returns it masked (•••-••-1234) unless reveal=true is passed; the list endpoint never includes it.
      * @nullable
      */
   ssn?: string | null;

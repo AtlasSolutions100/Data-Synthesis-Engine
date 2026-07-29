@@ -10,3 +10,7 @@ export type { GetAccountBalanceTransactionsParams as GetAccountBalanceTransactio
 // query params TS type).
 export { ListEmployeeTimecardsParams } from "./generated/api";
 export type { ListEmployeeTimecardsParams as ListEmployeeTimecardsQuery } from "./generated/types";
+// Same naming collision for getEmployee (path params zod const vs query
+// params TS type) now that it has a reveal query param.
+export { GetEmployeeParams } from "./generated/api";
+export type { GetEmployeeParams as GetEmployeeQuery } from "./generated/types";

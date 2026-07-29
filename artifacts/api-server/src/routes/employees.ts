@@ -10,6 +10,7 @@ import {
   ListEmployeesResponse,
   CreateEmployeeBody,
   GetEmployeeParams,
+  GetEmployeeQueryParams,
   GetEmployeeResponse,
   UpdateEmployeeParams,
   UpdateEmployeeBody,
@@ -40,7 +41,13 @@ router.post("/employees", async (req, res): Promise<void> => {
     return;
   }
   const [row] = await db.insert(employeesTable).values(parsed.data).returning();
-  res.status(201).json(GetEmployeeResponse.parse(row));
+  res
+    .status(201)
+    .json(
+      GetEmployeeResponse.parse(
+        row.ssn ? { ...row, ssn: maskSsn(row.ssn) } : row,
+      ),
+    );
 });
 
 const EXTRACT_EMPLOYEES_SYSTEM_PROMPT = `You extract employee payroll master records from documents: free-form text (emails, notes, rate sheets, CSV) or images/PDFs of employee lists. Formats vary widely.
@@ -218,10 +225,26 @@ router.post("/employees/extract", async (req, res): Promise<void> => {
   res.json(ExtractEmployeesResponse.parse({ rows }));
 });
 
+/**
+ * Masks an SSN down to its last four digits (•••-••-1234) so the raw value
+ * never travels to the browser during normal profile browsing. Values with
+ * fewer than four digits are fully masked rather than leaked as-is.
+ */
+export function maskSsn(ssn: string): string {
+  const digits = ssn.replace(/\D/g, "");
+  if (digits.length < 4) return "•••-••-••••";
+  return `•••-••-${digits.slice(-4)}`;
+}
+
 router.get("/employees/:id", async (req, res): Promise<void> => {
   const params = GetEmployeeParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
+    return;
+  }
+  const query = GetEmployeeQueryParams.safeParse(req.query);
+  if (!query.success) {
+    res.status(400).json({ error: query.error.message });
     return;
   }
   const [row] = await db
@@ -232,7 +255,13 @@ router.get("/employees/:id", async (req, res): Promise<void> => {
     res.status(404).json({ error: "Employee not found" });
     return;
   }
-  res.json(GetEmployeeResponse.parse(row));
+  // zod's boolean coercion turns any non-empty string (including "false")
+  // into true, so require the literal string "true" to reveal.
+  const reveal =
+    query.data.reveal === true && String(req.query.reveal) === "true";
+  const payload =
+    !reveal && row.ssn ? { ...row, ssn: maskSsn(row.ssn) } : row;
+  res.json(GetEmployeeResponse.parse(payload));
 });
 
 router.get("/employees/:id/timecards", async (req, res): Promise<void> => {
@@ -312,7 +341,11 @@ router.patch("/employees/:id", async (req, res): Promise<void> => {
     res.status(404).json({ error: "Employee not found" });
     return;
   }
-  res.json(GetEmployeeResponse.parse(row));
+  res.json(
+    GetEmployeeResponse.parse(
+      row.ssn ? { ...row, ssn: maskSsn(row.ssn) } : row,
+    ),
+  );
 });
 
 router.delete("/employees/:id", async (req, res): Promise<void> => {

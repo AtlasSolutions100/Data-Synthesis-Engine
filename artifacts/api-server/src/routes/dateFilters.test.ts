@@ -569,6 +569,8 @@ describe("GET /api/reports/dashboard date filtering", () => {
       ]);
       if (
         allTime.body.totalIncomeCents === fullRange.body.totalIncomeCents &&
+        allTime.body.totalCogsCents === fullRange.body.totalCogsCents &&
+        allTime.body.totalExpensesCents === fullRange.body.totalExpensesCents &&
         allTime.body.transactionCount === fullRange.body.transactionCount
       ) {
         break;

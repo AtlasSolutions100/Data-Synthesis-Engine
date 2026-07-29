@@ -429,8 +429,15 @@ paths:
       operationId: getEmployee
       tags: [employees]
       summary: Get an employee
+      description: Returns the employee with the SSN masked (last four digits only) by default. Pass reveal=true to receive the full SSN, e.g. when the user explicitly clicks Reveal or opens the edit form.
       parameters:
         - $ref: "#/components/parameters/IdParam"
+        - name: reveal
+          in: query
+          required: false
+          description: When true, include the full SSN instead of the masked value
+          schema:
+            type: boolean
       responses:
         "200":
           description: Employee
@@ -1909,7 +1916,7 @@ components:
           description: Termination date (YYYY-MM-DD); null while employed
         ssn:
           type: ["string", "null"]
-          description: Social Security number as entered. Only returned by the single-employee endpoint; the list endpoint never includes it.
+          description: Social Security number. The single-employee endpoint returns it masked (•••-••-1234) unless reveal=true is passed; the list endpoint never includes it.
         straightTimeRateCents:
           type: ["integer", "null"]
           description: Hourly straight-time pay rate in integer cents

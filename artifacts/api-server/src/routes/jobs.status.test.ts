@@ -145,7 +145,8 @@ describe("employee profile fields (P4-EMP-02)", () => {
     expect(create.status).toBe(201);
     expect(create.body.address).toBe("123 Main St, Denver, CO 80202");
     expect(create.body.hireDate).toBe("2024-03-15");
-    expect(create.body.ssn).toBe("123-45-6789");
+    // Responses mask the SSN; the raw value is only available via reveal=true.
+    expect(create.body.ssn).toBe("•••-••-6789");
 
     const patch = await request(app)
       .patch(`/api/employees/${create.body.id}`)
@@ -173,13 +174,19 @@ describe("employee profile fields (P4-EMP-02)", () => {
 
     const detail = await request(app).get(`/api/employees/${id}`);
     expect(detail.status).toBe(200);
-    expect(detail.body.ssn).toBe("987-65-4321");
+    expect(detail.body.ssn).toBe("•••-••-4321");
+
+    const revealed = await request(app).get(
+      `/api/employees/${id}?reveal=true`,
+    );
+    expect(revealed.status).toBe(200);
+    expect(revealed.body.ssn).toBe("987-65-4321");
 
     // A PATCH that doesn't mention ssn must not wipe it (list-page edits omit it).
     const patch = await request(app)
       .patch(`/api/employees/${id}`)
       .send({ phone: "303-555-9999" });
     expect(patch.status).toBe(200);
-    expect(patch.body.ssn).toBe("987-65-4321");
+    expect(patch.body.ssn).toBe("•••-••-4321");
   });
 });

@@ -72,6 +72,7 @@ export * from './getApAgingParams';
 export * from './getArAgingParams';
 export * from './getCostByAccountParams';
 export * from './getDashboardSummaryParams';
+export * from './getEmployeeParams';
 export * from './getNextInvoiceNumber200';
 export * from './getPayrollByJobParams';
 export * from './healthStatus';

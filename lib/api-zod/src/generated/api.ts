@@ -440,7 +440,7 @@ export const CreateEmployeeResponse = zod.object({
   "phone": zod.string().nullish(),
   "hireDate": zod.string().nullish().describe('Date of hire (YYYY-MM-DD)'),
   "terminationDate": zod.string().nullish().describe('Termination date (YYYY-MM-DD); null while employed'),
-  "ssn": zod.string().nullish().describe('Social Security number as entered. Only returned by the single-employee endpoint; the list endpoint never includes it.'),
+  "ssn": zod.string().nullish().describe('Social Security number. The single-employee endpoint returns it masked (•••-••-1234) unless reveal=true is passed; the list endpoint never includes it.'),
   "straightTimeRateCents": zod.number().nullish().describe('Hourly straight-time pay rate in integer cents'),
   "overtimeRateCents": zod.number().nullish().describe('Hourly overtime pay rate in integer cents'),
   "taxExempt": zod.boolean().optional().describe('When true, employer payroll taxes are not applied to this worker'),
@@ -485,10 +485,15 @@ export const ExtractEmployeesResponse = zod.object({
 
 
 /**
+ * Returns the employee with the SSN masked (last four digits only) by default. Pass reveal=true to receive the full SSN, e.g. when the user explicitly clicks Reveal or opens the edit form.
  * @summary Get an employee
  */
 export const GetEmployeeParams = zod.object({
   "id": zod.coerce.number()
+})
+
+export const GetEmployeeQueryParams = zod.object({
+  "reveal": zod.coerce.boolean().optional().describe('When true, include the full SSN instead of the masked value')
 })
 
 export const GetEmployeeResponse = zod.object({
@@ -499,7 +504,7 @@ export const GetEmployeeResponse = zod.object({
   "phone": zod.string().nullish(),
   "hireDate": zod.string().nullish().describe('Date of hire (YYYY-MM-DD)'),
   "terminationDate": zod.string().nullish().describe('Termination date (YYYY-MM-DD); null while employed'),
-  "ssn": zod.string().nullish().describe('Social Security number as entered. Only returned by the single-employee endpoint; the list endpoint never includes it.'),
+  "ssn": zod.string().nullish().describe('Social Security number. The single-employee endpoint returns it masked (•••-••-1234) unless reveal=true is passed; the list endpoint never includes it.'),
   "straightTimeRateCents": zod.number().nullish().describe('Hourly straight-time pay rate in integer cents'),
   "overtimeRateCents": zod.number().nullish().describe('Hourly overtime pay rate in integer cents'),
   "taxExempt": zod.boolean().optional().describe('When true, employer payroll taxes are not applied to this worker'),
@@ -539,7 +544,7 @@ export const UpdateEmployeeResponse = zod.object({
   "phone": zod.string().nullish(),
   "hireDate": zod.string().nullish().describe('Date of hire (YYYY-MM-DD)'),
   "terminationDate": zod.string().nullish().describe('Termination date (YYYY-MM-DD); null while employed'),
-  "ssn": zod.string().nullish().describe('Social Security number as entered. Only returned by the single-employee endpoint; the list endpoint never includes it.'),
+  "ssn": zod.string().nullish().describe('Social Security number. The single-employee endpoint returns it masked (•••-••-1234) unless reveal=true is passed; the list endpoint never includes it.'),
   "straightTimeRateCents": zod.number().nullish().describe('Hourly straight-time pay rate in integer cents'),
   "overtimeRateCents": zod.number().nullish().describe('Hourly overtime pay rate in integer cents'),
   "taxExempt": zod.boolean().optional().describe('When true, employer payroll taxes are not applied to this worker'),
