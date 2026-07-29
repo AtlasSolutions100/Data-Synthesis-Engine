@@ -94,6 +94,48 @@ const pnlLarkspur: PnlReport = {
   netIncomeCents: 20000000,
 };
 
+// Dataset with active Other Income / Other Expenses sections: they must
+// render with headers, account rows, section totals, and flow into Net
+// Income (16,465,707 - 5,500,000 + 750,000 - 250,000 = 11,465,707).
+const pnlWithOther: PnlReport = {
+  sections: [
+    ...pnlAllJobs.sections.filter(
+      (s) => s.type !== "other_income" && s.type !== "other_expense",
+    ),
+    {
+      type: "other_income",
+      accounts: [
+        {
+          accountId: 70,
+          accountNumber: "7000",
+          accountName: "Interest Income",
+          type: "other_income",
+          amountCents: 750000,
+        },
+      ],
+      totalCents: 750000,
+    },
+    {
+      type: "other_expense",
+      accounts: [
+        {
+          accountId: 80,
+          accountNumber: "8000",
+          accountName: "Loan Interest",
+          type: "other_expense",
+          amountCents: 250000,
+        },
+      ],
+      totalCents: 250000,
+    },
+  ],
+  grossProfitCents: 16465707,
+  netIncomeCents: 11465707,
+};
+
+// When set, the mocked useGetPnl serves this payload for the unfiltered view.
+let pnlOverride: PnlReport | null = null;
+
 const getPnlCalls: Array<Record<string, unknown>> = [];
 const listTransactionsCalls: Array<Record<string, unknown>> = [];
 
@@ -116,7 +158,7 @@ vi.mock("@workspace/api-client-react", async (importOriginal) => {
     useGetPnl: (params: Record<string, unknown>) => {
       getPnlCalls.push(params);
       return {
-        data: params.jobId === 7 ? pnlLarkspur : pnlAllJobs,
+        data: params.jobId === 7 ? pnlLarkspur : (pnlOverride ?? pnlAllJobs),
         isLoading: false,
       };
     },
@@ -196,6 +238,7 @@ function renderPnl() {
 
 afterEach(() => {
   cleanup();
+  pnlOverride = null;
   getPnlCalls.length = 0;
   listTransactionsCalls.length = 0;
 });
@@ -240,6 +283,38 @@ describe("P&L statement totals", () => {
     expect(screen.getByText("Expenses")).toBeTruthy();
     expect(screen.queryByText("Other Income")).toBeNull();
     expect(screen.queryByText("Other Expenses")).toBeNull();
+  });
+
+  it("renders Other Income / Other Expenses sections with rows and totals when they have activity, and Net Income reflects them", () => {
+    pnlOverride = pnlWithOther;
+    renderPnl();
+
+    // Section headers appear.
+    expect(screen.getByText("Other Income")).toBeTruthy();
+    expect(screen.getByText("Other Expenses")).toBeTruthy();
+
+    // Account rows render with their names and amounts.
+    const incomeRow = screen.getByTestId("row-pnl-account-70");
+    expect(within(incomeRow).getByText(/7000 - Interest Income/)).toBeTruthy();
+    expect(within(incomeRow).getByText("$7,500.00")).toBeTruthy();
+
+    const expenseRow = screen.getByTestId("row-pnl-account-80");
+    expect(within(expenseRow).getByText(/8000 - Loan Interest/)).toBeTruthy();
+    expect(within(expenseRow).getByText("$2,500.00")).toBeTruthy();
+
+    // Section totals.
+    expect(screen.getByTestId("text-pnl-total-other_income").textContent).toBe(
+      "$7,500.00",
+    );
+    expect(screen.getByTestId("text-pnl-total-other_expense").textContent).toBe(
+      "$2,500.00",
+    );
+
+    // Net Income includes the other sections:
+    // gross profit 164,657.07 - expenses 55,000 + 7,500 - 2,500 = 114,657.07
+    expect(screen.getByTestId("text-pnl-net-income").textContent).toBe(
+      "$114,657.07",
+    );
   });
 });
 
