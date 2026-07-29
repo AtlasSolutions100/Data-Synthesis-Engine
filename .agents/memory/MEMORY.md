@@ -23,3 +23,4 @@
 - [Bill ledger posting](bill-ledger-posting.md) — API-created and spreadsheet-imported bills generate billId-linked ledger transactions (batched sync, postedToLedger flag); legacy bills are never back-filled.
 - [api-client-react mock factory](api-client-mock-factory.md) — never hand-list generated hooks in vi.mock; use the shared factory so new hooks don't break suites.
 - [Hours-import job confirmation](import-job-confirmation.md) — person-like extracted job names always require explicit confirmation, even if a job with that exact name exists.
+- [Drizzle raw-sql array params](drizzle-sql-array-param.md) — arrays in sql`` expand to "($1,$2)" IN-list syntax; `= any(${arr})` breaks — use IN with sql.raw ids.

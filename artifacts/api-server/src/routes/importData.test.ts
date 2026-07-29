@@ -87,7 +87,7 @@ async function cleanup(): Promise<void> {
   const bills = await db
     .select({ id: billsTable.id })
     .from(billsTable)
-    .where(inArray(billsTable.billNumber, [`${TP}B-1`, `${TP}B-2`, `${TP}B-3`]));
+    .where(inArray(billsTable.billNumber, [`${TP}B-1`, `${TP}B-2`, `${TP}B-3`, `${TP}B-DEF`]));
   if (bills.length) {
     await db.delete(transactionsTable).where(inArray(transactionsTable.billId, bills.map((b) => b.id)));
     await db.delete(billPaymentsTable).where(inArray(billPaymentsTable.billId, bills.map((b) => b.id)));
@@ -378,6 +378,50 @@ describe("POST /import/bills", () => {
       .where(eq(transactionsTable.billId, bill.id));
     expect(txns).toHaveLength(1);
     expect(Number(txns[0].amountCents)).toBe(12000);
+  });
+
+  it("fills blank account cells from the vendor's default account and posts them to the ledger", async () => {
+    // By this point Vendor X's most-used account is TESTIMP Supplies Exp
+    // (imported on bill B-3 above) — the same smart default the vendor API
+    // exposes. A blank Account cell should fall back to it.
+    const [account] = await db
+      .select()
+      .from(accountsTable)
+      .where(eq(accountsTable.name, `${TP}Supplies Exp`));
+    expect(account).toBeTruthy();
+
+    const fileData = await workbook([
+      ["Vendor", "Bill Number", "Date", "Account", "Description", "Amount"],
+      [`${TP}Vendor X`, `${TP}B-DEF`, "07/20/2026", "", "Blank one", "40.00"],
+      [`${TP}Vendor X`, `${TP}B-DEF`, "07/20/2026", "", "Blank two", "60.00"],
+    ]);
+    const preview = await request(app)
+      .post("/api/import/bills")
+      .send({ fileData, mode: "preview" });
+    expect(preview.status).toBe(200);
+    const row = preview.body.rows.find((r: any) => r.label.includes(`${TP}B-DEF`));
+    expect(row.status).toBe("new");
+    // Informational note about the applied default; no "won't appear" warning.
+    expect(row.message).toMatch(/2 lines had no account — filled in with the vendor's usual account/);
+    expect(row.message).toContain(`${TP}Supplies Exp`);
+    expect(row.message).not.toMatch(/won't appear/);
+
+    const res = await request(app)
+      .post("/api/import/bills")
+      .send({ fileData, mode: "apply", planToken: preview.body.planToken });
+    expect(res.status).toBe(200);
+    expect(res.body.applied).toMatchObject({ inserted: 1 });
+
+    const [bill] = await db.select().from(billsTable).where(eq(billsTable.billNumber, `${TP}B-DEF`));
+    const lines = await db.select().from(billLinesTable).where(eq(billLinesTable.billId, bill.id));
+    expect(lines).toHaveLength(2);
+    expect(lines.every((l) => l.accountId === account.id)).toBe(true);
+    const txns = await db
+      .select()
+      .from(transactionsTable)
+      .where(eq(transactionsTable.billId, bill.id));
+    expect(txns).toHaveLength(2);
+    expect(txns.every((t) => t.accountId === account.id)).toBe(true);
   });
 });
 

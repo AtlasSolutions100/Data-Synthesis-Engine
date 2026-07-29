@@ -683,6 +683,21 @@ async function planBills(buffer: Buffer): Promise<PlanRow[]> {
   });
   const paidByBillId = await billPaidCentsBatch(db, matchedBillIds);
 
+  // Vendors' smart-default accounts, for filling blank Account cells — same
+  // definition as GET /vendors/:id/default-account (most-used account across
+  // the vendor's bill lines and GL transactions, tie-broken by recency),
+  // batched over just the vendors that actually have a blank cell.
+  const vendorIdsNeedingDefault = [
+    ...new Set(
+      groups.flatMap((group) => {
+        const vendor = vendorByName.get(normName(cellText(group.recs[0].get("vendor"))));
+        if (!vendor) return [];
+        return group.recs.some((r) => !cellText(r.get("account"))) ? [vendor.id] : [];
+      }),
+    ),
+  ];
+  const defaultAccountByVendorId = await vendorDefaultAccountsBatch(vendorIdsNeedingDefault);
+
   return groups.map((group): PlanRow => {
     const first = group.recs[0];
     const vendorName = cellText(first.get("vendor"));
@@ -715,6 +730,7 @@ async function planBills(buffer: Buffer): Promise<PlanRow[]> {
     }
 
     const lines: DocLine[] = [];
+    let defaultedCount = 0;
     for (const rec of group.recs) {
       const amountRaw = rec.get("amount");
       const amount = parseMoneyCents(amountRaw);
@@ -727,7 +743,15 @@ async function planBills(buffer: Buffer): Promise<PlanRow[]> {
       }
       const accountRef = cellText(rec.get("account"));
       let accountId: number | null = null;
-      if (accountRef) {
+      if (!accountRef) {
+        // Blank Account cell: fall back to the vendor's default (most-used)
+        // account so the line still posts to the ledger.
+        const fallback = defaultAccountByVendorId.get(vendor.id);
+        if (fallback != null) {
+          accountId = fallback;
+          defaultedCount++;
+        }
+      } else {
         const leaf = accountRef.split(":").pop()!.trim();
         const account =
           accountByNumber.get(accountRef) ??
@@ -746,12 +770,24 @@ async function planBills(buffer: Buffer): Promise<PlanRow[]> {
     // post to the ledger — warn (informationally) so the user knows those
     // amounts won't reach the Transactions page or reports.
     const noAccountCount = lines.filter((l) => l.accountId == null).length;
-    const noAccountNote =
-      noAccountCount === 0
-        ? null
-        : noAccountCount === 1
+    const notes: string[] = [];
+    if (defaultedCount > 0) {
+      const defaultAccount = accounts.find((a) => a.id === defaultAccountByVendorId.get(vendor.id));
+      const accountLabel = defaultAccount ? ` "${defaultAccount.name}"` : "";
+      notes.push(
+        defaultedCount === 1
+          ? `1 line had no account — filled in with the vendor's usual account${accountLabel}`
+          : `${defaultedCount} lines had no account — filled in with the vendor's usual account${accountLabel}`,
+      );
+    }
+    if (noAccountCount > 0) {
+      notes.push(
+        noAccountCount === 1
           ? "1 line has no account — it won't appear on the Transactions page or reports"
-          : `${noAccountCount} lines have no account — they won't appear on the Transactions page or reports`;
+          : `${noAccountCount} lines have no account — they won't appear on the Transactions page or reports`,
+      );
+    }
+    const noAccountNote = notes.length ? notes.join(". ") : null;
 
     const current = billNumber ? existingByKey.get(billKey(vendor.id, billNumber)) : undefined;
     if (!current) {
@@ -953,6 +989,45 @@ async function planInvoices(buffer: Buffer): Promise<PlanRow[]> {
  * paid guard for thousands of updated documents must not run one query per
  * document inside the apply transaction.
  */
+/**
+ * Most-used account per vendor (bill lines + GL transactions, tie-broken by
+ * most recent usage) — the same smart default as
+ * GET /vendors/:id/default-account, batched for import previews.
+ */
+async function vendorDefaultAccountsBatch(vendorIds: number[]): Promise<Map<number, number>> {
+  const map = new Map<number, number>();
+  if (vendorIds.length === 0) return map;
+  // Drizzle expands a JS array param to "($1, $2)", which is IN-list syntax —
+  // interpolate the (integer, DB-sourced) ids as an IN list directly.
+  const idList = sql.raw(`(${vendorIds.map((id) => Math.trunc(id)).join(", ")})`);
+  const rows = await db.execute(sql`
+    with usage as (
+      select b.vendor_id, bl.account_id, b.date
+      from bill_lines bl
+      join bills b on b.id = bl.bill_id
+      where b.vendor_id in ${idList} and bl.account_id is not null
+      union all
+      select t.vendor_id, t.account_id, t.date
+      from transactions t
+      where t.vendor_id in ${idList} and t.account_id is not null
+    ),
+    ranked as (
+      select vendor_id, account_id,
+             row_number() over (
+               partition by vendor_id
+               order by count(*) desc, max(date) desc
+             ) as rn
+      from usage
+      group by vendor_id, account_id
+    )
+    select vendor_id, account_id from ranked where rn = 1
+  `);
+  for (const r of rows.rows) {
+    map.set(Number(r.vendor_id), Number(r.account_id));
+  }
+  return map;
+}
+
 async function billPaidCentsBatch(tx: Tx | typeof db, ids: number[]): Promise<Map<number, number>> {
   if (ids.length === 0) return new Map();
   const idList = sql.join(ids.map((id) => sql`${id}`), sql`, `);
