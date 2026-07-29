@@ -70,7 +70,11 @@ export default function EmployeeDetail() {
   // Full record (unmasked SSN) is only fetched when the user explicitly
   // reveals it or opens the edit form (which must round-trip the real SSN).
   const revealParams = { reveal: true } as const;
-  const { data: fullEmployee } = useGetEmployee(employeeId, revealParams, {
+  const {
+    data: fullEmployee,
+    isError: revealError,
+    refetch: refetchFullEmployee,
+  } = useGetEmployee(employeeId, revealParams, {
     query: {
       enabled: !!employeeId && (ssnRevealed || isEditOpen),
       queryKey: getGetEmployeeQueryKey(employeeId, revealParams),
@@ -149,9 +153,29 @@ export default function EmployeeDetail() {
               <DialogTitle>Edit Employee</DialogTitle>
             </DialogHeader>
             {employee.ssn && !fullEmployee ? (
-              <div className="py-8 text-center text-sm text-slate-500">
-                Loading employee details...
-              </div>
+              revealError ? (
+                <div
+                  className="space-y-3 py-8 text-center text-sm"
+                  data-testid="edit-dialog-error"
+                >
+                  <p className="text-red-600">
+                    Couldn&apos;t load employee details. Check your connection and
+                    try again.
+                  </p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => refetchFullEmployee()}
+                    data-testid="button-retry-employee-details"
+                  >
+                    Retry
+                  </Button>
+                </div>
+              ) : (
+                <div className="py-8 text-center text-sm text-slate-500">
+                  Loading employee details...
+                </div>
+              )
             ) : (
             <EmployeeForm
               defaultValues={{
@@ -224,6 +248,22 @@ export default function EmployeeDetail() {
                   </Button>
                 ) : null}
               </div>
+              {ssnRevealed && revealError && !fullEmployee?.ssn ? (
+                <p
+                  className="mt-1 text-xs text-red-600"
+                  data-testid="text-ssn-reveal-error"
+                >
+                  Couldn&apos;t reveal SSN.{" "}
+                  <button
+                    type="button"
+                    className="underline"
+                    onClick={() => refetchFullEmployee()}
+                    data-testid="button-retry-reveal-ssn"
+                  >
+                    Retry
+                  </button>
+                </p>
+              ) : null}
             </div>
             <ProfileField
               label="Straight Time Rate"

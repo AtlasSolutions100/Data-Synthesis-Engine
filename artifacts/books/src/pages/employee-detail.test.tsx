@@ -22,9 +22,15 @@ const fullEmployee = { ...maskedEmployee, ssn: FULL_SSN };
 // flipping the flag re-renders the page, mimicking react-query settling.
 const revealStore = {
   resolved: false,
+  errored: false,
+  refetch: vi.fn(),
   listeners: new Set<() => void>(),
   setResolved(v: boolean) {
     this.resolved = v;
+    this.listeners.forEach((l) => l());
+  },
+  setErrored(v: boolean) {
+    this.errored = v;
     this.listeners.forEach((l) => l());
   },
   subscribe(l: () => void) {
@@ -64,10 +70,17 @@ vi.mock("@workspace/api-client-react", async (importOriginal) => {
           revealStore.subscribe,
           () => revealStore.resolved,
         );
+        // eslint-disable-next-line react-hooks/rules-of-hooks
+        const errored = useSyncExternalStore(
+          revealStore.subscribe,
+          () => revealStore.errored,
+        );
         const enabled = opts?.query?.enabled ?? true;
         return {
-          data: enabled && resolved ? fullEmployee : undefined,
-          isLoading: enabled && !resolved,
+          data: enabled && resolved && !errored ? fullEmployee : undefined,
+          isLoading: enabled && !resolved && !errored,
+          isError: enabled && errored,
+          refetch: revealStore.refetch,
         };
       }
       return { data: maskedEmployee, isLoading: false };
@@ -91,6 +104,8 @@ function renderPage() {
 describe("Employee detail SSN reveal", () => {
   beforeEach(() => {
     revealStore.resolved = false;
+    revealStore.errored = false;
+    revealStore.refetch = vi.fn();
   });
 
   afterEach(() => {
@@ -140,5 +155,54 @@ describe("Employee detail SSN reveal", () => {
 
     expect(screen.queryByText("Loading employee details...")).toBeNull();
     expect(screen.getByTestId("form-ssn").textContent).toContain(FULL_SSN);
+  });
+
+  it("shows an error with retry in the edit dialog when the reveal fetch fails", async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(screen.getByTestId("button-edit-employee"));
+    expect(screen.getByText("Loading employee details...")).toBeTruthy();
+
+    act(() => revealStore.setErrored(true));
+
+    // No permanent spinner: an error message with a retry button replaces it.
+    expect(screen.queryByText("Loading employee details...")).toBeNull();
+    expect(screen.getByTestId("edit-dialog-error")).toBeTruthy();
+    expect(screen.queryByTestId("form-ssn")).toBeNull();
+
+    await user.click(screen.getByTestId("button-retry-employee-details"));
+    expect(revealStore.refetch).toHaveBeenCalled();
+
+    // Retry succeeds: form renders with the full SSN.
+    act(() => {
+      revealStore.errored = false;
+      revealStore.setResolved(true);
+    });
+    expect(screen.queryByTestId("edit-dialog-error")).toBeNull();
+    expect(screen.getByTestId("form-ssn").textContent).toContain(FULL_SSN);
+  });
+
+  it("surfaces an inline error with retry when Reveal fails, keeping the SSN masked", async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(screen.getByTestId("button-reveal-ssn"));
+    expect(screen.queryByTestId("text-ssn-reveal-error")).toBeNull();
+
+    act(() => revealStore.setErrored(true));
+
+    expect(screen.getByTestId("text-ssn").textContent).toContain(MASKED_SSN);
+    expect(screen.getByTestId("text-ssn-reveal-error")).toBeTruthy();
+
+    await user.click(screen.getByTestId("button-retry-reveal-ssn"));
+    expect(revealStore.refetch).toHaveBeenCalled();
+
+    act(() => {
+      revealStore.errored = false;
+      revealStore.setResolved(true);
+    });
+    expect(screen.queryByTestId("text-ssn-reveal-error")).toBeNull();
+    expect(screen.getByTestId("text-ssn").textContent).toContain(FULL_SSN);
   });
 });
