@@ -34,6 +34,17 @@ const ENTITY_LABEL: Record<Entity, string> = {
 };
 
 /**
+ * Optional per-entity note describing the expected spreadsheet columns.
+ * Shown in the review dialog so users learn about columns (like the jobs
+ * "Internal" flag) before a failed row forces them to discover it via an
+ * error message.
+ */
+const ENTITY_COLUMNS_HINT: Partial<Record<Entity, string>> = {
+  jobs:
+    'Expected columns: "Job Name" (required), "Customer", "PO Number", "Status", "Contract Amount", "Description", and "Internal" (Yes/No — also accepted as "Internal Job", "Overhead", or "Non-Billable"). Mark a row Internal to import a non-billable job without a customer.',
+};
+
+/**
  * Shared two-phase Excel import used by every tab: pick a .xlsx file, the
  * server classifies each row (new / possible duplicate / problem), the user
  * reviews — unchecking anything they don't want — then applies. Duplicates
@@ -219,6 +230,14 @@ export function ImportDataDialog({
                 : ""}
             </DialogDescription>
           </DialogHeader>
+          {ENTITY_COLUMNS_HINT[entity] && (
+            <p
+              className="rounded-md bg-slate-50 px-3 py-2 text-xs text-slate-600"
+              data-testid={`text-import-columns-hint-${entity}`}
+            >
+              {ENTITY_COLUMNS_HINT[entity]}
+            </p>
+          )}
           {stale && (
             <div
               className="flex items-center justify-between gap-3 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900"
