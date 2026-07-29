@@ -17,6 +17,11 @@ import {
   invoicePaymentsTable,
 } from "@workspace/db";
 import { ImportDataBody, ImportDataParams, ImportDataResponse } from "@workspace/api-zod";
+import {
+  IMPORT_HEADER_ALIASES,
+  IMPORT_REQUIRED_FIELDS,
+  normalizeHeaderKey,
+} from "./importHeaderAliases";
 import { syncBillTransactionsBatch } from "./bills";
 
 const router: IRouter = Router();
@@ -33,9 +38,7 @@ function cellText(c: Cell): string {
   return String(c).trim();
 }
 
-function normKey(s: string): string {
-  return s.toLowerCase().replace(/[^a-z0-9]+/g, "");
-}
+const normKey = normalizeHeaderKey;
 
 function normName(s: string): string {
   return s.trim().toLowerCase().replace(/\s+/g, " ");
@@ -300,21 +303,8 @@ async function planContacts(buffer: Buffer, entity: "customers" | "vendors"): Pr
   const label = entity === "customers" ? "Customer" : "Vendor";
   const records = await readRecords(
     buffer,
-    {
-      name: [
-        "Name",
-        `${label}`,
-        `${label} Name`,
-        "Company",
-        "Company Name",
-        "Full Name",
-        "Display Name",
-      ],
-      email: ["Email", "Email Address", "E-mail"],
-      phone: ["Phone", "Phone Number", "Phone Numbers", "Telephone", "Mobile"],
-      notes: ["Notes", "Note", "Memo", "Comments"],
-    },
-    ["name"],
+    IMPORT_HEADER_ALIASES[entity],
+    IMPORT_REQUIRED_FIELDS[entity],
   );
   const existing = await db.select().from(table);
   const byName = new Map(existing.map((r) => [normName(r.name), r]));
@@ -367,22 +357,8 @@ async function planContacts(buffer: Buffer, entity: "customers" | "vendors"): Pr
 async function planEmployees(buffer: Buffer): Promise<PlanRow[]> {
   const records = await readRecords(
     buffer,
-    {
-      name: ["Name", "Employee", "Employee Name", "Full Name"],
-      straightRate: [
-        "Straight Time Rate",
-        "Straight Time",
-        "ST Rate",
-        "Regular Rate",
-        "Hourly Rate",
-        "Rate",
-        "Pay Rate",
-      ],
-      overtimeRate: ["Overtime Rate", "Overtime", "OT Rate", "OT"],
-      taxExempt: ["Tax Exempt", "Exempt", "1099"],
-      active: ["Active", "Status"],
-    },
-    ["name"],
+    IMPORT_HEADER_ALIASES.employees,
+    IMPORT_REQUIRED_FIELDS.employees,
   );
   const existing = await db.select().from(employeesTable);
   const byName = new Map(existing.map((r) => [normName(r.name), r]));
@@ -481,16 +457,8 @@ const JOB_STATUS_MAP: Record<string, string> = {
 async function planJobs(buffer: Buffer): Promise<PlanRow[]> {
   const records = await readRecords(
     buffer,
-    {
-      name: ["Job Name", "Job", "Name", "Project", "Project Name"],
-      customer: ["Customer", "Customer Name", "Client", "Client Name"],
-      poNumber: ["PO Number", "PO", "PO #", "Purchase Order", "Purchase Order Number"],
-      status: ["Status", "Job Status"],
-      internal: ["Internal", "Internal Job", "Overhead", "Non-Billable", "Non Billable", "Nonbillable"],
-      contract: ["Contract Amount", "Contract", "Contract Value", "Contract Total"],
-      description: ["Description", "Notes", "Memo"],
-    },
-    ["name"],
+    IMPORT_HEADER_ALIASES.jobs,
+    IMPORT_REQUIRED_FIELDS.jobs,
   );
   const [existingJobs, customers] = await Promise.all([
     db.select().from(jobsTable),
@@ -637,18 +605,8 @@ type DocLine = { description: string | null; amountCents: number; accountId?: nu
 async function planBills(buffer: Buffer): Promise<PlanRow[]> {
   const records = await readRecords(
     buffer,
-    {
-      vendor: ["Vendor", "Vendor Name", "Supplier", "Payee"],
-      billNumber: ["Bill Number", "Bill No", "Bill #", "Ref Number", "Ref No", "Ref #", "Num", "Number", "Invoice #", "Invoice Number"],
-      date: ["Date", "Bill Date", "Transaction Date", "Txn Date"],
-      dueDate: ["Due Date", "Due"],
-      job: ["Job", "Job Name", "Project", "Customer:Job"],
-      memo: ["Memo", "Notes", "Note"],
-      account: ["Account", "Expense Account", "Account Name", "Account #", "Account Number"],
-      description: ["Description", "Line Description", "Item Description", "Item"],
-      amount: ["Amount", "Line Amount", "Total", "Amount Due", "Open Balance"],
-    },
-    ["vendor", "amount"],
+    IMPORT_HEADER_ALIASES.bills,
+    IMPORT_REQUIRED_FIELDS.bills,
   );
   const [vendors, jobs, accounts, existingBills] = await Promise.all([
     db.select().from(vendorsTable),
@@ -868,17 +826,8 @@ async function planBills(buffer: Buffer): Promise<PlanRow[]> {
 async function planInvoices(buffer: Buffer): Promise<PlanRow[]> {
   const records = await readRecords(
     buffer,
-    {
-      invoiceNumber: ["Invoice Number", "Invoice No", "Invoice #", "Num", "Number", "Ref Number"],
-      job: ["Job", "Job Name", "Project", "Customer:Job"],
-      customer: ["Customer", "Customer Name", "Client"],
-      date: ["Date", "Invoice Date", "Transaction Date", "Txn Date"],
-      dueDate: ["Due Date", "Due"],
-      memo: ["Memo", "Notes", "Note"],
-      description: ["Description", "Line Description", "Item Description", "Item"],
-      amount: ["Amount", "Line Amount", "Total", "Amount Due", "Open Balance"],
-    },
-    ["invoiceNumber", "amount"],
+    IMPORT_HEADER_ALIASES.invoices,
+    IMPORT_REQUIRED_FIELDS.invoices,
   );
   const [jobs, customers, existingInvoices] = await Promise.all([
     db.select().from(jobsTable),
