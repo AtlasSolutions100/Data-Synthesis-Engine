@@ -125,8 +125,12 @@ export default function Jobs() {
                         <Link href={`/customers/${job.customerId}`} className="text-blue-600 hover:underline">
                           {job.customerName || "-"}
                         </Link>
+                      ) : job.customerName ? (
+                        job.customerName
                       ) : (
-                        job.customerName || "-"
+                        <Badge variant="outline" className="text-slate-500 border-slate-300">
+                          Internal
+                        </Badge>
                       )}
                     </TableCell>
                     <TableCell>

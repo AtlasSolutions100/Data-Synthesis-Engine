@@ -12,8 +12,10 @@ const createJobOptions = vi.fn();
 const updateJobOptions = vi.fn();
 const deleteJobOptions = vi.fn();
 
+let jobsData: unknown[] = [];
+
 vi.mock("@workspace/api-client-react", () => ({
-  useListJobs: () => ({ data: [], isLoading: false }),
+  useListJobs: () => ({ data: jobsData, isLoading: false }),
   getListJobsQueryKey: () => ["/api/jobs"],
   getListCustomersQueryKey: () => ["/api/customers"],
   useCreateJob: (opts: unknown) => {
@@ -70,6 +72,7 @@ describe("Jobs page cache invalidation", () => {
 
   afterEach(() => {
     cleanup();
+    jobsData = [];
   });
 
   it("invalidates the customers list (job count badges) after creating a job", () => {
@@ -96,6 +99,51 @@ describe("Jobs page cache invalidation", () => {
     expect(invalidateSpy).toHaveBeenCalledWith({
       queryKey: ["/api/customers"],
     });
+  });
+});
+
+describe("Internal badge in the Customer column", () => {
+  const baseJob = {
+    id: 1,
+    name: "Job",
+    poNumber: null,
+    customerId: null as number | null,
+    customerName: null as string | null,
+    description: null,
+    status: "active",
+    contractAmountCents: 0,
+    billedToDateCents: 0,
+    remainingContractCents: 0,
+    costCents: 0,
+    profitCents: 0,
+  };
+
+  afterEach(() => {
+    cleanup();
+    jobsData = [];
+  });
+
+  it("shows an Internal badge for jobs without a customer", () => {
+    jobsData = [{ ...baseJob, id: 1, name: "Overhead / Office" }];
+    const { getByText } = render(
+      <QueryClientProvider client={new QueryClient()}>
+        <Jobs />
+      </QueryClientProvider>,
+    );
+    expect(getByText("Internal")).toBeTruthy();
+  });
+
+  it("does not show the badge for jobs with a customer", () => {
+    jobsData = [
+      { ...baseJob, id: 2, name: "Site Work", customerId: 7, customerName: "Acme Co" },
+    ];
+    const { queryByText, getByText } = render(
+      <QueryClientProvider client={new QueryClient()}>
+        <Jobs />
+      </QueryClientProvider>,
+    );
+    expect(getByText("Acme Co")).toBeTruthy();
+    expect(queryByText("Internal")).toBeNull();
   });
 });
 
