@@ -125,6 +125,27 @@ beforeAll(async () => {
   await db
     .insert(invoicePaymentsTable)
     .values({ invoiceId: i3.id, date: "2097-01-16", amountCents: 25000 });
+
+  // Invoice 4: overpaid — total 10000, payments 15000. The invoice list must
+  // clamp the balance at 0 (never negative) so the customer's summed
+  // outstanding total agrees with AR aging, which skips balances <= 0.
+  const [i4] = await db
+    .insert(invoicesTable)
+    .values({
+      invoiceNumber: "TEST-CBC-OVERPAID",
+      customerId,
+      jobId,
+      date: "2097-01-18",
+      dueDate: "2097-01-28",
+    })
+    .returning();
+  invoiceIds.push(i4.id);
+  await db
+    .insert(invoiceLinesTable)
+    .values({ invoiceId: i4.id, description: "line", amountCents: 10000 });
+  await db
+    .insert(invoicePaymentsTable)
+    .values({ invoiceId: i4.id, date: "2097-01-19", amountCents: 15000 });
 });
 
 afterAll(async () => {
@@ -159,7 +180,7 @@ describe("customer outstanding balance vs AR aging report", () => {
     );
     expect(invRes.status).toBe(200);
     const invoices = invRes.body as InvoiceListItem[];
-    expect(invoices).toHaveLength(3);
+    expect(invoices).toHaveLength(4);
     const outstandingCents = invoices.reduce((s, i) => s + i.balanceCents, 0);
 
     // Sanity-check the individual fixture invoices.
@@ -174,6 +195,14 @@ describe("customer outstanding balance vs AR aging report", () => {
       status: "partial",
     });
     expect(byNumber.get("TEST-CBC-PAID")).toMatchObject({
+      balanceCents: 0,
+      status: "paid",
+    });
+    // Overpaid: balance is clamped at 0, never negative — a negative value
+    // would subtract from the outstanding total while AR aging skips it.
+    expect(byNumber.get("TEST-CBC-OVERPAID")).toMatchObject({
+      totalCents: 10000,
+      paidCents: 15000,
       balanceCents: 0,
       status: "paid",
     });
@@ -199,5 +228,6 @@ describe("customer outstanding balance vs AR aging report", () => {
     expect(agingByNumber.get("TEST-CBC-OPEN")).toBe(50000);
     expect(agingByNumber.get("TEST-CBC-PARTIAL")).toBe(40000);
     expect(agingByNumber.has("TEST-CBC-PAID")).toBe(false);
+    expect(agingByNumber.has("TEST-CBC-OVERPAID")).toBe(false);
   });
 });

@@ -114,7 +114,10 @@ async function getFullInvoice(id: number) {
     memo: row.inv.memo,
     totalCents,
     paidCents,
-    balanceCents: totalCents - paidCents,
+    // Clamp at zero so an overpaid invoice (payments > total) never shows a
+    // negative balance that would subtract from the customer's outstanding
+    // total while the AR aging report skips it (balances <= 0).
+    balanceCents: Math.max(0, totalCents - paidCents),
     status: computeStatus(totalCents, paidCents),
     contractAmountCents,
     billedToDateCents,
@@ -203,7 +206,9 @@ router.get("/invoices", async (req, res): Promise<void> => {
         memo: r.inv.memo,
         totalCents,
         paidCents,
-        balanceCents: totalCents - paidCents,
+        // Clamp at zero: see getInvoice — keeps customer outstanding totals
+        // in agreement with the AR aging report for overpaid invoices.
+        balanceCents: Math.max(0, totalCents - paidCents),
         status: computeStatus(totalCents, paidCents),
         contractAmountCents: r.contractAmountCents ?? null,
         lines: [],
