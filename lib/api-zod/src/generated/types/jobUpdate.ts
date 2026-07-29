@@ -21,5 +21,10 @@ export interface JobUpdate {
   /** @nullable */
   description?: string | null;
   status?: JobUpdateStatus;
+  /**
+     * Why the job is being made inactive (recorded on the status change)
+     * @nullable
+     */
+  inactiveNote?: string | null;
   contractAmountCents?: number;
 }

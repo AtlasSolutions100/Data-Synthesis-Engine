@@ -13,4 +13,5 @@ export const JobInputStatus = {
   active: 'active',
   completed: 'completed',
   on_hold: 'on_hold',
+  inactive: 'inactive',
 } as const;

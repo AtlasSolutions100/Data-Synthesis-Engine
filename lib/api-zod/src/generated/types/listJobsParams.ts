@@ -8,4 +8,8 @@
 
 export type ListJobsParams = {
 customerId?: number;
+/**
+ * When true, inactive jobs are included. By default the list only returns jobs that are not inactive (P4-CUST-04).
+ */
+includeInactive?: boolean;
 };

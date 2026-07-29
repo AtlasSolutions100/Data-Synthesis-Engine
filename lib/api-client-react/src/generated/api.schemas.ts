@@ -216,6 +216,27 @@ export interface VendorUpdate {
 export interface Employee {
   id: number;
   name: string;
+  /** @nullable */
+  address?: string | null;
+  /** @nullable */
+  email?: string | null;
+  /** @nullable */
+  phone?: string | null;
+  /**
+     * Date of hire (YYYY-MM-DD)
+     * @nullable
+     */
+  hireDate?: string | null;
+  /**
+     * Termination date (YYYY-MM-DD); null while employed
+     * @nullable
+     */
+  terminationDate?: string | null;
+  /**
+     * Social Security number as entered
+     * @nullable
+     */
+  ssn?: string | null;
   /**
      * Hourly straight-time pay rate in integer cents
      * @nullable
@@ -235,6 +256,18 @@ export interface EmployeeInput {
   /** @minLength 1 */
   name: string;
   /** @nullable */
+  address?: string | null;
+  /** @nullable */
+  email?: string | null;
+  /** @nullable */
+  phone?: string | null;
+  /** @nullable */
+  hireDate?: string | null;
+  /** @nullable */
+  terminationDate?: string | null;
+  /** @nullable */
+  ssn?: string | null;
+  /** @nullable */
   straightTimeRateCents?: number | null;
   /** @nullable */
   overtimeRateCents?: number | null;
@@ -245,6 +278,18 @@ export interface EmployeeInput {
 export interface EmployeeUpdate {
   /** @minLength 1 */
   name?: string;
+  /** @nullable */
+  address?: string | null;
+  /** @nullable */
+  email?: string | null;
+  /** @nullable */
+  phone?: string | null;
+  /** @nullable */
+  hireDate?: string | null;
+  /** @nullable */
+  terminationDate?: string | null;
+  /** @nullable */
+  ssn?: string | null;
   /** @nullable */
   straightTimeRateCents?: number | null;
   /** @nullable */
@@ -260,6 +305,7 @@ export const JobStatus = {
   active: 'active',
   completed: 'completed',
   on_hold: 'on_hold',
+  inactive: 'inactive',
 } as const;
 
 export interface Job {
@@ -278,6 +324,11 @@ export interface Job {
   /** @nullable */
   description?: string | null;
   status: JobStatus;
+  /**
+     * Why the job was made inactive; kept after reactivation
+     * @nullable
+     */
+  inactiveNote?: string | null;
   /** Contract value in integer cents */
   contractAmountCents: number;
   /** Billed income in cents (computed from line items) */
@@ -310,6 +361,7 @@ export const JobInputStatus = {
   active: 'active',
   completed: 'completed',
   on_hold: 'on_hold',
+  inactive: 'inactive',
 } as const;
 
 export interface JobInput {
@@ -339,6 +391,7 @@ export const JobUpdateStatus = {
   active: 'active',
   completed: 'completed',
   on_hold: 'on_hold',
+  inactive: 'inactive',
 } as const;
 
 export interface JobUpdate {
@@ -355,6 +408,11 @@ export interface JobUpdate {
   /** @nullable */
   description?: string | null;
   status?: JobUpdateStatus;
+  /**
+     * Why the job is being made inactive (recorded on the status change)
+     * @nullable
+     */
+  inactiveNote?: string | null;
   contractAmountCents?: number;
 }
 
@@ -1735,6 +1793,10 @@ year?: number;
 
 export type ListJobsParams = {
 customerId?: number;
+/**
+ * When true, inactive jobs are included. By default the list only returns jobs that are not inactive (P4-CUST-04).
+ */
+includeInactive?: boolean;
 };
 
 export type ListTransactionsParams = {

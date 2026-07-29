@@ -12,8 +12,13 @@ import {
   useDeleteTransaction,
   useCreateInvoice,
   getListInvoicesQueryKey,
-  getListJobsQueryKey
+  getListJobsQueryKey,
+  useUpdateJob,
+  useGetCurrentUser,
+  getGetCurrentUserQueryKey
 } from "@workspace/api-client-react";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import { InvoiceForm } from "@/components/forms/invoice-form";
 import { toSuggestedNumber } from "@/lib/server-field-error";
 import { FileText } from "lucide-react";
@@ -64,6 +69,33 @@ export default function JobDetail() {
           toServerFieldError(error, "Failed to save the invoice. Please try again."),
         );
         setSuggestedNumber(toSuggestedNumber(error));
+      },
+    },
+  });
+
+  const { data: me } = useGetCurrentUser({
+    query: { queryKey: getGetCurrentUserQueryKey() },
+  });
+  const isOwner = me?.role === "owner";
+  const [statusDialogOpen, setStatusDialogOpen] = useState(false);
+  const [statusNote, setStatusNote] = useState("");
+  const [statusError, setStatusError] = useState("");
+
+  const updateJobStatus = useUpdateJob({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getGetJobQueryKey(jobId) });
+        queryClient.invalidateQueries({ queryKey: getListJobsQueryKey() });
+        setStatusDialogOpen(false);
+        setStatusNote("");
+        setStatusError("");
+      },
+      onError: (error) => {
+        const anyErr = error as { response?: { data?: { error?: string } } };
+        setStatusError(
+          anyErr?.response?.data?.error ??
+            "Failed to update the job status. Please try again.",
+        );
       },
     },
   });
@@ -202,8 +234,123 @@ export default function JobDetail() {
         <div>
           <div className="flex items-center gap-3">
             <h1 className="text-3xl font-bold tracking-tight text-slate-900">{job.name}</h1>
-            <Badge variant={job.status === "active" ? "default" : "secondary"}>{job.status}</Badge>
+            <Badge
+              variant={
+                job.status === "inactive"
+                  ? "destructive"
+                  : job.status === "active"
+                    ? "default"
+                    : "secondary"
+              }
+            >
+              {job.status}
+            </Badge>
+            {isOwner ? (
+              <Dialog
+                open={statusDialogOpen}
+                onOpenChange={(open) => {
+                  setStatusDialogOpen(open);
+                  if (open) {
+                    setStatusNote(job.status === "inactive" ? "" : (job.inactiveNote ?? ""));
+                    setStatusError("");
+                  }
+                }}
+              >
+                <DialogTrigger asChild>
+                  <Button variant="outline" size="sm" data-testid="button-toggle-job-status">
+                    {job.status === "inactive" ? "Reactivate Job" : "Mark Inactive"}
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>
+                      {job.status === "inactive"
+                        ? `Reactivate ${job.name}?`
+                        : `Mark ${job.name} inactive?`}
+                    </DialogTitle>
+                  </DialogHeader>
+                  {job.status === "inactive" ? (
+                    <div className="space-y-3">
+                      {job.inactiveNote ? (
+                        <div className="rounded-md border bg-slate-50 p-3">
+                          <p className="text-xs font-medium text-slate-500">
+                            Why it went inactive
+                          </p>
+                          <p className="mt-1 whitespace-pre-wrap text-sm text-slate-800">
+                            {job.inactiveNote}
+                          </p>
+                        </div>
+                      ) : (
+                        <p className="text-sm text-slate-500">
+                          No note was recorded when this job went inactive.
+                        </p>
+                      )}
+                      <p className="text-sm text-slate-600">
+                        The job will return to the Active list. The note above is
+                        kept for reference.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <Label htmlFor="inactive-note">
+                        Why is this job going inactive?
+                      </Label>
+                      <Textarea
+                        id="inactive-note"
+                        rows={3}
+                        value={statusNote}
+                        onChange={(e) => setStatusNote(e.target.value)}
+                        placeholder="e.g. Customer put the project on hold until spring"
+                      />
+                      <p className="text-xs text-slate-500">
+                        Inactive jobs are hidden from the default Jobs list but
+                        can be shown again with the "Show inactive" filter.
+                      </p>
+                    </div>
+                  )}
+                  {statusError ? (
+                    <p className="text-sm text-red-600">{statusError}</p>
+                  ) : null}
+                  <div className="flex justify-end gap-2">
+                    <Button
+                      variant="outline"
+                      onClick={() => setStatusDialogOpen(false)}
+                      disabled={updateJobStatus.isPending}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      onClick={() =>
+                        updateJobStatus.mutate({
+                          id: jobId,
+                          data:
+                            job.status === "inactive"
+                              ? { status: "active" }
+                              : {
+                                  status: "inactive",
+                                  inactiveNote: statusNote.trim() || null,
+                                },
+                        })
+                      }
+                      disabled={updateJobStatus.isPending}
+                      data-testid="button-confirm-job-status"
+                    >
+                      {updateJobStatus.isPending
+                        ? "Saving…"
+                        : job.status === "inactive"
+                          ? "Reactivate"
+                          : "Mark Inactive"}
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
+            ) : null}
           </div>
+          {job.status === "inactive" && job.inactiveNote ? (
+            <p className="mt-1 text-sm text-amber-700">
+              Inactive: {job.inactiveNote}
+            </p>
+          ) : null}
           <p className="text-slate-500 mt-1">
             {job.customerId && job.customerName ? (
               <>

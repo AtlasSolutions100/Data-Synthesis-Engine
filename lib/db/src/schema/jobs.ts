@@ -20,6 +20,9 @@ export const jobsTable = pgTable("jobs", {
   }),
   description: text("description"),
   status: text("status").notNull().default("active"),
+  // Why the job was made inactive (P4-CUST-03). Kept after reactivation so
+  // the history is visible when flipping the job back on.
+  inactiveNote: text("inactive_note"),
   contractAmountCents: bigint("contract_amount_cents", { mode: "number" })
     .notNull()
     .default(0),

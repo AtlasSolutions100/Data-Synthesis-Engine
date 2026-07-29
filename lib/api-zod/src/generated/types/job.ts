@@ -23,6 +23,11 @@ export interface Job {
   /** @nullable */
   description?: string | null;
   status: JobStatus;
+  /**
+     * Why the job was made inactive; kept after reactivation
+     * @nullable
+     */
+  inactiveNote?: string | null;
   /** Contract value in integer cents */
   contractAmountCents: number;
   /** Billed income in cents (computed from line items) */

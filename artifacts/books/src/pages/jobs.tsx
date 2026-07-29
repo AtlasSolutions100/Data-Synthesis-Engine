@@ -4,6 +4,7 @@ import { formatCents } from "@/lib/format";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -17,9 +18,11 @@ export default function Jobs() {
   const queryClient = useQueryClient();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
+  const [showInactive, setShowInactive] = useState(false);
 
-  const { data: jobs, isLoading } = useListJobs(undefined, {
-    query: { queryKey: getListJobsQueryKey() }
+  const listParams = showInactive ? { includeInactive: true } : undefined;
+  const { data: jobs, isLoading } = useListJobs(listParams, {
+    query: { queryKey: getListJobsQueryKey(listParams) }
   });
 
   const createJob = useCreateJob({
@@ -59,6 +62,14 @@ export default function Jobs() {
           <p className="text-slate-500 mt-1">Manage construction projects and job costing</p>
         </div>
         <div className="flex items-center gap-2">
+        <label className="mr-2 flex cursor-pointer items-center gap-2 text-sm text-slate-600">
+          <Checkbox
+            checked={showInactive}
+            onCheckedChange={(v) => setShowInactive(v === true)}
+            data-testid="checkbox-show-inactive"
+          />
+          Show inactive
+        </label>
         <ImportDataDialog
           entity="jobs"
           onDone={() =>
@@ -134,7 +145,7 @@ export default function Jobs() {
                       )}
                     </TableCell>
                     <TableCell>
-                      <Badge variant={job.status === "active" ? "default" : job.status === "completed" ? "secondary" : "outline"}>
+                      <Badge variant={job.status === "inactive" ? "destructive" : job.status === "active" ? "default" : job.status === "completed" ? "secondary" : "outline"}>
                         {job.status}
                       </Badge>
                     </TableCell>

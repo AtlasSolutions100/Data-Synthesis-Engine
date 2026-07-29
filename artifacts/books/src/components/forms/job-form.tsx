@@ -30,7 +30,7 @@ const jobSchema = z
     customerId: z.string().optional(),
     internalJob: z.boolean(),
     description: z.string().optional(),
-    status: z.enum(["active", "completed", "on_hold"]),
+    status: z.enum(["active", "completed", "on_hold", "inactive"]),
     contractAmount: z.string().optional(),
   })
   .superRefine((values, ctx) => {
@@ -157,6 +157,14 @@ export function JobForm({ defaultValues, onSubmit, isLoading }: JobFormProps) {
                     <SelectItem value="active">Active</SelectItem>
                     <SelectItem value="completed">Completed</SelectItem>
                     <SelectItem value="on_hold">On Hold</SelectItem>
+                    {field.value === "inactive" ? (
+                      // Inactive is flipped from the job detail page (admin
+                      // only); shown here just so an inactive job's other
+                      // fields can be edited without changing its status.
+                      <SelectItem value="inactive" disabled>
+                        Inactive (change on job page)
+                      </SelectItem>
+                    ) : null}
                   </SelectContent>
                 </Select>
                 <FormMessage />

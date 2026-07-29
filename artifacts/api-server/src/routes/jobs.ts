@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, ne, sql } from "drizzle-orm";
 import {
   db,
   jobsTable,
@@ -84,6 +84,7 @@ function serializeJob(
     customerName: customerName,
     description: job.description,
     status: job.status,
+    inactiveNote: job.inactiveNote,
     contractAmountCents: job.contractAmountCents,
     incomeCents,
     costCents,
@@ -114,16 +115,28 @@ router.get("/jobs", async (req, res): Promise<void> => {
     res.status(400).json({ error: query.error.message });
     return;
   }
+  const conds = [];
+  if (query.data.customerId != null) {
+    conds.push(eq(jobsTable.customerId, query.data.customerId));
+  }
+  // Inactive jobs are hidden from the default view (P4-CUST-04); they are
+  // surfaced only when includeInactive=true is passed explicitly. Parse the
+  // raw query string strictly — zod's coerce.boolean() treats the string
+  // "false" as true.
+  const includeInactive = req.query.includeInactive === "true";
+  if (!includeInactive) {
+    conds.push(ne(jobsTable.status, "inactive"));
+  }
   const baseQuery = db
     .select({ job: jobsTable, customerName: customersTable.name })
     .from(jobsTable)
     .leftJoin(customersTable, eq(customersTable.id, jobsTable.customerId));
-  const rows = await (query.data.customerId != null
-    ? baseQuery.where(eq(jobsTable.customerId, query.data.customerId))
+  const rows = await (conds.length > 0
+    ? baseQuery.where(and(...conds))
     : baseQuery
   ).orderBy(jobsTable.name);
-  const jobIds =
-    query.data.customerId != null ? rows.map((r) => r.job.id) : undefined;
+  const filtered = query.data.customerId != null || !includeInactive;
+  const jobIds = filtered ? rows.map((r) => r.job.id) : undefined;
   const [totals, billing, invoiceStats] = await Promise.all([
     getJobTotalsMap(undefined, jobIds),
     getJobBillingMap(undefined, jobIds),
@@ -293,6 +306,19 @@ router.patch("/jobs/:id", async (req, res): Promise<void> => {
     .where(eq(jobsTable.id, params.data.id));
   if (!existing) {
     res.status(404).json({ error: "Job not found" });
+    return;
+  }
+  // Flipping a job between active and inactive is admin-only (P4-CUST-02).
+  // Other status changes (completed / on_hold) stay open to all users.
+  const statusChanging =
+    parsed.data.status != null && parsed.data.status !== existing.status;
+  const touchesInactive =
+    statusChanging &&
+    (parsed.data.status === "inactive" || existing.status === "inactive");
+  if (touchesInactive && req.currentUser?.role !== "owner") {
+    res.status(403).json({
+      error: "Only the owner can change a job's active/inactive status",
+    });
     return;
   }
   // Enforce the same customer-required rule on edits: the effective state

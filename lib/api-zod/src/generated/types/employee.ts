@@ -9,6 +9,27 @@
 export interface Employee {
   id: number;
   name: string;
+  /** @nullable */
+  address?: string | null;
+  /** @nullable */
+  email?: string | null;
+  /** @nullable */
+  phone?: string | null;
+  /**
+     * Date of hire (YYYY-MM-DD)
+     * @nullable
+     */
+  hireDate?: string | null;
+  /**
+     * Termination date (YYYY-MM-DD); null while employed
+     * @nullable
+     */
+  terminationDate?: string | null;
+  /**
+     * Social Security number as entered
+     * @nullable
+     */
+  ssn?: string | null;
   /**
      * Hourly straight-time pay rate in integer cents
      * @nullable

@@ -508,6 +508,14 @@ paths:
           required: false
           schema:
             type: integer
+        - name: includeInactive
+          in: query
+          required: false
+          description: >-
+            When true, inactive jobs are included. By default the list only
+            returns jobs that are not inactive (P4-CUST-04).
+          schema:
+            type: boolean
       responses:
         "200":
           description: List of jobs with rolled-up totals
@@ -1887,6 +1895,21 @@ components:
           type: integer
         name:
           type: string
+        address:
+          type: ["string", "null"]
+        email:
+          type: ["string", "null"]
+        phone:
+          type: ["string", "null"]
+        hireDate:
+          type: ["string", "null"]
+          description: Date of hire (YYYY-MM-DD)
+        terminationDate:
+          type: ["string", "null"]
+          description: Termination date (YYYY-MM-DD); null while employed
+        ssn:
+          type: ["string", "null"]
+          description: Social Security number as entered
         straightTimeRateCents:
           type: ["integer", "null"]
           description: Hourly straight-time pay rate in integer cents
@@ -1905,6 +1928,18 @@ components:
         name:
           type: string
           minLength: 1
+        address:
+          type: ["string", "null"]
+        email:
+          type: ["string", "null"]
+        phone:
+          type: ["string", "null"]
+        hireDate:
+          type: ["string", "null"]
+        terminationDate:
+          type: ["string", "null"]
+        ssn:
+          type: ["string", "null"]
         straightTimeRateCents:
           type: ["integer", "null"]
         overtimeRateCents:
@@ -1919,6 +1954,18 @@ components:
         name:
           type: string
           minLength: 1
+        address:
+          type: ["string", "null"]
+        email:
+          type: ["string", "null"]
+        phone:
+          type: ["string", "null"]
+        hireDate:
+          type: ["string", "null"]
+        terminationDate:
+          type: ["string", "null"]
+        ssn:
+          type: ["string", "null"]
         straightTimeRateCents:
           type: ["integer", "null"]
         overtimeRateCents:
@@ -1949,7 +1996,10 @@ components:
           type: ["string", "null"]
         status:
           type: string
-          enum: [active, completed, on_hold]
+          enum: [active, completed, on_hold, inactive]
+        inactiveNote:
+          type: ["string", "null"]
+          description: Why the job was made inactive; kept after reactivation
         contractAmountCents:
           type: integer
           description: Contract value in integer cents
@@ -2005,7 +2055,7 @@ components:
           type: ["string", "null"]
         status:
           type: string
-          enum: [active, completed, on_hold]
+          enum: [active, completed, on_hold, inactive]
         contractAmountCents:
           type: integer
     JobUpdate:
@@ -2031,7 +2081,10 @@ components:
           type: ["string", "null"]
         status:
           type: string
-          enum: [active, completed, on_hold]
+          enum: [active, completed, on_hold, inactive]
+        inactiveNote:
+          type: ["string", "null"]
+          description: Why the job is being made inactive (recorded on the status change)
         contractAmountCents:
           type: integer
 

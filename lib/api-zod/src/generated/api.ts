@@ -384,6 +384,12 @@ export const GetVendorDefaultAccountResponse = zod.object({
 export const ListEmployeesResponseItem = zod.object({
   "id": zod.number(),
   "name": zod.string(),
+  "address": zod.string().nullish(),
+  "email": zod.string().nullish(),
+  "phone": zod.string().nullish(),
+  "hireDate": zod.string().nullish().describe('Date of hire (YYYY-MM-DD)'),
+  "terminationDate": zod.string().nullish().describe('Termination date (YYYY-MM-DD); null while employed'),
+  "ssn": zod.string().nullish().describe('Social Security number as entered'),
   "straightTimeRateCents": zod.number().nullish().describe('Hourly straight-time pay rate in integer cents'),
   "overtimeRateCents": zod.number().nullish().describe('Hourly overtime pay rate in integer cents'),
   "taxExempt": zod.boolean().optional().describe('When true, employer payroll taxes are not applied to this worker'),
@@ -400,6 +406,12 @@ export const ListEmployeesResponse = zod.array(ListEmployeesResponseItem)
 
 export const CreateEmployeeBody = zod.object({
   "name": zod.string().min(1),
+  "address": zod.string().nullish(),
+  "email": zod.string().nullish(),
+  "phone": zod.string().nullish(),
+  "hireDate": zod.string().nullish(),
+  "terminationDate": zod.string().nullish(),
+  "ssn": zod.string().nullish(),
   "straightTimeRateCents": zod.number().nullish(),
   "overtimeRateCents": zod.number().nullish(),
   "taxExempt": zod.boolean().optional(),
@@ -409,6 +421,12 @@ export const CreateEmployeeBody = zod.object({
 export const CreateEmployeeResponse = zod.object({
   "id": zod.number(),
   "name": zod.string(),
+  "address": zod.string().nullish(),
+  "email": zod.string().nullish(),
+  "phone": zod.string().nullish(),
+  "hireDate": zod.string().nullish().describe('Date of hire (YYYY-MM-DD)'),
+  "terminationDate": zod.string().nullish().describe('Termination date (YYYY-MM-DD); null while employed'),
+  "ssn": zod.string().nullish().describe('Social Security number as entered'),
   "straightTimeRateCents": zod.number().nullish().describe('Hourly straight-time pay rate in integer cents'),
   "overtimeRateCents": zod.number().nullish().describe('Hourly overtime pay rate in integer cents'),
   "taxExempt": zod.boolean().optional().describe('When true, employer payroll taxes are not applied to this worker'),
@@ -462,6 +480,12 @@ export const GetEmployeeParams = zod.object({
 export const GetEmployeeResponse = zod.object({
   "id": zod.number(),
   "name": zod.string(),
+  "address": zod.string().nullish(),
+  "email": zod.string().nullish(),
+  "phone": zod.string().nullish(),
+  "hireDate": zod.string().nullish().describe('Date of hire (YYYY-MM-DD)'),
+  "terminationDate": zod.string().nullish().describe('Termination date (YYYY-MM-DD); null while employed'),
+  "ssn": zod.string().nullish().describe('Social Security number as entered'),
   "straightTimeRateCents": zod.number().nullish().describe('Hourly straight-time pay rate in integer cents'),
   "overtimeRateCents": zod.number().nullish().describe('Hourly overtime pay rate in integer cents'),
   "taxExempt": zod.boolean().optional().describe('When true, employer payroll taxes are not applied to this worker'),
@@ -481,6 +505,12 @@ export const UpdateEmployeeParams = zod.object({
 
 export const UpdateEmployeeBody = zod.object({
   "name": zod.string().min(1).optional(),
+  "address": zod.string().nullish(),
+  "email": zod.string().nullish(),
+  "phone": zod.string().nullish(),
+  "hireDate": zod.string().nullish(),
+  "terminationDate": zod.string().nullish(),
+  "ssn": zod.string().nullish(),
   "straightTimeRateCents": zod.number().nullish(),
   "overtimeRateCents": zod.number().nullish(),
   "taxExempt": zod.boolean().optional(),
@@ -490,6 +520,12 @@ export const UpdateEmployeeBody = zod.object({
 export const UpdateEmployeeResponse = zod.object({
   "id": zod.number(),
   "name": zod.string(),
+  "address": zod.string().nullish(),
+  "email": zod.string().nullish(),
+  "phone": zod.string().nullish(),
+  "hireDate": zod.string().nullish().describe('Date of hire (YYYY-MM-DD)'),
+  "terminationDate": zod.string().nullish().describe('Termination date (YYYY-MM-DD); null while employed'),
+  "ssn": zod.string().nullish().describe('Social Security number as entered'),
   "straightTimeRateCents": zod.number().nullish().describe('Hourly straight-time pay rate in integer cents'),
   "overtimeRateCents": zod.number().nullish().describe('Hourly overtime pay rate in integer cents'),
   "taxExempt": zod.boolean().optional().describe('When true, employer payroll taxes are not applied to this worker'),
@@ -537,7 +573,8 @@ export const ListEmployeeTimecardsResponse = zod.array(ListEmployeeTimecardsResp
  * @summary List jobs
  */
 export const ListJobsQueryParams = zod.object({
-  "customerId": zod.coerce.number().optional()
+  "customerId": zod.coerce.number().optional(),
+  "includeInactive": zod.coerce.boolean().optional().describe('When true, inactive jobs are included. By default the list only returns jobs that are not inactive (P4-CUST-04).')
 })
 
 export const ListJobsResponseItem = zod.object({
@@ -548,7 +585,8 @@ export const ListJobsResponseItem = zod.object({
   "customerId": zod.number().nullish(),
   "customerName": zod.string().nullish(),
   "description": zod.string().nullish(),
-  "status": zod.enum(['active', 'completed', 'on_hold']),
+  "status": zod.enum(['active', 'completed', 'on_hold', 'inactive']),
+  "inactiveNote": zod.string().nullish().describe('Why the job was made inactive; kept after reactivation'),
   "contractAmountCents": zod.number().describe('Contract value in integer cents'),
   "incomeCents": zod.number().describe('Billed income in cents (computed from line items)'),
   "costCents": zod.number().describe('Total cost in cents (computed from line items)'),
@@ -577,7 +615,7 @@ export const CreateJobBody = zod.object({
   "customerId": zod.number().nullish(),
   "isInternal": zod.boolean().optional().describe('Explicit override to save an internal (non-billable) job without a customer. When true, customerId is ignored and stored as null. Without it, a missing customerId is rejected.'),
   "description": zod.string().nullish(),
-  "status": zod.enum(['active', 'completed', 'on_hold']).optional(),
+  "status": zod.enum(['active', 'completed', 'on_hold', 'inactive']).optional(),
   "contractAmountCents": zod.number().optional()
 })
 
@@ -589,7 +627,8 @@ export const CreateJobResponse = zod.object({
   "customerId": zod.number().nullish(),
   "customerName": zod.string().nullish(),
   "description": zod.string().nullish(),
-  "status": zod.enum(['active', 'completed', 'on_hold']),
+  "status": zod.enum(['active', 'completed', 'on_hold', 'inactive']),
+  "inactiveNote": zod.string().nullish().describe('Why the job was made inactive; kept after reactivation'),
   "contractAmountCents": zod.number().describe('Contract value in integer cents'),
   "incomeCents": zod.number().describe('Billed income in cents (computed from line items)'),
   "costCents": zod.number().describe('Total cost in cents (computed from line items)'),
@@ -618,7 +657,8 @@ export const GetJobResponse = zod.object({
   "customerId": zod.number().nullish(),
   "customerName": zod.string().nullish(),
   "description": zod.string().nullish(),
-  "status": zod.enum(['active', 'completed', 'on_hold']),
+  "status": zod.enum(['active', 'completed', 'on_hold', 'inactive']),
+  "inactiveNote": zod.string().nullish().describe('Why the job was made inactive; kept after reactivation'),
   "contractAmountCents": zod.number().describe('Contract value in integer cents'),
   "incomeCents": zod.number().describe('Billed income in cents (computed from line items)'),
   "costCents": zod.number().describe('Total cost in cents (computed from line items)'),
@@ -650,7 +690,8 @@ export const UpdateJobBody = zod.object({
   "customerId": zod.number().nullish(),
   "isInternal": zod.boolean().optional().describe('Explicit override allowing this job to have no customer. When true, customerId is stored as null. An update that would leave the job without a customer is rejected unless this flag is sent as true.'),
   "description": zod.string().nullish(),
-  "status": zod.enum(['active', 'completed', 'on_hold']).optional(),
+  "status": zod.enum(['active', 'completed', 'on_hold', 'inactive']).optional(),
+  "inactiveNote": zod.string().nullish().describe('Why the job is being made inactive (recorded on the status change)'),
   "contractAmountCents": zod.number().optional()
 })
 
@@ -662,7 +703,8 @@ export const UpdateJobResponse = zod.object({
   "customerId": zod.number().nullish(),
   "customerName": zod.string().nullish(),
   "description": zod.string().nullish(),
-  "status": zod.enum(['active', 'completed', 'on_hold']),
+  "status": zod.enum(['active', 'completed', 'on_hold', 'inactive']),
+  "inactiveNote": zod.string().nullish().describe('Why the job was made inactive; kept after reactivation'),
   "contractAmountCents": zod.number().describe('Contract value in integer cents'),
   "incomeCents": zod.number().describe('Billed income in cents (computed from line items)'),
   "costCents": zod.number().describe('Total cost in cents (computed from line items)'),
@@ -1084,7 +1126,8 @@ export const GetDashboardSummaryResponse = zod.object({
   "customerId": zod.number().nullish(),
   "customerName": zod.string().nullish(),
   "description": zod.string().nullish(),
-  "status": zod.enum(['active', 'completed', 'on_hold']),
+  "status": zod.enum(['active', 'completed', 'on_hold', 'inactive']),
+  "inactiveNote": zod.string().nullish().describe('Why the job was made inactive; kept after reactivation'),
   "contractAmountCents": zod.number().describe('Contract value in integer cents'),
   "incomeCents": zod.number().describe('Billed income in cents (computed from line items)'),
   "costCents": zod.number().describe('Total cost in cents (computed from line items)'),

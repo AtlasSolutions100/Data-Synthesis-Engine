@@ -10,6 +10,18 @@ export interface EmployeeInput {
   /** @minLength 1 */
   name: string;
   /** @nullable */
+  address?: string | null;
+  /** @nullable */
+  email?: string | null;
+  /** @nullable */
+  phone?: string | null;
+  /** @nullable */
+  hireDate?: string | null;
+  /** @nullable */
+  terminationDate?: string | null;
+  /** @nullable */
+  ssn?: string | null;
+  /** @nullable */
   straightTimeRateCents?: number | null;
   /** @nullable */
   overtimeRateCents?: number | null;

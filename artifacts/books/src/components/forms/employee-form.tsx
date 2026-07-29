@@ -17,6 +17,12 @@ import { EmployeeInput, EmployeeUpdate } from "@workspace/api-client-react";
 
 const employeeSchema = z.object({
   name: z.string().min(1, "Name is required"),
+  address: z.string().optional(),
+  email: z.string().optional(),
+  phone: z.string().optional(),
+  hireDate: z.string().optional(),
+  terminationDate: z.string().optional(),
+  ssn: z.string().optional(),
   straightTimeRate: z.string().optional(),
   overtimeRate: z.string().optional(),
   taxExempt: z.boolean().default(false),
@@ -36,6 +42,12 @@ export function EmployeeForm({ defaultValues, onSubmit, isLoading }: EmployeeFor
     resolver: zodResolver(employeeSchema),
     defaultValues: {
       name: defaultValues?.name || "",
+      address: defaultValues?.address || "",
+      email: defaultValues?.email || "",
+      phone: defaultValues?.phone || "",
+      hireDate: defaultValues?.hireDate || "",
+      terminationDate: defaultValues?.terminationDate || "",
+      ssn: defaultValues?.ssn || "",
       straightTimeRate: defaultValues?.straightTimeRate || "",
       overtimeRate: defaultValues?.overtimeRate || "",
       taxExempt: defaultValues?.taxExempt ?? false,
@@ -46,6 +58,12 @@ export function EmployeeForm({ defaultValues, onSubmit, isLoading }: EmployeeFor
   const handleSubmit = (values: EmployeeFormValues) => {
     onSubmit({
       name: values.name,
+      address: values.address?.trim() || null,
+      email: values.email?.trim() || null,
+      phone: values.phone?.trim() || null,
+      hireDate: values.hireDate || null,
+      terminationDate: values.terminationDate || null,
+      ssn: values.ssn?.trim() || null,
       straightTimeRateCents: values.straightTimeRate ? parseDollars(values.straightTimeRate) : null,
       overtimeRateCents: values.overtimeRate ? parseDollars(values.overtimeRate) : null,
       taxExempt: values.taxExempt,
@@ -64,6 +82,88 @@ export function EmployeeForm({ defaultValues, onSubmit, isLoading }: EmployeeFor
               <FormLabel>Name</FormLabel>
               <FormControl>
                 <Input {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="address"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Address</FormLabel>
+              <FormControl>
+                <Input {...field} placeholder="Street, City, State ZIP" />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <div className="grid grid-cols-2 gap-4">
+          <FormField
+            control={form.control}
+            name="email"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Email</FormLabel>
+                <FormControl>
+                  <Input type="email" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="phone"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Phone</FormLabel>
+                <FormControl>
+                  <Input type="tel" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <FormField
+            control={form.control}
+            name="hireDate"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Date of Hire</FormLabel>
+                <FormControl>
+                  <Input type="date" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="terminationDate"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Termination Date</FormLabel>
+                <FormControl>
+                  <Input type="date" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+        <FormField
+          control={form.control}
+          name="ssn"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>SSN</FormLabel>
+              <FormControl>
+                <Input {...field} placeholder="XXX-XX-XXXX" autoComplete="off" />
               </FormControl>
               <FormMessage />
             </FormItem>
