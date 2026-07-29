@@ -41,9 +41,11 @@ interface EmployeeFormProps {
    * views, which no longer receive the SSN from the API.
    */
   includeSsn?: boolean;
+  /** Edit mode: a blank SSN keeps the stored one instead of erasing it. */
+  ssnKeepBlank?: boolean;
 }
 
-export function EmployeeForm({ defaultValues, onSubmit, isLoading, includeSsn = true }: EmployeeFormProps) {
+export function EmployeeForm({ defaultValues, onSubmit, isLoading, includeSsn = true, ssnKeepBlank = false }: EmployeeFormProps) {
   const form = useForm<EmployeeFormValues>({
     resolver: zodResolver(employeeSchema),
     defaultValues: {
@@ -69,7 +71,13 @@ export function EmployeeForm({ defaultValues, onSubmit, isLoading, includeSsn = 
       phone: values.phone?.trim() || null,
       hireDate: values.hireDate || null,
       terminationDate: values.terminationDate || null,
-      ...(includeSsn ? { ssn: values.ssn?.trim() || null } : {}),
+      ...(includeSsn
+        ? ssnKeepBlank
+          ? values.ssn?.trim()
+            ? { ssn: values.ssn.trim() }
+            : {}
+          : { ssn: values.ssn?.trim() || null }
+        : {}),
       straightTimeRateCents: values.straightTimeRate ? parseDollars(values.straightTimeRate) : null,
       overtimeRateCents: values.overtimeRate ? parseDollars(values.overtimeRate) : null,
       taxExempt: values.taxExempt,
@@ -170,7 +178,11 @@ export function EmployeeForm({ defaultValues, onSubmit, isLoading, includeSsn = 
             <FormItem>
               <FormLabel>SSN</FormLabel>
               <FormControl>
-                <Input {...field} placeholder="XXX-XX-XXXX" autoComplete="off" />
+                <Input
+                  {...field}
+                  placeholder={ssnKeepBlank ? "Leave blank to keep current SSN" : "XXX-XX-XXXX"}
+                  autoComplete="off"
+                />
               </FormControl>
               <FormMessage />
             </FormItem>

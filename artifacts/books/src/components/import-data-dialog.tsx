@@ -294,6 +294,7 @@ export function ImportDataDialog({
         )}
         Import
       </Button>
+      {entity !== "employees" ? (
       <Button
         variant="ghost"
         onClick={() => {
@@ -310,6 +311,7 @@ export function ImportDataDialog({
         <Download className="mr-2 h-4 w-4" />
         Download template
       </Button>
+      ) : null}
 
       <Dialog open={open} onOpenChange={(o) => !o && setOpen(false)}>
         <DialogContent className="max-w-3xl">

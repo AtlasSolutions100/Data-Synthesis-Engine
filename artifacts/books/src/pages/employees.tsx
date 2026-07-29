@@ -447,7 +447,7 @@ export default function Employees() {
                                 taxExempt: employee.taxExempt ?? false,
                                 active: employee.active !== false,
                               }}
-                              includeSsn={false}
+                              ssnKeepBlank
                               onSubmit={(data) => updateEmployee.mutate({ id: employee.id, data: data as any })} 
                               isLoading={updateEmployee.isPending} 
                             />
