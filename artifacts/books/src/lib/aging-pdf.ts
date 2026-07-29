@@ -83,13 +83,23 @@ function buildAgingPdf(spec: AgingPdfSpec): jsPDF {
   });
 
   // Detail: one table per party, with invoice/bill level rows.
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const bottomMargin = 40; // jspdf-autotable default margin
+  // Room needed for the 2 header rows plus at least one body row, so a
+  // detail table header is never orphaned at the bottom of a page.
+  const minDetailSpace = 60;
   for (const g of spec.groups) {
     if (g.items.length === 0) continue;
     const y =
       (doc as unknown as { lastAutoTable?: { finalY: number } }).lastAutoTable
         ?.finalY ?? 92;
+    let startY = y + 24;
+    if (startY > pageHeight - bottomMargin - minDetailSpace) {
+      doc.addPage();
+      startY = bottomMargin;
+    }
     autoTable(doc, {
-      startY: y + 24,
+      startY,
       head: [
         [
           {

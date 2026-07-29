@@ -5,6 +5,8 @@ interface MockDoc {
   setFontSize: ReturnType<typeof vi.fn>;
   text: ReturnType<typeof vi.fn>;
   save: ReturnType<typeof vi.fn>;
+  addPage: ReturnType<typeof vi.fn>;
+  internal: { pageSize: { getHeight: () => number } };
   lastAutoTable?: { finalY: number };
 }
 
@@ -16,6 +18,9 @@ vi.mock("jspdf", () => ({
       setFontSize: vi.fn(),
       text: vi.fn(),
       save: vi.fn(),
+      addPage: vi.fn(),
+      // Landscape A4 in points, matching the real jsPDF config.
+      internal: { pageSize: { getHeight: () => 595.28 } },
       __ctorArgs: args,
     };
     docs.push(doc);
