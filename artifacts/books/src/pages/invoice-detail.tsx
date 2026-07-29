@@ -217,6 +217,15 @@ export default function InvoiceDetail() {
           >
             {invoice.status}
           </Badge>
+          {invoice.creditCents > 0 && (
+            <Badge
+              variant="outline"
+              className="text-amber-700 [border-color:theme(colors.amber.300)] bg-amber-50"
+              data-testid="badge-credit"
+            >
+              Credit {formatCents(invoice.creditCents)}
+            </Badge>
+          )}
           <Dialog
             open={isEditOpen}
             onOpenChange={(open) => {
@@ -407,6 +416,12 @@ export default function InvoiceDetail() {
             >
               {formatCents(invoice.balanceCents)}
             </div>
+            {invoice.creditCents > 0 && (
+              <p className="mt-1 text-sm text-amber-700" data-testid="text-credit-note">
+                Customer overpaid by {formatCents(invoice.creditCents)} — refund
+                or apply to another invoice.
+              </p>
+            )}
           </CardContent>
         </Card>
         <Card>

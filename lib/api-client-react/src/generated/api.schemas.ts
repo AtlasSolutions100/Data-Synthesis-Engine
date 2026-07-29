@@ -941,8 +941,10 @@ export interface Invoice {
   totalCents: number;
   /** Sum of recorded payments in cents */
   paidCents: number;
-  /** totalCents minus paidCents */
+  /** totalCents minus paidCents, clamped at 0 */
   balanceCents: number;
+  /** Overpayment amount (paidCents minus totalCents) when payments exceed the total; 0 otherwise */
+  creditCents: number;
   status: InvoiceStatus;
   /**
      * Contract value of the job this invoice bills against

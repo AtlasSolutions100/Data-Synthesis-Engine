@@ -206,12 +206,23 @@ export default function Invoices() {
                       {formatCents(inv.balanceCents)}
                     </TableCell>
                     <TableCell>
-                      <Badge
-                        variant={statusVariant[inv.status] ?? "default"}
-                        className="capitalize"
-                      >
-                        {inv.status}
-                      </Badge>
+                      <div className="flex items-center gap-1.5">
+                        <Badge
+                          variant={statusVariant[inv.status] ?? "default"}
+                          className="capitalize"
+                        >
+                          {inv.status}
+                        </Badge>
+                        {inv.creditCents > 0 && (
+                          <Badge
+                            variant="outline"
+                            className="text-amber-700 [border-color:theme(colors.amber.300)] bg-amber-50"
+                            data-testid={`badge-credit-${inv.id}`}
+                          >
+                            Credit {formatCents(inv.creditCents)}
+                          </Badge>
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell>
                       <div className="flex justify-end opacity-0 group-hover:opacity-100 transition-opacity">

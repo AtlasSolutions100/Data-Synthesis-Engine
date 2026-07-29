@@ -162,6 +162,7 @@ interface InvoiceListItem {
   totalCents: number;
   paidCents: number;
   balanceCents: number;
+  creditCents: number;
   status: string;
 }
 
@@ -204,8 +205,13 @@ describe("customer outstanding balance vs AR aging report", () => {
       totalCents: 10000,
       paidCents: 15000,
       balanceCents: 0,
+      // The overpayment surfaces as a credit so it isn't invisible.
+      creditCents: 5000,
       status: "paid",
     });
+    // Non-overpaid invoices carry no credit.
+    expect(byNumber.get("TEST-CBC-OPEN")).toMatchObject({ creditCents: 0 });
+    expect(byNumber.get("TEST-CBC-PAID")).toMatchObject({ creditCents: 0 });
     expect(outstandingCents).toBe(90000);
 
     // What the AR aging report shows for the same customer.
@@ -229,5 +235,18 @@ describe("customer outstanding balance vs AR aging report", () => {
     expect(agingByNumber.get("TEST-CBC-PARTIAL")).toBe(40000);
     expect(agingByNumber.has("TEST-CBC-PAID")).toBe(false);
     expect(agingByNumber.has("TEST-CBC-OVERPAID")).toBe(false);
+  });
+
+  it("the invoice detail route also exposes the overpayment as creditCents", async () => {
+    const overpaidId = invoiceIds[3];
+    const res = await request(app).get(`/api/invoices/${overpaidId}`);
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      totalCents: 10000,
+      paidCents: 15000,
+      balanceCents: 0,
+      creditCents: 5000,
+      status: "paid",
+    });
   });
 });

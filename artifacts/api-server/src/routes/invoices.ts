@@ -118,6 +118,9 @@ async function getFullInvoice(id: number) {
     // negative balance that would subtract from the customer's outstanding
     // total while the AR aging report skips it (balances <= 0).
     balanceCents: Math.max(0, totalCents - paidCents),
+    // The overpayment itself is surfaced separately so the customer's
+    // credit (refund or apply elsewhere) isn't invisible after the clamp.
+    creditCents: Math.max(0, paidCents - totalCents),
     status: computeStatus(totalCents, paidCents),
     contractAmountCents,
     billedToDateCents,
@@ -209,6 +212,8 @@ router.get("/invoices", async (req, res): Promise<void> => {
         // Clamp at zero: see getInvoice — keeps customer outstanding totals
         // in agreement with the AR aging report for overpaid invoices.
         balanceCents: Math.max(0, totalCents - paidCents),
+        // Overpayment surfaced as a credit: see getFullInvoice.
+        creditCents: Math.max(0, paidCents - totalCents),
         status: computeStatus(totalCents, paidCents),
         contractAmountCents: r.contractAmountCents ?? null,
         lines: [],
