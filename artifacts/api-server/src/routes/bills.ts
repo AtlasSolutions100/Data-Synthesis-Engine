@@ -440,6 +440,11 @@ async function getFullBill(id: number) {
     payments.reduce((s, p) => s + Number(p.amountCents), 0) +
     credits.reduce((s, c) => s + Number(c.amountCents), 0);
 
+  const [txCount] = await db
+    .select({ count: sql<number>`count(*)::bigint` })
+    .from(transactionsTable)
+    .where(eq(transactionsTable.billId, id));
+
   return {
     id: row.bill.id,
     billNumber: row.bill.billNumber,
@@ -455,6 +460,8 @@ async function getFullBill(id: number) {
     paidCents,
     balanceCents: totalCents - paidCents,
     status: computeStatus(totalCents, paidCents),
+    postedToLedger: row.bill.postedToLedger,
+    linkedTransactionCount: Number(txCount?.count ?? 0),
     lines: lines.map((l) => ({
       id: l.id,
       accountId: l.accountId,
@@ -529,9 +536,19 @@ router.get("/bills", async (req, res): Promise<void> => {
     .from(vendorCreditsTable)
     .groupBy(vendorCreditsTable.billId);
 
+  const txCounts = await db
+    .select({
+      billId: transactionsTable.billId,
+      count: sql<number>`count(*)::bigint`,
+    })
+    .from(transactionsTable)
+    .where(sql`${transactionsTable.billId} is not null`)
+    .groupBy(transactionsTable.billId);
+
   const lineMap = new Map(lineSums.map((r) => [r.billId, Number(r.total)]));
   const payMap = new Map(paySums.map((r) => [r.billId, Number(r.total)]));
   const creditMap = new Map(creditSums.map((r) => [r.billId, Number(r.total)]));
+  const txCountMap = new Map(txCounts.map((r) => [r.billId, Number(r.count)]));
 
   const items = rows
     .map((r) => {
@@ -553,6 +570,8 @@ router.get("/bills", async (req, res): Promise<void> => {
         paidCents,
         balanceCents: totalCents - paidCents,
         status: computeStatus(totalCents, paidCents),
+        postedToLedger: r.bill.postedToLedger,
+        linkedTransactionCount: txCountMap.get(r.bill.id) ?? 0,
         lines: [],
       };
     })

@@ -2560,7 +2560,7 @@ components:
           type: ["string", "null"]
     Bill:
       type: object
-      required: [id, vendorId, date, totalCents, paidCents, balanceCents, status, lines]
+      required: [id, vendorId, date, totalCents, paidCents, balanceCents, status, postedToLedger, linkedTransactionCount, lines]
       properties:
         id:
           type: integer
@@ -2594,6 +2594,12 @@ components:
         status:
           type: string
           enum: [open, partial, paid]
+        postedToLedger:
+          type: boolean
+          description: True when the app generated this bill's ledger transactions by posting it; false for legacy/backfilled bills whose linked ledger rows were imported.
+        linkedTransactionCount:
+          type: integer
+          description: Number of ledger transactions currently linked to this bill.
         lines:
           type: array
           items:

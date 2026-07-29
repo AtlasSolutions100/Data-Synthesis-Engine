@@ -1557,6 +1557,8 @@ export const ListBillsResponseItem = zod.object({
   "paidCents": zod.number().describe('Payments plus applied vendor credits in cents'),
   "balanceCents": zod.number().describe('totalCents minus paidCents'),
   "status": zod.enum(['open', 'partial', 'paid']),
+  "postedToLedger": zod.boolean().describe('True when the app generated this bill\'s ledger transactions by posting it; false for legacy\/backfilled bills whose linked ledger rows were imported.'),
+  "linkedTransactionCount": zod.number().describe('Number of ledger transactions currently linked to this bill.'),
   "lines": zod.array(zod.object({
   "id": zod.number(),
   "accountId": zod.number().nullish(),
@@ -1619,6 +1621,8 @@ export const CreateBillResponse = zod.object({
   "paidCents": zod.number().describe('Payments plus applied vendor credits in cents'),
   "balanceCents": zod.number().describe('totalCents minus paidCents'),
   "status": zod.enum(['open', 'partial', 'paid']),
+  "postedToLedger": zod.boolean().describe('True when the app generated this bill\'s ledger transactions by posting it; false for legacy\/backfilled bills whose linked ledger rows were imported.'),
+  "linkedTransactionCount": zod.number().describe('Number of ledger transactions currently linked to this bill.'),
   "lines": zod.array(zod.object({
   "id": zod.number(),
   "accountId": zod.number().nullish(),
@@ -1700,6 +1704,8 @@ export const GetBillResponse = zod.object({
   "paidCents": zod.number().describe('Payments plus applied vendor credits in cents'),
   "balanceCents": zod.number().describe('totalCents minus paidCents'),
   "status": zod.enum(['open', 'partial', 'paid']),
+  "postedToLedger": zod.boolean().describe('True when the app generated this bill\'s ledger transactions by posting it; false for legacy\/backfilled bills whose linked ledger rows were imported.'),
+  "linkedTransactionCount": zod.number().describe('Number of ledger transactions currently linked to this bill.'),
   "lines": zod.array(zod.object({
   "id": zod.number(),
   "accountId": zod.number().nullish(),
@@ -1765,6 +1771,8 @@ export const UpdateBillResponse = zod.object({
   "paidCents": zod.number().describe('Payments plus applied vendor credits in cents'),
   "balanceCents": zod.number().describe('totalCents minus paidCents'),
   "status": zod.enum(['open', 'partial', 'paid']),
+  "postedToLedger": zod.boolean().describe('True when the app generated this bill\'s ledger transactions by posting it; false for legacy\/backfilled bills whose linked ledger rows were imported.'),
+  "linkedTransactionCount": zod.number().describe('Number of ledger transactions currently linked to this bill.'),
   "lines": zod.array(zod.object({
   "id": zod.number(),
   "accountId": zod.number().nullish(),
@@ -1833,6 +1841,8 @@ export const CreateBillPaymentResponse = zod.object({
   "paidCents": zod.number().describe('Payments plus applied vendor credits in cents'),
   "balanceCents": zod.number().describe('totalCents minus paidCents'),
   "status": zod.enum(['open', 'partial', 'paid']),
+  "postedToLedger": zod.boolean().describe('True when the app generated this bill\'s ledger transactions by posting it; false for legacy\/backfilled bills whose linked ledger rows were imported.'),
+  "linkedTransactionCount": zod.number().describe('Number of ledger transactions currently linked to this bill.'),
   "lines": zod.array(zod.object({
   "id": zod.number(),
   "accountId": zod.number().nullish(),
@@ -1890,6 +1900,8 @@ export const CreateVendorCreditResponse = zod.object({
   "paidCents": zod.number().describe('Payments plus applied vendor credits in cents'),
   "balanceCents": zod.number().describe('totalCents minus paidCents'),
   "status": zod.enum(['open', 'partial', 'paid']),
+  "postedToLedger": zod.boolean().describe('True when the app generated this bill\'s ledger transactions by posting it; false for legacy\/backfilled bills whose linked ledger rows were imported.'),
+  "linkedTransactionCount": zod.number().describe('Number of ledger transactions currently linked to this bill.'),
   "lines": zod.array(zod.object({
   "id": zod.number(),
   "accountId": zod.number().nullish(),

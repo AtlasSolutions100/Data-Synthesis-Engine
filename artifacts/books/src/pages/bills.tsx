@@ -434,11 +434,13 @@ export default function Bills() {
                           size="icon"
                           className="h-8 w-8 text-red-500 hover:text-red-700 hover:bg-red-50"
                           onClick={() => {
-                            if (
-                              confirm(
-                                "Delete this bill and all its payments/credits?",
-                              )
-                            ) {
+                            const hasImportedHistory =
+                              !bill.postedToLedger &&
+                              bill.linkedTransactionCount > 0;
+                            const message = hasImportedHistory
+                              ? `Delete this bill and all its payments/credits?\n\nThis bill is linked to ${bill.linkedTransactionCount} imported ledger transaction${bill.linkedTransactionCount === 1 ? "" : "s"}. These historical transactions will be kept in the books — they will just no longer be linked to this bill, so report totals stay the same.`
+                              : "Delete this bill and all its payments/credits?";
+                            if (confirm(message)) {
                               deleteBill.mutate({ id: bill.id });
                             }
                           }}

@@ -35,6 +35,10 @@ export interface Bill {
   /** totalCents minus paidCents */
   balanceCents: number;
   status: BillStatus;
+  /** True when the app generated this bill's ledger transactions by posting it; false for legacy/backfilled bills whose linked ledger rows were imported. */
+  postedToLedger: boolean;
+  /** Number of ledger transactions currently linked to this bill. */
+  linkedTransactionCount: number;
   lines: BillLine[];
   payments?: BillPayment[];
   credits?: VendorCredit[];
