@@ -28,7 +28,6 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { PayrollRunForm } from "@/components/forms/payroll-run-form";
-import { ImportEmployeesDialog } from "@/components/import-employees-dialog";
 import { DateRangePicker, type DateRangeValue } from "@/components/date-range-picker";
 import {
   Select,
@@ -113,7 +112,6 @@ export default function Payroll() {
           </SelectContent>
         </Select>
         <DateRangePicker value={range} onChange={setRange} />
-        <ImportEmployeesDialog />
         <Button
           variant="outline"
           data-testid="button-upload-timesheet"

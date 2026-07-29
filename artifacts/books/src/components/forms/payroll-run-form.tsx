@@ -65,6 +65,7 @@ import {
   getListJobsQueryKey,
   getListCustomersQueryKey,
   useCreateJob,
+  useCreateEmployee,
   type PayrollRunInput,
   type Employee,
   type ExtractedHourRow,
@@ -824,6 +825,7 @@ function ImportHoursDialog({
 
   const extract = useExtractPayrollHours();
   const createJob = useCreateJob();
+  const createEmployee = useCreateEmployee();
   const queryClient = useQueryClient();
 
   const employeeOptions = (form.getValues("lines") ?? [])
@@ -991,7 +993,9 @@ function ImportHoursDialog({
 
       const flags: string[] = [];
       if (!employee) {
-        flags.push(`Unknown employee "${r.workerName}" — not in the Employee Center.`);
+        flags.push(
+          `Unknown employee "${r.workerName}" — not in the Employee Center. Choose "Create new employee" to add them (set their pay rate in the Employee Center afterwards), or Skip.`,
+        );
       } else if (employee.straightTimeRateCents == null) {
         flags.push(`${employee.name} has no pay rate set in the Employee Center.`);
       } else if (r.overtimeHours > 0 && employee.overtimeRateCents == null) {
@@ -1231,7 +1235,49 @@ function ImportHoursDialog({
       return a.overhead ? overheadJobId : "";
     };
 
-    rows.forEach((r) => {
+    // Workers not in the Employee Center that the user chose to create:
+    // add the record first so the worker line links to it (rates are set
+    // in the Employee Center afterwards).
+    const createdIds = new Map<number, string>();
+    for (const [rowIdx, r] of rows.entries()) {
+      if (r.target !== "create") continue;
+      const name = r.workerName.trim();
+      if (!name) continue;
+      try {
+        const created = await createEmployee.mutateAsync({
+          data: { name },
+        });
+        createdIds.set(rowIdx, String(created.id));
+      } catch (err) {
+        queryClient.invalidateQueries({ queryKey: getListEmployeesQueryKey() });
+        // Keep retries honest and idempotent: rows whose employees WERE
+        // created are re-linked to those records so trying again won't
+        // create duplicates.
+        const createdNames = [...createdIds.keys()].map((i) =>
+          rows[i].workerName.trim(),
+        );
+        setRows((prev) =>
+          prev.map((row, i) =>
+            createdIds.has(i)
+              ? { ...row, employeeId: createdIds.get(i)!, target: "new" }
+              : row,
+          ),
+        );
+        setError(
+          `${
+            createdNames.length > 0
+              ? `Created ${createdNames.join(", ")} in the Employee Center, but no hours were applied yet. `
+              : ""
+          }Couldn't create employee "${name}": ${readApiError(err)} Fix that row (or set it to Skip) and apply again — already-created employees won't be duplicated.`,
+        );
+        return;
+      }
+    }
+    if (createdIds.size > 0) {
+      queryClient.invalidateQueries({ queryKey: getListEmployeesQueryKey() });
+    }
+
+    rows.forEach((r, rowIdx) => {
       if (r.target === "skip") return;
       const entries: { costType: LaborCostType; hours: string }[] = [];
       if (parseFloat(r.regularHours || "0") > 0)
@@ -1305,11 +1351,11 @@ function ImportHoursDialog({
           }));
       };
 
-      if (r.target === "new") {
+      if (r.target === "new" || r.target === "create") {
         const taxExempt = employee?.taxExempt ?? false;
         appendLine({
           lineType: "employee",
-          employeeId: r.employeeId,
+          employeeId: r.employeeId || createdIds.get(rowIdx) || "",
           vendorId: "",
           workerName: employee?.name ?? r.workerName,
           hourEntries,
@@ -1606,7 +1652,11 @@ function ImportHoursDialog({
                               <SelectItem value="new">
                                 + Add new worker line
                               </SelectItem>
-                            ) : null}
+                            ) : (
+                              <SelectItem value="create">
+                                + Create new employee
+                              </SelectItem>
+                            )}
                             {employeeOptions.map((o) => (
                               <SelectItem key={o.index} value={String(o.index)}>
                                 {o.name || `Worker ${o.index + 1}`}
@@ -1692,7 +1742,7 @@ function ImportHoursDialog({
                     type="button"
                     variant="outline"
                     onClick={handleApply}
-                    disabled={createJob.isPending}
+                    disabled={createJob.isPending || createEmployee.isPending}
                     data-testid="button-apply-override"
                   >
                     Apply anyway (leave flagged jobs unallocated)
@@ -1704,10 +1754,13 @@ function ImportHoursDialog({
                   disabled={
                     appliedCount === 0 ||
                     unconfirmedJobCount > 0 ||
-                    createJob.isPending
+                    createJob.isPending ||
+                    createEmployee.isPending
                   }
                 >
-                  {createJob.isPending ? "Applying…" : "Apply hours"}
+                  {createJob.isPending || createEmployee.isPending
+                    ? "Applying…"
+                    : "Apply hours"}
                 </Button>
               </div>
             </div>
