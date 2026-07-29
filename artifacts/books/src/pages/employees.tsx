@@ -10,7 +10,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { EmployeeForm } from "@/components/forms/employee-form";
 import { useQueryClient } from "@tanstack/react-query";
 import { Link } from "wouter";
-import { Plus, Edit2, Trash2, History, Download } from "lucide-react";
+import { Plus, Edit2, Trash2, History, Download, Archive, ArchiveRestore } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ImportDataDialog } from "@/components/import-data-dialog";
 
@@ -206,6 +208,8 @@ export default function Employees() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [historyId, setHistoryId] = useState<number | null>(null);
   const [tab, setTab] = useState<"active" | "archived">("active");
+  const [archivingId, setArchivingId] = useState<number | null>(null);
+  const [archiveDate, setArchiveDate] = useState<string>("");
 
   const { data: employees, isLoading } = useListEmployees({
     query: { queryKey: getListEmployeesQueryKey() }
@@ -230,6 +234,25 @@ export default function Employees() {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: getListEmployeesQueryKey() });
         setEditingId(null);
+      }
+    }
+  });
+
+  const archiveEmployee = useUpdateEmployee({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getListEmployeesQueryKey() });
+        setArchivingId(null);
+        setTab("archived");
+      }
+    }
+  });
+
+  const restoreEmployee = useUpdateEmployee({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getListEmployeesQueryKey() });
+        setTab("active");
       }
     }
   });
@@ -383,6 +406,38 @@ export default function Employees() {
                           open={historyId === employee.id}
                           onOpenChange={(val) => setHistoryId(val ? employee.id : null)}
                         />
+                        {isArchived(employee) ? (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            title="Restore employee"
+                            disabled={restoreEmployee.isPending}
+                            data-testid={`button-restore-${employee.id}`}
+                            onClick={() =>
+                              restoreEmployee.mutate({
+                                id: employee.id,
+                                data: { active: true, terminationDate: null },
+                              })
+                            }
+                          >
+                            <ArchiveRestore className="h-4 w-4 text-slate-500" />
+                          </Button>
+                        ) : (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            title="Archive employee"
+                            data-testid={`button-archive-${employee.id}`}
+                            onClick={() => {
+                              setArchiveDate(new Date().toISOString().slice(0, 10));
+                              setArchivingId(employee.id);
+                            }}
+                          >
+                            <Archive className="h-4 w-4 text-slate-500" />
+                          </Button>
+                        )}
                         <Dialog open={editingId === employee.id} onOpenChange={(val) => setEditingId(val ? employee.id : null)}>
                           <DialogTrigger asChild>
                             <Button variant="ghost" size="icon" className="h-8 w-8">
@@ -433,6 +488,48 @@ export default function Employees() {
           </Table>
         </CardContent>
       </Card>
+
+      <Dialog open={archivingId !== null} onOpenChange={(val) => { if (!val) setArchivingId(null); }}>
+        <DialogContent className="sm:max-w-[420px]">
+          <DialogHeader>
+            <DialogTitle>
+              Archive {(employees ?? []).find((e) => e.id === archivingId)?.name ?? "employee"}
+            </DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-slate-500">
+            The employee will be marked inactive and moved to the Archived tab. You can
+            restore them later.
+          </p>
+          <div className="space-y-2">
+            <Label htmlFor="archive-termination-date">Termination date</Label>
+            <Input
+              id="archive-termination-date"
+              type="date"
+              value={archiveDate}
+              onChange={(e) => setArchiveDate(e.target.value)}
+              data-testid="input-archive-date"
+            />
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setArchivingId(null)}>
+              Cancel
+            </Button>
+            <Button
+              disabled={!archiveDate || archiveEmployee.isPending}
+              data-testid="button-confirm-archive"
+              onClick={() => {
+                if (archivingId == null) return;
+                archiveEmployee.mutate({
+                  id: archivingId,
+                  data: { active: false, terminationDate: archiveDate },
+                });
+              }}
+            >
+              {archiveEmployee.isPending ? "Archiving..." : "Archive"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
