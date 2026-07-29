@@ -100,7 +100,17 @@ async function cleanup(): Promise<void> {
   await db.delete(jobsTable).where(eq(jobsTable.name, `${TP}Perf Job`));
   await db.delete(customersTable).where(eq(customersTable.name, `${TP}Perf Cust`));
   await db.delete(accountsTable).where(eq(accountsTable.name, `${TP}Supplies Exp`));
-  await db.delete(jobsTable).where(inArray(jobsTable.name, [`${TP}Job A`, `${TP}Job B`]));
+  await db.delete(jobsTable).where(
+    inArray(jobsTable.name, [
+      `${TP}Job A`,
+      `${TP}Job B`,
+      `${TP}Job Internal`,
+      `${TP}Job NotInternal`,
+      `${TP}Job BadFlag`,
+      `${TP}Job Both`,
+      `${TP}Shop Time`,
+    ]),
+  );
   await db.delete(vendorsTable).where(inArray(vendorsTable.name, [`${TP}Vendor X`]));
   await db
     .delete(customersTable)
@@ -185,6 +195,73 @@ describe("POST /import/jobs", () => {
     const [job] = await db.select().from(jobsTable).where(eq(jobsTable.name, `${TP}Job A`));
     expect(Number(job.contractAmountCents)).toBe(1250000);
     expect(job.customerId).not.toBeNull();
+  });
+
+  it("allows customer-less rows only via the explicit Internal column", async () => {
+    const fileData = await workbook([
+      ["Job Name", "Customer", "Internal"],
+      [`${TP}Job Internal`, "", "Yes"],
+      [`${TP}Job NotInternal`, "", "No"],
+      [`${TP}Job BadFlag`, "", "maybe"],
+      [`${TP}Job Both`, `${TP}Cust One`, "Yes"],
+    ]);
+    const res = await request(app)
+      .post("/api/import/jobs")
+      .send({ fileData, mode: "apply", planToken: await previewToken("jobs", fileData) });
+    expect(res.status).toBe(200);
+    expect(res.body.applied).toMatchObject({ inserted: 1, skipped: 3 });
+
+    const byLabel = (l: string) => res.body.rows.find((r: any) => r.label === l);
+    expect(byLabel(`${TP}Job NotInternal`).status).toBe("error");
+    expect(byLabel(`${TP}Job NotInternal`).message).toMatch(/Customer is required/i);
+    expect(byLabel(`${TP}Job BadFlag`).status).toBe("error");
+    expect(byLabel(`${TP}Job BadFlag`).message).toMatch(/Unreadable Internal value/i);
+    expect(byLabel(`${TP}Job Both`).status).toBe("error");
+    expect(byLabel(`${TP}Job Both`).message).toMatch(/marked Internal/i);
+
+    const [internal] = await db
+      .select()
+      .from(jobsTable)
+      .where(eq(jobsTable.name, `${TP}Job Internal`));
+    expect(internal.customerId).toBeNull();
+  });
+
+  it("treats rows matching an existing customer-less job as internal, regardless of name", async () => {
+    await db.insert(jobsTable).values({
+      name: `${TP}Shop Time`,
+      jobNumber: `JOB-TEST-${Date.now()}`,
+      customerId: null,
+      status: "active",
+      contractAmountCents: 0,
+    });
+    const fileData = await workbook([
+      ["Job Name", "Customer", "Description"],
+      [`${TP}Shop Time`, "", "internal shop hours"],
+    ]);
+    const res = await request(app)
+      .post("/api/import/jobs")
+      .send({ fileData, mode: "apply", planToken: await previewToken("jobs", fileData) });
+    expect(res.status).toBe(200);
+    expect(res.body.applied).toMatchObject({ updated: 1 });
+    const [job] = await db.select().from(jobsTable).where(eq(jobsTable.name, `${TP}Shop Time`));
+    expect(job.customerId).toBeNull();
+    expect(job.description).toBe("internal shop hours");
+  });
+
+  it("Internal = Yes on an existing customer-linked job clears its customer, like the jobs API override", async () => {
+    const res = await (async () => {
+      const fileData = await workbook([
+        ["Job Name", "Customer", "Internal"],
+        [`${TP}Job A`, "", "Yes"],
+      ]);
+      return request(app)
+        .post("/api/import/jobs")
+        .send({ fileData, mode: "apply", planToken: await previewToken("jobs", fileData) });
+    })();
+    expect(res.status).toBe(200);
+    expect(res.body.applied).toMatchObject({ updated: 1 });
+    const [job] = await db.select().from(jobsTable).where(eq(jobsTable.name, `${TP}Job A`));
+    expect(job.customerId).toBeNull();
   });
 });
 

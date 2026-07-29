@@ -451,7 +451,6 @@ async function planEmployees(buffer: Buffer): Promise<PlanRow[]> {
 /* Jobs                                                                */
 /* ------------------------------------------------------------------ */
 
-const INTERNAL_JOB_NAMES = new Set(["overhead / office", "overhead/office"]);
 const JOB_STATUS_MAP: Record<string, string> = {
   active: "active",
   open: "active",
@@ -473,6 +472,7 @@ async function planJobs(buffer: Buffer): Promise<PlanRow[]> {
       customer: ["Customer", "Customer Name", "Client", "Client Name"],
       poNumber: ["PO Number", "PO", "PO #", "Purchase Order", "Purchase Order Number"],
       status: ["Status", "Job Status"],
+      internal: ["Internal", "Internal Job", "Overhead", "Non-Billable", "Non Billable", "Nonbillable"],
       contract: ["Contract Amount", "Contract", "Contract Value", "Contract Total"],
       description: ["Description", "Notes", "Memo"],
     },
@@ -496,8 +496,30 @@ async function planJobs(buffer: Buffer): Promise<PlanRow[]> {
     seenInFile.add(normName(name));
 
     const customerName = cellText(rec.get("customer"));
-    const isInternal = INTERNAL_JOB_NAMES.has(normName(name));
+    // Mirror the jobs API's explicit isInternal override: a row is internal
+    // (allowed to have no customer) only when the spreadsheet says so via an
+    // Internal column, or when it matches an existing internal (customer-less)
+    // job — never by guessing from a hardcoded name list.
+    const internalRaw = rec.get("internal");
+    const internalFlag = parseBool(internalRaw);
+    if (cellText(internalRaw) && internalFlag == null) {
+      return {
+        ...base,
+        status: "error",
+        message: `Unreadable Internal value "${cellText(internalRaw)}" — use Yes or No`,
+      };
+    }
+    const existingMatch = jobByName.get(normName(name));
+    const isInternal =
+      internalFlag ?? (existingMatch != null && existingMatch.customerId == null);
     let customerId: number | null = null;
+    if (customerName && internalFlag === true) {
+      return {
+        ...base,
+        status: "error",
+        message: `Row is marked Internal but also names customer "${customerName}" — internal jobs can't have a customer; clear one of the two`,
+      };
+    }
     if (customerName) {
       const customer = customerByName.get(normName(customerName));
       if (!customer) {
@@ -535,7 +557,7 @@ async function planJobs(buffer: Buffer): Promise<PlanRow[]> {
           status: "error",
           message: customerName
             ? `Customer "${customerName}" not found`
-            : "Customer is required for new jobs — add a Customer column value",
+            : 'Customer is required for new jobs — add a Customer column value (or mark the row Internal = Yes for a non-billable job)',
         };
       }
       return {
@@ -558,9 +580,12 @@ async function planJobs(buffer: Buffer): Promise<PlanRow[]> {
     }
 
     const changes: Change[] = [];
-    if (customerId != null) {
+    // Explicit Internal = Yes on an existing job clears its customer, the
+    // same way the jobs API's isInternal override does on edits.
+    const clearCustomer = internalFlag === true && current.customerId != null;
+    if (customerId != null || clearCustomer) {
       const fromCustomer = customers.find((c) => c.id === current.customerId)?.name ?? null;
-      diff(changes, "customer", fromCustomer, customerName);
+      diff(changes, "customer", fromCustomer, clearCustomer ? null : customerName);
     }
     if (poNumber != null) diff(changes, "PO number", current.poNumber, poNumber);
     if (status != null) diff(changes, "status", current.status, status);
@@ -576,7 +601,7 @@ async function planJobs(buffer: Buffer): Promise<PlanRow[]> {
         await tx
           .update(jobsTable)
           .set({
-            ...(customerId != null ? { customerId } : {}),
+            ...(clearCustomer ? { customerId: null } : customerId != null ? { customerId } : {}),
             ...(poNumber != null ? { poNumber } : {}),
             ...(status != null ? { status } : {}),
             ...(contract != null ? { contractAmountCents: contract } : {}),
