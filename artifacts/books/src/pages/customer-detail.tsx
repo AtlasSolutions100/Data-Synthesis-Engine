@@ -4,6 +4,8 @@ import {
   getGetCustomerQueryKey,
   useListJobs,
   getListJobsQueryKey,
+  useListInvoices,
+  getListInvoicesQueryKey,
 } from "@workspace/api-client-react";
 import { formatCents } from "@/lib/format";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -29,7 +31,24 @@ export default function CustomerDetail() {
     },
   );
 
+  const { data: invoices } = useListInvoices(
+    { customerId },
+    {
+      query: {
+        enabled: !!customerId,
+        queryKey: getListInvoicesQueryKey({ customerId }),
+      },
+    },
+  );
+
   const customerJobs = jobs ?? [];
+
+  // Sum of overpayments across all of this customer's invoices — surfaced so
+  // the user can decide to refund or apply credit without scanning invoice rows.
+  const totalCreditCents = (invoices ?? []).reduce(
+    (s, inv) => s + (inv.creditCents ?? 0),
+    0,
+  );
 
   const totalContractCents = customerJobs.reduce((s, j) => s + j.contractAmountCents, 0);
   const totalBilledCents = customerJobs.reduce((s, j) => s + j.billedToDateCents, 0);
@@ -61,6 +80,22 @@ export default function CustomerDetail() {
         </p>
         {customer.notes && <p className="text-slate-500 mt-1 text-sm">{customer.notes}</p>}
       </div>
+
+      {totalCreditCents > 0 && (
+        <div
+          className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 flex items-center gap-2"
+          data-testid="banner-customer-credit"
+        >
+          <Badge className="bg-emerald-600 hover:bg-emerald-600">Credit</Badge>
+          <span className="text-sm text-emerald-900">
+            This customer has{" "}
+            <span className="font-semibold" data-testid="text-customer-credit-total">
+              {formatCents(totalCreditCents)}
+            </span>{" "}
+            in available credit from overpaid invoices — refund it or apply it to a future invoice.
+          </span>
+        </div>
+      )}
 
       <div className="grid gap-6 md:grid-cols-4">
         <Card>
