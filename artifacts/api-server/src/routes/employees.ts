@@ -31,7 +31,16 @@ router.get("/employees", async (_req, res): Promise<void> => {
     .select()
     .from(employeesTable)
     .orderBy(employeesTable.name);
-  res.json(ListEmployeesResponse.parse(rows));
+  res.json(
+    ListEmployeesResponse.parse(
+      rows.map((row) => ({
+        ...row,
+        // Raw SSNs never travel to list views; a masked form shows one is
+        // on file.
+        ssnMasked: row.ssn ? maskSsn(row.ssn) : null,
+      })),
+    ),
+  );
 });
 
 router.post("/employees", async (req, res): Promise<void> => {
@@ -39,6 +48,11 @@ router.post("/employees", async (req, res): Promise<void> => {
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
     return;
+  }
+  // A masked SSN (•••-••-1234) echoed back from a form is not a real value;
+  // never store the dots.
+  if (parsed.data.ssn && parsed.data.ssn.includes("•")) {
+    delete parsed.data.ssn;
   }
   // Creating an employee as inactive is admin-only (P7-GLB-05).
   if (parsed.data.active === false && req.currentUser?.role !== "owner") {
@@ -344,6 +358,11 @@ router.patch("/employees/:id", async (req, res): Promise<void> => {
   // Non-owners never write `active` at all (so no read-then-write race can
   // flip it); they only get a 403 when they explicitly asked to change it.
   const updateData = { ...parsed.data };
+  // A masked SSN (•••-••-1234) echoed back from an edit form means
+  // "unchanged" — keep the stored value, never store the dots.
+  if (updateData.ssn && updateData.ssn.includes("•")) {
+    delete updateData.ssn;
+  }
   if (req.currentUser?.role !== "owner" && updateData.active != null) {
     const [existing] = await db
       .select({ active: employeesTable.active })

@@ -83,8 +83,9 @@ export function EmployeeForm({ defaultValues, onSubmit, isLoading, includeSsn = 
       terminationDate: values.terminationDate || null,
       ...(includeSsn
         ? ssnKeepBlank
-          ? values.ssn?.trim()
-            ? { ssn: values.ssn.trim() }
+          ? values.ssn?.trim() && !values.ssn.includes("•")
+            ? // A real new value; masked dots (•••-••-1234) mean "unchanged".
+              { ssn: values.ssn.trim() }
             : {}
           : { ssn: values.ssn?.trim() || null }
         : {}),
@@ -192,7 +193,7 @@ export function EmployeeForm({ defaultValues, onSubmit, isLoading, includeSsn = 
               <FormControl>
                 <Input
                   {...field}
-                  placeholder={ssnKeepBlank ? "Leave blank to keep current SSN" : "XXX-XX-XXXX"}
+                  placeholder={ssnKeepBlank ? "Type a new SSN to replace the current one" : "XXX-XX-XXXX"}
                   autoComplete="off"
                 />
               </FormControl>

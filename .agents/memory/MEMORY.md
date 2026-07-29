@@ -25,4 +25,5 @@
 - [api-client-react mock factory](api-client-mock-factory.md) — never hand-list generated hooks in vi.mock; use the shared factory so new hooks don't break suites.
 - [Hours-import job confirmation](import-job-confirmation.md) — person-like extracted job names always require explicit confirmation, even if a job with that exact name exists.
 - [Zod boolean query coercion](zod-boolean-query-coercion.md) — coerced boolean query params turn "false" into true; require the literal raw "true" string for sensitive flags.
+- [SSN masked round-trip](ssn-masked-roundtrip.md) — masked •••-••-1234 is a display token: list sends ssnMasked, forms/server treat •-values as "unchanged", dots never stored.
 - [Drizzle raw-sql array params](drizzle-sql-array-param.md) — arrays in sql`` expand to "($1,$2)" IN-list syntax; `= any(${arr})` breaks — use IN with sql.raw ids.

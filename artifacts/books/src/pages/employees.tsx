@@ -447,6 +447,9 @@ export default function Employees() {
                                 phone: employee.phone ?? "",
                                 hireDate: employee.hireDate ?? "",
                                 terminationDate: employee.terminationDate ?? "",
+                                // Masked (•••-••-1234): shows an SSN is on
+                                // file; submitting it unchanged keeps it.
+                                ssn: employee.ssnMasked ?? "",
                                 straightTimeRate: employee.straightTimeRateCents ? (employee.straightTimeRateCents / 100).toString() : "",
                                 overtimeRate: employee.overtimeRateCents ? (employee.overtimeRateCents / 100).toString() : "",
                                 taxExempt: employee.taxExempt ?? false,

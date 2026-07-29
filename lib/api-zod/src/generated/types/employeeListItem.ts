@@ -7,11 +7,16 @@
  */
 
 /**
- * Employee row for list views. Deliberately excludes the SSN so it never travels to screens that don't need it.
+ * Employee row for list views. Deliberately excludes the raw SSN; only a masked form (•••-••-1234) is included so screens can show that an SSN is on file.
  */
 export interface EmployeeListItem {
   id: number;
   name: string;
+  /**
+     * Masked SSN (•••-••-1234) when one is on file, null otherwise. Never contains the raw value.
+     * @nullable
+     */
+  ssnMasked?: string | null;
   /** @nullable */
   address?: string | null;
   /** @nullable */

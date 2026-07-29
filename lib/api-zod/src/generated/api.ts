@@ -399,6 +399,7 @@ export const GetVendorDefaultAccountResponse = zod.object({
 export const ListEmployeesResponseItem = zod.object({
   "id": zod.number(),
   "name": zod.string(),
+  "ssnMasked": zod.string().nullish().describe('Masked SSN (•••-••-1234) when one is on file, null otherwise. Never contains the raw value.'),
   "address": zod.string().nullish(),
   "email": zod.string().nullish(),
   "phone": zod.string().nullish(),
@@ -408,7 +409,7 @@ export const ListEmployeesResponseItem = zod.object({
   "overtimeRateCents": zod.number().nullish().describe('Hourly overtime pay rate in integer cents'),
   "taxExempt": zod.boolean().optional().describe('When true, employer payroll taxes are not applied to this worker'),
   "active": zod.boolean().optional()
-}).describe('Employee row for list views. Deliberately excludes the SSN so it never travels to screens that don\'t need it.')
+}).describe('Employee row for list views. Deliberately excludes the raw SSN; only a masked form (•••-••-1234) is included so screens can show that an SSN is on file.')
 export const ListEmployeesResponse = zod.array(ListEmployeesResponseItem)
 
 

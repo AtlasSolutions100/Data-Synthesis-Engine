@@ -93,6 +93,30 @@ describe("GET /employees/:id SSN masking", () => {
     expect(revealed.body.ssn).toBe(newSsn);
   });
 
+  it("PATCH with a masked SSN (echoed dots) keeps the stored value", async () => {
+    const patch = await request(app)
+      .patch(`/api/employees/${employeeId}`)
+      .send({ ssn: "•••-••-4321", phone: "555-0142" });
+    expect(patch.status).toBe(200);
+    expect(patch.body.phone).toBe("555-0142");
+
+    const revealed = await request(app).get(
+      `/api/employees/${employeeId}?reveal=true`,
+    );
+    // The real SSN survives; the dots are never stored.
+    expect(revealed.body.ssn).toBe("987-65-4321");
+  });
+
+  it("list endpoint includes the masked SSN but never the raw one", async () => {
+    const res = await request(app).get("/api/employees");
+    expect(res.status).toBe(200);
+    const row = res.body.find(
+      (e: { id: number }) => e.id === employeeId,
+    );
+    expect(row.ssnMasked).toBe("•••-••-4321");
+    expect(row.ssn).toBeUndefined();
+  });
+
   it("POST responds with a masked SSN", async () => {
     const res = await request(app)
       .post("/api/employees")
