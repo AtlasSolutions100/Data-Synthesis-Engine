@@ -37,6 +37,7 @@ export default function VendorDetail() {
   );
 
   const totalCents = (bills ?? []).reduce((s, b) => s + b.totalCents, 0);
+  const outstandingCents = (bills ?? []).reduce((s, b) => s + b.balanceCents, 0);
   const jobCount = new Set(
     (bills ?? []).map((b) => b.jobId).filter((j) => j != null),
   ).size;
@@ -67,7 +68,7 @@ export default function VendorDetail() {
         {vendor.notes && <p className="text-slate-500 mt-1 text-sm">{vendor.notes}</p>}
       </div>
 
-      <div className="grid gap-6 md:grid-cols-3">
+      <div className="grid gap-6 md:grid-cols-4">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-slate-500">Total Bills</CardTitle>
@@ -85,6 +86,19 @@ export default function VendorDetail() {
           <CardContent>
             <div className="text-2xl font-bold text-slate-900" data-testid="text-total-amount">
               {formatCents(totalCents)}
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-slate-500">Outstanding Balance</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div
+              className={`text-2xl font-bold ${outstandingCents > 0 ? "text-amber-600" : "text-slate-900"}`}
+              data-testid="text-outstanding-balance"
+            >
+              {formatCents(outstandingCents)}
             </div>
           </CardContent>
         </Card>
@@ -117,16 +131,18 @@ export default function VendorDetail() {
                 <TableHead>Status</TableHead>
                 <TableHead>Job Name</TableHead>
                 <TableHead className="text-right">Amount</TableHead>
+                <TableHead className="text-right">Paid</TableHead>
+                <TableHead className="text-right">Balance</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {billsLoading ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-8 text-slate-500">Loading bills...</TableCell>
+                  <TableCell colSpan={8} className="text-center py-8 text-slate-500">Loading bills...</TableCell>
                 </TableRow>
               ) : bills?.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-8 text-slate-500">No bills for this vendor yet.</TableCell>
+                  <TableCell colSpan={8} className="text-center py-8 text-slate-500">No bills for this vendor yet.</TableCell>
                 </TableRow>
               ) : (
                 <>
@@ -170,6 +186,15 @@ export default function VendorDetail() {
                         )}
                       </TableCell>
                       <TableCell className="text-right font-medium">{formatCents(bill.totalCents)}</TableCell>
+                      <TableCell className="text-right text-slate-600" data-testid={`text-paid-${bill.id}`}>
+                        {formatCents(bill.paidCents)}
+                      </TableCell>
+                      <TableCell
+                        className={`text-right font-medium ${bill.balanceCents > 0 ? "text-amber-600" : "text-slate-600"}`}
+                        data-testid={`text-balance-${bill.id}`}
+                      >
+                        {formatCents(bill.balanceCents)}
+                      </TableCell>
                     </TableRow>
                   ))}
                   <TableRow className="bg-slate-50 hover:bg-slate-50">
@@ -177,6 +202,12 @@ export default function VendorDetail() {
                       Total for {vendor.name}
                     </TableCell>
                     <TableCell className="text-right font-bold text-slate-900">{formatCents(totalCents)}</TableCell>
+                    <TableCell className="text-right font-bold text-slate-900">
+                      {formatCents(totalCents - outstandingCents)}
+                    </TableCell>
+                    <TableCell className="text-right font-bold text-slate-900">
+                      {formatCents(outstandingCents)}
+                    </TableCell>
                   </TableRow>
                 </>
               )}
