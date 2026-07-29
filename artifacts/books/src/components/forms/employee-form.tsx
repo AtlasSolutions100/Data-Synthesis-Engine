@@ -13,7 +13,12 @@ import {
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { parseDollars } from "@/lib/format";
-import { EmployeeInput, EmployeeUpdate } from "@workspace/api-client-react";
+import {
+  EmployeeInput,
+  EmployeeUpdate,
+  useGetCurrentUser,
+  getGetCurrentUserQueryKey,
+} from "@workspace/api-client-react";
 
 const employeeSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -46,6 +51,11 @@ interface EmployeeFormProps {
 }
 
 export function EmployeeForm({ defaultValues, onSubmit, isLoading, includeSsn = true, ssnKeepBlank = false }: EmployeeFormProps) {
+  const { data: me } = useGetCurrentUser({
+    query: { queryKey: getGetCurrentUserQueryKey() },
+  });
+  // Flipping an employee active/inactive is admin-only (P7-GLB-05).
+  const canToggleActive = me?.role === "owner";
   const form = useForm<EmployeeFormValues>({
     resolver: zodResolver(employeeSchema),
     defaultValues: {
@@ -81,7 +91,9 @@ export function EmployeeForm({ defaultValues, onSubmit, isLoading, includeSsn = 
       straightTimeRateCents: values.straightTimeRate ? parseDollars(values.straightTimeRate) : null,
       overtimeRateCents: values.overtimeRate ? parseDollars(values.overtimeRate) : null,
       taxExempt: values.taxExempt,
-      active: values.active,
+      // Non-admins can't change this, so omit it entirely — a stale value
+      // would otherwise trigger a spurious 403 on unrelated edits.
+      ...(canToggleActive ? { active: values.active } : {}),
     });
   };
 
@@ -247,12 +259,19 @@ export function EmployeeForm({ defaultValues, onSubmit, isLoading, includeSsn = 
                 <Checkbox
                   checked={field.value}
                   onCheckedChange={field.onChange}
+                  disabled={!canToggleActive}
+                  data-testid="checkbox-employee-active"
                 />
               </FormControl>
               <div className="space-y-1 leading-none">
                 <FormLabel>
                   Active Employee
                 </FormLabel>
+                {!canToggleActive && (
+                  <p className="text-xs text-muted-foreground">
+                    Only an owner/admin can change this.
+                  </p>
+                )}
               </div>
             </FormItem>
           )}

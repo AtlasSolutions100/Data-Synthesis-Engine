@@ -130,7 +130,8 @@ describe("job inactive status (P4-CUST-02/03/04)", () => {
 
 describe("employee profile fields (P4-EMP-02)", () => {
   it("round-trips address, email, phone, dates, and SSN", async () => {
-    currentRole = "bookkeeper";
+    // Owner: this patch also deactivates, which is admin-only (P7-GLB-05).
+    currentRole = "owner";
     const create = await request(app).post("/api/employees").send({
       name: `${TP} Brendan`,
       address: "123 Main St, Denver, CO 80202",

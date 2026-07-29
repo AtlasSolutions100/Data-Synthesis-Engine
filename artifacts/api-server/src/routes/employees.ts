@@ -40,6 +40,13 @@ router.post("/employees", async (req, res): Promise<void> => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
+  // Creating an employee as inactive is admin-only (P7-GLB-05).
+  if (parsed.data.active === false && req.currentUser?.role !== "owner") {
+    res.status(403).json({
+      error: "Only the owner can change an employee's active status",
+    });
+    return;
+  }
   const [row] = await db.insert(employeesTable).values(parsed.data).returning();
   res
     .status(201)
@@ -332,9 +339,45 @@ router.patch("/employees/:id", async (req, res): Promise<void> => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
+  // Flipping an employee between active and inactive is admin-only
+  // (P7-GLB-05), matching the same rule on jobs. Other edits stay open.
+  // Non-owners never write `active` at all (so no read-then-write race can
+  // flip it); they only get a 403 when they explicitly asked to change it.
+  const updateData = { ...parsed.data };
+  if (req.currentUser?.role !== "owner" && updateData.active != null) {
+    const [existing] = await db
+      .select({ active: employeesTable.active })
+      .from(employeesTable)
+      .where(eq(employeesTable.id, params.data.id));
+    if (existing && updateData.active !== existing.active) {
+      res.status(403).json({
+        error: "Only the owner can change an employee's active status",
+      });
+      return;
+    }
+    delete updateData.active;
+  }
+  if (Object.keys(updateData).length === 0) {
+    // Nothing left to write (e.g. a non-owner echoing the stored active
+    // flag); return the current row instead of issuing an empty UPDATE.
+    const [row] = await db
+      .select()
+      .from(employeesTable)
+      .where(eq(employeesTable.id, params.data.id));
+    if (!row) {
+      res.status(404).json({ error: "Employee not found" });
+      return;
+    }
+    res.json(
+      GetEmployeeResponse.parse(
+        row.ssn ? { ...row, ssn: maskSsn(row.ssn) } : row,
+      ),
+    );
+    return;
+  }
   const [row] = await db
     .update(employeesTable)
-    .set(parsed.data)
+    .set(updateData)
     .where(eq(employeesTable.id, params.data.id))
     .returning();
   if (!row) {
