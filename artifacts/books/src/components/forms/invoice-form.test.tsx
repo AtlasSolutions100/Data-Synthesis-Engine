@@ -620,7 +620,8 @@ describe("InvoiceForm customer/job cascading filter", () => {
         defaultValues={{ ...baseDefaults, jobId: "10" }}
       />,
     );
-    await pickOption(/defaults to job/i, /Douglas County/);
+    // The customer is derived from the preloaded job first.
+    await pickOption(/Northside Mall/, /Douglas County/);
     // Job selection no longer matches -> combobox resets to placeholder.
     expect(await triggerShowing(/select job name/i)).toBeTruthy();
   });
@@ -632,7 +633,32 @@ describe("InvoiceForm customer/job cascading filter", () => {
         defaultValues={{ ...baseDefaults, jobId: "10" }}
       />,
     );
-    await pickOption(/defaults to job/i, /Northside Mall/);
+    // Customer derives from the job; re-selecting the same customer keeps it.
+    fireEvent.click(await triggerShowing(/Northside Mall/));
+    const options = await screen.findAllByText(/Northside Mall/);
+    const option = options
+      .map((el) => el.closest("[cmdk-item]"))
+      .find((el) => el != null);
+    fireEvent.click(option!);
     expect(await triggerShowing("Warehouse")).toBeTruthy();
+  });
+
+  it("pre-selects the job's customer when editing with a job but no customer", async () => {
+    renderForm(
+      <InvoiceForm
+        onSubmit={vi.fn()}
+        defaultValues={{ ...baseDefaults, jobId: "11" }}
+      />,
+    );
+    // Customer combobox shows the derived customer, job stays selected.
+    expect(await triggerShowing(/Douglas County/)).toBeTruthy();
+    // Job list is filtered to that customer's jobs.
+    fireEvent.click(await triggerShowing("Courthouse"));
+    await waitFor(() => {
+      expect(
+        screen.getAllByText("Courthouse").some((el) => el.closest("[cmdk-item]")),
+      ).toBe(true);
+    });
+    expect(screen.queryByText("Warehouse")).toBeNull();
   });
 });

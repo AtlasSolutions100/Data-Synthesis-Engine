@@ -270,6 +270,19 @@ export function InvoiceForm({
 
   const watchedCustomerId = form.watch("customerId");
 
+  // When editing an invoice that already has a job but no saved customer,
+  // derive the customer from the job once the jobs list loads so the
+  // cascading job filter shows correctly (mirrors bill-form).
+  useEffect(() => {
+    if (!jobs) return;
+    const jobId = form.getValues("jobId");
+    if (!jobId || form.getValues("customerId")) return;
+    const job = jobs.find((j) => String(j.id) === jobId);
+    if (job?.customerId != null) {
+      form.setValue("customerId", String(job.customerId));
+    }
+  }, [jobs, form]);
+
   // Mirror bill-form: when a customer is selected, only list their jobs.
   const filteredJobs = (jobs ?? []).filter(
     (j) =>
