@@ -229,6 +229,28 @@ describe("POST /import/bills", () => {
     expect(Number(lines[0].amountCents)).toBe(99999);
   });
 
+  it("flags lines with no account informationally without blocking the import", async () => {
+    const fileData = await workbook([
+      ["Vendor", "Bill Number", "Date", "Account", "Description", "Amount"],
+      [`${TP}Vendor X`, `${TP}B-NA`, "07/10/2026", "", "No account line", "25"],
+      [`${TP}Vendor X`, `${TP}B-NA`, "07/10/2026", "", "Another one", "30"],
+      [`${TP}Vendor X`, `${TP}B-1`, "07/10/2026", "", "Single missing", "10"],
+    ]);
+    const preview = await request(app)
+      .post("/api/import/bills")
+      .send({ fileData, mode: "preview" });
+    expect(preview.status).toBe(200);
+
+    const newRow = preview.body.rows.find((r: any) => r.label.includes(`${TP}B-NA`));
+    expect(newRow.status).toBe("new"); // informational, not an error
+    expect(newRow.message).toMatch(/2 lines have no account/);
+    expect(newRow.message).toMatch(/won't appear on the Transactions page or reports/);
+
+    const dupRow = preview.body.rows.find((r: any) => r.label.includes(`${TP}B-1`));
+    expect(dupRow.status).toBe("duplicate");
+    expect(dupRow.message).toMatch(/1 line has no account/);
+  });
+
   it("posts bill-linked ledger transactions for imported bills, without double-posting on re-import", async () => {
     const [account] = await db
       .insert(accountsTable)

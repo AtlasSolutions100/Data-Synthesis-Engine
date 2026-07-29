@@ -717,12 +717,23 @@ async function planBills(buffer: Buffer): Promise<PlanRow[]> {
     }
     const totalCents = lines.reduce((s, l) => s + l.amountCents, 0);
 
+    // Lines with no account still count toward the bill total, but they never
+    // post to the ledger — warn (informationally) so the user knows those
+    // amounts won't reach the Transactions page or reports.
+    const noAccountCount = lines.filter((l) => l.accountId == null).length;
+    const noAccountNote =
+      noAccountCount === 0
+        ? null
+        : noAccountCount === 1
+          ? "1 line has no account — it won't appear on the Transactions page or reports"
+          : `${noAccountCount} lines have no account — they won't appear on the Transactions page or reports`;
+
     const current = billNumber ? existingByKey.get(billKey(vendor.id, billNumber)) : undefined;
     if (!current) {
       return {
         ...base,
         status: "new",
-        message: null,
+        message: noAccountNote,
         docPlan: {
           doc: "bill",
           op: "insert",
@@ -746,7 +757,7 @@ async function planBills(buffer: Buffer): Promise<PlanRow[]> {
     return {
       ...base,
       status: "duplicate",
-      message: `Matches existing bill ${billNumber} for ${vendor.name} — updating will replace its line items`,
+      message: `Matches existing bill ${billNumber} for ${vendor.name} — updating will replace its line items${noAccountNote ? `. ${noAccountNote}` : ""}`,
       changes: [
         { field: "date", from: String(current.date), to: date },
         { field: "total", from: null, to: centsToDollars(totalCents) },
