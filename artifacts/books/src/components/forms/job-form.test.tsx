@@ -19,15 +19,17 @@ import { JobForm } from "./job-form";
 
 // The form pulls the customer list via a generated react-query hook; mock it
 // so the picker is populated without a live API.
-vi.mock("@workspace/api-client-react", () => ({
-  useListCustomers: () => ({
-    data: [
-      { id: 7, name: "HR Stadium LLC" },
-      { id: 8, name: "Douglas County" },
-    ],
-  }),
-  getListCustomersQueryKey: () => ["/api/customers"],
-}));
+vi.mock("@workspace/api-client-react", async (importOriginal) => {
+  const { createApiClientReactMock } = await import("@/test/mock-api-client");
+  return createApiClientReactMock(importOriginal, {
+    useListCustomers: () => ({
+      data: [
+        { id: 7, name: "HR Stadium LLC" },
+        { id: 8, name: "Douglas County" },
+      ],
+    }),
+  });
+});
 
 beforeAll(() => {
   // jsdom lacks these DOM APIs used by radix popover + cmdk.

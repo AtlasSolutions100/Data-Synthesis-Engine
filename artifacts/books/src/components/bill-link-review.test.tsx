@@ -51,16 +51,14 @@ const bills = [
 
 const linkMutate = vi.fn();
 
-vi.mock("@workspace/api-client-react", () => ({
-  useListUnlinkedBillTransactions: () => ({ data: rows, isLoading: false }),
-  getListUnlinkedBillTransactionsQueryKey: () => [
-    "/api/transactions/unlinked-bills",
-  ],
-  useLinkTransactionBill: () => ({ mutate: linkMutate, isPending: false }),
-  useListBills: () => ({ data: bills, isLoading: false }),
-  getListBillsQueryKey: () => ["/api/bills"],
-  getListTransactionsQueryKey: () => ["/api/transactions"],
-}));
+vi.mock("@workspace/api-client-react", async (importOriginal) => {
+  const { createApiClientReactMock } = await import("@/test/mock-api-client");
+  return createApiClientReactMock(importOriginal, {
+    useListUnlinkedBillTransactions: () => ({ data: rows, isLoading: false }),
+    useLinkTransactionBill: () => ({ mutate: linkMutate, isPending: false }),
+    useListBills: () => ({ data: bills, isLoading: false }),
+  });
+});
 
 beforeEach(() => {
   // Radix select needs these in jsdom.
