@@ -47,6 +47,8 @@ let vendorId: number;
 let incomeId: number;
 let cogsId: number;
 let expenseId: number;
+let otherIncomeId: number;
+let otherExpenseId: number;
 const acctIds: number[] = [];
 
 beforeAll(async () => {
@@ -93,11 +95,23 @@ beforeAll(async () => {
       { number: "TEST-PNL-4000", name: "PnL Income", type: "income" },
       { number: "TEST-PNL-5000", name: "PnL COGS", type: "cogs" },
       { number: "TEST-PNL-6000", name: "PnL Expense", type: "expense" },
+      {
+        number: "TEST-PNL-7000",
+        name: "PnL Other Income",
+        type: "other_income",
+      },
+      {
+        number: "TEST-PNL-8000",
+        name: "PnL Other Expense",
+        type: "other_expense",
+      },
     ])
     .returning();
   incomeId = accts[0].id;
   cogsId = accts[1].id;
   expenseId = accts[2].id;
+  otherIncomeId = accts[3].id;
+  otherExpenseId = accts[4].id;
   acctIds.push(...accts.map((a) => a.id));
 
   await db.insert(transactionsTable).values([
@@ -132,12 +146,32 @@ beforeAll(async () => {
       accountId: expenseId,
       amountCents: 5_000,
     },
+    // Other income: $20 (e.g. interest), no job.
+    {
+      date: "2099-12-15",
+      type: "deposit",
+      accountId: otherIncomeId,
+      amountCents: 2_000,
+    },
+    // Other expense: $8 (e.g. bank fee), no job.
+    {
+      date: "2099-12-16",
+      type: "check",
+      accountId: otherExpenseId,
+      amountCents: 800,
+    },
     // Outside the window — must never appear.
     {
       date: "2100-01-05",
       type: "check",
       accountId: expenseId,
       amountCents: 99_999,
+    },
+    {
+      date: "2100-01-06",
+      type: "deposit",
+      accountId: otherIncomeId,
+      amountCents: 77_777,
     },
   ]);
 });
@@ -169,8 +203,12 @@ describe("GET /reports/pnl", () => {
     expect(sectionTotal(res.body, "income")).toBe(100_000);
     expect(sectionTotal(res.body, "cogs")).toBe(40_000);
     expect(sectionTotal(res.body, "expense")).toBe(5_000);
+    expect(sectionTotal(res.body, "other_income")).toBe(2_000);
+    expect(sectionTotal(res.body, "other_expense")).toBe(800);
     expect(res.body.grossProfitCents).toBe(60_000);
-    expect(res.body.netIncomeCents).toBe(55_000);
+    // Net income = gross profit - expense + other income - other expense
+    //            = 60,000 - 5,000 + 2,000 - 800
+    expect(res.body.netIncomeCents).toBe(56_200);
 
     const cogsSection = res.body.sections.find(
       (s: { type: string }) => s.type === "cogs",
@@ -189,6 +227,8 @@ describe("GET /reports/pnl", () => {
     expect(sectionTotal(res.body, "income")).toBe(100_000);
     expect(sectionTotal(res.body, "cogs")).toBe(30_000);
     expect(sectionTotal(res.body, "expense")).toBe(0);
+    expect(sectionTotal(res.body, "other_income")).toBe(0);
+    expect(sectionTotal(res.body, "other_expense")).toBe(0);
     expect(res.body.netIncomeCents).toBe(70_000);
   });
 
