@@ -18,6 +18,7 @@ import {
   billPaymentsTable,
   accountsTable,
   transactionsTable,
+  invoicesTable,
 } from "@workspace/db";
 
 /**
@@ -93,6 +94,11 @@ async function cleanup(): Promise<void> {
     await db.delete(billLinesTable).where(inArray(billLinesTable.billId, bills.map((b) => b.id)));
     await db.delete(billsTable).where(inArray(billsTable.id, bills.map((b) => b.id)));
   }
+  await db
+    .delete(invoicesTable)
+    .where(sql`${invoicesTable.invoiceNumber} like ${`${TP}INV-%`}`);
+  await db.delete(jobsTable).where(eq(jobsTable.name, `${TP}Perf Job`));
+  await db.delete(customersTable).where(eq(customersTable.name, `${TP}Perf Cust`));
   await db.delete(accountsTable).where(eq(accountsTable.name, `${TP}Supplies Exp`));
   await db.delete(jobsTable).where(inArray(jobsTable.name, [`${TP}Job A`, `${TP}Job B`]));
   await db.delete(vendorsTable).where(inArray(vendorsTable.name, [`${TP}Vendor X`]));
@@ -534,5 +540,46 @@ describe("structural limits & batching", () => {
       .where(eq(billLinesTable.billId, sample.id));
     expect(sampleLines).toHaveLength(3);
     expect(sampleLines.every((l) => Number(l.amountCents) === 2000)).toBe(true);
+  }, 120_000);
+
+  it("previews a file matching ~1,000 existing invoices quickly (batched paid-total lookups)", async () => {
+    // Invoices require a job with a customer.
+    const [cust] = await db
+      .insert(customersTable)
+      .values({ name: `${TP}Perf Cust` })
+      .returning();
+    const [job] = await db
+      .insert(jobsTable)
+      .values({ jobNumber: `${TP}PERF-1`, name: `${TP}Perf Job`, customerId: cust.id })
+      .returning();
+
+    const INVOICES = 1000;
+    await db.insert(invoicesTable).values(
+      Array.from({ length: INVOICES }, (_, i) => ({
+        invoiceNumber: `${TP}INV-${i}`,
+        jobId: job.id,
+        customerId: cust.id,
+        date: "2026-07-01",
+      })),
+    );
+
+    const rows: (string | number)[][] = [
+      ["Invoice Number", "Job", "Date", "Description", "Amount"],
+    ];
+    for (let i = 0; i < INVOICES; i++) {
+      rows.push([`${TP}INV-${i}`, `${TP}Perf Job`, "07/02/2026", "Preview line", "30.00"]);
+    }
+    const fileData = await workbook(rows);
+
+    // Preview of a file matching a thousand existing invoices must batch the
+    // paid-total lookups (one query, not one per matched invoice).
+    const start = Date.now();
+    const res = await request(app)
+      .post("/api/import/invoices")
+      .send({ fileData, mode: "preview" });
+    const elapsed = Date.now() - start;
+    expect(res.status).toBe(200);
+    expect(res.body.summary.duplicates).toBe(INVOICES);
+    expect(elapsed).toBeLessThan(15_000);
   }, 120_000);
 });
