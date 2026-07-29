@@ -13,6 +13,7 @@ import {
   useCreateInvoice,
   getListInvoicesQueryKey,
   getListJobsQueryKey,
+  getListCustomersQueryKey,
   useUpdateJob,
   useGetCurrentUser,
   getGetCurrentUserQueryKey
@@ -86,6 +87,10 @@ export default function JobDetail() {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: getGetJobQueryKey(jobId) });
         queryClient.invalidateQueries({ queryKey: getListJobsQueryKey() });
+        // The dashboard's per-customer job count badges come from the
+        // customers list query; every job mutation site must invalidate it
+        // (enforced by the scan in jobs.test.tsx).
+        queryClient.invalidateQueries({ queryKey: getListCustomersQueryKey() });
         setStatusDialogOpen(false);
         setStatusNote("");
         setStatusError("");
