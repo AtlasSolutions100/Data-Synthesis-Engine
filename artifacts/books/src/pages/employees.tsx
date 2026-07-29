@@ -10,7 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { EmployeeForm } from "@/components/forms/employee-form";
 import { useQueryClient } from "@tanstack/react-query";
 import { Link } from "wouter";
-import { Plus, Edit2, Trash2, History } from "lucide-react";
+import { Plus, Edit2, Trash2, History, Download } from "lucide-react";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ImportDataDialog } from "@/components/import-data-dialog";
 
 const CURRENT_YEAR = new Date().getFullYear();
@@ -148,15 +149,72 @@ function TimecardHistoryDialog({
   );
 }
 
+import type { Employee as EmployeeRow } from "@workspace/api-client-react";
+
+/** Archived = no longer working here: marked inactive or has a termination date. */
+function isArchived(e: EmployeeRow): boolean {
+  return e.active === false || !!e.terminationDate;
+}
+
+function csvEscape(value: string): string {
+  return /[",\n]/.test(value) ? `"${value.replaceAll('"', '""')}"` : value;
+}
+
+/** Download all employees (never SSNs — those stay off this screen) as CSV. */
+function exportEmployeesCsv(employees: EmployeeRow[]) {
+  const header = [
+    "Name",
+    "Email",
+    "Phone",
+    "Address",
+    "Hire Date",
+    "Termination Date",
+    "Status",
+    "Straight Time Rate",
+    "Overtime Rate",
+    "Tax Exempt",
+  ];
+  const lines = employees.map((e) =>
+    [
+      e.name,
+      e.email ?? "",
+      e.phone ?? "",
+      e.address ?? "",
+      e.hireDate ?? "",
+      e.terminationDate ?? "",
+      isArchived(e) ? "Archived" : "Active",
+      e.straightTimeRateCents != null ? (e.straightTimeRateCents / 100).toFixed(2) : "",
+      e.overtimeRateCents != null ? (e.overtimeRateCents / 100).toFixed(2) : "",
+      e.taxExempt ? "Yes" : "No",
+    ]
+      .map(csvEscape)
+      .join(","),
+  );
+  const csv = [header.join(","), ...lines].join("\r\n");
+  const blob = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `employees-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 export default function Employees() {
   const queryClient = useQueryClient();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [historyId, setHistoryId] = useState<number | null>(null);
+  const [tab, setTab] = useState<"active" | "archived">("active");
 
   const { data: employees, isLoading } = useListEmployees({
     query: { queryKey: getListEmployeesQueryKey() }
   });
+
+  const archivedCount = (employees ?? []).filter(isArchived).length;
+  const visibleEmployees = (employees ?? []).filter((e) =>
+    tab === "archived" ? isArchived(e) : !isArchived(e),
+  );
 
   const createEmployee = useCreateEmployee({
     mutation: {
@@ -192,6 +250,14 @@ export default function Employees() {
           <p className="text-slate-500 mt-1">Manage employee records and pay rates</p>
         </div>
         <div className="flex items-center gap-2">
+        <Button
+          variant="outline"
+          onClick={() => exportEmployeesCsv(employees ?? [])}
+          disabled={!employees?.length}
+          data-testid="button-export-employees"
+        >
+          <Download className="mr-2 h-4 w-4" /> Export CSV
+        </Button>
         <ImportDataDialog
           entity="employees"
           onDone={() =>
@@ -217,6 +283,15 @@ export default function Employees() {
         </div>
       </div>
 
+      <Tabs value={tab} onValueChange={(v) => setTab(v as "active" | "archived")}>
+        <TabsList>
+          <TabsTrigger value="active" data-testid="tab-active">Active</TabsTrigger>
+          <TabsTrigger value="archived" data-testid="tab-archived">
+            Archived{archivedCount ? ` (${archivedCount})` : ""}
+          </TabsTrigger>
+        </TabsList>
+      </Tabs>
+
       <Card>
         <CardContent className="p-0">
           <Table>
@@ -237,12 +312,16 @@ export default function Employees() {
                 <TableRow>
                   <TableCell colSpan={8} className="text-center py-8 text-slate-500">Loading employees...</TableCell>
                 </TableRow>
-              ) : employees?.length === 0 ? (
+              ) : visibleEmployees.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center py-8 text-slate-500">No employees found.</TableCell>
+                  <TableCell colSpan={8} className="text-center py-8 text-slate-500">
+                    {tab === "archived"
+                      ? "No archived employees. Terminated or inactive employees show up here."
+                      : "No active employees found."}
+                  </TableCell>
                 </TableRow>
               ) : (
-                employees?.map((employee) => (
+                visibleEmployees.map((employee) => (
                   <TableRow key={employee.id}>
                     <TableCell className="font-medium">
                       <Link
