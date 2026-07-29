@@ -246,6 +246,107 @@ describe("ImportDataDialog stale preview handling", () => {
     });
   });
 
+  it("carries per-line account overrides through a refresh, dropping ones that no longer match", async () => {
+    render(<ImportDataDialog entity="bills" onDone={vi.fn()} />);
+    const input = screen.getByTestId("input-import-file-bills");
+    const file = new File(["x"], "bills.xlsx", {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+    fireEvent.change(input, { target: { files: [file] } });
+    await waitFor(() => expect(mutateCalls).toHaveLength(1));
+
+    const billPreview = {
+      mode: "preview",
+      planToken: "tok-b",
+      summary: { total: 1, newRows: 1, duplicates: 0, errors: 0 },
+      rows: [
+        {
+          row: 2,
+          status: "new",
+          label: "Acme — B-1",
+          message: null,
+          changes: null,
+          lines: [
+            {
+              line: 0,
+              description: "Wire",
+              amountCents: 1000,
+              accountId: 7,
+              accountName: "Materials",
+              autoFilled: true,
+            },
+            {
+              line: 1,
+              description: "Tape",
+              amountCents: 500,
+              accountId: 9,
+              accountName: "Small Tools",
+              autoFilled: false,
+            },
+          ],
+        },
+      ],
+    };
+    act(() => handlers.onSuccess!(billPreview));
+    await screen.findByTestId("button-import-apply");
+
+    // Override both lines.
+    fireEvent.change(screen.getByTestId("select-import-account-2-0"), {
+      target: { value: "9" },
+    });
+    fireEvent.change(screen.getByTestId("select-import-account-2-1"), {
+      target: { value: "none" },
+    });
+
+    // Apply → 409 → refresh.
+    fireEvent.click(screen.getByTestId("button-import-apply"));
+    act(() => handlers.onError!({ response: { status: 409 } }));
+    fireEvent.click(await screen.findByTestId("button-import-refresh-preview"));
+
+    // Refreshed preview: line 0 unchanged, line 1's amount changed.
+    act(() =>
+      handlers.onSuccess!({
+        ...billPreview,
+        planToken: "tok-b2",
+        rows: [
+          {
+            ...billPreview.rows[0],
+            lines: [
+              billPreview.rows[0].lines[0],
+              { ...billPreview.rows[0].lines[1], amountCents: 750 },
+            ],
+          },
+        ],
+      }),
+    );
+
+    // Line 0's override survived (select still shows account 9); line 1's
+    // was dropped (back to the "keep" option).
+    await waitFor(() =>
+      expect(
+        (screen.getByTestId("select-import-account-2-0") as HTMLSelectElement).value,
+      ).toBe("9"),
+    );
+    expect(
+      (screen.getByTestId("select-import-account-2-1") as HTMLSelectElement).value,
+    ).toBe("keep");
+
+    // The user is told one change no longer applies.
+    expect(mockToast).toHaveBeenCalledWith(
+      expect.objectContaining({ title: "Some unchecked rows no longer apply" }),
+    );
+
+    // Apply only sends the surviving override.
+    fireEvent.click(screen.getByTestId("button-import-apply"));
+    expect(mutateCalls[mutateCalls.length - 1]).toMatchObject({
+      data: {
+        mode: "apply",
+        planToken: "tok-b2",
+        accountOverrides: [{ row: 2, line: 0, accountId: 9 }],
+      },
+    });
+  });
+
   it("non-409 errors still surface as a failure toast without the stale banner", async () => {
     await openWithPreview();
 

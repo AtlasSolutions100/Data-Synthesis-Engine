@@ -75,8 +75,9 @@ export function ImportDataDialog({
   const [excluded, setExcluded] = useState<Set<number>>(new Set());
   // Per-line account overrides for bill imports, keyed "row:line". A key is
   // only present when the user changed something; the value is the chosen
-  // account id, or null for "no account". Reset on every fresh preview so an
-  // override can never target a line that moved.
+  // account id, or null for "no account". Reset on every fresh preview —
+  // except an explicit stale-refresh, where overrides carry over when the row
+  // and line still match — so an override can never target a line that moved.
   const [accountOverrides, setAccountOverrides] = useState<Map<string, number | null>>(
     new Map(),
   );
@@ -90,6 +91,7 @@ export function ImportDataDialog({
   // exclusion rather than uncheck the wrong record.
   const carryOverRef = useRef<{
     excluded: Set<number>;
+    accountOverrides: Map<string, number | null>;
     rows: ImportPreviewRow[];
   } | null>(null);
 
@@ -107,28 +109,60 @@ export function ImportDataDialog({
           const carry = carryOverRef.current;
           carryOverRef.current = null;
           let nextExcluded = new Set<number>();
-          if (carry && carry.excluded.size > 0) {
-            const prevLabelByRow = new Map(carry.rows.map((r) => [r.row, r.label]));
+          const nextOverrides = new Map<string, number | null>();
+          if (carry && (carry.excluded.size > 0 || carry.accountOverrides.size > 0)) {
+            const prevRowByNumber = new Map(carry.rows.map((r) => [r.row, r]));
             for (const r of result.rows ?? []) {
-              if (
-                carry.excluded.has(r.row) &&
-                r.status !== "error" &&
-                prevLabelByRow.get(r.row) === r.label
-              ) {
+              const prev = prevRowByNumber.get(r.row);
+              const rowMatches =
+                r.status !== "error" && prev != null && prev.label === r.label;
+              if (rowMatches && carry.excluded.has(r.row)) {
                 nextExcluded.add(r.row);
               }
+              if (rowMatches && carry.accountOverrides.size > 0) {
+                // Carry an override only when the line still exists with the
+                // same description and amount — otherwise it may target a
+                // different expense than the one the user re-pointed.
+                const prevLineByNumber = new Map(
+                  (prev.lines ?? []).map((l) => [l.line, l]),
+                );
+                for (const l of r.lines ?? []) {
+                  const key = `${r.row}:${l.line}`;
+                  if (!carry.accountOverrides.has(key)) continue;
+                  const prevLine = prevLineByNumber.get(l.line);
+                  if (
+                    prevLine &&
+                    prevLine.description === l.description &&
+                    prevLine.amountCents === l.amountCents
+                  ) {
+                    nextOverrides.set(key, carry.accountOverrides.get(key)!);
+                  }
+                }
+              }
             }
-            const dropped = carry.excluded.size - nextExcluded.size;
-            if (dropped > 0) {
+            const droppedExclusions = carry.excluded.size - nextExcluded.size;
+            const droppedOverrides = carry.accountOverrides.size - nextOverrides.size;
+            if (droppedExclusions > 0 || droppedOverrides > 0) {
+              const parts: string[] = [];
+              if (droppedExclusions > 0) {
+                parts.push(
+                  `${droppedExclusions} of your unchecked row${droppedExclusions === 1 ? "" : "s"}`,
+                );
+              }
+              if (droppedOverrides > 0) {
+                parts.push(
+                  `${droppedOverrides} of your account change${droppedOverrides === 1 ? "" : "s"}`,
+                );
+              }
               toast({
                 title: "Some unchecked rows no longer apply",
-                description: `${dropped} of your unchecked row${dropped === 1 ? "" : "s"} changed or disappeared in the refreshed preview. Please review the list again.`,
+                description: `${parts.join(" and ")} changed or disappeared in the refreshed preview. Please review the list again.`,
               });
             }
           }
           setPreview(result);
           setExcluded(nextExcluded);
-          setAccountOverrides(new Map());
+          setAccountOverrides(nextOverrides);
           setStale(false);
           setOpen(true);
           return;
@@ -192,7 +226,7 @@ export function ImportDataDialog({
 
   const refreshPreview = () => {
     if (!fileData) return;
-    carryOverRef.current = { excluded, rows: preview?.rows ?? [] };
+    carryOverRef.current = { excluded, accountOverrides, rows: preview?.rows ?? [] };
     importMutation.mutate({
       entity,
       data: { fileData, fileName, mode: "preview" },
