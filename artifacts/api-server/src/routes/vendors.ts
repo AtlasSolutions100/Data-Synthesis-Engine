@@ -10,9 +10,47 @@ import {
   UpdateVendorParams,
   UpdateVendorBody,
   DeleteVendorParams,
+  CheckVendorDuplicatesQueryParams,
 } from "@workspace/api-zod";
 
 const router: IRouter = Router();
+
+/** Normalise a name for comparison: lower-case, trim, collapse whitespace. */
+function normName(s: string): string {
+  return s.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+/**
+ * Jaccard word-overlap between two strings.
+ * Returns the ratio of shared unique tokens to total unique tokens (0–1).
+ */
+function wordOverlap(a: string, b: string): number {
+  const tokensA = normName(a).split(" ").filter(Boolean);
+  const tokensB = normName(b).split(" ").filter(Boolean);
+  if (tokensA.length === 0 && tokensB.length === 0) return 1;
+  if (tokensA.length === 0 || tokensB.length === 0) return 0;
+  const setA = new Set(tokensA);
+  const setB = new Set(tokensB);
+  const intersection = [...setA].filter((t) => setB.has(t)).length;
+  const union = new Set([...tokensA, ...tokensB]).size;
+  return intersection / union;
+}
+
+const DUPLICATE_THRESHOLD = 0.5;
+
+router.get("/vendors/check-duplicate", async (req, res): Promise<void> => {
+  const query = CheckVendorDuplicatesQueryParams.safeParse(req.query);
+  if (!query.success) {
+    res.status(400).json({ error: query.error.message });
+    return;
+  }
+  const name = query.data.name;
+  const rows = await db.select({ id: vendorsTable.id, name: vendorsTable.name }).from(vendorsTable);
+  const candidates = rows.filter(
+    (r) => wordOverlap(r.name, name) >= DUPLICATE_THRESHOLD,
+  );
+  res.json(candidates.map((c) => ({ id: c.id, name: c.name })));
+});
 
 router.get("/vendors", async (_req, res): Promise<void> => {
   const rows = await db.select().from(vendorsTable).orderBy(vendorsTable.name);

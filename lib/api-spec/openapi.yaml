@@ -334,6 +334,34 @@ paths:
                 $ref: "#/components/schemas/Vendor"
         "400":
           $ref: "#/components/responses/Error"
+  /vendors/check-duplicate:
+    get:
+      operationId: checkVendorDuplicates
+      tags: [vendors]
+      summary: Find vendors with a similar name
+      description: >-
+        Returns vendors whose name shares ≥50% word-overlap (Jaccard on
+        normalised tokens) with the query string. Used to warn before creating
+        a new vendor that looks like a duplicate.
+      parameters:
+        - name: name
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 1
+      responses:
+        "200":
+          description: Near-duplicate vendors (may be empty)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/VendorDuplicateCandidate"
+        "400":
+          $ref: "#/components/responses/Error"
+
   /vendors/{id}:
     get:
       operationId: getVendor
@@ -2261,6 +2289,15 @@ components:
           type: ["string", "null"]
         notes:
           type: ["string", "null"]
+    VendorDuplicateCandidate:
+      type: object
+      required: [id, name]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+
     VendorDefaultAccount:
       type: object
       required: [accountId]

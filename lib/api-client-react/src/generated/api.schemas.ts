@@ -278,6 +278,11 @@ export interface Vendor {
   notes?: string | null;
 }
 
+export interface VendorDuplicateCandidate {
+  id: number;
+  name: string;
+}
+
 export interface VendorDefaultAccount {
   /**
      * The account this vendor's costs are most often categorized to, or null when the vendor has no history yet.
@@ -2019,6 +2024,13 @@ export type EndDateParamParameter = string;
 export type AsOfDateParamParameter = string;
 
 export type CheckCustomerDuplicatesParams = {
+/**
+ * @minLength 1
+ */
+name: string;
+};
+
+export type CheckVendorDuplicatesParams = {
 /**
  * @minLength 1
  */

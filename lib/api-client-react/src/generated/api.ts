@@ -34,6 +34,7 @@ import type {
   BillUpdate,
   CheckCustomerDuplicatesParams,
   CheckJobDuplicatesParams,
+  CheckVendorDuplicatesParams,
   Customer,
   CustomerDuplicateCandidate,
   CustomerInput,
@@ -115,6 +116,7 @@ import type {
   Vendor,
   VendorCreditInput,
   VendorDefaultAccount,
+  VendorDuplicateCandidate,
   VendorInput,
   VendorUpdate
 } from './api.schemas';
@@ -1328,6 +1330,91 @@ export const useCreateVendor = <TError = ErrorType<ErrorResponse>,
       > => {
       return useMutation(getCreateVendorMutationOptions(options));
     }
+
+export const getCheckVendorDuplicatesUrl = (params: CheckVendorDuplicatesParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/vendors/check-duplicate?${stringifiedParams}` : `/api/vendors/check-duplicate`
+}
+
+/**
+ * Returns vendors whose name shares ≥50% word-overlap (Jaccard on normalised tokens) with the query string. Used to warn before creating a new vendor that looks like a duplicate.
+ * @summary Find vendors with a similar name
+ */
+export const checkVendorDuplicates = async (params: CheckVendorDuplicatesParams, options?: RequestInit): Promise<VendorDuplicateCandidate[]> => {
+
+  return customFetch<VendorDuplicateCandidate[]>(getCheckVendorDuplicatesUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getCheckVendorDuplicatesQueryKey = (params?: CheckVendorDuplicatesParams,) => {
+    return [
+    `/api/vendors/check-duplicate`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getCheckVendorDuplicatesQueryOptions = <TData = Awaited<ReturnType<typeof checkVendorDuplicates>>, TError = ErrorType<ErrorResponse>>(params: CheckVendorDuplicatesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof checkVendorDuplicates>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getCheckVendorDuplicatesQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof checkVendorDuplicates>>> = ({ signal }) => checkVendorDuplicates(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof checkVendorDuplicates>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type CheckVendorDuplicatesQueryResult = NonNullable<Awaited<ReturnType<typeof checkVendorDuplicates>>>
+export type CheckVendorDuplicatesQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary Find vendors with a similar name
+ */
+
+export function useCheckVendorDuplicates<TData = Awaited<ReturnType<typeof checkVendorDuplicates>>, TError = ErrorType<ErrorResponse>>(
+ params: CheckVendorDuplicatesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof checkVendorDuplicates>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getCheckVendorDuplicatesQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getGetVendorUrl = (id: number,) => {
 

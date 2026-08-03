@@ -348,6 +348,24 @@ export const CreateVendorResponse = zod.object({
 
 
 /**
+ * Returns vendors whose name shares ≥50% word-overlap (Jaccard on normalised tokens) with the query string. Used to warn before creating a new vendor that looks like a duplicate.
+ * @summary Find vendors with a similar name
+ */
+
+
+
+export const CheckVendorDuplicatesQueryParams = zod.object({
+  "name": zod.coerce.string().min(1)
+})
+
+export const CheckVendorDuplicatesResponseItem = zod.object({
+  "id": zod.number(),
+  "name": zod.string()
+})
+export const CheckVendorDuplicatesResponse = zod.array(CheckVendorDuplicatesResponseItem)
+
+
+/**
  * @summary Get a vendor
  */
 export const GetVendorParams = zod.object({

@@ -18,7 +18,7 @@ export interface DuplicateCandidate {
 
 interface DuplicateWarningDialogProps {
   open: boolean;
-  entityLabel: "job" | "customer";
+  entityLabel: "job" | "customer" | "vendor";
   candidates: DuplicateCandidate[];
   onConfirm: () => void;
   onCancel: () => void;
@@ -45,8 +45,12 @@ export function DuplicateWarningDialog({
             <div>
               <p className="mb-3">
                 This looks like it might already exist. The following{" "}
-                {entityLabel === "job" ? "jobs" : "customers"} have a similar
-                name:
+                {entityLabel === "job"
+                  ? "jobs"
+                  : entityLabel === "customer"
+                    ? "customers"
+                    : "vendors"}{" "}
+                have a similar name:
               </p>
               <ul className="space-y-1">
                 {candidates.map((c) => (
