@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -19,9 +20,12 @@ import {
   JobInputStatus,
   useListCustomers,
   getListCustomersQueryKey,
+  checkJobDuplicates,
+  type JobDuplicateCandidate,
 } from "@workspace/api-client-react";
 import { EntityCombobox } from "@/components/forms/entity-combobox";
 import { Checkbox } from "@/components/ui/checkbox";
+import { DuplicateWarningDialog } from "@/components/forms/duplicate-warning-dialog";
 
 const jobSchema = z
   .object({
@@ -75,44 +79,74 @@ export function JobForm({ defaultValues, onSubmit, isLoading }: JobFormProps) {
 
   const internalJob = form.watch("internalJob");
 
-  const handleSubmit = (values: JobFormValues) => {
-    onSubmit({
-      name: values.name,
-      poNumber: values.poNumber || null,
-      customerId:
-        !values.internalJob && values.customerId
-          ? parseInt(values.customerId, 10)
-          : null,
-      isInternal: values.internalJob,
-      description: values.description || null,
-      status: values.status as JobInputStatus,
-      contractAmountCents: values.contractAmount ? parseDollars(values.contractAmount) : 0,
-    });
+  // Duplicate-check state: hold the built payload until user confirms or cancels.
+  const [pendingPayload, setPendingPayload] = useState<JobInput | JobUpdate | null>(null);
+  const [duplicateCandidates, setDuplicateCandidates] = useState<JobDuplicateCandidate[]>([]);
+
+  const buildPayload = (values: JobFormValues): JobInput | JobUpdate => ({
+    name: values.name,
+    poNumber: values.poNumber || null,
+    customerId:
+      !values.internalJob && values.customerId
+        ? parseInt(values.customerId, 10)
+        : null,
+    isInternal: values.internalJob,
+    description: values.description || null,
+    status: values.status as JobInputStatus,
+    contractAmountCents: values.contractAmount ? parseDollars(values.contractAmount) : 0,
+  });
+
+  const handleSubmit = async (values: JobFormValues) => {
+    const payload = buildPayload(values);
+
+    // Only check for duplicates in create mode (no existing name in defaultValues).
+    if (!defaultValues?.name) {
+      try {
+        const candidates = await checkJobDuplicates({ name: values.name });
+        if (candidates.length > 0) {
+          setDuplicateCandidates(candidates);
+          setPendingPayload(payload);
+          return; // Wait for user to confirm or cancel in the dialog.
+        }
+      } catch {
+        // If the check fails (e.g. network error), proceed with saving anyway
+        // so the duplicate check never blocks the save.
+      }
+    }
+
+    onSubmit(payload);
+  };
+
+  const handleDuplicateConfirm = () => {
+    if (pendingPayload) {
+      onSubmit(pendingPayload);
+    }
+    setDuplicateCandidates([]);
+    setPendingPayload(null);
+  };
+
+  const handleDuplicateCancel = () => {
+    setDuplicateCandidates([]);
+    setPendingPayload(null);
   };
 
   return (
-    <Form {...form}>
-      <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
-        <FormField
-          control={form.control}
-          name="name"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Job Name</FormLabel>
-              <FormControl>
-                <Input {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <div className="grid grid-cols-2 gap-4">
+    <>
+      <DuplicateWarningDialog
+        open={duplicateCandidates.length > 0}
+        entityLabel="job"
+        candidates={duplicateCandidates}
+        onConfirm={handleDuplicateConfirm}
+        onCancel={handleDuplicateCancel}
+      />
+      <Form {...form}>
+        <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
           <FormField
             control={form.control}
-            name="poNumber"
+            name="name"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>PO Number (Optional)</FormLabel>
+                <FormLabel>Job Name</FormLabel>
                 <FormControl>
                   <Input {...field} />
                 </FormControl>
@@ -120,22 +154,105 @@ export function JobForm({ defaultValues, onSubmit, isLoading }: JobFormProps) {
               </FormItem>
             )}
           />
+          <div className="grid grid-cols-2 gap-4">
+            <FormField
+              control={form.control}
+              name="poNumber"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>PO Number (Optional)</FormLabel>
+                  <FormControl>
+                    <Input {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="customerId"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Customer</FormLabel>
+                  <FormControl>
+                    <EntityCombobox
+                      options={(customers ?? []).map((c) => ({ id: c.id, label: c.name }))}
+                      value={field.value ?? ""}
+                      onChange={field.onChange}
+                      placeholder="Select customer"
+                      searchPlaceholder="Search customers..."
+                      emptyText="No customers found."
+                      disabled={internalJob}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="status"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Status</FormLabel>
+                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select status" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="active">Active</SelectItem>
+                      <SelectItem value="completed">Completed</SelectItem>
+                      <SelectItem value="on_hold">On Hold</SelectItem>
+                      {field.value === "inactive" ? (
+                        // Inactive is flipped from the job detail page (admin
+                        // only); shown here just so an inactive job's other
+                        // fields can be edited without changing its status.
+                        <SelectItem value="inactive" disabled>
+                          Inactive (change on job page)
+                        </SelectItem>
+                      ) : null}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
           <FormField
             control={form.control}
-            name="customerId"
+            name="internalJob"
+            render={({ field }) => (
+              <FormItem className="flex flex-row items-center gap-2 space-y-0">
+                <FormControl>
+                  <Checkbox
+                    checked={field.value}
+                    onCheckedChange={(checked) => {
+                      const next = checked === true;
+                      field.onChange(next);
+                      if (next) {
+                        form.setValue("customerId", "");
+                        form.clearErrors("customerId");
+                      }
+                    }}
+                    data-testid="checkbox-internal-job"
+                  />
+                </FormControl>
+                <FormLabel className="font-normal text-slate-600 cursor-pointer">
+                  No customer — internal job (e.g. Overhead / Office)
+                </FormLabel>
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="contractAmount"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Customer</FormLabel>
+                <FormLabel>Contract Amount ($)</FormLabel>
                 <FormControl>
-                  <EntityCombobox
-                    options={(customers ?? []).map((c) => ({ id: c.id, label: c.name }))}
-                    value={field.value ?? ""}
-                    onChange={field.onChange}
-                    placeholder="Select customer"
-                    searchPlaceholder="Search customers..."
-                    emptyText="No customers found."
-                    disabled={internalJob}
-                  />
+                  <Input type="number" step="0.01" {...field} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -143,90 +260,22 @@ export function JobForm({ defaultValues, onSubmit, isLoading }: JobFormProps) {
           />
           <FormField
             control={form.control}
-            name="status"
+            name="description"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Status</FormLabel>
-                <Select onValueChange={field.onChange} defaultValue={field.value}>
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select status" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    <SelectItem value="active">Active</SelectItem>
-                    <SelectItem value="completed">Completed</SelectItem>
-                    <SelectItem value="on_hold">On Hold</SelectItem>
-                    {field.value === "inactive" ? (
-                      // Inactive is flipped from the job detail page (admin
-                      // only); shown here just so an inactive job's other
-                      // fields can be edited without changing its status.
-                      <SelectItem value="inactive" disabled>
-                        Inactive (change on job page)
-                      </SelectItem>
-                    ) : null}
-                  </SelectContent>
-                </Select>
+                <FormLabel>Description (Optional)</FormLabel>
+                <FormControl>
+                  <Input {...field} />
+                </FormControl>
                 <FormMessage />
               </FormItem>
             )}
           />
-        </div>
-        <FormField
-          control={form.control}
-          name="internalJob"
-          render={({ field }) => (
-            <FormItem className="flex flex-row items-center gap-2 space-y-0">
-              <FormControl>
-                <Checkbox
-                  checked={field.value}
-                  onCheckedChange={(checked) => {
-                    const next = checked === true;
-                    field.onChange(next);
-                    if (next) {
-                      form.setValue("customerId", "");
-                      form.clearErrors("customerId");
-                    }
-                  }}
-                  data-testid="checkbox-internal-job"
-                />
-              </FormControl>
-              <FormLabel className="font-normal text-slate-600 cursor-pointer">
-                No customer — internal job (e.g. Overhead / Office)
-              </FormLabel>
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="contractAmount"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Contract Amount ($)</FormLabel>
-              <FormControl>
-                <Input type="number" step="0.01" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="description"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Description (Optional)</FormLabel>
-              <FormControl>
-                <Input {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <Button type="submit" disabled={isLoading} className="w-full">
-          {isLoading ? "Saving..." : "Save Job"}
-        </Button>
-      </form>
-    </Form>
+          <Button type="submit" disabled={isLoading} className="w-full">
+            {isLoading ? "Saving..." : "Save Job"}
+          </Button>
+        </form>
+      </Form>
+    </>
   );
 }

@@ -262,6 +262,11 @@ export interface CustomerUpdate {
   notes?: string | null;
 }
 
+export interface CustomerDuplicateCandidate {
+  id: number;
+  name: string;
+}
+
 export interface Vendor {
   id: number;
   name: string;
@@ -546,6 +551,13 @@ export interface JobUpdate {
      */
   inactiveNote?: string | null;
   contractAmountCents?: number;
+}
+
+export interface JobDuplicateCandidate {
+  id: number;
+  name: string;
+  /** @nullable */
+  customerName?: string | null;
 }
 
 export type TransactionType = typeof TransactionType[keyof typeof TransactionType];
@@ -2006,6 +2018,13 @@ export type EndDateParamParameter = string;
  */
 export type AsOfDateParamParameter = string;
 
+export type CheckCustomerDuplicatesParams = {
+/**
+ * @minLength 1
+ */
+name: string;
+};
+
 export type GetEmployeeParams = {
 /**
  * When true, include the full SSN instead of the masked value
@@ -2026,6 +2045,13 @@ customerId?: number;
  * When true, inactive jobs are included. By default the list only returns jobs that are not inactive (P4-CUST-04).
  */
 includeInactive?: boolean;
+};
+
+export type CheckJobDuplicatesParams = {
+/**
+ * @minLength 1
+ */
+name: string;
 };
 
 export type ListTransactionsParams = {

@@ -224,6 +224,34 @@ paths:
                 $ref: "#/components/schemas/Customer"
         "400":
           $ref: "#/components/responses/Error"
+  /customers/check-duplicate:
+    get:
+      operationId: checkCustomerDuplicates
+      tags: [customers]
+      summary: Find customers with a similar name
+      description: >-
+        Returns customers whose name shares ≥50% word-overlap (Jaccard on
+        normalised tokens) with the query string. Used to warn before creating
+        a new customer that looks like a duplicate.
+      parameters:
+        - name: name
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 1
+      responses:
+        "200":
+          description: Near-duplicate customers (may be empty)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CustomerDuplicateCandidate"
+        "400":
+          $ref: "#/components/responses/Error"
+
   /customers/{id}:
     get:
       operationId: getCustomer
@@ -553,6 +581,34 @@ paths:
                 $ref: "#/components/schemas/Job"
         "400":
           $ref: "#/components/responses/Error"
+  /jobs/check-duplicate:
+    get:
+      operationId: checkJobDuplicates
+      tags: [jobs]
+      summary: Find jobs with a similar name
+      description: >-
+        Returns jobs whose name shares ≥50% word-overlap (Jaccard on normalised
+        tokens) with the query string. Used to warn before creating a new job
+        that looks like a duplicate.
+      parameters:
+        - name: name
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 1
+      responses:
+        "200":
+          description: Near-duplicate jobs (may be empty)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/JobDuplicateCandidate"
+        "400":
+          $ref: "#/components/responses/Error"
+
   /jobs/{id}:
     get:
       operationId: getJob
@@ -2182,6 +2238,14 @@ components:
           type: ["string", "null"]
         notes:
           type: ["string", "null"]
+    CustomerDuplicateCandidate:
+      type: object
+      required: [id, name]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
 
     Vendor:
       type: object
@@ -2467,6 +2531,16 @@ components:
           description: Why the job is being made inactive (recorded on the status change)
         contractAmountCents:
           type: integer
+    JobDuplicateCandidate:
+      type: object
+      required: [id, name]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        customerName:
+          type: ["string", "null"]
 
     Transaction:
       type: object

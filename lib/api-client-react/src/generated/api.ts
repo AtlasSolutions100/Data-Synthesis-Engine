@@ -32,7 +32,10 @@ import type {
   BillInput,
   BillPaymentInput,
   BillUpdate,
+  CheckCustomerDuplicatesParams,
+  CheckJobDuplicatesParams,
   Customer,
+  CustomerDuplicateCandidate,
   CustomerInput,
   CustomerListItem,
   CustomerUpdate,
@@ -78,6 +81,7 @@ import type {
   JobCostSummary,
   JobDocument,
   JobDocumentInput,
+  JobDuplicateCandidate,
   JobInput,
   JobUpdate,
   LegacySplitGroup,
@@ -874,6 +878,91 @@ export const useCreateCustomer = <TError = ErrorType<ErrorResponse>,
       > => {
       return useMutation(getCreateCustomerMutationOptions(options));
     }
+
+export const getCheckCustomerDuplicatesUrl = (params: CheckCustomerDuplicatesParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/customers/check-duplicate?${stringifiedParams}` : `/api/customers/check-duplicate`
+}
+
+/**
+ * Returns customers whose name shares ≥50% word-overlap (Jaccard on normalised tokens) with the query string. Used to warn before creating a new customer that looks like a duplicate.
+ * @summary Find customers with a similar name
+ */
+export const checkCustomerDuplicates = async (params: CheckCustomerDuplicatesParams, options?: RequestInit): Promise<CustomerDuplicateCandidate[]> => {
+
+  return customFetch<CustomerDuplicateCandidate[]>(getCheckCustomerDuplicatesUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getCheckCustomerDuplicatesQueryKey = (params?: CheckCustomerDuplicatesParams,) => {
+    return [
+    `/api/customers/check-duplicate`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getCheckCustomerDuplicatesQueryOptions = <TData = Awaited<ReturnType<typeof checkCustomerDuplicates>>, TError = ErrorType<ErrorResponse>>(params: CheckCustomerDuplicatesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof checkCustomerDuplicates>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getCheckCustomerDuplicatesQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof checkCustomerDuplicates>>> = ({ signal }) => checkCustomerDuplicates(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof checkCustomerDuplicates>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type CheckCustomerDuplicatesQueryResult = NonNullable<Awaited<ReturnType<typeof checkCustomerDuplicates>>>
+export type CheckCustomerDuplicatesQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary Find customers with a similar name
+ */
+
+export function useCheckCustomerDuplicates<TData = Awaited<ReturnType<typeof checkCustomerDuplicates>>, TError = ErrorType<ErrorResponse>>(
+ params: CheckCustomerDuplicatesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof checkCustomerDuplicates>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getCheckCustomerDuplicatesQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getGetCustomerUrl = (id: number,) => {
 
@@ -2226,6 +2315,91 @@ export const useCreateJob = <TError = ErrorType<ErrorResponse>,
       > => {
       return useMutation(getCreateJobMutationOptions(options));
     }
+
+export const getCheckJobDuplicatesUrl = (params: CheckJobDuplicatesParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/jobs/check-duplicate?${stringifiedParams}` : `/api/jobs/check-duplicate`
+}
+
+/**
+ * Returns jobs whose name shares ≥50% word-overlap (Jaccard on normalised tokens) with the query string. Used to warn before creating a new job that looks like a duplicate.
+ * @summary Find jobs with a similar name
+ */
+export const checkJobDuplicates = async (params: CheckJobDuplicatesParams, options?: RequestInit): Promise<JobDuplicateCandidate[]> => {
+
+  return customFetch<JobDuplicateCandidate[]>(getCheckJobDuplicatesUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getCheckJobDuplicatesQueryKey = (params?: CheckJobDuplicatesParams,) => {
+    return [
+    `/api/jobs/check-duplicate`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getCheckJobDuplicatesQueryOptions = <TData = Awaited<ReturnType<typeof checkJobDuplicates>>, TError = ErrorType<ErrorResponse>>(params: CheckJobDuplicatesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof checkJobDuplicates>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getCheckJobDuplicatesQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof checkJobDuplicates>>> = ({ signal }) => checkJobDuplicates(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof checkJobDuplicates>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type CheckJobDuplicatesQueryResult = NonNullable<Awaited<ReturnType<typeof checkJobDuplicates>>>
+export type CheckJobDuplicatesQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary Find jobs with a similar name
+ */
+
+export function useCheckJobDuplicates<TData = Awaited<ReturnType<typeof checkJobDuplicates>>, TError = ErrorType<ErrorResponse>>(
+ params: CheckJobDuplicatesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof checkJobDuplicates>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getCheckJobDuplicatesQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getGetJobUrl = (id: number,) => {
 

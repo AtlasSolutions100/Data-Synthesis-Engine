@@ -19,6 +19,7 @@ import {
   DeleteJobParams,
   GetJobCostSummaryParams,
   GetJobCostSummaryResponse,
+  CheckJobDuplicatesQueryParams,
 } from "@workspace/api-zod";
 import {
   getJobTotalsMap,
@@ -29,6 +30,53 @@ import {
 } from "../lib/finance";
 
 const router: IRouter = Router();
+
+/** Normalise a name for comparison: lower-case, trim, collapse whitespace. */
+function normName(s: string): string {
+  return s.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+/**
+ * Jaccard word-overlap between two strings.
+ * Returns the ratio of shared unique tokens to total unique tokens (0–1).
+ * Single-word names that match exactly return 1.0; "Metro" vs "Metro Electric"
+ * returns 0.5 (1 shared / 2 total).
+ */
+function wordOverlap(a: string, b: string): number {
+  const tokensA = normName(a).split(" ").filter(Boolean);
+  const tokensB = normName(b).split(" ").filter(Boolean);
+  if (tokensA.length === 0 && tokensB.length === 0) return 1;
+  if (tokensA.length === 0 || tokensB.length === 0) return 0;
+  const setA = new Set(tokensA);
+  const setB = new Set(tokensB);
+  const intersection = [...setA].filter((t) => setB.has(t)).length;
+  const union = new Set([...tokensA, ...tokensB]).size;
+  return intersection / union;
+}
+
+const DUPLICATE_THRESHOLD = 0.5;
+
+router.get("/jobs/check-duplicate", async (req, res): Promise<void> => {
+  const query = CheckJobDuplicatesQueryParams.safeParse(req.query);
+  if (!query.success) {
+    res.status(400).json({ error: query.error.message });
+    return;
+  }
+  const name = query.data.name;
+  const rows = await db
+    .select({
+      id: jobsTable.id,
+      name: jobsTable.name,
+      customerName: customersTable.name,
+    })
+    .from(jobsTable)
+    .leftJoin(customersTable, eq(customersTable.id, jobsTable.customerId))
+    .where(ne(jobsTable.status, "inactive"));
+  const candidates = rows.filter(
+    (r) => wordOverlap(r.name, name) >= DUPLICATE_THRESHOLD,
+  );
+  res.json(candidates.map((c) => ({ id: c.id, name: c.name, customerName: c.customerName ?? null })));
+});
 
 async function customerExists(customerId: number): Promise<boolean> {
   const [customer] = await db

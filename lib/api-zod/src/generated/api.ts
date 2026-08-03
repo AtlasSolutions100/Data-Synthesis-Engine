@@ -240,6 +240,24 @@ export const CreateCustomerResponse = zod.object({
 
 
 /**
+ * Returns customers whose name shares ≥50% word-overlap (Jaccard on normalised tokens) with the query string. Used to warn before creating a new customer that looks like a duplicate.
+ * @summary Find customers with a similar name
+ */
+
+
+
+export const CheckCustomerDuplicatesQueryParams = zod.object({
+  "name": zod.coerce.string().min(1)
+})
+
+export const CheckCustomerDuplicatesResponseItem = zod.object({
+  "id": zod.number(),
+  "name": zod.string()
+})
+export const CheckCustomerDuplicatesResponse = zod.array(CheckCustomerDuplicatesResponseItem)
+
+
+/**
  * @summary Get a customer
  */
 export const GetCustomerParams = zod.object({
@@ -660,6 +678,25 @@ export const CreateJobResponse = zod.object({
   "invoiceCount": zod.number().optional().describe('Number of invoices billed against this job'),
   "lastInvoicedDate": zod.string().nullish().describe('Date of the most recent invoice for this job (YYYY-MM-DD)')
 })
+
+
+/**
+ * Returns jobs whose name shares ≥50% word-overlap (Jaccard on normalised tokens) with the query string. Used to warn before creating a new job that looks like a duplicate.
+ * @summary Find jobs with a similar name
+ */
+
+
+
+export const CheckJobDuplicatesQueryParams = zod.object({
+  "name": zod.coerce.string().min(1)
+})
+
+export const CheckJobDuplicatesResponseItem = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "customerName": zod.string().nullish()
+})
+export const CheckJobDuplicatesResponse = zod.array(CheckJobDuplicatesResponseItem)
 
 
 /**
