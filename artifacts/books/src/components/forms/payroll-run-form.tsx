@@ -897,6 +897,12 @@ const IMPORT_FILE_MAX_BYTES = 10 * 1024 * 1024;
 const DRAFT_AUTOSAVE_DELAY_MS = 800;
 
 /**
+ * Successive backoff delays (ms) between automatic retry attempts while the
+ * "Couldn't save draft" banner is showing.  Capped at the last value.
+ */
+const BACKOFF_DELAYS_MS = [5_000, 15_000, 30_000];
+
+/**
  * Serializable snapshot of the review stage, autosaved server-side so a
  * partially matched time card survives closing the dialog (P8-TC-01).
  */
@@ -1005,6 +1011,12 @@ function ImportHoursDialog({
   // is pending (last save succeeded, or the failure was a 413 which can't
   // succeed until the draft shrinks, so there is nothing to retry).
   const pendingRetry = useRef<ImportDraftState | null>(null);
+  // Exponential-backoff retry state.  backoffAttempt counts how many timed
+  // retries have fired so far (used to index BACKOFF_DELAYS_MS).
+  // backoffTimer is the live setTimeout handle so we can cancel it on success
+  // or when the draft is cleared.
+  const backoffAttempt = useRef(0);
+  const backoffTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const { data: me } = useGetCurrentUser({
     query: { queryKey: getGetCurrentUserQueryKey() },
@@ -1149,6 +1161,61 @@ function ImportHoursDialog({
     return () => window.removeEventListener("online", handleOnline);
   }, [saveStatus, saveDraft, queryClient]);
 
+  // Backoff timer: while the "Couldn't save" banner is visible, schedule an
+  // automatic retry at 5 s → 15 s → 30 s (capped).  Cancelled immediately
+  // on success, on draft clear, or when a 413 (non-retryable) error surfaces.
+  useEffect(() => {
+    if (saveStatus?.kind !== "error" || !saveStatus.retryable) {
+      // Success or non-retryable error — reset backoff state.
+      backoffAttempt.current = 0;
+      if (backoffTimer.current !== null) {
+        clearTimeout(backoffTimer.current);
+        backoffTimer.current = null;
+      }
+      return;
+    }
+    const delay =
+      BACKOFF_DELAYS_MS[
+        Math.min(backoffAttempt.current, BACKOFF_DELAYS_MS.length - 1)
+      ];
+    const id = setTimeout(() => {
+      backoffTimer.current = null;
+      const state = pendingRetry.current;
+      if (!state || suppressAutosave.current) return;
+      backoffAttempt.current += 1;
+      pendingSave.current = pendingSave.current
+        .then(() => {
+          if (suppressAutosave.current || !pendingRetry.current) return;
+          return saveDraft
+            .mutateAsync({
+              data: { state: state as unknown as Record<string, unknown> },
+            })
+            .then(() => {
+              pendingRetry.current = null;
+              setSaveStatus({ kind: "saved" });
+              queryClient.invalidateQueries({
+                queryKey: getGetPayrollImportDraftQueryKey(),
+              });
+            })
+            .catch((err: unknown) => {
+              const stillRetryable = !isDraftTooLargeError(err);
+              pendingRetry.current = stillRetryable ? state : null;
+              setSaveStatus({
+                kind: "error",
+                message: draftSaveErrorMessage(err),
+                retryable: stillRetryable,
+              });
+            });
+        })
+        .catch(() => {});
+    }, delay);
+    backoffTimer.current = id;
+    return () => {
+      clearTimeout(id);
+      backoffTimer.current = null;
+    };
+  }, [saveStatus, saveDraft, queryClient]);
+
   const employeeOptions = (form.getValues("lines") ?? [])
     .map((l, index) => ({ index, name: l.workerName, type: l.lineType }))
     .filter((o) => o.type === "employee");
@@ -1165,6 +1232,13 @@ function ImportHoursDialog({
     setPeriodNote("");
     setSaveStatus(null);
     pendingRetry.current = null;
+    // Cancel any pending backoff timer so it doesn't fire after the dialog
+    // closes or the draft is cleared.
+    if (backoffTimer.current !== null) {
+      clearTimeout(backoffTimer.current);
+      backoffTimer.current = null;
+    }
+    backoffAttempt.current = 0;
     extract.reset();
   };
 
