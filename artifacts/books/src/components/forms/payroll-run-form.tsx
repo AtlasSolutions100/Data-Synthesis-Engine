@@ -938,7 +938,7 @@ function parseDraftState(raw: unknown): ImportDraftState | null {
 /** Outcome of the most recent draft autosave attempt, shown in the review footer. */
 type DraftSaveStatus =
   | { kind: "saved" }
-  | { kind: "error"; message: string };
+  | { kind: "error"; message: string; retryable: boolean };
 
 /** Human-readable message for a failed draft autosave. */
 function draftSaveErrorMessage(err: unknown): string {
@@ -951,6 +951,14 @@ function draftSaveErrorMessage(err: unknown): string {
     }
   }
   return "Couldn't save draft. Changes here may be lost if you close.";
+}
+
+/**
+ * True when the error is a 413 Payload Too Large.  These are never retried
+ * automatically because retrying can't succeed until the draft shrinks.
+ */
+function isDraftTooLargeError(err: unknown): boolean {
+  return err instanceof ApiError && err.status === 413;
 }
 
 function ImportHoursDialog({
@@ -993,6 +1001,10 @@ function ImportHoursDialog({
   // one, and a delete chained onto the queue always lands last — otherwise
   // a slow PUT could quietly resurrect the draft the user just cleared.
   const pendingSave = useRef<Promise<unknown>>(Promise.resolve());
+  // Snapshot to retry when the connection comes back.  null when no retry
+  // is pending (last save succeeded, or the failure was a 413 which can't
+  // succeed until the draft shrinks, so there is nothing to retry).
+  const pendingRetry = useRef<ImportDraftState | null>(null);
 
   const { data: me } = useGetCurrentUser({
     query: { queryKey: getGetCurrentUserQueryKey() },
@@ -1081,9 +1093,12 @@ function ImportHoursDialog({
               // Surface the failure (non-blocking) instead of swallowing it,
               // so Mike knows his work isn't protected (413 shows the
               // server's "draft too large" message).
+              const retryable = !isDraftTooLargeError(err);
+              pendingRetry.current = retryable ? state : null;
               setSaveStatus({
                 kind: "error",
                 message: draftSaveErrorMessage(err),
+                retryable,
               });
             });
         })
@@ -1095,6 +1110,44 @@ function ImportHoursDialog({
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, stage, rows, assoc, cardYear, periodNote, fileName]);
+
+  // When connectivity is restored after a retryable autosave failure, attempt
+  // the save again immediately — no edit needed to trigger the retry.
+  // 413 failures are excluded: retrying can't succeed until the draft shrinks.
+  useEffect(() => {
+    if (saveStatus?.kind !== "error" || !saveStatus.retryable) return;
+    const handleOnline = () => {
+      const state = pendingRetry.current;
+      if (!state || suppressAutosave.current) return;
+      pendingSave.current = pendingSave.current
+        .then(() => {
+          if (suppressAutosave.current || !pendingRetry.current) return;
+          return saveDraft
+            .mutateAsync({
+              data: { state: state as unknown as Record<string, unknown> },
+            })
+            .then(() => {
+              pendingRetry.current = null;
+              setSaveStatus({ kind: "saved" });
+              queryClient.invalidateQueries({
+                queryKey: getGetPayrollImportDraftQueryKey(),
+              });
+            })
+            .catch((err: unknown) => {
+              const stillRetryable = !isDraftTooLargeError(err);
+              pendingRetry.current = stillRetryable ? state : null;
+              setSaveStatus({
+                kind: "error",
+                message: draftSaveErrorMessage(err),
+                retryable: stillRetryable,
+              });
+            });
+        })
+        .catch(() => {});
+    };
+    window.addEventListener("online", handleOnline);
+    return () => window.removeEventListener("online", handleOnline);
+  }, [saveStatus, saveDraft, queryClient]);
 
   const employeeOptions = (form.getValues("lines") ?? [])
     .map((l, index) => ({ index, name: l.workerName, type: l.lineType }))
@@ -1111,6 +1164,7 @@ function ImportHoursDialog({
     setDragOver(false);
     setPeriodNote("");
     setSaveStatus(null);
+    pendingRetry.current = null;
     extract.reset();
   };
 

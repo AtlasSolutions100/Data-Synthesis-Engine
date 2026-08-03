@@ -504,6 +504,120 @@ describe("Import hours — draft save & resume", () => {
     );
   });
 
+  it("retries the autosave automatically when the browser comes back online", async () => {
+    // First save fails (network down), second save triggered by the online
+    // event succeeds — no edit required.
+    saveDraftMutate
+      .mockImplementationOnce(() => Promise.reject(new Error("network down")))
+      .mockImplementationOnce(() => Promise.resolve({}));
+
+    mutateAsync.mockResolvedValueOnce({
+      rows: [
+        {
+          workerName: "Brendan Friedman",
+          regularHours: 40,
+          overtimeHours: 0,
+          holidayHours: 0,
+          entries: [
+            { date: null, jobName: "HR Stadium", hours: 40, costType: "regular" },
+          ],
+        },
+      ],
+    });
+    renderForm(<PayrollRunForm onSubmit={vi.fn()} defaultValues={defaults} />);
+    await openDialog();
+    const textarea = await screen.findByLabelText(/paste hours text/i);
+    fireEvent.change(textarea, {
+      target: { value: "Brendan Friedman — 40 reg at HR Stadium" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /enter hours/i }));
+    await waitFor(() =>
+      expect(screen.getByText(/will be applied/i)).toBeTruthy(),
+    );
+
+    // Wait for the save failure to surface in the footer.
+    await waitFor(
+      () =>
+        expect(
+          screen.getByTestId("status-draft-save").textContent,
+        ).toMatch(/couldn't save draft/i),
+      { timeout: 3000 },
+    );
+
+    // Simulate connectivity returning.
+    window.dispatchEvent(new Event("online"));
+
+    // Status must flip to "Draft saved" once the retry succeeds.
+    await waitFor(
+      () =>
+        expect(
+          screen.getByTestId("status-draft-save").textContent,
+        ).toMatch(/draft saved/i),
+      { timeout: 3000 },
+    );
+    expect(saveDraftMutate).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not retry a 413 (draft too large) failure on the online event", async () => {
+    const tooLarge =
+      "Draft is too large to save. Apply or discard some of it first.";
+    saveDraftMutate.mockImplementation(() =>
+      Promise.reject(
+        new ApiError(
+          new Response(JSON.stringify({ error: tooLarge }), {
+            status: 413,
+            statusText: "Payload Too Large",
+          }),
+          { error: tooLarge },
+          { method: "PUT", url: "/payroll/import-draft" },
+        ),
+      ),
+    );
+    mutateAsync.mockResolvedValueOnce({
+      rows: [
+        {
+          workerName: "Brendan Friedman",
+          regularHours: 40,
+          overtimeHours: 0,
+          holidayHours: 0,
+          entries: [
+            { date: null, jobName: "HR Stadium", hours: 40, costType: "regular" },
+          ],
+        },
+      ],
+    });
+    renderForm(<PayrollRunForm onSubmit={vi.fn()} defaultValues={defaults} />);
+    await openDialog();
+    const textarea = await screen.findByLabelText(/paste hours text/i);
+    fireEvent.change(textarea, {
+      target: { value: "Brendan Friedman — 40 reg at HR Stadium" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /enter hours/i }));
+    await waitFor(() =>
+      expect(screen.getByText(/will be applied/i)).toBeTruthy(),
+    );
+
+    // Wait for the 413 message to appear.
+    await waitFor(
+      () =>
+        expect(
+          screen.getByTestId("status-draft-save").textContent,
+        ).toContain(tooLarge),
+      { timeout: 3000 },
+    );
+
+    const callsBefore = saveDraftMutate.mock.calls.length;
+
+    // Coming back online must NOT trigger a retry for a 413.
+    window.dispatchEvent(new Event("online"));
+    await new Promise((r) => setTimeout(r, 500));
+
+    expect(saveDraftMutate).toHaveBeenCalledTimes(callsBefore);
+    expect(
+      screen.getByTestId("status-draft-save").textContent,
+    ).toContain(tooLarge);
+  });
+
   it("never lets a stale overlapping autosave resurrect a cleared draft", async () => {
     // First save hangs; a second edit queues another save behind it; then
     // Apply clears the draft. The queued save must be skipped and the
