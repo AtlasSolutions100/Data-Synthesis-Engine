@@ -37,6 +37,9 @@ export const feedbackItemsTable = pgTable(
       onDelete: "set null",
     }),
     resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+    // Stamped whenever an admin changes status; drives the submitter's
+    // "your feedback changed" nav badge (compared to users.feedbackViewedAt).
+    statusChangedAt: timestamp("status_changed_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

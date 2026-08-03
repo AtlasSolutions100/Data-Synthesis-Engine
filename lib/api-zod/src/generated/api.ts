@@ -2893,6 +2893,21 @@ export const ListMyFeedbackResponse = zod.array(ListMyFeedbackResponseItem)
 
 
 /**
+ * Lightweight count used for the submitter's "My Feedback" nav badge. Counts own items with a status change newer than the caller's last-viewed marker.
+ * @summary Count the current user's feedback items whose status changed since they last opened My Feedback
+ */
+export const CountMyFeedbackUpdatesResponse = zod.object({
+  "count": zod.number().describe('Number of feedback items in \"incomplete\" status')
+})
+
+
+/**
+ * @summary Mark the current user's feedback as viewed (clears the My Feedback badge)
+ */
+export const MarkMyFeedbackViewedResponse = zod.void()
+
+
+/**
  * Admins may edit body/status/starred; setting status to complete sets resolvedAt, any other status clears it. Non-admins may edit only their own body, and only while status is incomplete.
  * @summary Update a feedback item
  */

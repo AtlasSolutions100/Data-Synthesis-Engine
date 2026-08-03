@@ -8,6 +8,9 @@ export const usersTable = pgTable("users", {
   email: text("email"),
   name: text("name"),
   role: text("role").notNull().default("bookkeeper"),
+  // Last time this user opened My Feedback; status changes after this
+  // moment light up the "My Feedback" nav badge.
+  feedbackViewedAt: timestamp("feedback_viewed_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

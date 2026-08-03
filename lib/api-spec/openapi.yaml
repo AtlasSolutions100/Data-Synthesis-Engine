@@ -1819,6 +1819,31 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/FeedbackItem"
+  /feedback/mine/updates:
+    get:
+      operationId: countMyFeedbackUpdates
+      tags: [feedback]
+      summary: Count the current user's feedback items whose status changed since they last opened My Feedback
+      description: Lightweight count used for the submitter's "My Feedback" nav badge. Counts own items with a status change newer than the caller's last-viewed marker.
+      responses:
+        "200":
+          description: Count of items with unseen status changes
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FeedbackCount"
+        "401":
+          $ref: "#/components/responses/Error"
+  /feedback/mine/viewed:
+    post:
+      operationId: markMyFeedbackViewed
+      tags: [feedback]
+      summary: Mark the current user's feedback as viewed (clears the My Feedback badge)
+      responses:
+        "204":
+          description: Marker updated
+        "401":
+          $ref: "#/components/responses/Error"
   /feedback/{id}:
     patch:
       operationId: updateFeedback

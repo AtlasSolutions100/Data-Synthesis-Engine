@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { and, desc, eq, gte, lte, sql } from "drizzle-orm";
+import { and, desc, eq, gt, gte, lte, sql } from "drizzle-orm";
 import {
   db,
   feedbackItemsTable,
@@ -19,6 +19,7 @@ import {
   GetFeedbackScreenshotParams,
   CreateFeedbackResponse,
   CountIncompleteFeedbackResponse,
+  CountMyFeedbackUpdatesResponse,
 } from "@workspace/api-zod";
 
 const router: IRouter = Router();
@@ -241,6 +242,47 @@ router.get("/feedback/mine", async (req, res): Promise<void> => {
   res.json(ListMyFeedbackResponse.parse(rows.map(toApiItem)));
 });
 
+// Counts the caller's items whose status changed after they last opened
+// My Feedback — the submitter-side nav badge.
+router.get("/feedback/mine/updates", async (req, res): Promise<void> => {
+  const userId = req.currentUser?.id;
+  if (userId == null) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  const [user] = await db
+    .select({ feedbackViewedAt: usersTable.feedbackViewedAt })
+    .from(usersTable)
+    .where(eq(usersTable.id, userId));
+  const viewedAt = user?.feedbackViewedAt ?? null;
+  const conds = [
+    eq(feedbackItemsTable.submittedBy, userId),
+    sql`${feedbackItemsTable.statusChangedAt} is not null`,
+  ];
+  if (viewedAt) {
+    conds.push(gt(feedbackItemsTable.statusChangedAt, viewedAt));
+  }
+  const [row] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(feedbackItemsTable)
+    .where(and(...conds));
+  res.json(CountMyFeedbackUpdatesResponse.parse({ count: row?.count ?? 0 }));
+});
+
+// Stamps the caller's last-viewed marker; clears the My Feedback badge.
+router.post("/feedback/mine/viewed", async (req, res): Promise<void> => {
+  const userId = req.currentUser?.id;
+  if (userId == null) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  await db
+    .update(usersTable)
+    .set({ feedbackViewedAt: new Date() })
+    .where(eq(usersTable.id, userId));
+  res.sendStatus(204);
+});
+
 router.get("/feedback/:id/screenshot", async (req, res): Promise<void> => {
   const params = GetFeedbackScreenshotParams.safeParse(req.params);
   if (!params.success) {
@@ -295,6 +337,8 @@ router.patch("/feedback/:id", async (req, res): Promise<void> => {
       update.status = parsed.data.status;
       update.resolvedAt =
         parsed.data.status === "complete" ? new Date() : null;
+      // Drives the submitter's "My Feedback" badge.
+      update.statusChangedAt = new Date();
     }
   } else {
     if (parsed.data.status != null || parsed.data.starred != null) {

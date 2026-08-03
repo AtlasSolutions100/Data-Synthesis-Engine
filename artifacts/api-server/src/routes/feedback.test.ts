@@ -171,6 +171,82 @@ describe("incomplete count (nav badge)", () => {
   });
 });
 
+describe("my feedback updates badge", () => {
+  it("counts own items whose status changed since last viewed, and clears on viewed", async () => {
+    // Start from a clean marker.
+    current = { id: userId, role: "bookkeeper" };
+    expect((await request(app).post("/api/feedback/mine/viewed")).status).toBe(
+      204,
+    );
+    const created = await createItem({});
+    expect(created.status).toBe(201);
+
+    // Nothing changed yet — no badge.
+    const none = await request(app).get("/api/feedback/mine/updates");
+    expect(none.status).toBe(200);
+    expect(none.body.count).toBe(0);
+
+    // Owner moves it to in_review — submitter sees 1.
+    current = { id: ownerId, role: "owner" };
+    const moved = await request(app)
+      .patch(`/api/feedback/${created.body.id}`)
+      .send({ status: "in_review" });
+    expect(moved.status).toBe(200);
+
+    current = { id: userId, role: "bookkeeper" };
+    const one = await request(app).get("/api/feedback/mine/updates");
+    expect(one.body.count).toBe(1);
+
+    // Another user sees nothing — the change isn't theirs.
+    current = { id: otherId, role: "bookkeeper" };
+    const foreign = await request(app).get("/api/feedback/mine/updates");
+    expect(foreign.body.count).toBe(0);
+
+    // Opening My Feedback (viewed) clears the badge.
+    current = { id: userId, role: "bookkeeper" };
+    expect((await request(app).post("/api/feedback/mine/viewed")).status).toBe(
+      204,
+    );
+    const cleared = await request(app).get("/api/feedback/mine/updates");
+    expect(cleared.body.count).toBe(0);
+
+    // A later status change lights it up again.
+    current = { id: ownerId, role: "owner" };
+    await request(app)
+      .patch(`/api/feedback/${created.body.id}`)
+      .send({ status: "complete" });
+    current = { id: userId, role: "bookkeeper" };
+    const again = await request(app).get("/api/feedback/mine/updates");
+    expect(again.body.count).toBe(1);
+  });
+
+  it("owner body/star edits don't trigger the badge", async () => {
+    current = { id: userId, role: "bookkeeper" };
+    await request(app).post("/api/feedback/mine/viewed");
+    const created = await createItem({});
+
+    current = { id: ownerId, role: "owner" };
+    await request(app)
+      .patch(`/api/feedback/${created.body.id}`)
+      .send({ starred: true, body: `${TP} tweaked by owner` });
+
+    current = { id: userId, role: "bookkeeper" };
+    const res = await request(app).get("/api/feedback/mine/updates");
+    expect(res.body.count).toBe(0);
+  });
+
+  it("rejects unauthenticated callers", async () => {
+    const prev = current;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    current = null as any;
+    const count = await request(app).get("/api/feedback/mine/updates");
+    expect(count.status).toBe(401);
+    const viewed = await request(app).post("/api/feedback/mine/viewed");
+    expect(viewed.status).toBe(401);
+    current = prev;
+  });
+});
+
 describe("permissions", () => {
   let mineId: string;
   let othersId: string;

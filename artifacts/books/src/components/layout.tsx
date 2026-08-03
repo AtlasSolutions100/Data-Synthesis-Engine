@@ -5,6 +5,8 @@ import {
   getGetCurrentUserQueryKey,
   useCountIncompleteFeedback,
   getCountIncompleteFeedbackQueryKey,
+  useCountMyFeedbackUpdates,
+  getCountMyFeedbackUpdatesQueryKey,
 } from "@workspace/api-client-react";
 import {
   LayoutDashboard,
@@ -44,6 +46,17 @@ export function Layout({ children }: { children: React.ReactNode }) {
     },
   });
   const incompleteCount = isOwner ? (feedbackCount?.count ?? 0) : 0;
+  // Tells submitters their own feedback moved (in review / complete) since
+  // they last opened My Feedback; polls so the badge appears while they work.
+  const { data: myUpdates } = useCountMyFeedbackUpdates({
+    query: {
+      queryKey: getCountMyFeedbackUpdatesQueryKey(),
+      enabled: me != null,
+      refetchInterval: 60_000,
+      refetchOnWindowFocus: true,
+    },
+  });
+  const myUpdatesCount = myUpdates?.count ?? 0;
 
   const navItems = [
     { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -94,6 +107,14 @@ export function Layout({ children }: { children: React.ReactNode }) {
               >
                 <Icon className={`mr-3 h-5 w-5 flex-shrink-0 ${active ? "text-blue-400" : "text-slate-400"}`} />
                 <span className="flex-1">{item.label}</span>
+                {item.href === "/my-feedback" && myUpdatesCount > 0 && (
+                  <span
+                    className="ml-2 inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-blue-500 px-1.5 py-0.5 text-xs font-semibold leading-none text-white"
+                    data-testid="badge-my-feedback-updates"
+                  >
+                    {myUpdatesCount > 99 ? "99+" : myUpdatesCount}
+                  </span>
+                )}
                 {item.href === "/feedback-log" && incompleteCount > 0 && (
                   <span
                     className="ml-2 inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-blue-500 px-1.5 py-0.5 text-xs font-semibold leading-none text-white"

@@ -6979,6 +6979,154 @@ export function useListMyFeedback<TData = Awaited<ReturnType<typeof listMyFeedba
 
 
 
+export const getCountMyFeedbackUpdatesUrl = () => {
+
+
+
+
+  return `/api/feedback/mine/updates`
+}
+
+/**
+ * Lightweight count used for the submitter's "My Feedback" nav badge. Counts own items with a status change newer than the caller's last-viewed marker.
+ * @summary Count the current user's feedback items whose status changed since they last opened My Feedback
+ */
+export const countMyFeedbackUpdates = async ( options?: RequestInit): Promise<FeedbackCount> => {
+
+  return customFetch<FeedbackCount>(getCountMyFeedbackUpdatesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getCountMyFeedbackUpdatesQueryKey = () => {
+    return [
+    `/api/feedback/mine/updates`
+    ] as const;
+    }
+
+
+export const getCountMyFeedbackUpdatesQueryOptions = <TData = Awaited<ReturnType<typeof countMyFeedbackUpdates>>, TError = ErrorType<ErrorResponse>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof countMyFeedbackUpdates>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getCountMyFeedbackUpdatesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof countMyFeedbackUpdates>>> = ({ signal }) => countMyFeedbackUpdates({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof countMyFeedbackUpdates>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type CountMyFeedbackUpdatesQueryResult = NonNullable<Awaited<ReturnType<typeof countMyFeedbackUpdates>>>
+export type CountMyFeedbackUpdatesQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary Count the current user's feedback items whose status changed since they last opened My Feedback
+ */
+
+export function useCountMyFeedbackUpdates<TData = Awaited<ReturnType<typeof countMyFeedbackUpdates>>, TError = ErrorType<ErrorResponse>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof countMyFeedbackUpdates>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getCountMyFeedbackUpdatesQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getMarkMyFeedbackViewedUrl = () => {
+
+
+
+
+  return `/api/feedback/mine/viewed`
+}
+
+/**
+ * @summary Mark the current user's feedback as viewed (clears the My Feedback badge)
+ */
+export const markMyFeedbackViewed = async ( options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getMarkMyFeedbackViewedUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getMarkMyFeedbackViewedMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof markMyFeedbackViewed>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof markMyFeedbackViewed>>, TError,void, TContext> => {
+
+const mutationKey = ['markMyFeedbackViewed'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof markMyFeedbackViewed>>, void> = () => {
+
+
+          return  markMyFeedbackViewed(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type MarkMyFeedbackViewedMutationResult = NonNullable<Awaited<ReturnType<typeof markMyFeedbackViewed>>>
+
+    export type MarkMyFeedbackViewedMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Mark the current user's feedback as viewed (clears the My Feedback badge)
+ */
+export const useMarkMyFeedbackViewed = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof markMyFeedbackViewed>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof markMyFeedbackViewed>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getMarkMyFeedbackViewedMutationOptions(options));
+    }
+
 export const getUpdateFeedbackUrl = (id: string,) => {
 
 

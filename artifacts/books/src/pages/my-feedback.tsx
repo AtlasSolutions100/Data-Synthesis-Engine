@@ -1,8 +1,10 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   useListMyFeedback,
   getListMyFeedbackQueryKey,
   getListFeedbackQueryKey,
+  getCountMyFeedbackUpdatesQueryKey,
+  useMarkMyFeedbackViewed,
   useUpdateFeedback,
   useDeleteFeedback,
   type FeedbackItem,
@@ -184,9 +186,29 @@ function MyFeedbackCard({ item }: { item: FeedbackItem }) {
 }
 
 export default function MyFeedback() {
+  const queryClient = useQueryClient();
   const { data: items, isLoading } = useListMyFeedback({
     query: { queryKey: getListMyFeedbackQueryKey() },
   });
+
+  // Opening this page marks all status changes as seen, which clears the
+  // "My Feedback" nav badge immediately.
+  const markViewed = useMarkMyFeedbackViewed({
+    mutation: {
+      onSuccess: () =>
+        queryClient.invalidateQueries({
+          queryKey: getCountMyFeedbackUpdatesQueryKey(),
+        }),
+    },
+  });
+  const marked = useRef(false);
+  useEffect(() => {
+    if (!marked.current) {
+      marked.current = true;
+      markViewed.mutate();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div className="space-y-6">
