@@ -1,0 +1,28 @@
+Prompt: Build an in-app feedback system
+Add a contextual feedback system to this app with three parts: a submission widget, an admin Feedback Log, and a "My Feedback" page for submitters.
+Data model
+feedback_items table: UUID id; target_type enum (e.g. page, record, dashboard, other — adapt to this app's main entities); nullable target_id; nullable location text storing a human-readable trail of where the feedback was sent from (e.g. "Projects > Acme Job > Schedule"); required body text; status enum (incomplete, in_review, complete) defaulting to incomplete; starred boolean defaulting to false; nullable submitted_by FK to users; nullable resolved_at timestamp; created/updated timestamps. Index by status.
+feedback_screenshots table: one screenshot per feedback item (unique FK, cascade delete), storing mime type + binary data. Accept PNG/JPEG/WEBP only, max 5 MB, sent as base64 and verified by magic bytes server-side.
+API (all authenticated)
+POST /api/feedback — any user; contextual target/location fields, required body, optional screenshot; insert item + screenshot in one transaction.
+GET /api/feedback — admin-only; filters for status, starred, submitter, date range (plus any app-specific context filters); newest first. Non-admins get 403.
+GET /api/feedback/mine — any user, only their own items.
+GET /api/feedback/:id/screenshot — admins can fetch any; others only their own; serve inline binary.
+PATCH /api/feedback/:id — admins may edit body/status/starred; setting status to complete sets resolved_at, any other status clears it. Non-admins may edit only their own body, and only while status is incomplete.
+DELETE /api/feedback/:id — admins delete any; submitters may withdraw their own only while incomplete; cascades the screenshot.
+Submission widget (reusable "Feedback" button) A contextual button that can be dropped onto any page/record. It opens a "Send feedback" dialog that:
+Shows "About: <location trail>" when context exists, otherwise "Tell the developer what's wrong, missing, or confusing here."
+Has a required textarea with placeholder "What should be improved?"
+Supports an optional screenshot via file picker or paste (Ctrl/Cmd+V), with preview and a remove button.
+On submit, sends the contextual target/location, shows a success toast ("Feedback sent — Logged to the Feedback Log"), and invalidates relevant queries.
+Feedback Log (admin-only page)
+Nav link visible only to admin roles.
+Filters: status, starred/unstarred, submitter, date range (+ app-specific context filters).
+Cards show: body, location trail (deep-linked to the spot when navigable, plain trail otherwise), submitter and time, screenshot viewer (opens in dialog), status select with badges, inline body edit, and an amber star toggle labeled "Mark high priority" / "Remove high priority".
+My Feedback (all users)
+Lists only the user's own items: status, date, location, body, screenshot indicator.
+Items are editable/withdrawable only while incomplete; edit dialog notes "You can edit this until the developer starts reviewing it." Withdrawing permanently deletes the item and its screenshot after confirmation.
+Permissions summary
+Admin/developer roles: see the full log, star, change status, edit/delete anything, view any screenshot.
+Everyone else: submit, view/edit/withdraw their own items only while incomplete, view only their own screenshots.
+Add tests covering screenshot upload validation and the my-feedback permission rules.
