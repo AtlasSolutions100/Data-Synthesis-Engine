@@ -351,4 +351,27 @@ describe("JobForm duplicate-check flow", () => {
     const payload = onSubmit.mock.calls[0][0];
     expect(payload.name).toBe("Fail Open Job");
   });
+
+  it("shows all three candidates in the dialog when checkJobDuplicates returns multiple matches", async () => {
+    const onSubmit = vi.fn();
+    mockCheckJobDuplicates.mockResolvedValueOnce([
+      { id: 10, name: "Warehouse Alpha", customerName: "HR Stadium LLC" },
+      { id: 11, name: "Warehouse Beta", customerName: "Douglas County" },
+      { id: 12, name: "Warehouse Gamma", customerName: null },
+    ]);
+
+    render(<JobForm onSubmit={onSubmit} />);
+
+    fireEvent.change(screen.getAllByRole("textbox")[0], {
+      target: { value: "Warehouse New" },
+    });
+    fireEvent.click(internalCheckbox());
+    submit();
+
+    await screen.findByText(/possible duplicate job/i);
+    expect(screen.getAllByText("Warehouse Alpha").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Warehouse Beta").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Warehouse Gamma").length).toBeGreaterThan(0);
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
 });

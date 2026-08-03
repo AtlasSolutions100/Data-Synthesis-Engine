@@ -168,4 +168,23 @@ describe("CustomerForm duplicate-check flow", () => {
     const payload = onSubmit.mock.calls[0][0];
     expect(payload.name).toBe("Fail Open Customer");
   });
+
+  it("shows all three candidates in the dialog when checkCustomerDuplicates returns multiple matches", async () => {
+    const onSubmit = vi.fn();
+    mockCheckCustomerDuplicates.mockResolvedValueOnce([
+      { id: 101, name: "Acme Corp" },
+      { id: 102, name: "Acme Corporation" },
+      { id: 103, name: "Acme Co." },
+    ]);
+
+    render(<CustomerForm onSubmit={onSubmit} />);
+    fillName("Acme Inc");
+    submit();
+
+    await screen.findByText(/possible duplicate customer/i);
+    expect(screen.getAllByText("Acme Corp").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Acme Corporation").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Acme Co.").length).toBeGreaterThan(0);
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
 });
