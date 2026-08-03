@@ -1,0 +1,15 @@
+PHASE 8A — Time Cards 
+These emerged when Mike uploaded a real time card spanning 5 jobs across 5 customers. The Phase 5 flow assumed one job per card.
+ID	Tab	Edit	Acceptance criteria
+P8-TC-01	Time Cards	Add draft / autosave ("task to finish"). When a time card is uploaded and partially matched, save it as a draft so Mike can leave to create missing jobs/customers and return without re-uploading or losing entered work. Show drafts on re-entry with a prompt: keep working or delete.	Upload a card, match 4 of 8 jobs, exit to create the other 4, return → the 4 matched jobs and all entered data are still there. No re-upload needed.
+P8-TC-02	Time Cards	Reorder flow: Step 1 = Employee/Worker, not Customer. A single time card spans multiple jobs/customers, so a top-level "which customer" step is meaningless. The card reads worker name first, then dates, then jobs.	New upload asks for the worker first; the old customer-first step is gone.
+P8-TC-03	Time Cards	Remove the redundant "worker's name" confirmation at save. Because employee is now Step 1 (P8-TC-02), it should not be requested again at save.	Save does not re-prompt for worker name once it's set at Step 1.
+P8-TC-04	Time Cards	Smarter job matching with fuzzy alert. If a job name on the card is a close match to an existing job, auto-post it but flag it: e.g. "this matches ~50%, please confirm." Reduces manual click-through.	Uploading a card with slightly-off job names auto-suggests the likely match with a confirm prompt rather than forcing manual selection every time.
+P8-TC-05	Time Cards	Keep AI auto-create for overhead/office but route it to the customer named "Allied [Year]" (e.g. Allied 2026), not a generic "Overhead Office" job. Anything AI reads as office/overhead codes to Allied [Year].	A card line AI reads as "office" posts to the Allied 2026 customer. (See P8-JOB-02 for creating that record.)
+P8-TC-06	Time Cards	Confirm regular/OT/holiday hours and per-job dollar breakdown still roll up correctly into the pay period after the flow reorder.	Uploaded card shows total regular hours broken out by job, OT at 1.5×, tied to the correct pay period.
+Phase 8A QA — Time Cards
+* Upload a real multi-job card → partial match → exit → return → nothing lost
+* Worker is Step 1; no second name prompt at save
+* Near-match job names get a confirm prompt, not a blank pick
+* "Office" line routes to Allied 2026
+* Hours/OT/pay period roll up correctly after reorder
