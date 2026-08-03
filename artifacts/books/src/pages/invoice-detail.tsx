@@ -48,6 +48,7 @@ import {
 } from "@/components/ui/dialog";
 import { PaymentForm } from "@/components/forms/payment-form";
 import { InvoiceForm } from "@/components/forms/invoice-form";
+import { FeedbackButton } from "@/components/feedback-button";
 import { useQueryClient } from "@tanstack/react-query";
 import { Plus, Trash2, ArrowLeft, Pencil, Eye, Download, Copy } from "lucide-react";
 
@@ -217,6 +218,12 @@ export default function InvoiceDetail() {
           >
             {invoice.status}
           </Badge>
+          <FeedbackButton
+            targetType="invoice"
+            targetId={String(invoice.id)}
+            location={`Invoices > ${invoice.invoiceNumber}`}
+            variant="ghost"
+          />
           {invoice.creditCents > 0 && (
             <Badge
               variant="outline"

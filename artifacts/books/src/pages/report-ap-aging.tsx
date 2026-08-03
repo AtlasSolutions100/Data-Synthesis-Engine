@@ -8,6 +8,7 @@ import {
 import { downloadApAgingPdf } from "@/lib/aging-pdf";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { FeedbackButton } from "@/components/feedback-button";
 import {
   Table,
   TableBody,
@@ -48,9 +49,17 @@ export default function ReportApAging() {
           >
             <ChevronLeft className="h-4 w-4" /> All Reports
           </Link>
-          <h1 className="text-3xl font-bold tracking-tight text-slate-900">
-            Accounts Payable Aging
-          </h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-3xl font-bold tracking-tight text-slate-900">
+              Accounts Payable Aging
+            </h1>
+            <FeedbackButton
+              targetType="report"
+              targetId="/reports/ap-aging"
+              location={`Reports > Accounts Payable Aging`}
+              variant="ghost"
+            />
+          </div>
           {apAging?.asOf && (
             <p className="text-slate-500 mt-1">As of {apAging.asOf}</p>
           )}

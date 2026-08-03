@@ -26,6 +26,7 @@ import {
 } from "@/components/date-range-picker";
 import { EntityCombobox } from "@/components/forms/entity-combobox";
 import { CostAccountDetailRow, toggleKey } from "@/components/reports/shared";
+import { FeedbackButton } from "@/components/feedback-button";
 
 const SECTION_TITLES: Record<string, string> = {
   income: "Income",
@@ -73,9 +74,17 @@ export default function ReportPnl() {
           >
             <ChevronLeft className="h-4 w-4" /> All Reports
           </Link>
-          <h1 className="text-3xl font-bold tracking-tight text-slate-900">
-            Profit &amp; Loss
-          </h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-3xl font-bold tracking-tight text-slate-900">
+              Profit &amp; Loss
+            </h1>
+            <FeedbackButton
+              targetType="report"
+              targetId="/reports/pnl"
+              location={`Reports > Profit & Loss`}
+              variant="ghost"
+            />
+          </div>
           <p className="text-slate-500 mt-1">
             Viewing:{" "}
             <span className="font-medium text-slate-700">

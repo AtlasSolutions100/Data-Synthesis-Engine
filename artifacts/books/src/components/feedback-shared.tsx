@@ -51,6 +51,8 @@ export function feedbackTargetPath(item: FeedbackItem): string | null {
       return `/bills/${item.targetId}`;
     case "invoice":
       return `/invoices/${item.targetId}`;
+    case "report":
+      return item.targetId.startsWith("/") ? item.targetId : null;
     default:
       return null;
   }

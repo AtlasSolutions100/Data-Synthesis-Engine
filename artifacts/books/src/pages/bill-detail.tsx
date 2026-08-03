@@ -36,6 +36,7 @@ import {
 import { PaymentForm } from "@/components/forms/payment-form";
 import { VendorCreditForm } from "@/components/forms/vendor-credit-form";
 import { BillForm } from "@/components/forms/bill-form";
+import { FeedbackButton } from "@/components/feedback-button";
 import {
   toServerFieldError,
   type ServerFieldError,
@@ -152,6 +153,12 @@ export default function BillDetail() {
           >
             {bill.status}
           </Badge>
+          <FeedbackButton
+            targetType="bill"
+            targetId={String(bill.id)}
+            location={`Bills > ${bill.billNumber || `Bill #${bill.id}`}`}
+            variant="ghost"
+          />
           <Dialog
             open={isEditOpen}
             onOpenChange={(open) => {

@@ -37,6 +37,7 @@ import {
 import { useExportToast } from "@/lib/export-toast";
 import { EntityCombobox } from "@/components/forms/entity-combobox";
 import { CostAccountDetailRow, toggleKey } from "@/components/reports/shared";
+import { FeedbackButton } from "@/components/feedback-button";
 
 export default function ReportCosts() {
   const [range, setRange] = useState<DateRangeValue>({});
@@ -84,9 +85,17 @@ export default function ReportCosts() {
           >
             <ChevronLeft className="h-4 w-4" /> All Reports
           </Link>
-          <h1 className="text-3xl font-bold tracking-tight text-slate-900">
-            Costs by Job / Customer / Vendor
-          </h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-3xl font-bold tracking-tight text-slate-900">
+              Costs by Job / Customer / Vendor
+            </h1>
+            <FeedbackButton
+              targetType="report"
+              targetId="/reports/costs"
+              location={`Reports > Costs by Job / Customer / Vendor`}
+              variant="ghost"
+            />
+          </div>
           <p className="text-slate-500 mt-1">
             Viewing:{" "}
             <span className="font-medium text-slate-700">
