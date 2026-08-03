@@ -313,7 +313,7 @@ describe("JobForm duplicate-check flow", () => {
     expect(payload.customerId).toBeNull();
   });
 
-  it("edit mode (defaultValues with a name) skips the check and calls onSubmit directly", async () => {
+  it("edit mode with an unchanged name skips the check and calls onSubmit directly", async () => {
     const onSubmit = vi.fn();
 
     render(
@@ -332,6 +332,65 @@ describe("JobForm duplicate-check flow", () => {
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
     expect(mockCheckJobDuplicates).not.toHaveBeenCalled();
     expect(screen.queryByText(/possible duplicate job/i)).toBeNull();
+  });
+
+  it("edit mode with a changed name runs the check and shows the dialog on a match", async () => {
+    const onSubmit = vi.fn();
+    mockCheckJobDuplicates.mockResolvedValueOnce([
+      { id: 42, name: "Stadium Lights", customerName: "HR Stadium LLC" },
+    ]);
+
+    render(
+      <JobForm
+        onSubmit={onSubmit}
+        defaultValues={{
+          name: "Stadium Lighting",
+          customerId: "7",
+          status: "active",
+        }}
+      />,
+    );
+
+    fireEvent.change(screen.getAllByRole("textbox")[0], {
+      target: { value: "Stadium Lights" },
+    });
+    submit();
+
+    await screen.findByText(/possible duplicate job/i);
+    expect(mockCheckJobDuplicates).toHaveBeenCalledWith({
+      name: "Stadium Lights",
+    });
+    expect(onSubmit).not.toHaveBeenCalled();
+
+    // Confirming submits the renamed payload.
+    fireEvent.click(screen.getByTestId("button-duplicate-confirm"));
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    expect(onSubmit.mock.calls[0][0].name).toBe("Stadium Lights");
+  });
+
+  it("edit mode with a changed name and no match submits directly", async () => {
+    const onSubmit = vi.fn();
+
+    render(
+      <JobForm
+        onSubmit={onSubmit}
+        defaultValues={{
+          name: "Stadium Lighting",
+          customerId: "7",
+          status: "active",
+        }}
+      />,
+    );
+
+    fireEvent.change(screen.getAllByRole("textbox")[0], {
+      target: { value: "Stadium Lighting Phase 2" },
+    });
+    submit();
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    expect(mockCheckJobDuplicates).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText(/possible duplicate job/i)).toBeNull();
+    expect(onSubmit.mock.calls[0][0].name).toBe("Stadium Lighting Phase 2");
   });
 
   it("check-API failure is swallowed and onSubmit is called anyway (fail-open)", async () => {

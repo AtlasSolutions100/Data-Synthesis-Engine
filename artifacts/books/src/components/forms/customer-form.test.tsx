@@ -131,7 +131,60 @@ describe("CustomerForm duplicate-check flow", () => {
     expect(payload.phone).toBeNull();
   });
 
-  it("edit mode (defaultValues with a name) skips the check and calls onSubmit directly", async () => {
+  it("edit mode with a changed name runs the check and shows the dialog on a match", async () => {
+    const onSubmit = vi.fn();
+    mockCheckCustomerDuplicates.mockResolvedValueOnce([
+      { id: 99, name: "Acme Corporation" },
+    ]);
+
+    render(
+      <CustomerForm
+        onSubmit={onSubmit}
+        defaultValues={{
+          name: "Existing Corp",
+          email: "existing@example.com",
+        }}
+      />,
+    );
+
+    fillName("Acme Corporation Inc");
+    submit();
+
+    await screen.findByText(/possible duplicate customer/i);
+    expect(mockCheckCustomerDuplicates).toHaveBeenCalledWith({
+      name: "Acme Corporation Inc",
+    });
+    expect(onSubmit).not.toHaveBeenCalled();
+
+    // Confirming submits the renamed payload.
+    fireEvent.click(screen.getByTestId("button-duplicate-confirm"));
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    expect(onSubmit.mock.calls[0][0].name).toBe("Acme Corporation Inc");
+  });
+
+  it("edit mode with a changed name and no match submits directly", async () => {
+    const onSubmit = vi.fn();
+
+    render(
+      <CustomerForm
+        onSubmit={onSubmit}
+        defaultValues={{
+          name: "Existing Corp",
+          email: "existing@example.com",
+        }}
+      />,
+    );
+
+    fillName("Renamed Corp");
+    submit();
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    expect(mockCheckCustomerDuplicates).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText(/possible duplicate customer/i)).toBeNull();
+    expect(onSubmit.mock.calls[0][0].name).toBe("Renamed Corp");
+  });
+
+  it("edit mode with an unchanged name skips the check and calls onSubmit directly", async () => {
     const onSubmit = vi.fn();
 
     render(

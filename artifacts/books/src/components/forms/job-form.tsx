@@ -99,8 +99,8 @@ export function JobForm({ defaultValues, onSubmit, isLoading }: JobFormProps) {
   const handleSubmit = async (values: JobFormValues) => {
     const payload = buildPayload(values);
 
-    // Only check for duplicates in create mode (no existing name in defaultValues).
-    if (!defaultValues?.name) {
+    // Check for duplicates in create mode, or in edit mode when the name changed.
+    if (!defaultValues?.name || values.name !== defaultValues.name) {
       try {
         const candidates = await checkJobDuplicates({ name: values.name });
         if (candidates.length > 0) {

@@ -64,8 +64,8 @@ export function CustomerForm({ defaultValues, onSubmit, isLoading }: CustomerFor
   const handleSubmit = async (values: CustomerFormValues) => {
     const payload = buildPayload(values);
 
-    // Only check for duplicates in create mode (no existing name in defaultValues).
-    if (!defaultValues?.name) {
+    // Check for duplicates in create mode, or in edit mode when the name changed.
+    if (!defaultValues?.name || values.name !== defaultValues.name) {
       try {
         const candidates = await checkCustomerDuplicates({ name: values.name });
         if (candidates.length > 0) {
