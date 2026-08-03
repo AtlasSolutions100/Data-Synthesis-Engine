@@ -32,6 +32,8 @@ import ReportCosts from "./pages/report-costs";
 import ReportArAging from "./pages/report-ar-aging";
 import ReportApAging from "./pages/report-ap-aging";
 import UsersPage from "./pages/users";
+import MyFeedback from "./pages/my-feedback";
+import FeedbackLog from "./pages/feedback-log";
 import { Layout } from "./components/layout";
 import {
   useGetCurrentUser,
@@ -279,6 +281,8 @@ function ClerkProviderWithRoutes() {
           <Route path="/reports/costs"><ProtectedRoute component={ReportCosts} /></Route>
           <Route path="/reports/ar-aging"><ProtectedRoute component={ReportArAging} /></Route>
           <Route path="/reports/ap-aging"><ProtectedRoute component={ReportApAging} /></Route>
+          <Route path="/my-feedback"><ProtectedRoute component={MyFeedback} /></Route>
+          <Route path="/feedback-log"><OwnerRoute component={FeedbackLog} /></Route>
           <Route path="/users"><OwnerRoute component={UsersPage} /></Route>
           <Route component={NotFound} />
         </Switch>

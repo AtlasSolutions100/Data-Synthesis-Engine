@@ -13,6 +13,7 @@ import documentsRouter from "./documents";
 import storageRouter from "./storage";
 import reportsRouter from "./reports";
 import importDataRouter from "./importData";
+import feedbackRouter from "./feedback";
 
 const router: IRouter = Router();
 
@@ -30,5 +31,6 @@ router.use(documentsRouter);
 router.use(storageRouter);
 router.use(reportsRouter);
 router.use(importDataRouter);
+router.use(feedbackRouter);
 
 export default router;

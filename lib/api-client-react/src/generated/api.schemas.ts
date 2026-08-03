@@ -15,6 +15,91 @@ export interface Error {
   field?: string;
 }
 
+export type FeedbackTargetType = typeof FeedbackTargetType[keyof typeof FeedbackTargetType];
+
+
+export const FeedbackTargetType = {
+  page: 'page',
+  job: 'job',
+  bill: 'bill',
+  invoice: 'invoice',
+  transaction: 'transaction',
+  report: 'report',
+  other: 'other',
+} as const;
+
+export type FeedbackStatus = typeof FeedbackStatus[keyof typeof FeedbackStatus];
+
+
+export const FeedbackStatus = {
+  incomplete: 'incomplete',
+  in_review: 'in_review',
+  complete: 'complete',
+} as const;
+
+export interface FeedbackItem {
+  id: string;
+  targetType: FeedbackTargetType;
+  /** @nullable */
+  targetId?: string | null;
+  /**
+     * Human-readable trail of where the feedback was sent from, e.g. "Jobs > Larkspur Gear"
+     * @nullable
+     */
+  location?: string | null;
+  body: string;
+  status: FeedbackStatus;
+  starred: boolean;
+  /** @nullable */
+  submittedBy?: number | null;
+  /**
+     * Display name of the submitter (name, else email)
+     * @nullable
+     */
+  submitterName?: string | null;
+  /** @nullable */
+  resolvedAt?: string | null;
+  hasScreenshot: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type FeedbackInputScreenshotMimeType = typeof FeedbackInputScreenshotMimeType[keyof typeof FeedbackInputScreenshotMimeType];
+
+
+export const FeedbackInputScreenshotMimeType = {
+  'image/png': 'image/png',
+  'image/jpeg': 'image/jpeg',
+  'image/webp': 'image/webp',
+} as const;
+
+/**
+ * Optional screenshot; base64 (no data-URL prefix), PNG/JPEG/WEBP only, 5 MB max, verified by magic bytes server-side.
+ */
+export type FeedbackInputScreenshot = {
+  mimeType: FeedbackInputScreenshotMimeType;
+  data: string;
+};
+
+export interface FeedbackInput {
+  targetType?: FeedbackTargetType;
+  /** @nullable */
+  targetId?: string | null;
+  /** @nullable */
+  location?: string | null;
+  /** @minLength 1 */
+  body: string;
+  /** Optional screenshot; base64 (no data-URL prefix), PNG/JPEG/WEBP only, 5 MB max, verified by magic bytes server-side. */
+  screenshot?: FeedbackInputScreenshot;
+}
+
+export interface FeedbackUpdate {
+  /** @minLength 1 */
+  body?: string;
+  status?: FeedbackStatus;
+  starred?: boolean;
+}
+
 export interface DuplicateInvoiceNumberError {
   error: string;
   field: string;
@@ -2087,4 +2172,40 @@ startDate?: StartDateParamParameter;
  */
 endDate?: EndDateParamParameter;
 };
+
+export type ListFeedbackParams = {
+status?: ListFeedbackStatus;
+/**
+ * Pass the literal string "true" or "false" to filter by star
+ */
+starred?: ListFeedbackStarred;
+submittedBy?: number;
+/**
+ * Inclusive start of the date range (YYYY-MM-DD). Omit for no lower bound.
+ * @pattern ^\d{4}-\d{2}-\d{2}$
+ */
+startDate?: StartDateParamParameter;
+/**
+ * Inclusive end of the date range (YYYY-MM-DD). Omit for no upper bound.
+ * @pattern ^\d{4}-\d{2}-\d{2}$
+ */
+endDate?: EndDateParamParameter;
+};
+
+export type ListFeedbackStatus = typeof ListFeedbackStatus[keyof typeof ListFeedbackStatus];
+
+
+export const ListFeedbackStatus = {
+  incomplete: 'incomplete',
+  in_review: 'in_review',
+  complete: 'complete',
+} as const;
+
+export type ListFeedbackStarred = typeof ListFeedbackStarred[keyof typeof ListFeedbackStarred];
+
+
+export const ListFeedbackStarred = {
+  true: 'true',
+  false: 'false',
+} as const;
 

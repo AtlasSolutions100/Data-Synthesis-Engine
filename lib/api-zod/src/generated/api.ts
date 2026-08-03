@@ -2765,3 +2765,147 @@ export const GetStorageObjectParams = zod.object({
 export const GetStorageObjectResponse = zod.unknown()
 
 
+/**
+ * @summary Submit a feedback item (any authenticated user)
+ */
+
+
+
+export const CreateFeedbackBody = zod.object({
+  "targetType": zod.enum(['page', 'job', 'bill', 'invoice', 'transaction', 'report', 'other']).optional(),
+  "targetId": zod.string().nullish(),
+  "location": zod.string().nullish(),
+  "body": zod.string().min(1),
+  "screenshot": zod.object({
+  "mimeType": zod.enum(['image/png', 'image/jpeg', 'image/webp']),
+  "data": zod.string()
+}).optional().describe('Optional screenshot; base64 (no data-URL prefix), PNG\/JPEG\/WEBP only, 5 MB max, verified by magic bytes server-side.')
+})
+
+export const CreateFeedbackResponse = zod.object({
+  "id": zod.string(),
+  "targetType": zod.enum(['page', 'job', 'bill', 'invoice', 'transaction', 'report', 'other']),
+  "targetId": zod.string().nullish(),
+  "location": zod.string().nullish().describe('Human-readable trail of where the feedback was sent from, e.g. \"Jobs > Larkspur Gear\"'),
+  "body": zod.string(),
+  "status": zod.enum(['incomplete', 'in_review', 'complete']),
+  "starred": zod.boolean(),
+  "submittedBy": zod.number().nullish(),
+  "submitterName": zod.string().nullish().describe('Display name of the submitter (name, else email)'),
+  "resolvedAt": zod.string().nullish(),
+  "hasScreenshot": zod.boolean(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary List all feedback items (admin only)
+ */
+export const listFeedbackQueryStartDateRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+export const listFeedbackQueryEndDateRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+
+
+export const ListFeedbackQueryParams = zod.object({
+  "status": zod.enum(['incomplete', 'in_review', 'complete']).optional(),
+  "starred": zod.enum(['true', 'false']).optional().describe('Pass the literal string \"true\" or \"false\" to filter by star'),
+  "submittedBy": zod.coerce.number().optional(),
+  "startDate": zod.coerce.string().regex(listFeedbackQueryStartDateRegExp).optional().describe('Inclusive start of the date range (YYYY-MM-DD). Omit for no lower bound.'),
+  "endDate": zod.coerce.string().regex(listFeedbackQueryEndDateRegExp).optional().describe('Inclusive end of the date range (YYYY-MM-DD). Omit for no upper bound.')
+})
+
+export const ListFeedbackResponseItem = zod.object({
+  "id": zod.string(),
+  "targetType": zod.enum(['page', 'job', 'bill', 'invoice', 'transaction', 'report', 'other']),
+  "targetId": zod.string().nullish(),
+  "location": zod.string().nullish().describe('Human-readable trail of where the feedback was sent from, e.g. \"Jobs > Larkspur Gear\"'),
+  "body": zod.string(),
+  "status": zod.enum(['incomplete', 'in_review', 'complete']),
+  "starred": zod.boolean(),
+  "submittedBy": zod.number().nullish(),
+  "submitterName": zod.string().nullish().describe('Display name of the submitter (name, else email)'),
+  "resolvedAt": zod.string().nullish(),
+  "hasScreenshot": zod.boolean(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+export const ListFeedbackResponse = zod.array(ListFeedbackResponseItem)
+
+
+/**
+ * @summary List the current user's own feedback items
+ */
+export const ListMyFeedbackResponseItem = zod.object({
+  "id": zod.string(),
+  "targetType": zod.enum(['page', 'job', 'bill', 'invoice', 'transaction', 'report', 'other']),
+  "targetId": zod.string().nullish(),
+  "location": zod.string().nullish().describe('Human-readable trail of where the feedback was sent from, e.g. \"Jobs > Larkspur Gear\"'),
+  "body": zod.string(),
+  "status": zod.enum(['incomplete', 'in_review', 'complete']),
+  "starred": zod.boolean(),
+  "submittedBy": zod.number().nullish(),
+  "submitterName": zod.string().nullish().describe('Display name of the submitter (name, else email)'),
+  "resolvedAt": zod.string().nullish(),
+  "hasScreenshot": zod.boolean(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+export const ListMyFeedbackResponse = zod.array(ListMyFeedbackResponseItem)
+
+
+/**
+ * Admins may edit body/status/starred; setting status to complete sets resolvedAt, any other status clears it. Non-admins may edit only their own body, and only while status is incomplete.
+ * @summary Update a feedback item
+ */
+export const UpdateFeedbackParams = zod.object({
+  "id": zod.coerce.string().uuid()
+})
+
+
+
+
+export const UpdateFeedbackBody = zod.object({
+  "body": zod.string().min(1).optional(),
+  "status": zod.enum(['incomplete', 'in_review', 'complete']).optional(),
+  "starred": zod.boolean().optional()
+})
+
+export const UpdateFeedbackResponse = zod.object({
+  "id": zod.string(),
+  "targetType": zod.enum(['page', 'job', 'bill', 'invoice', 'transaction', 'report', 'other']),
+  "targetId": zod.string().nullish(),
+  "location": zod.string().nullish().describe('Human-readable trail of where the feedback was sent from, e.g. \"Jobs > Larkspur Gear\"'),
+  "body": zod.string(),
+  "status": zod.enum(['incomplete', 'in_review', 'complete']),
+  "starred": zod.boolean(),
+  "submittedBy": zod.number().nullish(),
+  "submitterName": zod.string().nullish().describe('Display name of the submitter (name, else email)'),
+  "resolvedAt": zod.string().nullish(),
+  "hasScreenshot": zod.boolean(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * Admins delete any; submitters may withdraw their own only while incomplete. The screenshot is deleted with it.
+ * @summary Delete (withdraw) a feedback item
+ */
+export const DeleteFeedbackParams = zod.object({
+  "id": zod.coerce.string().uuid()
+})
+
+export const DeleteFeedbackResponse = zod.void()
+
+
+/**
+ * Admins can fetch any screenshot; other users only their own.
+ * @summary Serve a feedback screenshot inline
+ */
+export const GetFeedbackScreenshotParams = zod.object({
+  "id": zod.coerce.string().uuid()
+})
+
+export const GetFeedbackScreenshotResponse = zod.unknown()
+
+

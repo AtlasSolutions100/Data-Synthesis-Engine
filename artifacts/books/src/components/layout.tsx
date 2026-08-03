@@ -18,7 +18,10 @@ import {
   FileText,
   FileInput,
   CircleDollarSign,
+  MessageSquare,
+  MessagesSquare,
 } from "lucide-react";
+import { FeedbackButton } from "./feedback-button";
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
@@ -40,10 +43,17 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { href: "/employees", label: "Employees", icon: Users },
     { href: "/payroll", label: "Time Cards", icon: CircleDollarSign },
     { href: "/reports", label: "Reports", icon: FileBarChart },
+    { href: "/my-feedback", label: "My Feedback", icon: MessageSquare },
     ...(me?.role === "owner"
-      ? [{ href: "/users", label: "Users", icon: ShieldCheck }]
+      ? [
+          { href: "/feedback-log", label: "Feedback Log", icon: MessagesSquare },
+          { href: "/users", label: "Users", icon: ShieldCheck },
+        ]
       : []),
   ];
+
+  // Human-readable trail for the global Feedback button, e.g. "Reports".
+  const currentNav = navItems.find((i) => location.startsWith(i.href));
 
   return (
     <div className="min-h-screen bg-slate-50 flex">
@@ -102,6 +112,15 @@ export function Layout({ children }: { children: React.ReactNode }) {
             {children}
           </div>
         </main>
+        <div className="fixed bottom-6 right-6 z-20">
+          <FeedbackButton
+            targetType="page"
+            targetId={location}
+            location={currentNav?.label}
+            variant="secondary"
+            className="shadow-lg border border-slate-200 bg-white hover:bg-slate-50"
+          />
+        </div>
       </div>
     </div>
   );

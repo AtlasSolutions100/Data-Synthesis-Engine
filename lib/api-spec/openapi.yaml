@@ -34,6 +34,8 @@ tags:
     description: Per-job document management
   - name: Storage
     description: Object storage upload and serving endpoints.
+  - name: feedback
+    description: In-app feedback items and screenshots
 paths:
   /healthz:
     get:
@@ -1686,8 +1688,145 @@ paths:
         "500":
           $ref: "#/components/responses/Error"
 
+  /feedback:
+    post:
+      operationId: createFeedback
+      tags: [feedback]
+      summary: Submit a feedback item (any authenticated user)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FeedbackInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FeedbackItem"
+        "400":
+          $ref: "#/components/responses/Error"
+    get:
+      operationId: listFeedback
+      tags: [feedback]
+      summary: List all feedback items (admin only)
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [incomplete, in_review, complete]
+        - name: starred
+          in: query
+          required: false
+          description: Pass the literal string "true" or "false" to filter by star
+          schema:
+            type: string
+            enum: ["true", "false"]
+        - name: submittedBy
+          in: query
+          required: false
+          schema:
+            type: integer
+        - $ref: "#/components/parameters/StartDateParam"
+        - $ref: "#/components/parameters/EndDateParam"
+      responses:
+        "200":
+          description: Feedback items, newest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/FeedbackItem"
+        "403":
+          $ref: "#/components/responses/Error"
+  /feedback/mine:
+    get:
+      operationId: listMyFeedback
+      tags: [feedback]
+      summary: List the current user's own feedback items
+      responses:
+        "200":
+          description: Own feedback items, newest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/FeedbackItem"
+  /feedback/{id}:
+    patch:
+      operationId: updateFeedback
+      tags: [feedback]
+      summary: Update a feedback item
+      description: Admins may edit body/status/starred; setting status to complete sets resolvedAt, any other status clears it. Non-admins may edit only their own body, and only while status is incomplete.
+      parameters:
+        - $ref: "#/components/parameters/UuidIdParam"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FeedbackUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FeedbackItem"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+    delete:
+      operationId: deleteFeedback
+      tags: [feedback]
+      summary: Delete (withdraw) a feedback item
+      description: Admins delete any; submitters may withdraw their own only while incomplete. The screenshot is deleted with it.
+      parameters:
+        - $ref: "#/components/parameters/UuidIdParam"
+      responses:
+        "204":
+          description: Deleted
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+  /feedback/{id}/screenshot:
+    get:
+      operationId: getFeedbackScreenshot
+      tags: [feedback]
+      summary: Serve a feedback screenshot inline
+      description: Admins can fetch any screenshot; other users only their own.
+      parameters:
+        - $ref: "#/components/parameters/UuidIdParam"
+      responses:
+        "200":
+          description: Screenshot binary
+          content:
+            "image/*":
+              schema:
+                type: string
+                format: binary
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+
 components:
   parameters:
+    UuidIdParam:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
     IdParam:
       name: id
       in: path
@@ -1744,6 +1883,78 @@ components:
           description: >-
             Machine-readable path of the form field the error relates to,
             e.g. "vendorId", "jobId", or "lines.1.accountId".
+
+    FeedbackTargetType:
+      type: string
+      enum: [page, job, bill, invoice, transaction, report, other]
+    FeedbackStatus:
+      type: string
+      enum: [incomplete, in_review, complete]
+    FeedbackItem:
+      type: object
+      required: [id, targetType, body, status, starred, createdAt, updatedAt, hasScreenshot]
+      properties:
+        id:
+          type: string
+        targetType:
+          $ref: "#/components/schemas/FeedbackTargetType"
+        targetId:
+          type: ["string", "null"]
+        location:
+          type: ["string", "null"]
+          description: Human-readable trail of where the feedback was sent from, e.g. "Jobs > Larkspur Gear"
+        body:
+          type: string
+        status:
+          $ref: "#/components/schemas/FeedbackStatus"
+        starred:
+          type: boolean
+        submittedBy:
+          type: ["integer", "null"]
+        submitterName:
+          type: ["string", "null"]
+          description: Display name of the submitter (name, else email)
+        resolvedAt:
+          type: ["string", "null"]
+        hasScreenshot:
+          type: boolean
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+    FeedbackInput:
+      type: object
+      required: [body]
+      properties:
+        targetType:
+          $ref: "#/components/schemas/FeedbackTargetType"
+        targetId:
+          type: ["string", "null"]
+        location:
+          type: ["string", "null"]
+        body:
+          type: string
+          minLength: 1
+        screenshot:
+          type: object
+          description: Optional screenshot; base64 (no data-URL prefix), PNG/JPEG/WEBP only, 5 MB max, verified by magic bytes server-side.
+          required: [mimeType, data]
+          properties:
+            mimeType:
+              type: string
+              enum: [image/png, image/jpeg, image/webp]
+            data:
+              type: string
+    FeedbackUpdate:
+      type: object
+      properties:
+        body:
+          type: string
+          minLength: 1
+        status:
+          $ref: "#/components/schemas/FeedbackStatus"
+        starred:
+          type: boolean
 
     DuplicateInvoiceNumberError:
       type: object

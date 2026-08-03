@@ -31,6 +31,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { TransactionForm } from "@/components/forms/transaction-form";
 import { JobDocuments } from "@/components/job-documents";
+import { FeedbackButton } from "@/components/feedback-button";
 import {
   toServerFieldError,
   type ServerFieldError,
@@ -239,6 +240,12 @@ export default function JobDetail() {
         <div>
           <div className="flex items-center gap-3">
             <h1 className="text-3xl font-bold tracking-tight text-slate-900">{job.name}</h1>
+            <FeedbackButton
+              targetType="job"
+              targetId={String(job.id)}
+              location={`Jobs > ${job.name}`}
+              variant="ghost"
+            />
             <Badge
               variant={
                 job.status === "inactive"
