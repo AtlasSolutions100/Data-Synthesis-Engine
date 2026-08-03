@@ -54,7 +54,13 @@ vi.mock("@workspace/api-client-react", async (importOriginal) => {
     useListCustomers: () => ({ data: [], isLoading: false }),
     useCreateCustomer: () => ({ mutateAsync: vi.fn(), isPending: false }),
     useGetPayrollImportDraft: () => ({
-      data: { state: draftState, updatedAt: draftState ? "2026-08-01" : null },
+      data: {
+        state: draftState,
+        // Saved two days ago — the banner should say so.
+        updatedAt: draftState
+          ? new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString()
+          : null,
+      },
       isLoading: false,
     }),
     getGetPayrollImportDraftQueryKey: () => ["payroll-import-draft"],
@@ -173,6 +179,8 @@ describe("Import hours — draft save & resume", () => {
     // Resume prompt names the file so Mike knows which card it was.
     expect(screen.getByTestId("banner-import-draft")).toBeTruthy();
     expect(screen.getByText(/week28\.pdf/)).toBeTruthy();
+    // ...and when it was last saved, so a stale draft is obvious.
+    expect(screen.getByText(/saved 2 days ago/i)).toBeTruthy();
 
     fireEvent.click(screen.getByTestId("button-resume-draft"));
 

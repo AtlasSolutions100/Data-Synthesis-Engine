@@ -44,7 +44,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { parseDollars, formatCents } from "@/lib/format";
+import {
+  parseDollars,
+  formatCents,
+  formatRelativeTimestamp,
+} from "@/lib/format";
 import { looksLikePersonName } from "@/lib/person-name";
 import {
   currentPayPeriod,
@@ -1679,7 +1683,11 @@ function ImportHoursDialog({
                 <div className="text-sm text-amber-900">
                   <p className="font-medium">
                     You have an unfinished import
-                    {savedDraft.fileName ? ` (${savedDraft.fileName})` : ""}.
+                    {savedDraft.fileName ? ` (${savedDraft.fileName})` : ""}
+                    {draftData?.updatedAt
+                      ? `, saved ${formatRelativeTimestamp(draftData.updatedAt)}`
+                      : ""}
+                    .
                   </p>
                   <p className="text-xs text-amber-800">
                     Pick up where you left off, or delete it and start fresh.
