@@ -26,4 +26,5 @@
 - [Hours-import job confirmation](import-job-confirmation.md) — person-like extracted job names always require explicit confirmation, even if a job with that exact name exists.
 - [Zod boolean query coercion](zod-boolean-query-coercion.md) — coerced boolean query params turn "false" into true; require the literal raw "true" string for sensitive flags.
 - [SSN masked round-trip](ssn-masked-roundtrip.md) — masked •••-••-1234 is a display token: list sends ssnMasked, forms/server treat •-values as "unchanged", dots never stored.
+- [Import draft autosave](import-draft-autosave.md) — per-user jsonb draft; chain DELETE behind in-flight PUT, cap opaque body size (413), shape-validate restored state.
 - [Drizzle raw-sql array params](drizzle-sql-array-param.md) — arrays in sql`` expand to "($1,$2)" IN-list syntax; `= any(${arr})` breaks — use IN with sql.raw ids.

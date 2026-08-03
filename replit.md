@@ -9,7 +9,7 @@ A desktop-first, browser-based job-costing and construction-accounting app that 
 - `pnpm run typecheck` — full typecheck across all packages
 - `pnpm run build` — typecheck + build all packages
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
-- `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
+- `pnpm --filter @workspace/db run push` — push DB schema changes (dev only). There are no migration files by design: production schema changes are applied automatically as a diff when the app is Published (Replit deploy), so a table pushed in dev reaches prod at the next Publish.
 - Required env: `DATABASE_URL`, `CLERK_SECRET_KEY`, `CLERK_PUBLISHABLE_KEY`, `VITE_CLERK_PUBLISHABLE_KEY`
 
 ### Re-seed historical QuickBooks data (one-time / idempotent)

@@ -2655,6 +2655,36 @@ export const ExtractPayrollHoursResponse = zod.object({
 
 
 /**
+ * Returns the saved wizard state for a partially matched time card, or a null state when no draft exists.
+ * @summary Get the signed-in user's in-progress hours-import draft
+ */
+export const GetPayrollImportDraftResponse = zod.object({
+  "state": zod.record(zod.string(), zod.unknown()).nullable().describe('Saved wizard state, or null when the user has no draft'),
+  "updatedAt": zod.string().nullable().describe('When the draft was last autosaved (ISO timestamp)')
+})
+
+
+/**
+ * Autosaved by the import wizard while reviewing a time card so closing the dialog never loses work. One draft per user; saving replaces the previous one.
+ * @summary Save (upsert) the signed-in user's hours-import draft
+ */
+export const SavePayrollImportDraftBody = zod.object({
+  "state": zod.record(zod.string(), zod.unknown()).describe('Opaque import-wizard state (extracted rows, confirmed matches, selections)')
+})
+
+export const SavePayrollImportDraftResponse = zod.object({
+  "state": zod.record(zod.string(), zod.unknown()).nullable().describe('Saved wizard state, or null when the user has no draft'),
+  "updatedAt": zod.string().nullable().describe('When the draft was last autosaved (ISO timestamp)')
+})
+
+
+/**
+ * @summary Delete the signed-in user's hours-import draft
+ */
+export const DeletePayrollImportDraftResponse = zod.void()
+
+
+/**
  * @summary Get the currently signed-in user (with role)
  */
 export const GetCurrentUserResponse = zod.object({

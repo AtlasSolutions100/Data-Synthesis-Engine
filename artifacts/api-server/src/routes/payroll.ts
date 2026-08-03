@@ -10,6 +10,7 @@ import {
   jobsTable,
   employeesTable,
   vendorsTable,
+  payrollImportDraftsTable,
 } from "@workspace/db";
 import {
   ListPayrollRunsQueryParams,
@@ -28,6 +29,9 @@ import {
   UnpostPayrollRunResponse,
   ExtractPayrollHoursBody,
   ExtractPayrollHoursResponse,
+  SavePayrollImportDraftBody,
+  SavePayrollImportDraftResponse,
+  GetPayrollImportDraftResponse,
   MAX_EXTRACT_TEXT_LENGTH,
   extractTextTooLargeMessage,
 } from "@workspace/api-zod";
@@ -388,6 +392,82 @@ function normalizeLines(
     allocations: l.allocations ?? [],
   }));
 }
+
+// ---------------------------------------------------------------------------
+// Hours-import drafts (P8-TC-01): one autosaved in-progress import per user,
+// so a partially matched time card survives closing the dialog or reloading.
+// ---------------------------------------------------------------------------
+
+router.get("/payroll/import-draft", async (req, res): Promise<void> => {
+  const userId = req.currentUser?.id;
+  if (!userId) {
+    res.status(401).json({ error: "Not signed in" });
+    return;
+  }
+  const [row] = await db
+    .select()
+    .from(payrollImportDraftsTable)
+    .where(eq(payrollImportDraftsTable.userId, userId));
+  res.json(
+    GetPayrollImportDraftResponse.parse({
+      state: row ? row.state : null,
+      updatedAt: row ? row.updatedAt.toISOString() : null,
+    }),
+  );
+});
+
+// A draft is a modest wizard snapshot (rows + matches), never a file upload.
+// Cap it well below the app-wide JSON body limit so a signed-in user can't
+// bloat the database with oversized opaque payloads.
+const IMPORT_DRAFT_MAX_BYTES = 256 * 1024;
+
+router.put("/payroll/import-draft", async (req, res): Promise<void> => {
+  const userId = req.currentUser?.id;
+  if (!userId) {
+    res.status(401).json({ error: "Not signed in" });
+    return;
+  }
+  const parsed = SavePayrollImportDraftBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+  if (
+    Buffer.byteLength(JSON.stringify(parsed.data.state), "utf8") >
+    IMPORT_DRAFT_MAX_BYTES
+  ) {
+    res.status(413).json({
+      error: "Draft is too large to save. Apply or discard some of it first.",
+    });
+    return;
+  }
+  const [row] = await db
+    .insert(payrollImportDraftsTable)
+    .values({ userId, state: parsed.data.state })
+    .onConflictDoUpdate({
+      target: payrollImportDraftsTable.userId,
+      set: { state: parsed.data.state, updatedAt: new Date() },
+    })
+    .returning();
+  res.json(
+    SavePayrollImportDraftResponse.parse({
+      state: row.state,
+      updatedAt: row.updatedAt.toISOString(),
+    }),
+  );
+});
+
+router.delete("/payroll/import-draft", async (req, res): Promise<void> => {
+  const userId = req.currentUser?.id;
+  if (!userId) {
+    res.status(401).json({ error: "Not signed in" });
+    return;
+  }
+  await db
+    .delete(payrollImportDraftsTable)
+    .where(eq(payrollImportDraftsTable.userId, userId));
+  res.status(204).end();
+});
 
 router.get("/payroll-runs", async (req, res): Promise<void> => {
   const query = ListPayrollRunsQueryParams.safeParse(req.query);

@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   useForm,
   useFieldArray,
@@ -68,6 +68,10 @@ import {
   useCreateJob,
   useCreateCustomer,
   useCreateEmployee,
+  useGetPayrollImportDraft,
+  getGetPayrollImportDraftQueryKey,
+  useSavePayrollImportDraft,
+  useDeletePayrollImportDraft,
   type PayrollRunInput,
   type Employee,
   type ExtractedHourRow,
@@ -884,6 +888,48 @@ function StatusBadge({ status }: { status: ImportStatus }) {
 
 const IMPORT_FILE_MAX_BYTES = 10 * 1024 * 1024;
 
+/** Wait this long after the last review edit before autosaving the draft. */
+const DRAFT_AUTOSAVE_DELAY_MS = 800;
+
+/**
+ * Serializable snapshot of the review stage, autosaved server-side so a
+ * partially matched time card survives closing the dialog (P8-TC-01).
+ */
+interface ImportDraftState {
+  rows: ReviewRow[];
+  assoc: Record<string, JobAssociation>;
+  cardYear: number;
+  periodNote: string;
+  payPeriodStart: string;
+  fileName: string;
+}
+
+/** Parse a saved draft state defensively; null when it isn't usable. */
+function parseDraftState(raw: unknown): ImportDraftState | null {
+  if (!raw || typeof raw !== "object") return null;
+  const s = raw as Partial<ImportDraftState>;
+  if (!Array.isArray(s.rows) || s.rows.length === 0) return null;
+  // Each row must at least look like a ReviewRow, or the review table crashes.
+  for (const row of s.rows) {
+    if (!row || typeof row !== "object") return null;
+    const r = row as Partial<ReviewRow>;
+    if (typeof r.workerName !== "string") return null;
+    if (!Array.isArray(r.jobKeys)) return null;
+    if (!Array.isArray(r.entries) || !Array.isArray(r.flags)) return null;
+  }
+  if (!s.assoc || typeof s.assoc !== "object") return null;
+  return {
+    rows: s.rows,
+    assoc: s.assoc as Record<string, JobAssociation>,
+    cardYear:
+      typeof s.cardYear === "number" ? s.cardYear : new Date().getFullYear(),
+    periodNote: typeof s.periodNote === "string" ? s.periodNote : "",
+    payPeriodStart:
+      typeof s.payPeriodStart === "string" ? s.payPeriodStart : "",
+    fileName: typeof s.fileName === "string" ? s.fileName : "",
+  };
+}
+
 function ImportHoursDialog({
   form,
   employees,
@@ -913,6 +959,14 @@ function ImportHoursDialog({
   // Guards against a slow earlier extraction overwriting a newer one when
   // the user drops a second file before the first finishes.
   const extractSeq = useRef(0);
+  // Stops the autosave timer from re-creating the draft after a successful
+  // Apply (which deletes it) or after the user discards it.
+  const suppressAutosave = useRef(false);
+  // Serialized autosave queue: each save waits for the previous one, so
+  // out-of-order responses can't overwrite a newer snapshot with a stale
+  // one, and a delete chained onto the queue always lands last — otherwise
+  // a slow PUT could quietly resurrect the draft the user just cleared.
+  const pendingSave = useRef<Promise<unknown>>(Promise.resolve());
 
   const { data: me } = useGetCurrentUser({
     query: { queryKey: getGetCurrentUserQueryKey() },
@@ -927,6 +981,84 @@ function ImportHoursDialog({
     query: { queryKey: getListCustomersQueryKey() },
   });
   const queryClient = useQueryClient();
+
+  // Server-side draft: one in-progress import per user (P8-TC-01).
+  const { data: draftData } = useGetPayrollImportDraft({
+    query: { queryKey: getGetPayrollImportDraftQueryKey() },
+  });
+  const saveDraft = useSavePayrollImportDraft();
+  const deleteDraft = useDeletePayrollImportDraft();
+  const savedDraft = parseDraftState(draftData?.state ?? null);
+
+  const clearDraft = () => {
+    suppressAutosave.current = true;
+    // Chain onto the serialized save queue so the DELETE always lands last.
+    pendingSave.current = pendingSave.current.then(() => {
+      deleteDraft.mutate(undefined, {
+        onSettled: () => {
+          queryClient.invalidateQueries({
+            queryKey: getGetPayrollImportDraftQueryKey(),
+          });
+        },
+      });
+    });
+  };
+
+  const resumeDraft = (draft: ImportDraftState) => {
+    suppressAutosave.current = false;
+    setRows(draft.rows);
+    setAssoc(draft.assoc);
+    setCardYear(draft.cardYear);
+    setPeriodNote(draft.periodNote);
+    setFileName(draft.fileName);
+    if (
+      draft.payPeriodStart &&
+      form.getValues("payPeriodStart") !== draft.payPeriodStart
+    ) {
+      const p = payPeriodForStart(draft.payPeriodStart);
+      if (p) applyPeriod(p);
+    }
+    setStage("review");
+  };
+
+  // Autosave the review state after each pause in editing, so closing the
+  // dialog (or reloading the page) never loses a partially matched card.
+  useEffect(() => {
+    if (!open || stage !== "review" || rows.length === 0) return;
+    if (suppressAutosave.current) return;
+    const timer = setTimeout(() => {
+      if (suppressAutosave.current) return;
+      const state: ImportDraftState = {
+        rows,
+        assoc,
+        cardYear,
+        periodNote,
+        payPeriodStart: form.getValues("payPeriodStart") || "",
+        fileName,
+      };
+      pendingSave.current = pendingSave.current
+        .then(() => {
+          // Re-check inside the queue: a clear may have happened while an
+          // earlier save was still in flight.
+          if (suppressAutosave.current) return;
+          return saveDraft
+            .mutateAsync({
+              data: { state: state as unknown as Record<string, unknown> },
+            })
+            .then(() => {
+              queryClient.invalidateQueries({
+                queryKey: getGetPayrollImportDraftQueryKey(),
+              });
+            });
+        })
+        .catch(() => {
+          // Autosave is a safety net — a failed save must never block the
+          // wizard (or the delete that may be queued behind it).
+        });
+    }, DRAFT_AUTOSAVE_DELAY_MS);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, stage, rows, assoc, cardYear, periodNote, fileName]);
 
   const employeeOptions = (form.getValues("lines") ?? [])
     .map((l, index) => ({ index, name: l.workerName, type: l.lineType }))
@@ -1225,6 +1357,7 @@ function ImportHoursDialog({
       );
       setCardYear(year);
       const built = buildReview(result.rows, year);
+      suppressAutosave.current = false;
       setRows(built.rows);
       setAssoc(built.associations);
       setStage("review");
@@ -1480,6 +1613,8 @@ function ImportHoursDialog({
         });
       }
     });
+    // The import made it into the run — the safety-net draft is done.
+    clearDraft();
     handleOpenChange(false);
   };
 
@@ -1503,6 +1638,41 @@ function ImportHoursDialog({
 
         {stage === "input" ? (
           <div className="space-y-4">
+            {savedDraft ? (
+              <div
+                className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3"
+                data-testid="banner-import-draft"
+              >
+                <div className="text-sm text-amber-900">
+                  <p className="font-medium">
+                    You have an unfinished import
+                    {savedDraft.fileName ? ` (${savedDraft.fileName})` : ""}.
+                  </p>
+                  <p className="text-xs text-amber-800">
+                    Pick up where you left off, or delete it and start fresh.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={() => resumeDraft(savedDraft)}
+                    data-testid="button-resume-draft"
+                  >
+                    Keep working
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={clearDraft}
+                    data-testid="button-delete-draft"
+                  >
+                    Delete draft
+                  </Button>
+                </div>
+              </div>
+            ) : null}
             <div
               className={`flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed px-6 py-10 text-center transition-colors ${
                 dragOver ? "border-blue-500 bg-blue-50" : "border-slate-300"

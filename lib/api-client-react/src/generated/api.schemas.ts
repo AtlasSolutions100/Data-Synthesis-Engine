@@ -1843,6 +1843,35 @@ export interface ExtractPayrollHoursResult {
   rows: ExtractedHourRow[];
 }
 
+/**
+ * Opaque import-wizard state (extracted rows, confirmed matches, selections)
+ */
+export type PayrollImportDraftInputState = { [key: string]: unknown };
+
+export interface PayrollImportDraftInput {
+  /** Opaque import-wizard state (extracted rows, confirmed matches, selections) */
+  state: PayrollImportDraftInputState;
+}
+
+/**
+ * Saved wizard state, or null when the user has no draft
+ * @nullable
+ */
+export type PayrollImportDraftState = { [key: string]: unknown } | null;
+
+export interface PayrollImportDraft {
+  /**
+     * Saved wizard state, or null when the user has no draft
+     * @nullable
+     */
+  state: PayrollImportDraftState;
+  /**
+     * When the draft was last autosaved (ISO timestamp)
+     * @nullable
+     */
+  updatedAt: string | null;
+}
+
 export interface EmployeeTimecardRow {
   runId: number;
   payPeriodStart: string;

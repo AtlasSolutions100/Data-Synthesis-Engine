@@ -1537,6 +1537,52 @@ paths:
                 $ref: "#/components/schemas/ExtractPayrollHoursResult"
         "400":
           $ref: "#/components/responses/Error"
+  /payroll/import-draft:
+    get:
+      operationId: getPayrollImportDraft
+      tags: [payroll]
+      summary: Get the signed-in user's in-progress hours-import draft
+      description: Returns the saved wizard state for a partially matched time card, or a null state when no draft exists.
+      responses:
+        "200":
+          description: Draft envelope (state is null when there is no draft)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PayrollImportDraft"
+        "401":
+          $ref: "#/components/responses/Error"
+    put:
+      operationId: savePayrollImportDraft
+      tags: [payroll]
+      summary: Save (upsert) the signed-in user's hours-import draft
+      description: Autosaved by the import wizard while reviewing a time card so closing the dialog never loses work. One draft per user; saving replaces the previous one.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PayrollImportDraftInput"
+      responses:
+        "200":
+          description: Saved draft
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PayrollImportDraft"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Error"
+    delete:
+      operationId: deletePayrollImportDraft
+      tags: [payroll]
+      summary: Delete the signed-in user's hours-import draft
+      responses:
+        "204":
+          description: Deleted (also returned when no draft existed)
+        "401":
+          $ref: "#/components/responses/Error"
 
   /users/me:
     get:
@@ -3869,6 +3915,25 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ExtractedHourRow"
+    PayrollImportDraftInput:
+      type: object
+      required: [state]
+      properties:
+        state:
+          type: object
+          additionalProperties: true
+          description: Opaque import-wizard state (extracted rows, confirmed matches, selections)
+    PayrollImportDraft:
+      type: object
+      required: [state, updatedAt]
+      properties:
+        state:
+          type: ["object", "null"]
+          additionalProperties: true
+          description: Saved wizard state, or null when the user has no draft
+        updatedAt:
+          type: ["string", "null"]
+          description: When the draft was last autosaved (ISO timestamp)
     EmployeeTimecardRow:
       type: object
       required:

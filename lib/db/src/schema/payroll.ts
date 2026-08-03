@@ -8,9 +8,11 @@ import {
   boolean,
   date,
   timestamp,
+  jsonb,
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
+import { usersTable } from "./users";
 import { accountsTable } from "./accounts";
 import { employeesTable } from "./employees";
 import { vendorsTable } from "./vendors";
@@ -123,6 +125,29 @@ export const payrollAllocationsTable = pgTable("payroll_allocations", {
     .notNull()
     .references(() => jobsTable.id, { onDelete: "restrict" }),
   amountCents: bigint("amount_cents", { mode: "number" }).notNull(),
+});
+
+/**
+ * One in-progress hours-import per user (P8-TC-01). The wizard autosaves its
+ * review state here so a partially matched time card survives closing the
+ * dialog or reloading the page; cleared on successful Apply or explicit
+ * delete. `state` is opaque client wizard state (extracted rows, confirmed
+ * matches, selections) — never posted to the ledger.
+ */
+export const payrollImportDraftsTable = pgTable("payroll_import_drafts", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id")
+    .notNull()
+    .unique()
+    .references(() => usersTable.id, { onDelete: "cascade" }),
+  state: jsonb("state").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => new Date()),
 });
 
 export const insertPayrollRunSchema = createInsertSchema(payrollRunsTable).omit({

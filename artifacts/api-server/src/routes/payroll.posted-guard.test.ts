@@ -102,10 +102,36 @@ function lineBody(l: (typeof LINE_INPUTS)[number], regularHours?: number) {
   };
 }
 
+/**
+ * Remove every run/transaction referencing the test labor accounts, then the
+ * accounts themselves. Runs both before (stale rows from a crashed earlier
+ * run would otherwise break inserts/cleanup) and after the suite.
+ */
+async function purgeTestFixtures() {
+  const staleAccts = await db
+    .select({ id: accountsTable.id })
+    .from(accountsTable)
+    .where(eq(accountsTable.number, "TEST-PG-6100"));
+  for (const a of staleAccts) {
+    const staleRuns = await db
+      .select({ id: payrollRunsTable.id })
+      .from(payrollRunsTable)
+      .where(eq(payrollRunsTable.laborAccountId, a.id));
+    for (const r of staleRuns) {
+      await db
+        .delete(transactionsTable)
+        .where(eq(transactionsTable.payrollRunId, r.id));
+      await db.delete(payrollRunsTable).where(eq(payrollRunsTable.id, r.id));
+    }
+    await db.delete(accountsTable).where(eq(accountsTable.id, a.id));
+  }
+}
+
 beforeAll(async () => {
   const { default: payrollRouter } = await import("./payroll");
   payrollApp = buildApp(payrollRouter);
 
+  await purgeTestFixtures();
   const [acct] = await db
     .insert(accountsTable)
     .values({
@@ -118,15 +144,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  if (runId != null) {
-    await db
-      .delete(transactionsTable)
-      .where(eq(transactionsTable.payrollRunId, runId));
-    await db.delete(payrollRunsTable).where(eq(payrollRunsTable.id, runId));
-  }
-  if (laborAcctId != null) {
-    await db.delete(accountsTable).where(eq(accountsTable.id, laborAcctId));
-  }
+  await purgeTestFixtures();
 });
 
 describe("posted payroll run edit guard and re-post reconciliation", () => {

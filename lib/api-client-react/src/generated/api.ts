@@ -94,6 +94,8 @@ import type {
   ListTransactionsParams,
   ManualBillLinkBody,
   PayrollByJob,
+  PayrollImportDraft,
+  PayrollImportDraftInput,
   PayrollRun,
   PayrollRunInput,
   PayrollRunUpdate,
@@ -5922,6 +5924,225 @@ export const useExtractPayrollHours = <TError = ErrorType<ErrorResponse>,
         TContext
       > => {
       return useMutation(getExtractPayrollHoursMutationOptions(options));
+    }
+
+export const getGetPayrollImportDraftUrl = () => {
+
+
+
+
+  return `/api/payroll/import-draft`
+}
+
+/**
+ * Returns the saved wizard state for a partially matched time card, or a null state when no draft exists.
+ * @summary Get the signed-in user's in-progress hours-import draft
+ */
+export const getPayrollImportDraft = async ( options?: RequestInit): Promise<PayrollImportDraft> => {
+
+  return customFetch<PayrollImportDraft>(getGetPayrollImportDraftUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPayrollImportDraftQueryKey = () => {
+    return [
+    `/api/payroll/import-draft`
+    ] as const;
+    }
+
+
+export const getGetPayrollImportDraftQueryOptions = <TData = Awaited<ReturnType<typeof getPayrollImportDraft>>, TError = ErrorType<ErrorResponse>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPayrollImportDraft>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPayrollImportDraftQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPayrollImportDraft>>> = ({ signal }) => getPayrollImportDraft({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPayrollImportDraft>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetPayrollImportDraftQueryResult = NonNullable<Awaited<ReturnType<typeof getPayrollImportDraft>>>
+export type GetPayrollImportDraftQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary Get the signed-in user's in-progress hours-import draft
+ */
+
+export function useGetPayrollImportDraft<TData = Awaited<ReturnType<typeof getPayrollImportDraft>>, TError = ErrorType<ErrorResponse>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPayrollImportDraft>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetPayrollImportDraftQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getSavePayrollImportDraftUrl = () => {
+
+
+
+
+  return `/api/payroll/import-draft`
+}
+
+/**
+ * Autosaved by the import wizard while reviewing a time card so closing the dialog never loses work. One draft per user; saving replaces the previous one.
+ * @summary Save (upsert) the signed-in user's hours-import draft
+ */
+export const savePayrollImportDraft = async (payrollImportDraftInput: PayrollImportDraftInput, options?: RequestInit): Promise<PayrollImportDraft> => {
+
+  return customFetch<PayrollImportDraft>(getSavePayrollImportDraftUrl(),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(payrollImportDraftInput)
+  }
+);}
+
+
+
+
+export const getSavePayrollImportDraftMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof savePayrollImportDraft>>, TError,{data: BodyType<PayrollImportDraftInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof savePayrollImportDraft>>, TError,{data: BodyType<PayrollImportDraftInput>}, TContext> => {
+
+const mutationKey = ['savePayrollImportDraft'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof savePayrollImportDraft>>, {data: BodyType<PayrollImportDraftInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  savePayrollImportDraft(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SavePayrollImportDraftMutationResult = NonNullable<Awaited<ReturnType<typeof savePayrollImportDraft>>>
+    export type SavePayrollImportDraftMutationBody = BodyType<PayrollImportDraftInput>
+    export type SavePayrollImportDraftMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Save (upsert) the signed-in user's hours-import draft
+ */
+export const useSavePayrollImportDraft = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof savePayrollImportDraft>>, TError,{data: BodyType<PayrollImportDraftInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof savePayrollImportDraft>>,
+        TError,
+        {data: BodyType<PayrollImportDraftInput>},
+        TContext
+      > => {
+      return useMutation(getSavePayrollImportDraftMutationOptions(options));
+    }
+
+export const getDeletePayrollImportDraftUrl = () => {
+
+
+
+
+  return `/api/payroll/import-draft`
+}
+
+/**
+ * @summary Delete the signed-in user's hours-import draft
+ */
+export const deletePayrollImportDraft = async ( options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getDeletePayrollImportDraftUrl(),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+export const getDeletePayrollImportDraftMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deletePayrollImportDraft>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deletePayrollImportDraft>>, TError,void, TContext> => {
+
+const mutationKey = ['deletePayrollImportDraft'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deletePayrollImportDraft>>, void> = () => {
+
+
+          return  deletePayrollImportDraft(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeletePayrollImportDraftMutationResult = NonNullable<Awaited<ReturnType<typeof deletePayrollImportDraft>>>
+
+    export type DeletePayrollImportDraftMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Delete the signed-in user's hours-import draft
+ */
+export const useDeletePayrollImportDraft = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deletePayrollImportDraft>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deletePayrollImportDraft>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getDeletePayrollImportDraftMutationOptions(options));
     }
 
 export const getGetCurrentUserUrl = () => {
