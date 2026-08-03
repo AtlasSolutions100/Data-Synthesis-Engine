@@ -76,6 +76,7 @@ import {
   type Employee,
   type ExtractedHourRow,
   type Job,
+  ApiError,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { splitCentsByWeights } from "@/lib/hours-split";
@@ -930,6 +931,24 @@ function parseDraftState(raw: unknown): ImportDraftState | null {
   };
 }
 
+/** Outcome of the most recent draft autosave attempt, shown in the review footer. */
+type DraftSaveStatus =
+  | { kind: "saved" }
+  | { kind: "error"; message: string };
+
+/** Human-readable message for a failed draft autosave. */
+function draftSaveErrorMessage(err: unknown): string {
+  if (err instanceof ApiError) {
+    const data = err.data as { error?: unknown } | null;
+    if (data && typeof data.error === "string" && data.error) {
+      // Server messages (e.g. the 413 "draft too large" cap) explain the
+      // failure better than a generic fallback.
+      return data.error;
+    }
+  }
+  return "Couldn't save draft. Changes here may be lost if you close.";
+}
+
 function ImportHoursDialog({
   form,
   employees,
@@ -956,6 +975,9 @@ function ImportHoursDialog({
   const [cardYear, setCardYear] = useState(() => new Date().getFullYear());
   const [dragOver, setDragOver] = useState(false);
   const [periodNote, setPeriodNote] = useState("");
+  // Last autosave outcome, surfaced as a non-blocking status in the review
+  // footer so a silently failing save (offline, oversized draft) is visible.
+  const [saveStatus, setSaveStatus] = useState<DraftSaveStatus | null>(null);
   // Guards against a slow earlier extraction overwriting a newer one when
   // the user drops a second file before the first finishes.
   const extractSeq = useRef(0);
@@ -1046,8 +1068,18 @@ function ImportHoursDialog({
               data: { state: state as unknown as Record<string, unknown> },
             })
             .then(() => {
+              setSaveStatus({ kind: "saved" });
               queryClient.invalidateQueries({
                 queryKey: getGetPayrollImportDraftQueryKey(),
+              });
+            })
+            .catch((err: unknown) => {
+              // Surface the failure (non-blocking) instead of swallowing it,
+              // so Mike knows his work isn't protected (413 shows the
+              // server's "draft too large" message).
+              setSaveStatus({
+                kind: "error",
+                message: draftSaveErrorMessage(err),
               });
             });
         })
@@ -1074,6 +1106,7 @@ function ImportHoursDialog({
     setAssoc({});
     setDragOver(false);
     setPeriodNote("");
+    setSaveStatus(null);
     extract.reset();
   };
 
@@ -2009,14 +2042,33 @@ function ImportHoursDialog({
                 </TableBody>
               </Table>
             </div>
-            <div className="flex justify-between">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setStage("input")}
-              >
-                Back
-              </Button>
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setStage("input")}
+                >
+                  Back
+                </Button>
+                {saveStatus?.kind === "saved" ? (
+                  <span
+                    className="text-xs text-slate-500"
+                    data-testid="status-draft-save"
+                  >
+                    Draft saved
+                  </span>
+                ) : null}
+                {saveStatus?.kind === "error" ? (
+                  <span
+                    className="flex items-start gap-1 text-xs text-amber-600"
+                    data-testid="status-draft-save"
+                  >
+                    <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
+                    {saveStatus.message}
+                  </span>
+                ) : null}
+              </div>
               <div className="flex items-center gap-2">
                 {isOwner && unconfirmedJobCount > 0 && appliedCount > 0 ? (
                   // Owner override (P5-TC-13): flagged job names are skipped

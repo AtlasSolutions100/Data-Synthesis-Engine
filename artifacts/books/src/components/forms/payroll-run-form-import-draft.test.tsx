@@ -8,6 +8,7 @@ import {
 } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { PayrollRunForm } from "./payroll-run-form";
+import { ApiError } from "@workspace/api-client-react";
 
 /**
  * Hours-import drafts (P8-TC-01): a partially matched time card is autosaved
@@ -322,6 +323,177 @@ describe("Import hours — draft save & resume", () => {
     // Once the save settles, the queued delete runs.
     resolveSave({});
     await waitFor(() => expect(deleteDraftMutate).toHaveBeenCalledTimes(1));
+  });
+
+  it("shows 'Draft saved' in the review footer after a successful autosave", async () => {
+    mutateAsync.mockResolvedValueOnce({
+      rows: [
+        {
+          workerName: "Brendan Friedman",
+          regularHours: 40,
+          overtimeHours: 0,
+          holidayHours: 0,
+          entries: [
+            { date: null, jobName: "HR Stadium", hours: 40, costType: "regular" },
+          ],
+        },
+      ],
+    });
+    renderForm(<PayrollRunForm onSubmit={vi.fn()} defaultValues={defaults} />);
+    await openDialog();
+    const textarea = await screen.findByLabelText(/paste hours text/i);
+    fireEvent.change(textarea, {
+      target: { value: "Brendan Friedman — 40 reg at HR Stadium" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /enter hours/i }));
+    await waitFor(() =>
+      expect(screen.getByText(/will be applied/i)).toBeTruthy(),
+    );
+
+    await waitFor(
+      () =>
+        expect(
+          screen.getByTestId("status-draft-save").textContent,
+        ).toMatch(/draft saved/i),
+      { timeout: 3000 },
+    );
+  });
+
+  it("shows a non-blocking warning when the autosave fails", async () => {
+    saveDraftMutate.mockImplementation(() =>
+      Promise.reject(new Error("network down")),
+    );
+    mutateAsync.mockResolvedValueOnce({
+      rows: [
+        {
+          workerName: "Brendan Friedman",
+          regularHours: 40,
+          overtimeHours: 0,
+          holidayHours: 0,
+          entries: [
+            { date: null, jobName: "HR Stadium", hours: 40, costType: "regular" },
+          ],
+        },
+      ],
+    });
+    renderForm(<PayrollRunForm onSubmit={vi.fn()} defaultValues={defaults} />);
+    await openDialog();
+    const textarea = await screen.findByLabelText(/paste hours text/i);
+    fireEvent.change(textarea, {
+      target: { value: "Brendan Friedman — 40 reg at HR Stadium" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /enter hours/i }));
+    await waitFor(() =>
+      expect(screen.getByText(/will be applied/i)).toBeTruthy(),
+    );
+
+    await waitFor(
+      () =>
+        expect(
+          screen.getByTestId("status-draft-save").textContent,
+        ).toMatch(/couldn't save draft/i),
+      { timeout: 3000 },
+    );
+    // Never blocking: the wizard is still fully usable.
+    expect(
+      (screen.getByRole("button", { name: /apply hours/i }) as HTMLButtonElement)
+        .disabled,
+    ).toBe(false);
+  });
+
+  it("surfaces the server's 413 'draft too large' message", async () => {
+    const tooLarge =
+      "Draft is too large to save. Apply or discard some of it first.";
+    saveDraftMutate.mockImplementation(() =>
+      Promise.reject(
+        new ApiError(
+          new Response(JSON.stringify({ error: tooLarge }), {
+            status: 413,
+            statusText: "Payload Too Large",
+          }),
+          { error: tooLarge },
+          { method: "PUT", url: "/payroll/import-draft" },
+        ),
+      ),
+    );
+    mutateAsync.mockResolvedValueOnce({
+      rows: [
+        {
+          workerName: "Brendan Friedman",
+          regularHours: 40,
+          overtimeHours: 0,
+          holidayHours: 0,
+          entries: [
+            { date: null, jobName: "HR Stadium", hours: 40, costType: "regular" },
+          ],
+        },
+      ],
+    });
+    renderForm(<PayrollRunForm onSubmit={vi.fn()} defaultValues={defaults} />);
+    await openDialog();
+    const textarea = await screen.findByLabelText(/paste hours text/i);
+    fireEvent.change(textarea, {
+      target: { value: "Brendan Friedman — 40 reg at HR Stadium" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /enter hours/i }));
+    await waitFor(() =>
+      expect(screen.getByText(/will be applied/i)).toBeTruthy(),
+    );
+
+    await waitFor(
+      () =>
+        expect(
+          screen.getByTestId("status-draft-save").textContent,
+        ).toContain(tooLarge),
+      { timeout: 3000 },
+    );
+  });
+
+  it("replaces a save failure with 'Draft saved' once a later autosave succeeds", async () => {
+    saveDraftMutate.mockImplementationOnce(() =>
+      Promise.reject(new Error("network down")),
+    );
+    mutateAsync.mockResolvedValueOnce({
+      rows: [
+        {
+          workerName: "Brendan Friedman",
+          regularHours: 40,
+          overtimeHours: 0,
+          holidayHours: 0,
+          entries: [
+            { date: null, jobName: "HR Stadium", hours: 40, costType: "regular" },
+          ],
+        },
+      ],
+    });
+    renderForm(<PayrollRunForm onSubmit={vi.fn()} defaultValues={defaults} />);
+    await openDialog();
+    const textarea = await screen.findByLabelText(/paste hours text/i);
+    fireEvent.change(textarea, {
+      target: { value: "Brendan Friedman — 40 reg at HR Stadium" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /enter hours/i }));
+    await waitFor(() =>
+      expect(screen.getByText(/will be applied/i)).toBeTruthy(),
+    );
+    await waitFor(
+      () =>
+        expect(
+          screen.getByTestId("status-draft-save").textContent,
+        ).toMatch(/couldn't save draft/i),
+      { timeout: 3000 },
+    );
+
+    // Another edit triggers a new autosave that now succeeds.
+    const hoursInput = screen.getAllByDisplayValue("40")[0] as HTMLInputElement;
+    fireEvent.change(hoursInput, { target: { value: "41" } });
+    await waitFor(
+      () =>
+        expect(
+          screen.getByTestId("status-draft-save").textContent,
+        ).toMatch(/draft saved/i),
+      { timeout: 3000 },
+    );
   });
 
   it("never lets a stale overlapping autosave resurrect a cleared draft", async () => {
