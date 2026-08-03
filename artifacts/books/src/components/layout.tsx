@@ -155,13 +155,16 @@ export function Layout({ children }: { children: React.ReactNode }) {
             {children}
           </div>
         </main>
-        <div className="fixed bottom-6 right-6 z-20">
+        {/* z-[60] sits above dialog/sheet overlays (z-50) so the button stays
+            visible while any pop-up is open. text-slate-700 overrides the
+            secondary variant's white foreground (invisible against bg-white). */}
+        <div className="fixed bottom-6 right-6 z-[60]">
           <FeedbackButton
             targetType="page"
             targetId={location}
             location={currentNav?.label}
             variant="secondary"
-            className="shadow-lg border border-slate-200 bg-white hover:bg-slate-50"
+            className="shadow-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700"
           />
         </div>
       </div>
