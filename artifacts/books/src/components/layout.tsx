@@ -3,6 +3,8 @@ import { useClerk, useUser } from "@clerk/react";
 import {
   useGetCurrentUser,
   getGetCurrentUserQueryKey,
+  useCountIncompleteFeedback,
+  getCountIncompleteFeedbackQueryKey,
 } from "@workspace/api-client-react";
 import {
   LayoutDashboard,
@@ -30,6 +32,18 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const { data: me } = useGetCurrentUser({
     query: { queryKey: getGetCurrentUserQueryKey() },
   });
+  const isOwner = me?.role === "owner";
+  // Surfaces new reports without opening the log; polls so the badge stays
+  // fresh while the owner works elsewhere in the app.
+  const { data: feedbackCount } = useCountIncompleteFeedback({
+    query: {
+      queryKey: getCountIncompleteFeedbackQueryKey(),
+      enabled: isOwner,
+      refetchInterval: 60_000,
+      refetchOnWindowFocus: true,
+    },
+  });
+  const incompleteCount = isOwner ? (feedbackCount?.count ?? 0) : 0;
 
   const navItems = [
     { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -44,7 +58,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { href: "/payroll", label: "Time Cards", icon: CircleDollarSign },
     { href: "/reports", label: "Reports", icon: FileBarChart },
     { href: "/my-feedback", label: "My Feedback", icon: MessageSquare },
-    ...(me?.role === "owner"
+    ...(isOwner
       ? [
           { href: "/feedback-log", label: "Feedback Log", icon: MessagesSquare },
           { href: "/users", label: "Users", icon: ShieldCheck },
@@ -79,7 +93,15 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 }`}
               >
                 <Icon className={`mr-3 h-5 w-5 flex-shrink-0 ${active ? "text-blue-400" : "text-slate-400"}`} />
-                {item.label}
+                <span className="flex-1">{item.label}</span>
+                {item.href === "/feedback-log" && incompleteCount > 0 && (
+                  <span
+                    className="ml-2 inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-blue-500 px-1.5 py-0.5 text-xs font-semibold leading-none text-white"
+                    data-testid="badge-feedback-count"
+                  >
+                    {incompleteCount > 99 ? "99+" : incompleteCount}
+                  </span>
+                )}
               </Link>
             );
           })}

@@ -64,6 +64,11 @@ export interface FeedbackItem {
   updatedAt: string;
 }
 
+export interface FeedbackCount {
+  /** Number of feedback items in "incomplete" status */
+  count: number;
+}
+
 export type FeedbackInputScreenshotMimeType = typeof FeedbackInputScreenshotMimeType[keyof typeof FeedbackInputScreenshotMimeType];
 
 

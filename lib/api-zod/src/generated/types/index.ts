@@ -66,6 +66,7 @@ export * from './extractEmployeesInput';
 export * from './extractEmployeesResult';
 export * from './extractPayrollHoursInput';
 export * from './extractPayrollHoursResult';
+export * from './feedbackCount';
 export * from './feedbackInput';
 export * from './feedbackInputScreenshot';
 export * from './feedbackInputScreenshotMimeType';

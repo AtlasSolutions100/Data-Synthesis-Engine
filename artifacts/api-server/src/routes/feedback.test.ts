@@ -144,6 +144,33 @@ describe("screenshot upload validation", () => {
   });
 });
 
+describe("incomplete count (nav badge)", () => {
+  it("blocks non-admins", async () => {
+    current = { id: userId, role: "bookkeeper" };
+    const res = await request(app).get("/api/feedback/count");
+    expect(res.status).toBe(403);
+  });
+
+  it("returns the incomplete count for admins and tracks status changes", async () => {
+    current = { id: userId, role: "bookkeeper" };
+    const created = await createItem({});
+    expect(created.status).toBe(201);
+
+    current = { id: ownerId, role: "owner" };
+    const before = await request(app).get("/api/feedback/count");
+    expect(before.status).toBe(200);
+    expect(before.body.count).toBeGreaterThanOrEqual(1);
+
+    const done = await request(app)
+      .patch(`/api/feedback/${created.body.id}`)
+      .send({ status: "complete" });
+    expect(done.status).toBe(200);
+
+    const after = await request(app).get("/api/feedback/count");
+    expect(after.body.count).toBe(before.body.count - 1);
+  });
+});
+
 describe("permissions", () => {
   let mineId: string;
   let othersId: string;

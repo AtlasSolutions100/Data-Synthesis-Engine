@@ -51,6 +51,7 @@ import type {
   ExtractEmployeesResult,
   ExtractPayrollHoursInput,
   ExtractPayrollHoursResult,
+  FeedbackCount,
   FeedbackInput,
   FeedbackItem,
   FeedbackUpdate,
@@ -6590,6 +6591,84 @@ export function useListFeedback<TData = Awaited<ReturnType<typeof listFeedback>>
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getListFeedbackQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCountIncompleteFeedbackUrl = () => {
+
+
+
+
+  return `/api/feedback/count`
+}
+
+/**
+ * Lightweight count of feedback items still in "incomplete" status, used for the nav badge.
+ * @summary Count incomplete feedback items (admin only)
+ */
+export const countIncompleteFeedback = async ( options?: RequestInit): Promise<FeedbackCount> => {
+
+  return customFetch<FeedbackCount>(getCountIncompleteFeedbackUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getCountIncompleteFeedbackQueryKey = () => {
+    return [
+    `/api/feedback/count`
+    ] as const;
+    }
+
+
+export const getCountIncompleteFeedbackQueryOptions = <TData = Awaited<ReturnType<typeof countIncompleteFeedback>>, TError = ErrorType<ErrorResponse>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof countIncompleteFeedback>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getCountIncompleteFeedbackQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof countIncompleteFeedback>>> = ({ signal }) => countIncompleteFeedback({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof countIncompleteFeedback>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type CountIncompleteFeedbackQueryResult = NonNullable<Awaited<ReturnType<typeof countIncompleteFeedback>>>
+export type CountIncompleteFeedbackQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary Count incomplete feedback items (admin only)
+ */
+
+export function useCountIncompleteFeedback<TData = Awaited<ReturnType<typeof countIncompleteFeedback>>, TError = ErrorType<ErrorResponse>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof countIncompleteFeedback>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getCountIncompleteFeedbackQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

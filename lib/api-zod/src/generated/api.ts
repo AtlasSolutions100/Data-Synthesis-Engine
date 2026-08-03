@@ -2833,6 +2833,15 @@ export const ListFeedbackResponse = zod.array(ListFeedbackResponseItem)
 
 
 /**
+ * Lightweight count of feedback items still in "incomplete" status, used for the nav badge.
+ * @summary Count incomplete feedback items (admin only)
+ */
+export const CountIncompleteFeedbackResponse = zod.object({
+  "count": zod.number().describe('Number of feedback items in \"incomplete\" status')
+})
+
+
+/**
  * @summary List the current user's own feedback items
  */
 export const ListMyFeedbackResponseItem = zod.object({

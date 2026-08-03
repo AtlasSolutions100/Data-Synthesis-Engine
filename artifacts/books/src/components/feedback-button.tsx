@@ -3,6 +3,7 @@ import {
   useCreateFeedback,
   getListFeedbackQueryKey,
   getListMyFeedbackQueryKey,
+  getCountIncompleteFeedbackQueryKey,
   type FeedbackTargetType,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -110,6 +111,11 @@ export function FeedbackButton({
         queryClient.invalidateQueries({ queryKey: getListFeedbackQueryKey() });
         queryClient.invalidateQueries({
           queryKey: getListMyFeedbackQueryKey(),
+        });
+        // If an owner submits feedback, their own nav badge should bump
+        // immediately rather than waiting for the next poll.
+        queryClient.invalidateQueries({
+          queryKey: getCountIncompleteFeedbackQueryKey(),
         });
         toast({
           title: "Feedback sent",

@@ -3,6 +3,7 @@ import {
   useListFeedback,
   getListFeedbackQueryKey,
   getListMyFeedbackQueryKey,
+  getCountIncompleteFeedbackQueryKey,
   useUpdateFeedback,
   useDeleteFeedback,
   useListUsers,
@@ -56,6 +57,11 @@ function FeedbackCard({ item }: { item: FeedbackItem }) {
     // Feedback page); keep them in sync on every mutation.
     queryClient.invalidateQueries({ queryKey: getListFeedbackQueryKey() });
     queryClient.invalidateQueries({ queryKey: getListMyFeedbackQueryKey() });
+    // Keep the sidebar's new-feedback badge in sync with status changes
+    // and deletions made from the log.
+    queryClient.invalidateQueries({
+      queryKey: getCountIncompleteFeedbackQueryKey(),
+    });
   };
 
   const update = useUpdateFeedback({

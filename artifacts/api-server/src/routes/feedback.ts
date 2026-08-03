@@ -18,6 +18,7 @@ import {
   DeleteFeedbackParams,
   GetFeedbackScreenshotParams,
   CreateFeedbackResponse,
+  CountIncompleteFeedbackResponse,
 } from "@workspace/api-zod";
 
 const router: IRouter = Router();
@@ -213,6 +214,19 @@ router.get("/feedback", async (req, res): Promise<void> => {
     .where(conds.length > 0 ? and(...conds) : undefined)
     .orderBy(desc(feedbackItemsTable.createdAt));
   res.json(ListFeedbackResponse.parse(rows.map(toApiItem)));
+});
+
+// Registered before /feedback/:id routes so "count" is never captured as an id.
+router.get("/feedback/count", async (req, res): Promise<void> => {
+  if (req.currentUser?.role !== "owner") {
+    res.status(403).json({ error: "Owner access required" });
+    return;
+  }
+  const [row] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(feedbackItemsTable)
+    .where(eq(feedbackItemsTable.status, "incomplete"));
+  res.json(CountIncompleteFeedbackResponse.parse({ count: row?.count ?? 0 }));
 });
 
 router.get("/feedback/mine", async (req, res): Promise<void> => {

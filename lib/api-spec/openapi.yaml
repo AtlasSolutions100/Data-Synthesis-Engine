@@ -1744,6 +1744,21 @@ paths:
                   $ref: "#/components/schemas/FeedbackItem"
         "403":
           $ref: "#/components/responses/Error"
+  /feedback/count:
+    get:
+      operationId: countIncompleteFeedback
+      tags: [feedback]
+      summary: Count incomplete feedback items (admin only)
+      description: Lightweight count of feedback items still in "incomplete" status, used for the nav badge.
+      responses:
+        "200":
+          description: Incomplete feedback count
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FeedbackCount"
+        "403":
+          $ref: "#/components/responses/Error"
   /feedback/mine:
     get:
       operationId: listMyFeedback
@@ -1922,6 +1937,13 @@ components:
           type: string
         updatedAt:
           type: string
+    FeedbackCount:
+      type: object
+      required: [count]
+      properties:
+        count:
+          type: integer
+          description: Number of feedback items in "incomplete" status
     FeedbackInput:
       type: object
       required: [body]
