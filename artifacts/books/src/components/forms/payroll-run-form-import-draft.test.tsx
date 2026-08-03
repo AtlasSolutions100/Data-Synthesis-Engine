@@ -255,6 +255,44 @@ describe("Import hours — draft save & resume", () => {
     expect(deleteDraftMutate).not.toHaveBeenCalled();
   });
 
+  it("flushes the latest review state when closed before the debounce fires", async () => {
+    mutateAsync.mockResolvedValueOnce({
+      rows: [
+        {
+          workerName: "Brendan Friedman",
+          regularHours: 40,
+          overtimeHours: 0,
+          holidayHours: 0,
+          entries: [
+            { date: null, jobName: "HR Stadium", hours: 40, costType: "regular" },
+          ],
+        },
+      ],
+    });
+    renderForm(<PayrollRunForm onSubmit={vi.fn()} defaultValues={defaults} />);
+    await openDialog();
+    const textarea = await screen.findByLabelText(/paste hours text/i);
+    fireEvent.change(textarea, {
+      target: { value: "Brendan Friedman — 40 reg at HR Stadium" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /enter hours/i }));
+    await waitFor(() =>
+      expect(screen.getByText(/will be applied/i)).toBeTruthy(),
+    );
+
+    // Close immediately, before the normal 800 ms debounce can run.
+    fireEvent.keyDown(document.body, { key: "Escape" });
+    await waitFor(() => expect(saveDraftMutate).toHaveBeenCalledTimes(1));
+    expect(deleteDraftMutate).not.toHaveBeenCalled();
+    const body = (
+      saveDraftMutate.mock.calls as unknown as Array<
+        [{ data: { state: Record<string, unknown> } }]
+      >
+    )[0]?.[0];
+    expect((body?.data.state.rows as Array<{ workerName: string }>)?.[0]?.workerName)
+      .toBe("Brendan Friedman");
+  });
+
   it("clears the draft after a successful Apply", async () => {
     mutateAsync.mockResolvedValueOnce({
       rows: [

@@ -996,6 +996,12 @@ function ImportHoursDialog({
   // Last autosave outcome, surfaced as a non-blocking status in the review
   // footer so a silently failing save (offline, oversized draft) is visible.
   const [saveStatus, setSaveStatus] = useState<DraftSaveStatus | null>(null);
+  // The latest review snapshot is kept in a ref so a parent dialog unmount
+  // can flush it even when the 800 ms debounce has not fired yet.
+  const latestDraft = useRef<ImportDraftState | null>(null);
+  // Prevent a close/unmount flush from sending a second request for a snapshot
+  // whose normal debounce already dispatched it.
+  const lastAttemptedDraft = useRef<ImportDraftState | null>(null);
   // Guards against a slow earlier extraction overwriting a newer one when
   // the user drops a second file before the first finishes.
   const extractSeq = useRef(0);
@@ -1040,8 +1046,48 @@ function ImportHoursDialog({
   const deleteDraft = useDeletePayrollImportDraft();
   const savedDraft = parseDraftState(draftData?.state ?? null);
 
+  const queueDraftSave = (state: ImportDraftState) => {
+    lastAttemptedDraft.current = state;
+    pendingSave.current = pendingSave.current
+      .then(() => {
+        if (suppressAutosave.current) return;
+        return saveDraft
+          .mutateAsync({
+            data: { state: state as unknown as Record<string, unknown> },
+          })
+          .catch(() => {
+            // A final close/unmount flush is best effort. The normal autosave
+            // path remains responsible for showing an in-dialog error.
+          });
+      })
+      .catch(() => {
+        // Keep the queue usable for a later save or delete.
+      });
+  };
+
+  // A parent dialog can unmount this component without firing the nested
+  // dialog's onOpenChange. Flush the last review snapshot in that case.
+  useEffect(() => {
+    return () => {
+      const state = latestDraft.current;
+      if (
+        state &&
+        state !== lastAttemptedDraft.current &&
+        !suppressAutosave.current
+      ) {
+        queueDraftSave(state);
+        latestDraft.current = null;
+      }
+    };
+    // This is intentionally mount-scoped: latestDraft is the mutable snapshot
+    // for the current render, and queueDraftSave only enqueues a request.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const clearDraft = () => {
     suppressAutosave.current = true;
+    latestDraft.current = null;
+    lastAttemptedDraft.current = null;
     // Chain onto the serialized save queue so the DELETE always lands last.
     pendingSave.current = pendingSave.current.then(() => {
       deleteDraft.mutate(undefined, {
@@ -1076,16 +1122,20 @@ function ImportHoursDialog({
   useEffect(() => {
     if (!open || stage !== "review" || rows.length === 0) return;
     if (suppressAutosave.current) return;
+    const state: ImportDraftState = {
+      rows,
+      assoc,
+      cardYear,
+      periodNote,
+      payPeriodStart: form.getValues("payPeriodStart") || "",
+      fileName,
+    };
+    // Capture synchronously when review state changes so a close before the
+    // debounce expires can still persist the newest matches.
+    latestDraft.current = state;
     const timer = setTimeout(() => {
       if (suppressAutosave.current) return;
-      const state: ImportDraftState = {
-        rows,
-        assoc,
-        cardYear,
-        periodNote,
-        payPeriodStart: form.getValues("payPeriodStart") || "",
-        fileName,
-      };
+      lastAttemptedDraft.current = state;
       pendingSave.current = pendingSave.current
         .then(() => {
           // Re-check inside the queue: a clear may have happened while an
@@ -1096,6 +1146,9 @@ function ImportHoursDialog({
               data: { state: state as unknown as Record<string, unknown> },
             })
             .then(() => {
+              if (latestDraft.current === state) {
+                latestDraft.current = null;
+              }
               setSaveStatus({ kind: "saved" });
               queryClient.invalidateQueries({
                 queryKey: getGetPayrollImportDraftQueryKey(),
@@ -1139,6 +1192,9 @@ function ImportHoursDialog({
               data: { state: state as unknown as Record<string, unknown> },
             })
             .then(() => {
+              if (latestDraft.current === state) {
+                latestDraft.current = null;
+              }
               pendingRetry.current = null;
               setSaveStatus({ kind: "saved" });
               queryClient.invalidateQueries({
@@ -1191,6 +1247,9 @@ function ImportHoursDialog({
               data: { state: state as unknown as Record<string, unknown> },
             })
             .then(() => {
+              if (latestDraft.current === state) {
+                latestDraft.current = null;
+              }
               pendingRetry.current = null;
               setSaveStatus({ kind: "saved" });
               queryClient.invalidateQueries({
@@ -1243,6 +1302,17 @@ function ImportHoursDialog({
   };
 
   const handleOpenChange = (next: boolean) => {
+    if (!next) {
+      const state = latestDraft.current;
+      if (
+        state &&
+        state !== lastAttemptedDraft.current &&
+        !suppressAutosave.current
+      ) {
+        queueDraftSave(state);
+        latestDraft.current = null;
+      }
+    }
     setOpen(next);
     if (!next) resetAll();
   };
