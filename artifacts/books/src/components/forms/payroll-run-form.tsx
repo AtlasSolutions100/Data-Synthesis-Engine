@@ -63,8 +63,10 @@ import {
   getListEmployeesQueryKey,
   useListJobs,
   getListJobsQueryKey,
+  useListCustomers,
   getListCustomersQueryKey,
   useCreateJob,
+  useCreateCustomer,
   useCreateEmployee,
   type PayrollRunInput,
   type Employee,
@@ -74,7 +76,6 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { splitCentsByWeights } from "@/lib/hours-split";
 import { JobCombobox } from "@/components/job-combobox";
-import { CustomerCombobox } from "@/components/customer-combobox";
 import {
   MAX_EXTRACT_TEXT_LENGTH,
   extractTextTooLargeMessage,
@@ -653,6 +654,102 @@ function WorkerLine({
 const normalizeName = (s: string) =>
   s.toLowerCase().trim().replace(/\s+/g, " ");
 
+/** Standard edit distance between two normalized strings. */
+function levenshtein(a: string, b: string): number {
+  if (a === b) return 0;
+  if (!a.length) return b.length;
+  if (!b.length) return a.length;
+  let prev = Array.from({ length: b.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= a.length; i++) {
+    const cur = [i];
+    for (let j = 1; j <= b.length; j++) {
+      cur[j] = Math.min(
+        prev[j] + 1,
+        cur[j - 1] + 1,
+        prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1),
+      );
+    }
+    prev = cur;
+  }
+  return prev[b.length];
+}
+
+/**
+ * Similarity between an extracted job name and a job on file, 0–1.
+ * Containment (one name inside the other) counts as a strong match so
+ * shorthand like "Stadium" still suggests "HR Stadium".
+ */
+function nameSimilarity(rawA: string, rawB: string): number {
+  const a = normalizeName(rawA);
+  const b = normalizeName(rawB);
+  if (!a || !b) return 0;
+  if (a === b) return 1;
+  const shorter = a.length <= b.length ? a : b;
+  const longer = a.length <= b.length ? b : a;
+  if (longer.includes(shorter) && shorter.length >= 4) {
+    return Math.max(0.75, shorter.length / longer.length);
+  }
+  const dist = levenshtein(a, b);
+  return 1 - dist / Math.max(a.length, b.length);
+}
+
+/** Minimum similarity for a close-match suggestion (below this, no guess). */
+const FUZZY_SUGGEST_THRESHOLD = 0.55;
+
+/** Best close-but-not-exact job match for an extracted name, if any. */
+function bestFuzzyJobMatch(
+  raw: string,
+  jobs: Job[],
+): { job: Job; pct: number } | null {
+  let best: { job: Job; score: number } | null = null;
+  for (const job of jobs) {
+    const score = nameSimilarity(raw, job.name);
+    if (score >= FUZZY_SUGGEST_THRESHOLD && (!best || score > best.score)) {
+      best = { job, score };
+    }
+  }
+  return best ? { job: best.job, pct: Math.round(best.score * 100) } : null;
+}
+
+/** Customer that holds internal overhead time for a given year (P8-TC-05). */
+const alliedCustomerName = (year: number) => `Allied ${year}`;
+
+/** Job Name for internal overhead time under the Allied [Year] customer. */
+const overheadJobNameFor = (year: number) => `Overhead / Office ${year}`;
+
+/** True if this job can hold the year's internal overhead time. */
+function isAlliedOverheadJob(job: Job, year: number): boolean {
+  if (normalizeName(job.customerName ?? "") !== normalizeName(alliedCustomerName(year)))
+    return false;
+  const key = normalizeName(job.name);
+  return OVERHEAD_JOB_NAMES.has(key) || key === normalizeName(overheadJobNameFor(year));
+}
+
+/**
+ * Year of the time card, from the dates written on it (most common year
+ * wins); falls back to the pay period start, then to today.
+ */
+function deriveCardYear(
+  extracted: ExtractedHourRow[],
+  fallbackStart: string,
+): number {
+  const counts = new Map<number, number>();
+  for (const r of extracted) {
+    for (const e of r.entries ?? []) {
+      const m = /^(\d{4})-/.exec(e.date ?? "");
+      if (m) {
+        const y = parseInt(m[1], 10);
+        counts.set(y, (counts.get(y) ?? 0) + 1);
+      }
+    }
+  }
+  const best = [...counts.entries()].sort((a, b) => b[1] - a[1])[0];
+  if (best) return best[0];
+  const m = /^(\d{4})-/.exec(fallbackStart || "");
+  if (m) return parseInt(m[1], 10);
+  return new Date().getFullYear();
+}
+
 function readApiError(err: unknown): string {
   const data = (err as { data?: { error?: string } })?.data;
   if (data?.error) return data.error;
@@ -683,6 +780,8 @@ interface JobAssociation {
   overhead: boolean; // internal Overhead / Office time (auto-billed)
   customerHint: string; // customer name suggested by the extraction
   flag: string; // guidance message ("" if none)
+  needsConfirm: boolean; // close (fuzzy) match pre-filled but not yet confirmed
+  matchPct: number; // fuzzy match confidence 0–100 (0 when exact/none)
 }
 
 interface ReviewRow {
@@ -715,8 +814,6 @@ const OVERHEAD_JOB_NAMES = new Set([
   "overhead",
   "office",
 ]);
-
-const OVERHEAD_JOB_NAME = "Overhead / Office";
 
 const WEEKDAY_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -810,8 +907,7 @@ function ImportHoursDialog({
   const [error, setError] = useState("");
   const [rows, setRows] = useState<ReviewRow[]>([]);
   const [assoc, setAssoc] = useState<Record<string, JobAssociation>>({});
-  const [customer, setCustomer] = useState(""); // "" = all customers
-  const [customerAuto, setCustomerAuto] = useState(false);
+  const [cardYear, setCardYear] = useState(() => new Date().getFullYear());
   const [dragOver, setDragOver] = useState(false);
   const [periodNote, setPeriodNote] = useState("");
   // Guards against a slow earlier extraction overwriting a newer one when
@@ -825,7 +921,11 @@ function ImportHoursDialog({
 
   const extract = useExtractPayrollHours();
   const createJob = useCreateJob();
+  const createCustomer = useCreateCustomer();
   const createEmployee = useCreateEmployee();
+  const { data: customersData } = useListCustomers({
+    query: { queryKey: getListCustomersQueryKey() },
+  });
   const queryClient = useQueryClient();
 
   const employeeOptions = (form.getValues("lines") ?? [])
@@ -840,8 +940,6 @@ function ImportHoursDialog({
     setError("");
     setRows([]);
     setAssoc({});
-    setCustomer("");
-    setCustomerAuto(false);
     setDragOver(false);
     setPeriodNote("");
     extract.reset();
@@ -882,6 +980,7 @@ function ImportHoursDialog({
 
   const buildReview = (
     extracted: ExtractedHourRow[],
+    cardYear: number,
   ): { rows: ReviewRow[]; associations: Record<string, JobAssociation> } => {
     const opts = (form.getValues("lines") ?? [])
       .map((l, index) => ({ index, name: l.workerName, type: l.lineType }))
@@ -917,6 +1016,8 @@ function ImportHoursDialog({
           overhead: false,
           customerHint: "",
           flag: "No job detected in the source. What job is this associated with?",
+          needsConfirm: false,
+          matchPct: 0,
         };
         return key;
       }
@@ -933,14 +1034,15 @@ function ImportHoursDialog({
         overhead: false,
         customerHint: "",
         flag: "",
+        needsConfirm: false,
+        matchPct: 0,
       };
       if (OVERHEAD_SOURCE_NAMES.has(key)) {
-        // Internal, non-billable time: bill automatically to the internal
-        // Overhead / Office job (created on apply if it doesn't exist).
+        // Internal, non-billable time: bill automatically to the year's
+        // overhead job under the "Allied [Year]" customer (created on apply
+        // if it doesn't exist yet) — P8-TC-05.
         a.overhead = true;
-        const existing = jobs.find((j) =>
-          OVERHEAD_JOB_NAMES.has(normalizeName(j.name)),
-        );
+        const existing = jobs.find((j) => isAlliedOverheadJob(j, cardYear));
         if (existing) {
           a.jobId = String(existing.id);
           a.auto = true;
@@ -962,7 +1064,19 @@ function ImportHoursDialog({
       } else if (jobMatches.length > 1) {
         a.flag = `Several jobs are named "${raw}". What job is this associated with?`;
       } else {
-        a.flag = `Unknown job "${raw}" — no matching job on file. What job is this associated with?`;
+        // No exact match: look for a close match and suggest it with its
+        // confidence, instead of forcing a manual pick (P8-TC-04).
+        const best = bestFuzzyJobMatch(raw, jobs);
+        if (best) {
+          a.jobId = String(best.job.id);
+          a.auto = true;
+          a.needsConfirm = true;
+          a.matchPct = best.pct;
+          a.customerHint = best.job.customerName ?? "";
+          a.flag = `"${raw}" matches "${best.job.name}" ~${best.pct}% — please confirm.`;
+        } else {
+          a.flag = `Unknown job "${raw}" — no matching job on file. What job is this associated with?`;
+        }
       }
       associations[key] = a;
       return key;
@@ -1046,19 +1160,6 @@ function ImportHoursDialog({
     return { rows, associations };
   };
 
-  // If the extraction points at exactly one customer, pre-select it so the
-  // guided Customer → Job flow starts already filled in.
-  const suggestCustomer = (
-    associations: Record<string, JobAssociation>,
-  ): string => {
-    const hints = new Set(
-      Object.values(associations)
-        .map((a) => a.customerHint)
-        .filter((c): c is string => !!c),
-    );
-    return hints.size === 1 ? [...hints][0] : "";
-  };
-
   /**
    * Assign the pay period from the dates on the time card (P5-TC-03): the
    * period containing the most worked days wins. Returns a user-facing note.
@@ -1118,12 +1219,14 @@ function ImportHoursDialog({
       // Assign the pay period first so review flags compare against it.
       const note = autoAssignPeriod(result.rows);
       setPeriodNote(note);
-      const built = buildReview(result.rows);
-      const suggested = suggestCustomer(built.associations);
+      const year = deriveCardYear(
+        result.rows,
+        form.getValues("payPeriodStart"),
+      );
+      setCardYear(year);
+      const built = buildReview(result.rows, year);
       setRows(built.rows);
       setAssoc(built.associations);
-      setCustomer(suggested);
-      setCustomerAuto(!!suggested);
       setStage("review");
     } catch (err) {
       if (seq !== extractSeq.current) return;
@@ -1141,9 +1244,12 @@ function ImportHoursDialog({
     setAssoc((prev) => ({ ...prev, [key]: { ...prev[key], ...patch } }));
   };
 
-  /** An association is settled when a job is picked, or it is internal overhead. */
+  /**
+   * An association is settled when a job is picked (and any close-match
+   * suggestion has been confirmed), or it is internal overhead.
+   */
   const assocConfirmed = (a: JobAssociation | undefined) =>
-    !!a && (!!a.jobId || a.overhead);
+    !!a && ((!!a.jobId && !a.needsConfirm) || a.overhead);
 
   const appliedCount = rows.filter((r) => r.target !== "skip").length;
   // Distinct job names (used by applied rows) still needing confirmation.
@@ -1153,31 +1259,6 @@ function ImportHoursDialog({
       .flatMap((r) => r.jobKeys)
       .filter((k) => !assocConfirmed(assoc[k])),
   ).size;
-
-  // Step 1 (customer) narrows the Job Name choices in step 2.
-  const jobsForRows = customer
-    ? jobs.filter((j) => (j.customerName || "No customer") === customer)
-    : jobs;
-
-  const handleCustomerChange = (next: string) => {
-    setCustomer(next);
-    setCustomerAuto(false);
-    if (!next) return;
-    // Forgiving: clear any job picks that don't belong to the chosen
-    // customer instead of silently keeping a mismatch. Internal overhead
-    // time is exempt — it never belongs to a customer.
-    setAssoc((prev) => {
-      const nextAssoc = { ...prev };
-      for (const [key, a] of Object.entries(prev)) {
-        if (!a.jobId || a.overhead) continue;
-        const job = jobs.find((j) => String(j.id) === a.jobId);
-        if (job && (job.customerName || "No customer") !== next) {
-          nextAssoc[key] = { ...a, jobId: "", auto: false };
-        }
-      }
-      return nextAssoc;
-    });
-  };
 
   const handleApply = async () => {
     const formValues = form.getValues();
@@ -1199,17 +1280,28 @@ function ImportHoursDialog({
       return !!a && a.overhead && !a.jobId;
     });
     if (needsOverheadJob) {
-      const existing = jobs.find((j) =>
-        OVERHEAD_JOB_NAMES.has(normalizeName(j.name)),
-      );
+      // Office / shop / overhead time bills to the year's overhead job under
+      // the "Allied [Year]" customer — created automatically if missing.
+      const existing = jobs.find((j) => isAlliedOverheadJob(j, cardYear));
       if (existing) {
         overheadJobId = String(existing.id);
       } else {
         try {
+          const customerName = alliedCustomerName(cardYear);
+          const existingCustomer = (customersData ?? []).find(
+            (c) => normalizeName(c.name) === normalizeName(customerName),
+          );
+          const customerId = existingCustomer
+            ? existingCustomer.id
+            : (
+                await createCustomer.mutateAsync({
+                  data: { name: customerName },
+                })
+              ).id;
           const created = await createJob.mutateAsync({
             data: {
-              name: OVERHEAD_JOB_NAME,
-              isInternal: true,
+              name: overheadJobNameFor(cardYear),
+              customerId,
               description:
                 "Internal non-billable time (office, shop, overhead)",
             },
@@ -1221,7 +1313,7 @@ function ImportHoursDialog({
           });
         } catch {
           setError(
-            `Couldn't create the internal "${OVERHEAD_JOB_NAME}" job. Pick a job manually for the office/overhead time and try again.`,
+            `Couldn't set up the "${overheadJobNameFor(cardYear)}" job under customer "${alliedCustomerName(cardYear)}". Pick a job manually for the office/overhead time and try again.`,
           );
           return;
         }
@@ -1509,33 +1601,72 @@ function ImportHoursDialog({
             ) : null}
             <div className="rounded-lg border border-blue-200 bg-blue-50/60 p-4">
               <p className="text-sm font-semibold text-slate-900">
-                Step 1 — Which Client / Customer is this time associated with?
+                Step 1 — Who is this time for?
               </p>
-              <div className="mt-2 max-w-md">
-                <CustomerCombobox
-                  jobs={jobs}
-                  value={customer}
-                  onChange={handleCustomerChange}
-                  highlight={rows.length > 0 && unconfirmedJobCount > 0}
-                />
+              <p className="mt-1 text-xs text-slate-600">
+                Confirm each worker once here — you won't be asked for their
+                name again when the hours are saved.
+              </p>
+              <div className="mt-2 space-y-3">
+                {rows.map((r, i) => (
+                  <div key={i} className="flex flex-wrap items-start gap-3">
+                    <div className="min-w-44">
+                      <div className="text-sm font-medium text-slate-900">
+                        {r.workerName}
+                      </div>
+                      <StatusBadge status={r.status} />
+                    </div>
+                    <div className="w-56">
+                      <Select
+                        value={r.target}
+                        onValueChange={(v) => updateRow(i, { target: v })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="skip">Skip</SelectItem>
+                          {r.employeeId ? (
+                            <SelectItem value="new">
+                              + Add new worker line
+                            </SelectItem>
+                          ) : (
+                            <SelectItem value="create">
+                              + Create new employee
+                            </SelectItem>
+                          )}
+                          {employeeOptions.map((o) => (
+                            <SelectItem key={o.index} value={String(o.index)}>
+                              {o.name || `Worker ${o.index + 1}`}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="w-full">
+                      {r.flags.map((flag, fi) => (
+                        <p
+                          key={fi}
+                          className="mt-0.5 flex items-start gap-1 text-xs text-amber-600"
+                        >
+                          <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
+                          {flag}
+                        </p>
+                      ))}
+                    </div>
+                  </div>
+                ))}
               </div>
-              <p className="mt-1.5 text-xs text-slate-600">
-                {customer && customerAuto
-                  ? `Suggested from the timesheet — change it if that's not right.`
-                  : customer
-                    ? `Showing only ${customer}'s jobs below.`
-                    : "Picking a customer narrows the Job Name choices below. You can also leave it on all customers."}
-              </p>
             </div>
             <p className="text-sm text-slate-600">
               <span className="font-semibold text-slate-900">
-                Step 2 — Confirm each worker and Job Name.
+                Step 2 — Confirm the hours and Job Names.
               </span>{" "}
               {appliedCount} of {rows.length} row
-              {rows.length === 1 ? "" : "s"} will be applied. Review the hours,
-              confirm the worker, and confirm the Job Name each row belongs to.
-              The burdened labor cost (rates from the Employee Center plus
-              employer burden) is allocated to the confirmed job automatically.
+              {rows.length === 1 ? "" : "s"} will be applied. Review the hours
+              and confirm the Job Name each row belongs to. The burdened labor
+              cost (rates from the Employee Center plus employer burden) is
+              allocated to the confirmed job automatically.
             </p>
             {unconfirmedJobCount > 0 ? (
               <p className="flex items-center gap-1 text-sm text-amber-600">
@@ -1555,7 +1686,6 @@ function ImportHoursDialog({
                     <TableHead className="w-16 text-right">Reg</TableHead>
                     <TableHead className="w-16 text-right">OT</TableHead>
                     <TableHead className="w-16 text-right">Hol/Vac</TableHead>
-                    <TableHead className="w-44">Apply to worker</TableHead>
                     <TableHead className="w-56">Job Name</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -1564,16 +1694,6 @@ function ImportHoursDialog({
                     <TableRow key={i}>
                       <TableCell className="align-top">
                         <div className="font-medium">{r.workerName}</div>
-                        <StatusBadge status={r.status} />
-                        {r.flags.map((flag, fi) => (
-                          <p
-                            key={fi}
-                            className="mt-1 flex items-start gap-1 text-xs text-amber-600"
-                          >
-                            <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
-                            {flag}
-                          </p>
-                        ))}
                         {r.entries.length > 0 ? (
                           <div className="mt-2 space-y-1.5">
                             {groupEntriesByWeek(r.entries).map((week) => (
@@ -1639,33 +1759,6 @@ function ImportHoursDialog({
                         />
                       </TableCell>
                       <TableCell className="align-top">
-                        <Select
-                          value={r.target}
-                          onValueChange={(v) => updateRow(i, { target: v })}
-                        >
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="skip">Skip</SelectItem>
-                            {r.employeeId ? (
-                              <SelectItem value="new">
-                                + Add new worker line
-                              </SelectItem>
-                            ) : (
-                              <SelectItem value="create">
-                                + Create new employee
-                              </SelectItem>
-                            )}
-                            {employeeOptions.map((o) => (
-                              <SelectItem key={o.index} value={String(o.index)}>
-                                {o.name || `Worker ${o.index + 1}`}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </TableCell>
-                      <TableCell className="align-top">
                         <div className="space-y-2">
                           {r.jobKeys.map((key) => {
                             const a = assoc[key];
@@ -1681,19 +1774,24 @@ function ImportHoursDialog({
                                   <p className="text-xs text-slate-600">
                                     Billed to the internal{" "}
                                     <span className="font-medium">
-                                      {OVERHEAD_JOB_NAME}
+                                      {overheadJobNameFor(cardYear)}
                                     </span>{" "}
-                                    job (created automatically).
+                                    job under{" "}
+                                    <span className="font-medium">
+                                      {alliedCustomerName(cardYear)}
+                                    </span>{" "}
+                                    (created automatically).
                                   </p>
                                 ) : (
                                   <>
                                     <JobCombobox
-                                      jobs={jobsForRows}
+                                      jobs={jobs}
                                       value={a.jobId}
                                       onChange={(jobId) =>
                                         updateAssoc(key, {
                                           jobId,
                                           auto: false,
+                                          needsConfirm: false,
                                         })
                                       }
                                       placeholder="Confirm job…"
@@ -1702,10 +1800,26 @@ function ImportHoursDialog({
                                         !assocConfirmed(a)
                                       }
                                     />
-                                    {a.jobId && a.auto ? (
+                                    {a.jobId && a.auto && !a.needsConfirm ? (
                                       <p className="mt-1 text-xs text-emerald-600">
                                         Matched from “{a.raw}”
                                       </p>
+                                    ) : null}
+                                    {a.needsConfirm ? (
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        className="mt-1 h-7 text-xs"
+                                        onClick={() =>
+                                          updateAssoc(key, {
+                                            needsConfirm: false,
+                                          })
+                                        }
+                                        data-testid={`button-confirm-match-${key}`}
+                                      >
+                                        Yes, that's the job
+                                      </Button>
                                     ) : null}
                                     {!assocConfirmed(a) && a.flag ? (
                                       <p className="mt-1 flex items-start gap-1 text-xs text-amber-600">

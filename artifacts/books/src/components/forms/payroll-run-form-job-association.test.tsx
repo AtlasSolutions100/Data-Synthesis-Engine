@@ -15,6 +15,7 @@ import { PayrollRunForm } from "./payroll-run-form";
 // truth: the Employee Center and the Customer → Job Name hierarchy.
 const mutateAsync = vi.fn();
 const createJobMutateAsync = vi.fn();
+const createCustomerMutateAsync = vi.fn();
 vi.mock("@workspace/api-client-react", async (importOriginal) => {
   const { createApiClientReactMock } = await import("@/test/mock-api-client");
   return createApiClientReactMock(importOriginal, {
@@ -67,6 +68,11 @@ vi.mock("@workspace/api-client-react", async (importOriginal) => {
   }),
   useCreateJob: () => ({
     mutateAsync: createJobMutateAsync,
+    isPending: false,
+  }),
+  useListCustomers: () => ({ data: [], isLoading: false }),
+  useCreateCustomer: () => ({
+    mutateAsync: createCustomerMutateAsync,
     isPending: false,
   }),
   });
@@ -145,12 +151,11 @@ describe("Import hours — Job Name association", () => {
     renderForm(<PayrollRunForm onSubmit={vi.fn()} defaultValues={defaults} />);
     await importText("Brendan Friedman — 40 reg, 5 OT at HR Stadium");
 
-    // Step 1: the customer is suggested from the matched job.
+    // Step 1 asks about the worker first — no customer-narrowing step.
+    expect(screen.getByText(/Step 1 — Who is this time for\?/)).toBeTruthy();
     expect(
-      screen.getByText(/Which Client \/ Customer is this time associated with\?/),
-    ).toBeTruthy();
-    expect(screen.getByText("Douglas County Schools")).toBeTruthy();
-    expect(screen.getByText(/Suggested from the timesheet/)).toBeTruthy();
+      screen.queryByText(/Which Client \/ Customer is this time associated with\?/),
+    ).toBeNull();
 
     // Auto-matched: green confirmation, no amber prompt, Apply enabled.
     expect(screen.getByText(/Matched from “HR Stadium”/)).toBeTruthy();
@@ -268,10 +273,7 @@ describe("Import hours — Job Name association", () => {
     renderForm(<PayrollRunForm onSubmit={vi.fn()} defaultValues={defaults} />);
     await importText("Brendan Friedman — 40 hours for Douglas County Schools");
 
-    // Step 1 is pre-filled with the recognized customer.
-    expect(screen.getByText("Douglas County Schools")).toBeTruthy();
-    expect(screen.getByText(/Suggested from the timesheet/)).toBeTruthy();
-    // Step 2 asks for the specific job and blocks Apply until chosen.
+    // The specific job is asked for and Apply is blocked until chosen.
     expect(
       screen.getByText(
         /"Douglas County Schools" is a customer, not a job\. Which of their jobs is this associated with\?/,
@@ -279,44 +281,81 @@ describe("Import hours — Job Name association", () => {
     ).toBeTruthy();
     expect(applyButton().disabled).toBe(true);
 
-    // The job list is narrowed to that customer's jobs.
+    // All jobs are offered — there's no customer-narrowing step anymore.
     fireEvent.click(screen.getByText(/confirm job/i));
     await screen.findByPlaceholderText(/search job names/i);
-    expect(screen.queryByText("Bruce Randolph")).toBeNull();
+    expect(screen.getByText("Bruce Randolph")).toBeTruthy();
     fireEvent.click(await screen.findByText("HR Stadium"));
     await waitFor(() => expect(applyButton().disabled).toBe(false));
   });
 
-  it("clears job picks under other customers when the customer changes, re-blocking Apply", async () => {
+  it("suggests the closest job for a near-miss name and requires one confirming click", async () => {
     mutateAsync.mockResolvedValueOnce({
       rows: [
         {
           workerName: "Brendan Friedman",
           regularHours: 40,
-          overtimeHours: 0,
+          overtimeHours: 5,
           holidayHours: 0,
           entries: [
-            { date: null, jobName: "HR Stadium", hours: 40, costType: "regular" },
+            // Misspelled on the card — no exact job match on file.
+            { date: null, jobName: "HR Stadum", hours: 45, costType: "regular" },
           ],
         },
       ],
     });
     renderForm(<PayrollRunForm onSubmit={vi.fn()} defaultValues={defaults} />);
-    await importText("Brendan Friedman — 40 hours at HR Stadium");
+    await importText("Brendan Friedman — 45 hours at HR Stadum");
 
-    // Auto-matched to HR Stadium (Douglas County Schools); Apply enabled.
-    expect(applyButton().disabled).toBe(false);
+    // The close match is suggested with its confidence, but Apply stays
+    // blocked until it's confirmed (P8-TC-04).
+    expect(
+      screen.getByText(/"HR Stadum" matches "HR Stadium" ~90% — please confirm\./),
+    ).toBeTruthy();
+    expect(applyButton().disabled).toBe(true);
 
-    // Switch Step 1 to a different customer — the mismatched job pick is
-    // cleared and Apply is blocked again until a job is confirmed.
-    fireEvent.click(screen.getAllByRole("combobox")[0]);
-    const search = await screen.findByPlaceholderText(/search customers/i);
-    fireEvent.change(search, { target: { value: "Bassett" } });
-    fireEvent.click(await screen.findByText("Bassett & Associates, Inc"));
+    fireEvent.click(screen.getByRole("button", { name: /yes, that's the job/i }));
+    await waitFor(() => expect(applyButton().disabled).toBe(false));
 
-    await waitFor(() => expect(applyButton().disabled).toBe(true));
-    expect(screen.getByText(/job name needs confirming/i)).toBeTruthy();
-    expect(screen.getByText(/confirm job/i)).toBeTruthy();
+    fireEvent.click(applyButton());
+    await waitFor(() =>
+      expect(screen.queryByText(/will be applied/i)).toBeNull(),
+    );
+    // Same burdened roll-up as an exact match: 40h reg + 5h OT.
+    expect(
+      (screen.getByPlaceholderText("Amount") as HTMLInputElement).value,
+    ).toBe("1569.93");
+  });
+
+  it("never fuzzy-suggests a job for a person-like name — even a misspelled one", async () => {
+    mutateAsync.mockResolvedValueOnce({
+      rows: [
+        {
+          workerName: "Brendan Friedman",
+          regularHours: 8,
+          overtimeHours: 0,
+          holidayHours: 0,
+          entries: [
+            // Close to the "Bruce Randolph" job, but person-like names must
+            // always be confirmed explicitly, never pre-filled.
+            { date: null, jobName: "Bruce Randolp", hours: 8, costType: "regular" },
+          ],
+        },
+      ],
+    });
+    renderForm(<PayrollRunForm onSubmit={vi.fn()} defaultValues={defaults} />);
+    await importText("Brendan 8 hrs — Bruce Randolp");
+
+    expect(
+      screen.getByText(
+        /"Bruce Randolp" looks like a person's name, not a job\. What job is this associated with\?/,
+      ),
+    ).toBeTruthy();
+    expect(screen.queryByText(/please confirm/i)).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: /yes, that's the job/i }),
+    ).toBeNull();
+    expect(applyButton().disabled).toBe(true);
   });
 
   it("requires a job even when the source has no job at all", async () => {
@@ -411,9 +450,8 @@ describe("Import hours — Job Name association", () => {
         /"Bruce Randolph" looks like a person's name, but a job with this name exists\. What job is this associated with\?/,
       ),
     ).toBeTruthy();
-    // Index 0 is the Step 1 customer combobox; index 1 is the row's
-    // "Apply to worker" select.
-    const targetSelect = screen.getAllByRole("combobox")[1];
+    // Index 0 is the row's Step 1 worker select.
+    const targetSelect = screen.getAllByRole("combobox")[0];
     expect(within(targetSelect).getByText(/add new worker line/i)).toBeTruthy();
     expect(applyButton().disabled).toBe(true);
 
@@ -540,11 +578,15 @@ describe("Import hours — weekly timesheets", () => {
     expect(amounts).toContain("523.31");
   });
 
-  it("auto-bills Office time to the internal Overhead / Office job, creating it on apply", async () => {
+  it("auto-bills Office time to the year's overhead job under Allied [Year], creating both on apply", async () => {
+    createCustomerMutateAsync.mockResolvedValueOnce({
+      id: 77,
+      name: "Allied 2026",
+    });
     createJobMutateAsync.mockResolvedValueOnce({
       id: 900,
-      name: "Overhead / Office",
-      customerName: null,
+      name: "Overhead / Office 2026",
+      customerName: "Allied 2026",
     });
     mutateAsync.mockResolvedValueOnce({
       rows: [
@@ -568,17 +610,24 @@ describe("Import hours — weekly timesheets", () => {
     await importText("weekly sheet");
 
     // No confirmation needed — it's flagged as internal and Apply is enabled.
-    expect(
-      screen.getByText(/Billed to the internal/i),
-    ).toBeTruthy();
+    // The year comes from the dates on the card (2026).
+    expect(screen.getByText(/Billed to the internal/i)).toBeTruthy();
+    expect(screen.getByText("Allied 2026")).toBeTruthy();
     expect(applyButton().disabled).toBe(false);
 
     fireEvent.click(applyButton());
     await waitFor(() =>
       expect(screen.queryByText(/will be applied/i)).toBeNull(),
     );
+    // The Allied 2026 customer is created, then the overhead job under it.
+    expect(createCustomerMutateAsync).toHaveBeenCalledWith({
+      data: { name: "Allied 2026" },
+    });
     expect(createJobMutateAsync).toHaveBeenCalledWith({
-      data: expect.objectContaining({ name: "Overhead / Office" }),
+      data: expect.objectContaining({
+        name: "Overhead / Office 2026",
+        customerId: 77,
+      }),
     });
     // 8h x $30 = $240 gross, plus 10.17% burden = $264.41 allocated.
     expect(
