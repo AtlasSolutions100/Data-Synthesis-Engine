@@ -19,6 +19,10 @@ import { ApiError } from "@workspace/api-client-react";
 const mutateAsync = vi.fn();
 const saveDraftMutate = vi.fn(() => Promise.resolve({}));
 const deleteDraftMutate = vi.fn();
+// Plain (non-hook) function used by doExtract immediate save and queueDraftSave.
+// Must use vi.hoisted so the value is initialised before the vi.mock factory
+// runs (vi.mock is syntactically hoisted above const declarations).
+const saveDraftPlain = vi.hoisted(() => vi.fn(() => Promise.resolve({})));
 // Overridable per test: what the server says the saved draft is.
 let draftState: unknown = null;
 
@@ -64,6 +68,7 @@ vi.mock("@workspace/api-client-react", async (importOriginal) => {
       isLoading: false,
     }),
     getGetPayrollImportDraftQueryKey: () => ["payroll-import-draft"],
+    savePayrollImportDraft: saveDraftPlain,
     useSavePayrollImportDraft: () => ({
       mutateAsync: saveDraftMutate,
       isPending: false,
@@ -101,6 +106,7 @@ afterEach(() => {
   mutateAsync.mockReset();
   saveDraftMutate.mockClear();
   saveDraftMutate.mockImplementation(() => Promise.resolve({}));
+  saveDraftPlain.mockClear();
   deleteDraftMutate.mockReset();
   draftState = null;
 });
@@ -280,16 +286,23 @@ describe("Import hours — draft save & resume", () => {
       expect(screen.getByText(/will be applied/i)).toBeTruthy(),
     );
 
+    // The immediate save in doExtract fires as soon as the review data lands —
+    // before the 800 ms debounce or any close action.
+    await waitFor(() => expect(saveDraftPlain).toHaveBeenCalledTimes(1));
+
     // Close immediately, before the normal 800 ms debounce can run.
     fireEvent.keyDown(document.body, { key: "Escape" });
-    await waitFor(() => expect(saveDraftMutate).toHaveBeenCalledTimes(1));
+
+    // No hook-based save and no delete should fire.
+    expect(saveDraftMutate).not.toHaveBeenCalled();
     expect(deleteDraftMutate).not.toHaveBeenCalled();
-    const body = (
-      saveDraftMutate.mock.calls as unknown as Array<
-        [{ data: { state: Record<string, unknown> } }]
+
+    const call = (
+      saveDraftPlain.mock.calls as unknown as Array<
+        [{ state: Record<string, unknown> }]
       >
     )[0]?.[0];
-    expect((body?.data.state.rows as Array<{ workerName: string }>)?.[0]?.workerName)
+    expect((call?.state.rows as Array<{ workerName: string }>)?.[0]?.workerName)
       .toBe("Brendan Friedman");
   });
 

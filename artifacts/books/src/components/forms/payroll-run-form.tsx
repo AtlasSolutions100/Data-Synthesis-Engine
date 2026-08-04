@@ -74,6 +74,7 @@ import {
   useCreateEmployee,
   useGetPayrollImportDraft,
   getGetPayrollImportDraftQueryKey,
+  savePayrollImportDraft,
   useSavePayrollImportDraft,
   useDeletePayrollImportDraft,
   type PayrollRunInput,
@@ -1051,9 +1052,15 @@ function ImportHoursDialog({
     pendingSave.current = pendingSave.current
       .then(() => {
         if (suppressAutosave.current) return;
-        return saveDraft
-          .mutateAsync({
-            data: { state: state as unknown as Record<string, unknown> },
+        // Use the plain async function so this works reliably even after the
+        // component has unmounted (mutation hooks may be invalid post-unmount).
+        return savePayrollImportDraft({
+          state: state as unknown as Record<string, unknown>,
+        })
+          .then(() => {
+            queryClient.invalidateQueries({
+              queryKey: getGetPayrollImportDraftQueryKey(),
+            });
           })
           .catch(() => {
             // A final close/unmount flush is best effort. The normal autosave
@@ -1593,6 +1600,30 @@ function ImportHoursDialog({
       setCardYear(year);
       const built = buildReview(result.rows, year);
       suppressAutosave.current = false;
+      // Save the draft immediately so it exists on the server before the user
+      // can close the dialog. The 800 ms debounce would only fire after the
+      // user has paused; closing in that window previously lost all work.
+      const initialDraftState: ImportDraftState = {
+        rows: built.rows,
+        assoc: built.associations,
+        cardYear: year,
+        periodNote: note,
+        payPeriodStart: form.getValues("payPeriodStart") || "",
+        fileName: useFileName,
+      };
+      latestDraft.current = initialDraftState;
+      lastAttemptedDraft.current = initialDraftState;
+      savePayrollImportDraft({
+        state: initialDraftState as unknown as Record<string, unknown>,
+      })
+        .then(() => {
+          queryClient.invalidateQueries({
+            queryKey: getGetPayrollImportDraftQueryKey(),
+          });
+        })
+        .catch(() => {
+          // Best effort — the 800 ms debounce will retry on the next pause.
+        });
       setRows(built.rows);
       setAssoc(built.associations);
       setStage("review");
