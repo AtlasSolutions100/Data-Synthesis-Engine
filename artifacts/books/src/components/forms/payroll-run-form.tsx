@@ -916,6 +916,74 @@ interface ImportDraftState {
   fileName: string;
 }
 
+interface ImportInputDraft {
+  text: string;
+  fileName: string;
+  savedAt: string;
+}
+
+const IMPORT_INPUT_DRAFT_STORAGE_PREFIX =
+  "allied-power-services:payroll-import-input:";
+
+function readImportInputDraft(key: string): ImportInputDraft | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(key);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<ImportInputDraft>;
+    if (
+      typeof parsed.text !== "string" ||
+      typeof parsed.fileName !== "string" ||
+      typeof parsed.savedAt !== "string" ||
+      (!parsed.text.trim() && !parsed.fileName)
+    ) {
+      return null;
+    }
+    return {
+      text: parsed.text,
+      fileName: parsed.fileName,
+      savedAt: parsed.savedAt,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function writeImportInputDraft(
+  key: string,
+  draft: Omit<ImportInputDraft, "savedAt">,
+): ImportInputDraft | null {
+  if (typeof window === "undefined") return null;
+  if (!draft.text.trim() && !draft.fileName) {
+    try {
+      window.localStorage.removeItem(key);
+    } catch {
+      // Storage may be disabled in private browsing.
+    }
+    return null;
+  }
+  const value: ImportInputDraft = {
+    ...draft,
+    savedAt: new Date().toISOString(),
+  };
+  try {
+    window.localStorage.setItem(key, JSON.stringify(value));
+    return value;
+  } catch {
+    // Storage may be disabled or full; the upload flow still works in memory.
+    return null;
+  }
+}
+
+function deleteImportInputDraft(key: string): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.removeItem(key);
+  } catch {
+    // Storage may be disabled in private browsing.
+  }
+}
+
 /** Parse a saved draft state defensively; null when it isn't usable. */
 function parseDraftState(raw: unknown): ImportDraftState | null {
   if (!raw || typeof raw !== "object") return null;
@@ -989,6 +1057,7 @@ function ImportHoursDialog({
   const [fileName, setFileName] = useState("");
   const [fileData, setFileData] = useState("");
   const [error, setError] = useState("");
+  const [inputDraft, setInputDraft] = useState<ImportInputDraft | null>(null);
   const [rows, setRows] = useState<ReviewRow[]>([]);
   const [assoc, setAssoc] = useState<Record<string, JobAssociation>>({});
   const [cardYear, setCardYear] = useState(() => new Date().getFullYear());
@@ -1029,6 +1098,9 @@ function ImportHoursDialog({
     query: { queryKey: getGetCurrentUserQueryKey() },
   });
   const isOwner = me?.role === "owner";
+  const inputDraftKey = me?.id
+    ? `${IMPORT_INPUT_DRAFT_STORAGE_PREFIX}${me.id}`
+    : null;
 
   const extract = useExtractPayrollHours();
   const createJob = useCreateJob();
@@ -1046,6 +1118,35 @@ function ImportHoursDialog({
   const saveDraft = useSavePayrollImportDraft();
   const deleteDraft = useDeletePayrollImportDraft();
   const savedDraft = parseDraftState(draftData?.state ?? null);
+
+  // The upload stage is deliberately restored from browser storage instead of
+  // waiting for a React cleanup or a server debounce. This is the source
+  // input, so it must survive closing the dialog before extraction starts.
+  useEffect(() => {
+    if (!open || !inputDraftKey) return;
+    const draft = readImportInputDraft(inputDraftKey);
+    setInputDraft(draft);
+    if (draft) {
+      setText(draft.text);
+      setFileName(draft.fileName);
+      setFileData("");
+    }
+  }, [open, inputDraftKey]);
+
+  const persistInputDraft = (nextText: string, nextFileName: string) => {
+    if (!inputDraftKey) return;
+    setInputDraft(
+      writeImportInputDraft(inputDraftKey, {
+        text: nextText,
+        fileName: nextFileName,
+      }),
+    );
+  };
+
+  const discardInputDraft = () => {
+    if (inputDraftKey) deleteImportInputDraft(inputDraftKey);
+    setInputDraft(null);
+  };
 
   const queueDraftSave = (state: ImportDraftState) => {
     lastAttemptedDraft.current = state;
@@ -1093,6 +1194,7 @@ function ImportHoursDialog({
 
   const clearDraft = () => {
     suppressAutosave.current = true;
+    discardInputDraft();
     latestDraft.current = null;
     lastAttemptedDraft.current = null;
     // Chain onto the serialized save queue so the DELETE always lands last.
@@ -1122,6 +1224,13 @@ function ImportHoursDialog({
       if (p) applyPeriod(p);
     }
     setStage("review");
+  };
+
+  const resumeInputDraft = (draft: ImportInputDraft) => {
+    setError("");
+    setText(draft.text);
+    setFileName(draft.fileName);
+    setFileData("");
   };
 
   // Autosave the review state after each pause in editing, so closing the
@@ -1332,13 +1441,18 @@ function ImportHoursDialog({
       return;
     }
     setFileName(file.name);
+    persistInputDraft("", file.name);
     const isTextLike =
       file.type.startsWith("text/") ||
       /\.(txt|csv)$/i.test(file.name);
     const reader = new FileReader();
     if (isTextLike) {
       setFileData("");
-      reader.onload = () => setText(String(reader.result ?? ""));
+      reader.onload = () => {
+        const contents = String(reader.result ?? "");
+        setText(contents);
+        persistInputDraft(contents, file.name);
+      };
       reader.readAsText(file);
     } else {
       // Dropping a time card (PDF/image) is the primary path — parse it
@@ -1611,6 +1725,9 @@ function ImportHoursDialog({
         payPeriodStart: form.getValues("payPeriodStart") || "",
         fileName: useFileName,
       };
+      // The source input has now been promoted into the server-backed review
+      // draft, so remove the local upload-stage copy.
+      discardInputDraft();
       latestDraft.current = initialDraftState;
       lastAttemptedDraft.current = initialDraftState;
       savePayrollImportDraft({
@@ -1992,11 +2109,54 @@ function ImportHoursDialog({
               <Label htmlFor="import-hours-text">
                 Or paste hours text instead
               </Label>
+              {inputDraft ? (
+                <div
+                  className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-sky-200 bg-sky-50 px-4 py-3"
+                  data-testid="banner-import-input-draft"
+                >
+                  <div className="text-sm text-sky-900">
+                    <p className="font-medium">
+                      Unfinished upload restored
+                      {inputDraft.fileName ? ` (${inputDraft.fileName})` : ""}
+                      {inputDraft.savedAt
+                        ? `, saved ${formatRelativeTimestamp(inputDraft.savedAt)}`
+                        : ""}
+                      .
+                    </p>
+                    <p className="text-xs text-sky-800">
+                      Restore the text below, or discard it and start fresh.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() => resumeInputDraft(inputDraft)}
+                      data-testid="button-resume-input-draft"
+                    >
+                      Restore text
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={discardInputDraft}
+                      data-testid="button-delete-input-draft"
+                    >
+                      Discard
+                    </Button>
+                  </div>
+                </div>
+              ) : null}
               <Textarea
                 id="import-hours-text"
                 rows={9}
                 value={text}
-                onChange={(e) => setText(e.target.value)}
+                onChange={(e) => {
+                  const nextText = e.target.value;
+                  setText(nextText);
+                  persistInputDraft(nextText, fileName);
+                }}
                 placeholder={
                   "e.g.\nJohn Smith — 40 reg, 5 OT\nJane Doe 38 hours"
                 }

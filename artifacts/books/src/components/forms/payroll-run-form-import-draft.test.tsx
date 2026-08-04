@@ -57,6 +57,16 @@ vi.mock("@workspace/api-client-react", async (importOriginal) => {
     useCreateJob: () => ({ mutateAsync: vi.fn(), isPending: false }),
     useListCustomers: () => ({ data: [], isLoading: false }),
     useCreateCustomer: () => ({ mutateAsync: vi.fn(), isPending: false }),
+    useGetCurrentUser: () => ({
+      data: {
+        id: 1,
+        clerkUserId: "clerk_test_user",
+        email: "test@example.com",
+        name: "Test User",
+        role: "owner",
+      },
+      isLoading: false,
+    }),
     useGetPayrollImportDraft: () => ({
       data: {
         state: draftState,
@@ -108,6 +118,7 @@ afterEach(() => {
   saveDraftMutate.mockImplementation(() => Promise.resolve({}));
   saveDraftPlain.mockClear();
   deleteDraftMutate.mockReset();
+  window.localStorage.clear();
   draftState = null;
 });
 
@@ -175,6 +186,39 @@ describe("Import hours — draft save & resume", () => {
     renderForm(<PayrollRunForm onSubmit={vi.fn()} defaultValues={defaults} />);
     await openDialog();
     expect(screen.queryByTestId("banner-import-draft")).toBeNull();
+  });
+
+  it("restores unfinished Upload Hours text after closing before extraction", async () => {
+    renderForm(<PayrollRunForm onSubmit={vi.fn()} defaultValues={defaults} />);
+    await openDialog();
+
+    const textarea = screen.getByLabelText(/paste hours text/i);
+    fireEvent.change(textarea, {
+      target: { value: "Brendan Friedman — 40 reg at HR Stadium" },
+    });
+
+    // The source input is persisted immediately, without pressing Enter Hours.
+    expect(
+      JSON.parse(
+        window.localStorage.getItem(
+          "allied-power-services:payroll-import-input:1",
+        ) ?? "null",
+      ),
+    ).toMatchObject({
+      text: "Brendan Friedman — 40 reg at HR Stadium",
+    });
+
+    // Close the nested dialog, then reopen it through the same trigger.
+    fireEvent.keyDown(document.body, { key: "Escape" });
+    await waitFor(() =>
+      expect(screen.queryByLabelText(/paste hours text/i)).toBeNull(),
+    );
+    await openDialog();
+
+    expect(screen.getByTestId("banner-import-input-draft")).toBeTruthy();
+    expect(
+      (screen.getByLabelText(/paste hours text/i) as HTMLTextAreaElement).value,
+    ).toBe("Brendan Friedman — 40 reg at HR Stadium");
   });
 
   it("offers to resume a saved draft and restores the full review state", async () => {

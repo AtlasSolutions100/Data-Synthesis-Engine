@@ -28,3 +28,4 @@
 - [SSN masked round-trip](ssn-masked-roundtrip.md) — masked •••-••-1234 is a display token: list sends ssnMasked, forms/server treat •-values as "unchanged", dots never stored.
 - [Import draft autosave](import-draft-autosave.md) — per-user jsonb draft; chain DELETE behind in-flight PUT, cap opaque body size (413), shape-validate restored state.
 - [Drizzle raw-sql array params](drizzle-sql-array-param.md) — arrays in sql`` expand to "($1,$2)" IN-list syntax; `= any(${arr})` breaks — use IN with sql.raw ids.
+- [Payroll upload draft strategy](payroll-upload-draft-strategy.md) — capture raw Upload Hours input locally; reserve the server draft for extracted review state, not unmount/debounce persistence.
