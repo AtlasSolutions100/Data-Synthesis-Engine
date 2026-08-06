@@ -39,6 +39,10 @@ function wordOverlap(a: string, b: string): number {
 const DUPLICATE_THRESHOLD = 0.5;
 
 router.get("/vendors/check-duplicate", async (req, res): Promise<void> => {
+  if (req.query.name === undefined) {
+    res.status(400).json({ error: "name is required" });
+    return;
+  }
   const query = CheckVendorDuplicatesQueryParams.safeParse(req.query);
   if (!query.success) {
     res.status(400).json({ error: query.error.message });
