@@ -5,6 +5,7 @@ import {
   cleanup,
   fireEvent,
   waitFor,
+  act,
 } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { PayrollRunForm } from "./payroll-run-form";
@@ -114,7 +115,11 @@ beforeAll(() => {
 afterEach(() => {
   cleanup();
   mutateAsync.mockReset();
-  saveDraftMutate.mockClear();
+  // mockReset (not mockClear) to also flush any queued mockImplementationOnce
+  // stubs — otherwise unused stubs from one test bleed into the next and can
+  // make a deliberately-hanging promise resolve immediately, breaking the
+  // serialised-queue assertions.
+  saveDraftMutate.mockReset();
   saveDraftMutate.mockImplementation(() => Promise.resolve({}));
   saveDraftPlain.mockClear();
   deleteDraftMutate.mockReset();
@@ -711,6 +716,129 @@ describe("Import hours — draft save & resume", () => {
     expect(
       screen.getByTestId("status-draft-save").textContent,
     ).toContain(tooLarge);
+  });
+
+  it("backoff retry sends the edited snapshot, not the stale pre-edit one", async () => {
+    // Three saveDraftMutate calls are expected:
+    //   #1 – initial 800 ms autosave debounce after extraction (fails →
+    //         pendingRetry = S1 with regularHours="40", 5 s backoff starts)
+    //   #2 – 800 ms autosave debounce after the user edits hours to "42"
+    //         (also fails → pendingRetry updated to S2 with regularHours="42";
+    //         saveStatus changes → backoff effect resets to a fresh 5 s timer)
+    //   #3 – the fresh 5 s backoff fires (succeeds, must carry S2 not S1)
+    //
+    // Fake timers are installed from the TOP so every setTimeout registered
+    // by the autosave effect and the backoff effect is under our control.
+    // The dialog and extraction steps are driven with advanceTimersByTimeAsync
+    // instead of the findBy* async helpers (which need polling timers to work).
+    vi.useFakeTimers();
+    try {
+      saveDraftMutate
+        .mockImplementationOnce(() => Promise.reject(new Error("offline")))
+        .mockImplementationOnce(() => Promise.reject(new Error("offline")))
+        .mockImplementationOnce(() => Promise.resolve({}));
+
+      mutateAsync.mockResolvedValueOnce({
+        rows: [
+          {
+            workerName: "Brendan Friedman",
+            regularHours: 40,
+            overtimeHours: 0,
+            holidayHours: 0,
+            entries: [
+              {
+                date: null,
+                jobName: "HR Stadium",
+                hours: 40,
+                costType: "regular",
+              },
+            ],
+          },
+        ],
+      });
+
+      renderForm(
+        <PayrollRunForm onSubmit={vi.fn()} defaultValues={defaults} />,
+      );
+
+      // Open the upload dialog.  The dialog content renders synchronously in
+      // jsdom; a 0 ms advance flushes any microtasks / RAF that radix-ui may
+      // schedule so the textarea is immediately in the DOM.
+      fireEvent.click(
+        screen.getByRole("button", { name: /upload hours/i }),
+      );
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      expect(screen.getByText(/Drop a time card here/i)).toBeTruthy();
+
+      const textarea = screen.getByLabelText(/paste hours text/i);
+      fireEvent.change(textarea, {
+        target: { value: "Brendan Friedman — 40 reg at HR Stadium" },
+      });
+
+      // Click "Enter Hours" — mutateAsync resolves as a microtask.
+      // A 0 ms advance drains all pending microtasks so the review stage
+      // renders before we continue.
+      fireEvent.click(
+        screen.getByRole("button", { name: /enter hours/i }),
+      );
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      expect(screen.getByText(/will be applied/i)).toBeTruthy();
+
+      // ── Save #1: initial 800 ms autosave debounce → fails ────────────────
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(900);
+      });
+      expect(saveDraftMutate).toHaveBeenCalledTimes(1);
+      expect(
+        screen.getByTestId("status-draft-save").textContent,
+      ).toMatch(/couldn't save draft/i);
+
+      // ── Edit during the backoff window ───────────────────────────────────
+      // Updating regularHours to "42" triggers the autosave effect, which
+      // captures the new snapshot in latestDraft.current synchronously and
+      // arms a fresh 800 ms debounce timer.
+      const hoursInput = screen.getAllByDisplayValue(
+        "40",
+      )[0] as HTMLInputElement;
+      await act(async () => {
+        fireEvent.change(hoursInput, { target: { value: "42" } });
+      });
+
+      // ── Save #2: 800 ms debounce for the edit → fails ────────────────────
+      // The catch handler sets pendingRetry.current = S2 (regularHours="42").
+      // setSaveStatus creates a new error object → the backoff effect re-runs,
+      // cancels the original 5 s timer, and arms a fresh 5 s timer.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(900);
+      });
+      expect(saveDraftMutate).toHaveBeenCalledTimes(2);
+
+      // ── Save #3: fresh 5 s backoff fires ─────────────────────────────────
+      // Reads pendingRetry.current = S2 → must NOT use the stale S1.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5100);
+      });
+      expect(saveDraftMutate).toHaveBeenCalledTimes(3);
+
+      const calls = saveDraftMutate.mock.calls as unknown as Array<
+        [{ data: { state: { rows: Array<{ regularHours: string }> } } }]
+      >;
+      // Save #1 carried the original stale snapshot.
+      expect(calls[0]?.[0]?.data?.state?.rows?.[0]?.regularHours).toBe("40");
+      // Save #3 (the backoff retry) must carry the edited snapshot.
+      expect(calls[2]?.[0]?.data?.state?.rows?.[0]?.regularHours).toBe("42");
+
+      // Footer confirms success once the retry lands.
+      expect(
+        screen.getByTestId("status-draft-save").textContent,
+      ).toMatch(/draft saved/i);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("never lets a stale overlapping autosave resurrect a cleared draft", async () => {
