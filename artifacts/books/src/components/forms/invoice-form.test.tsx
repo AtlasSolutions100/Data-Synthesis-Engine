@@ -378,7 +378,7 @@ describe("InvoiceForm inline customer creation", () => {
     mockCustomerCreateSucceeds(21);
     renderForm(<InvoiceForm onSubmit={vi.fn()} defaultValues={baseDefaults} />);
 
-    fireEvent.click(await triggerShowing("Defaults to job"));
+    fireEvent.click(await triggerShowing("Auto-filled from job"));
     const search = await screen.findByPlaceholderText("Search customers...");
     fireEvent.change(search, { target: { value: "Southgate Plaza" } });
 
@@ -397,7 +397,7 @@ describe("InvoiceForm inline customer creation", () => {
   it("selects the existing customer instead of creating a duplicate", async () => {
     renderForm(<InvoiceForm onSubmit={vi.fn()} defaultValues={baseDefaults} />);
 
-    fireEvent.click(await triggerShowing("Defaults to job"));
+    fireEvent.click(await triggerShowing("Auto-filled from job"));
     const search = await screen.findByPlaceholderText("Search customers...");
     fireEvent.change(search, { target: { value: "northside mall" } });
 
@@ -414,7 +414,7 @@ describe("InvoiceForm inline customer creation", () => {
     );
     renderForm(<InvoiceForm onSubmit={vi.fn()} defaultValues={baseDefaults} />);
 
-    fireEvent.click(await triggerShowing("Defaults to job"));
+    fireEvent.click(await triggerShowing("Auto-filled from job"));
     const search = await screen.findByPlaceholderText("Search customers...");
     fireEvent.change(search, { target: { value: "Southgate Plaza" } });
     const createOption = await screen.findByText('Create "Southgate Plaza"');
@@ -703,7 +703,7 @@ describe("InvoiceForm customer/job cascading filter", () => {
 
   it("only lists the selected customer's jobs", async () => {
     renderForm(<InvoiceForm onSubmit={vi.fn()} defaultValues={baseDefaults} />);
-    await pickOption(/defaults to job/i, /Douglas County/);
+    await pickOption(/auto-filled from job/i, /Douglas County/);
     fireEvent.click(await triggerShowing(/select job name/i));
     expect(await screen.findByText("Courthouse")).toBeTruthy();
     expect(screen.queryByText("Warehouse")).toBeNull();
@@ -756,5 +756,15 @@ describe("InvoiceForm customer/job cascading filter", () => {
       ).toBe(true);
     });
     expect(screen.queryByText("Warehouse")).toBeNull();
+  });
+
+  it("auto-fills the Customer field when the user interactively selects a job with a linked customer", async () => {
+    renderForm(<InvoiceForm onSubmit={vi.fn()} defaultValues={baseDefaults} />);
+
+    // No customer is pre-selected. Pick "Warehouse" (customerId: 20 → Northside Mall).
+    await pickOption(/select job name/i, /Warehouse/);
+
+    // The useEffect that watches watchedJobId must fire and set customerId.
+    expect(await triggerShowing(/Northside Mall/)).toBeTruthy();
   });
 });
