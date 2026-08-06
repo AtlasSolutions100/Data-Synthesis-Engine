@@ -241,4 +241,49 @@ describe("aging PDF pagination with real jspdf/jspdf-autotable", () => {
     assertPageFooters(doc, "Accounts Payable Aging", "2026-06-30");
     expect(saveSpy).toHaveBeenCalledWith("ap-aging-2026-06-30.pdf");
   });
+
+  it("summary table: bucket column headers repeat on every page when the table spans multiple pages", () => {
+    // 80 customers with 1 invoice each → summary table has 81 body rows
+    // (80 customer rows + 1 total row), which forces the summary table itself
+    // onto multiple pages in landscape orientation.
+    const fixture = bigArAging(80, 1);
+    expect(() => downloadArAgingPdf(fixture)).not.toThrow();
+
+    expect(savedDocs).toHaveLength(1);
+    const doc = savedDocs[0];
+    const pages = (doc as unknown as { internal: { pages: string[][] } })
+      .internal.pages;
+
+    // tableRecords[0] is always the summary table (the first autoTable call).
+    const summaryTable = tableRecords[0];
+    expect(summaryTable.endPageNumber).toBeGreaterThan(
+      summaryTable.startPageNumber,
+    );
+
+    // Every page the summary table occupies must contain all bucket column
+    // headers. jspdf-autotable repeats the <head> block on each continuation
+    // page by default; this assertion guards against that behaviour being
+    // accidentally disabled.
+    const bucketHeaders = [
+      "Current",
+      "1-30 Days",
+      "31-60 Days",
+      "61-90 Days",
+      "90+ Days",
+      "Total",
+    ];
+    for (
+      let page = summaryTable.startPageNumber;
+      page <= summaryTable.endPageNumber;
+      page++
+    ) {
+      const content = pages[page].join("\n");
+      for (const header of bucketHeaders) {
+        expect(
+          content,
+          `page ${page} must contain bucket header "(${header})"`,
+        ).toContain(`(${header})`);
+      }
+    }
+  });
 });
