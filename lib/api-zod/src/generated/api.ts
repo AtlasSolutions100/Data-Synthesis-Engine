@@ -927,7 +927,7 @@ export const ListTransactionsQueryParams = zod.object({
 export const ListTransactionsResponseItem = zod.object({
   "id": zod.number(),
   "date": zod.string().describe('ISO date (YYYY-MM-DD)'),
-  "type": zod.enum(['invoice', 'bill', 'expense', 'check', 'payment', 'journal', 'vendor_credit', 'credit_card', 'payroll', 'deposit']),
+  "type": zod.string().describe('Transaction type as stored in the database. Well-known values are invoice, bill, expense, check, payment, journal, vendor_credit, credit_card, payroll, deposit. The field is intentionally left as a free string so that reports never crash on an unexpected value that arrives from imports or future types.\n'),
   "num": zod.string().nullish(),
   "partyName": zod.string().nullish().describe('Customer or vendor name as displayed'),
   "description": zod.string().nullish(),
@@ -970,7 +970,7 @@ export const CreateTransactionBody = zod.object({
 export const CreateTransactionResponse = zod.object({
   "id": zod.number(),
   "date": zod.string().describe('ISO date (YYYY-MM-DD)'),
-  "type": zod.enum(['invoice', 'bill', 'expense', 'check', 'payment', 'journal', 'vendor_credit', 'credit_card', 'payroll', 'deposit']),
+  "type": zod.string().describe('Transaction type as stored in the database. Well-known values are invoice, bill, expense, check, payment, journal, vendor_credit, credit_card, payroll, deposit. The field is intentionally left as a free string so that reports never crash on an unexpected value that arrives from imports or future types.\n'),
   "num": zod.string().nullish(),
   "partyName": zod.string().nullish().describe('Customer or vendor name as displayed'),
   "description": zod.string().nullish(),
@@ -999,7 +999,7 @@ export const GetTransactionParams = zod.object({
 export const GetTransactionResponse = zod.object({
   "id": zod.number(),
   "date": zod.string().describe('ISO date (YYYY-MM-DD)'),
-  "type": zod.enum(['invoice', 'bill', 'expense', 'check', 'payment', 'journal', 'vendor_credit', 'credit_card', 'payroll', 'deposit']),
+  "type": zod.string().describe('Transaction type as stored in the database. Well-known values are invoice, bill, expense, check, payment, journal, vendor_credit, credit_card, payroll, deposit. The field is intentionally left as a free string so that reports never crash on an unexpected value that arrives from imports or future types.\n'),
   "num": zod.string().nullish(),
   "partyName": zod.string().nullish().describe('Customer or vendor name as displayed'),
   "description": zod.string().nullish(),
@@ -1045,7 +1045,7 @@ export const UpdateTransactionBody = zod.object({
 export const UpdateTransactionResponse = zod.object({
   "id": zod.number(),
   "date": zod.string().describe('ISO date (YYYY-MM-DD)'),
-  "type": zod.enum(['invoice', 'bill', 'expense', 'check', 'payment', 'journal', 'vendor_credit', 'credit_card', 'payroll', 'deposit']),
+  "type": zod.string().describe('Transaction type as stored in the database. Well-known values are invoice, bill, expense, check, payment, journal, vendor_credit, credit_card, payroll, deposit. The field is intentionally left as a free string so that reports never crash on an unexpected value that arrives from imports or future types.\n'),
   "num": zod.string().nullish(),
   "partyName": zod.string().nullish().describe('Customer or vendor name as displayed'),
   "description": zod.string().nullish(),
@@ -1159,7 +1159,7 @@ export const LinkTransactionBillBody = zod.object({
 export const LinkTransactionBillResponse = zod.object({
   "id": zod.number(),
   "date": zod.string().describe('ISO date (YYYY-MM-DD)'),
-  "type": zod.enum(['invoice', 'bill', 'expense', 'check', 'payment', 'journal', 'vendor_credit', 'credit_card', 'payroll', 'deposit']),
+  "type": zod.string().describe('Transaction type as stored in the database. Well-known values are invoice, bill, expense, check, payment, journal, vendor_credit, credit_card, payroll, deposit. The field is intentionally left as a free string so that reports never crash on an unexpected value that arrives from imports or future types.\n'),
   "num": zod.string().nullish(),
   "partyName": zod.string().nullish().describe('Customer or vendor name as displayed'),
   "description": zod.string().nullish(),
@@ -1223,7 +1223,7 @@ export const GetDashboardSummaryResponse = zod.object({
   "recentTransactions": zod.array(zod.object({
   "id": zod.number(),
   "date": zod.string().describe('ISO date (YYYY-MM-DD)'),
-  "type": zod.enum(['invoice', 'bill', 'expense', 'check', 'payment', 'journal', 'vendor_credit', 'credit_card', 'payroll', 'deposit']),
+  "type": zod.string().describe('Transaction type as stored in the database. Well-known values are invoice, bill, expense, check, payment, journal, vendor_credit, credit_card, payroll, deposit. The field is intentionally left as a free string so that reports never crash on an unexpected value that arrives from imports or future types.\n'),
   "num": zod.string().nullish(),
   "partyName": zod.string().nullish().describe('Customer or vendor name as displayed'),
   "description": zod.string().nullish(),

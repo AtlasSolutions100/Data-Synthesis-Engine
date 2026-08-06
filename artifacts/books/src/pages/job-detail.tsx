@@ -1,4 +1,15 @@
 import { useState, useMemo, Fragment } from "react";
+
+// The DB type column is free text; guard unknown values so the edit form
+// (which only accepts the known enum) never receives an unexpected string.
+const KNOWN_TX_TYPES = new Set([
+  "invoice", "bill", "expense", "check", "payment",
+  "journal", "vendor_credit", "credit_card", "payroll", "deposit",
+] as const);
+type KnownTxType = typeof KNOWN_TX_TYPES extends Set<infer T> ? T : never;
+function knownTxType(t: string): KnownTxType | undefined {
+  return KNOWN_TX_TYPES.has(t as KnownTxType) ? (t as KnownTxType) : undefined;
+}
 import { useParams, Link, useLocation } from "wouter";
 import { 
   useGetJob, 
@@ -590,7 +601,7 @@ export default function JobDetail() {
                                   <TransactionForm
                                     defaultValues={{
                                       date: txn.date,
-                                      type: txn.type,
+                                      type: knownTxType(txn.type),
                                       num: txn.num || "",
                                       partyName: txn.partyName || "",
                                       description: txn.description || "",

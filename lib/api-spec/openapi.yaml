@@ -2596,7 +2596,12 @@ components:
           description: ISO date (YYYY-MM-DD)
         type:
           type: string
-          enum: [invoice, bill, expense, check, payment, journal, vendor_credit, credit_card, payroll, deposit]
+          description: >
+            Transaction type as stored in the database. Well-known values are
+            invoice, bill, expense, check, payment, journal, vendor_credit,
+            credit_card, payroll, deposit. The field is intentionally left as a
+            free string so that reports never crash on an unexpected value that
+            arrives from imports or future types.
         num:
           type: ["string", "null"]
         partyName:

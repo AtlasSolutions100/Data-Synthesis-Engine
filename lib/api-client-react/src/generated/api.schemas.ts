@@ -571,27 +571,12 @@ export interface JobDuplicateCandidate {
   customerName?: string | null;
 }
 
-export type TransactionType = typeof TransactionType[keyof typeof TransactionType];
-
-
-export const TransactionType = {
-  invoice: 'invoice',
-  bill: 'bill',
-  expense: 'expense',
-  check: 'check',
-  payment: 'payment',
-  journal: 'journal',
-  vendor_credit: 'vendor_credit',
-  credit_card: 'credit_card',
-  payroll: 'payroll',
-  deposit: 'deposit',
-} as const;
-
 export interface Transaction {
   id: number;
   /** ISO date (YYYY-MM-DD) */
   date: string;
-  type: TransactionType;
+  /** Transaction type as stored in the database. Well-known values are invoice, bill, expense, check, payment, journal, vendor_credit, credit_card, payroll, deposit. The field is intentionally left as a free string so that reports never crash on an unexpected value that arrives from imports or future types. */
+  type: string;
   /** @nullable */
   num?: string | null;
   /**

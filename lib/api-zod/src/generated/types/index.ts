@@ -166,7 +166,6 @@ export * from './startDateParamParameter';
 export * from './transaction';
 export * from './transactionInput';
 export * from './transactionInputType';
-export * from './transactionType';
 export * from './transactionUpdate';
 export * from './transactionUpdateType';
 export * from './unlinkedBillCandidate';
