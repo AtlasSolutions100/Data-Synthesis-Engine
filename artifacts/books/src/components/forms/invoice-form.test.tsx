@@ -586,6 +586,102 @@ describe("InvoiceForm inline job creation", () => {
   });
 });
 
+describe("InvoiceForm dueDate default and terms preview", () => {
+  it("defaults dueDate to today+30 for a new invoice", () => {
+    renderForm(<InvoiceForm onSubmit={vi.fn()} />);
+    const expected = new Date();
+    expected.setDate(expected.getDate() + 30);
+    const expectedStr = expected.toISOString().split("T")[0];
+    const input = screen.getByLabelText(/due date/i) as HTMLInputElement;
+    expect(input.value).toBe(expectedStr);
+  });
+
+  it("keeps an explicitly passed dueDate instead of defaulting to today+30", () => {
+    renderForm(
+      <InvoiceForm
+        onSubmit={vi.fn()}
+        defaultValues={{ ...baseDefaults, dueDate: "2026-08-01" }}
+      />,
+    );
+    const input = screen.getByLabelText(/due date/i) as HTMLInputElement;
+    expect(input.value).toBe("2026-08-01");
+  });
+
+  it("opens the preview and shows Net 30 when dueDate is 30 days after date", async () => {
+    // Pick a fixed date pair so the calculation is deterministic in tests.
+    const date = "2026-08-06";
+    const dueDate = "2026-09-05"; // exactly 30 days later
+    renderForm(
+      <InvoiceForm
+        onSubmit={vi.fn()}
+        defaultValues={{ ...baseDefaults, jobId: "10", date, dueDate }}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId("button-preview-invoice"));
+    await screen.findByText("Net 30");
+  });
+
+  it("opens the preview and shows Net 60 when dueDate is 60 days after date", async () => {
+    const date = "2026-08-06";
+    const dueDate = "2026-10-05"; // exactly 60 days later
+    renderForm(
+      <InvoiceForm
+        onSubmit={vi.fn()}
+        defaultValues={{ ...baseDefaults, jobId: "10", date, dueDate }}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId("button-preview-invoice"));
+    await screen.findByText("Net 60");
+  });
+});
+
+describe("InvoiceForm category dropdown", () => {
+  it("shows 'Total Electrical' as the first named option in the category select", async () => {
+    renderForm(
+      <InvoiceForm
+        onSubmit={vi.fn()}
+        defaultValues={{ ...baseDefaults, jobId: "10" }}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId("select-line-category-0"));
+
+    // Wait for the listbox to open.
+    const options = await screen.findAllByRole("option");
+    // Filter to the options that have text content (skip hidden native options).
+    const labeled = options.filter(
+      (o) => !o.closest('[aria-hidden="true"]') && o.textContent?.trim(),
+    );
+    const labels = labeled.map((o) => o.textContent?.trim());
+    // "Total Electrical" must be the first named option (index 1 after the
+    // blank "—" placeholder which has value "none").
+    const electricalIdx = labels.findIndex((l) => l === "Total Electrical");
+    const materialIdx = labels.findIndex((l) => l === "Material");
+    expect(electricalIdx).toBeGreaterThanOrEqual(0);
+    expect(electricalIdx).toBeLessThan(materialIdx);
+  });
+
+  it("submits category='electrical' when 'Total Electrical' is selected via default values", async () => {
+    const onSubmit = vi.fn();
+    renderForm(
+      <InvoiceForm
+        onSubmit={onSubmit}
+        defaultValues={{
+          ...baseDefaults,
+          jobId: "10",
+          lines: [{ description: "Electrical work", amount: "500", category: "electrical" }],
+        }}
+      />,
+    );
+
+    await submit();
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    expect(onSubmit.mock.calls[0][0].lines[0].category).toBe("electrical");
+  });
+});
+
 describe("InvoiceForm customer/job cascading filter", () => {
   beforeEach(() => {
     mockCustomers = [
