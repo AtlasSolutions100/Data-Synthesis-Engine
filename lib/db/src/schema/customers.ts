@@ -9,6 +9,8 @@ export const customersTable = pgTable("customers", {
   phone: text("phone"),
   /** Billing address, shown as Bill To / Ship To on invoices (multi-line). */
   address: text("address"),
+  /** CC email(s) for AP — comma-separated addresses copied on invoice emails. */
+  ccEmail: text("cc_email"),
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()

@@ -229,6 +229,8 @@ export interface Customer {
   /** @nullable */
   address?: string | null;
   /** @nullable */
+  ccEmail?: string | null;
+  /** @nullable */
   notes?: string | null;
 }
 
@@ -246,6 +248,8 @@ export interface CustomerInput {
   /** @nullable */
   address?: string | null;
   /** @nullable */
+  ccEmail?: string | null;
+  /** @nullable */
   notes?: string | null;
 }
 
@@ -258,6 +262,8 @@ export interface CustomerUpdate {
   phone?: string | null;
   /** @nullable */
   address?: string | null;
+  /** @nullable */
+  ccEmail?: string | null;
   /** @nullable */
   notes?: string | null;
 }
@@ -952,6 +958,7 @@ export const InvoiceLineCategory = {
   material: 'material',
   labor: 'labor',
   rental: 'rental',
+  electrical: 'electrical',
 } as const;
 
 export interface InvoiceLine {
@@ -973,6 +980,7 @@ export const InvoiceLineInputCategory = {
   material: 'material',
   labor: 'labor',
   rental: 'rental',
+  electrical: 'electrical',
 } as const;
 
 export interface InvoiceLineInput {

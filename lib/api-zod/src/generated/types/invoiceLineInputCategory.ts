@@ -16,4 +16,5 @@ export const InvoiceLineInputCategory = {
   material: 'material',
   labor: 'labor',
   rental: 'rental',
+  electrical: 'electrical',
 } as const;

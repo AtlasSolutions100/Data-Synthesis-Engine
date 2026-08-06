@@ -26,6 +26,7 @@ const customerSchema = z.object({
   email: z.string().email("Invalid email").or(z.literal("")),
   phone: z.string().optional(),
   address: z.string().optional(),
+  ccEmail: z.string().optional(),
   notes: z.string().optional(),
 });
 
@@ -45,6 +46,7 @@ export function CustomerForm({ defaultValues, onSubmit, isLoading }: CustomerFor
       email: defaultValues?.email || "",
       phone: defaultValues?.phone || "",
       address: defaultValues?.address || "",
+      ccEmail: defaultValues?.ccEmail || "",
       notes: defaultValues?.notes || "",
     },
   });
@@ -58,6 +60,7 @@ export function CustomerForm({ defaultValues, onSubmit, isLoading }: CustomerFor
     email: values.email || null,
     phone: values.phone || null,
     address: values.address || null,
+    ccEmail: values.ccEmail || null,
     notes: values.notes || null,
   });
 
@@ -158,6 +161,24 @@ export function CustomerForm({ defaultValues, onSubmit, isLoading }: CustomerFor
                     rows={3}
                     placeholder={"Street\nCity, State ZIP"}
                     data-testid="input-customer-address"
+                    {...field}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="ccEmail"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>CC Email for AP (Optional)</FormLabel>
+                <FormControl>
+                  <Input
+                    type="email"
+                    placeholder="accounts@example.com"
+                    data-testid="input-customer-cc-email"
                     {...field}
                   />
                 </FormControl>

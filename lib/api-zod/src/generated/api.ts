@@ -208,6 +208,7 @@ export const ListCustomersResponseItem = zod.object({
   "email": zod.string().nullish(),
   "phone": zod.string().nullish(),
   "address": zod.string().nullish(),
+  "ccEmail": zod.string().nullish(),
   "notes": zod.string().nullish()
 }).and(zod.object({
   "jobCount": zod.number()
@@ -226,6 +227,7 @@ export const CreateCustomerBody = zod.object({
   "email": zod.string().nullish(),
   "phone": zod.string().nullish(),
   "address": zod.string().nullish(),
+  "ccEmail": zod.string().nullish(),
   "notes": zod.string().nullish()
 })
 
@@ -235,6 +237,7 @@ export const CreateCustomerResponse = zod.object({
   "email": zod.string().nullish(),
   "phone": zod.string().nullish(),
   "address": zod.string().nullish(),
+  "ccEmail": zod.string().nullish(),
   "notes": zod.string().nullish()
 })
 
@@ -270,6 +273,7 @@ export const GetCustomerResponse = zod.object({
   "email": zod.string().nullish(),
   "phone": zod.string().nullish(),
   "address": zod.string().nullish(),
+  "ccEmail": zod.string().nullish(),
   "notes": zod.string().nullish()
 })
 
@@ -289,6 +293,7 @@ export const UpdateCustomerBody = zod.object({
   "email": zod.string().nullish(),
   "phone": zod.string().nullish(),
   "address": zod.string().nullish(),
+  "ccEmail": zod.string().nullish(),
   "notes": zod.string().nullish()
 })
 
@@ -298,6 +303,7 @@ export const UpdateCustomerResponse = zod.object({
   "email": zod.string().nullish(),
   "phone": zod.string().nullish(),
   "address": zod.string().nullish(),
+  "ccEmail": zod.string().nullish(),
   "notes": zod.string().nullish()
 })
 
@@ -1484,7 +1490,7 @@ export const ListInvoicesResponseItem = zod.object({
   "lines": zod.array(zod.object({
   "id": zod.number(),
   "description": zod.string().nullish(),
-  "category": zod.union([zod.literal('material'),zod.literal('labor'),zod.literal('rental'),zod.literal(null)]).nullish(),
+  "category": zod.union([zod.literal('material'),zod.literal('labor'),zod.literal('rental'),zod.literal('electrical'),zod.literal(null)]).nullish(),
   "amountCents": zod.number()
 })),
   "payments": zod.array(zod.object({
@@ -1516,7 +1522,7 @@ export const CreateInvoiceBody = zod.object({
   "memo": zod.string().nullish(),
   "lines": zod.array(zod.object({
   "description": zod.string().nullish(),
-  "category": zod.union([zod.literal('material'),zod.literal('labor'),zod.literal('rental'),zod.literal(null)]).nullish(),
+  "category": zod.union([zod.literal('material'),zod.literal('labor'),zod.literal('rental'),zod.literal('electrical'),zod.literal(null)]).nullish(),
   "amountCents": zod.number()
 })).min(1)
 })
@@ -1543,7 +1549,7 @@ export const CreateInvoiceResponse = zod.object({
   "lines": zod.array(zod.object({
   "id": zod.number(),
   "description": zod.string().nullish(),
-  "category": zod.union([zod.literal('material'),zod.literal('labor'),zod.literal('rental'),zod.literal(null)]).nullish(),
+  "category": zod.union([zod.literal('material'),zod.literal('labor'),zod.literal('rental'),zod.literal('electrical'),zod.literal(null)]).nullish(),
   "amountCents": zod.number()
 })),
   "payments": zod.array(zod.object({
@@ -1594,7 +1600,7 @@ export const GetInvoiceResponse = zod.object({
   "lines": zod.array(zod.object({
   "id": zod.number(),
   "description": zod.string().nullish(),
-  "category": zod.union([zod.literal('material'),zod.literal('labor'),zod.literal('rental'),zod.literal(null)]).nullish(),
+  "category": zod.union([zod.literal('material'),zod.literal('labor'),zod.literal('rental'),zod.literal('electrical'),zod.literal(null)]).nullish(),
   "amountCents": zod.number()
 })),
   "payments": zod.array(zod.object({
@@ -1629,7 +1635,7 @@ export const UpdateInvoiceBody = zod.object({
   "memo": zod.string().nullish(),
   "lines": zod.array(zod.object({
   "description": zod.string().nullish(),
-  "category": zod.union([zod.literal('material'),zod.literal('labor'),zod.literal('rental'),zod.literal(null)]).nullish(),
+  "category": zod.union([zod.literal('material'),zod.literal('labor'),zod.literal('rental'),zod.literal('electrical'),zod.literal(null)]).nullish(),
   "amountCents": zod.number()
 })).min(1).optional()
 })
@@ -1656,7 +1662,7 @@ export const UpdateInvoiceResponse = zod.object({
   "lines": zod.array(zod.object({
   "id": zod.number(),
   "description": zod.string().nullish(),
-  "category": zod.union([zod.literal('material'),zod.literal('labor'),zod.literal('rental'),zod.literal(null)]).nullish(),
+  "category": zod.union([zod.literal('material'),zod.literal('labor'),zod.literal('rental'),zod.literal('electrical'),zod.literal(null)]).nullish(),
   "amountCents": zod.number()
 })),
   "payments": zod.array(zod.object({
@@ -1720,7 +1726,7 @@ export const CreateInvoicePaymentResponse = zod.object({
   "lines": zod.array(zod.object({
   "id": zod.number(),
   "description": zod.string().nullish(),
-  "category": zod.union([zod.literal('material'),zod.literal('labor'),zod.literal('rental'),zod.literal(null)]).nullish(),
+  "category": zod.union([zod.literal('material'),zod.literal('labor'),zod.literal('rental'),zod.literal('electrical'),zod.literal(null)]).nullish(),
   "amountCents": zod.number()
 })),
   "payments": zod.array(zod.object({

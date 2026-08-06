@@ -16,5 +16,7 @@ export interface Customer {
   /** @nullable */
   address?: string | null;
   /** @nullable */
+  ccEmail?: string | null;
+  /** @nullable */
   notes?: string | null;
 }

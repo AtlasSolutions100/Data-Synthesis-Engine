@@ -52,7 +52,7 @@ import {
 import { InvoicePrintView } from "@/components/invoice-print-view";
 import type { InvoicePrintData } from "@/lib/invoice-print";
 
-const CATEGORY_VALUES = ["material", "labor", "rental"] as const;
+const CATEGORY_VALUES = ["material", "labor", "rental", "electrical"] as const;
 
 const lineSchema = z.object({
   description: z.string().optional(),
@@ -117,7 +117,14 @@ export function InvoiceForm({
       jobId: defaultValues?.jobId || "",
       customerId: defaultValues?.customerId || "",
       date: defaultValues?.date || new Date().toISOString().split("T")[0],
-      dueDate: defaultValues?.dueDate || "",
+      dueDate:
+        defaultValues?.dueDate !== undefined
+          ? defaultValues.dueDate
+          : (() => {
+              const d = new Date();
+              d.setDate(d.getDate() + 30);
+              return d.toISOString().split("T")[0];
+            })(),
       memo: defaultValues?.memo || "",
       lines: defaultValues?.lines || [{ description: "", amount: "" }],
     },
@@ -270,18 +277,19 @@ export function InvoiceForm({
 
   const watchedCustomerId = form.watch("customerId");
 
-  // When editing an invoice that already has a job but no saved customer,
-  // derive the customer from the job once the jobs list loads so the
-  // cascading job filter shows correctly (mirrors bill-form).
+  const watchedJobId = form.watch("jobId");
+
+  // Auto-fill customer from the selected job whenever the job changes or when
+  // the jobs list first loads.  We only overwrite if no customer is already set,
+  // so a manual customer selection is never clobbered.
   useEffect(() => {
-    if (!jobs) return;
-    const jobId = form.getValues("jobId");
-    if (!jobId || form.getValues("customerId")) return;
-    const job = jobs.find((j) => String(j.id) === jobId);
+    if (!jobs || !watchedJobId) return;
+    if (form.getValues("customerId")) return;
+    const job = jobs.find((j) => String(j.id) === watchedJobId);
     if (job?.customerId != null) {
       form.setValue("customerId", String(job.customerId));
     }
-  }, [jobs, form]);
+  }, [jobs, watchedJobId, form]);
 
   // Mirror bill-form: when a customer is selected, only list their jobs.
   const filteredJobs = (jobs ?? []).filter(
@@ -462,7 +470,7 @@ export function InvoiceForm({
             name="customerId"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Customer (Optional)</FormLabel>
+                <FormLabel>Customer</FormLabel>
                 <FormControl>
                   <EntityCombobox
                     options={(customers ?? []).map((c) => ({
@@ -474,7 +482,7 @@ export function InvoiceForm({
                       field.onChange(next);
                       clearJobIfMismatched(next);
                     }}
-                    placeholder="Defaults to job"
+                    placeholder="Auto-filled from job"
                     searchPlaceholder="Search customers..."
                     emptyText="No customers found."
                     onCreate={handleCreateCustomer}
@@ -503,7 +511,7 @@ export function InvoiceForm({
             name="dueDate"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Due Date (Optional)</FormLabel>
+                <FormLabel>Due Date</FormLabel>
                 <FormControl>
                   <Input type="date" {...field} />
                 </FormControl>
@@ -542,6 +550,7 @@ export function InvoiceForm({
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="none">—</SelectItem>
+                          <SelectItem value="electrical">Total Electrical</SelectItem>
                           <SelectItem value="material">Material</SelectItem>
                           <SelectItem value="labor">Labor</SelectItem>
                           <SelectItem value="rental">Rental</SelectItem>

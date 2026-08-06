@@ -196,6 +196,8 @@ export default function Customers() {
                             name: customer.name,
                             email: customer.email || "",
                             phone: customer.phone || "",
+                            address: customer.address || "",
+                            ccEmail: customer.ccEmail || "",
                             notes: customer.notes || ""
                           }}
                           onSubmit={(data) => updateCustomer.mutate({ id: customer.id, data: data as any })} 

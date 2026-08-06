@@ -13,7 +13,7 @@ export const COMPANY = {
 
 export type PrintLine = {
   description: string | null;
-  category: "material" | "labor" | "rental" | null | undefined;
+  category: "material" | "labor" | "rental" | "electrical" | null | undefined;
   amountCents: number;
 };
 
@@ -33,6 +33,7 @@ export const CATEGORY_LABEL: Record<string, string> = {
   material: "Material",
   labor: "Labor",
   rental: "Rental",
+  electrical: "Total Electrical",
 };
 
 export function formatPrintDate(iso: string | null): string {

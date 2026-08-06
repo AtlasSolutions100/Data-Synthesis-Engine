@@ -50,7 +50,7 @@ import { PaymentForm } from "@/components/forms/payment-form";
 import { InvoiceForm } from "@/components/forms/invoice-form";
 import { FeedbackButton } from "@/components/feedback-button";
 import { useQueryClient } from "@tanstack/react-query";
-import { Plus, Trash2, ArrowLeft, Pencil, Eye, Download, Copy } from "lucide-react";
+import { Plus, Trash2, ArrowLeft, Pencil, Eye, Download, Copy, Mail } from "lucide-react";
 
 const statusVariant: Record<string, "default" | "secondary" | "outline"> = {
   paid: "secondary",
@@ -319,6 +319,16 @@ export default function InvoiceDetail() {
           >
             <Download className="mr-2 h-4 w-4" />
             {exporting ? "Exporting…" : "Export PDF"}
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled
+            title="Coming soon — requires linking customer email (P8-INV-05)"
+            data-testid="button-email-invoice"
+          >
+            <Mail className="mr-2 h-4 w-4" />
+            Email Invoice
           </Button>
           <Dialog
             open={isCopyOpen}

@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useParams, Link } from "wouter";
 import {
   useGetCustomer,
@@ -6,16 +7,30 @@ import {
   getListJobsQueryKey,
   useListInvoices,
   getListInvoicesQueryKey,
+  useUpdateCustomer,
+  getListCustomersQueryKey,
 } from "@workspace/api-client-react";
 import { formatCents } from "@/lib/format";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { CustomerForm } from "@/components/forms/customer-form";
+import { ArrowLeft, Pencil } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 
 export default function CustomerDetail() {
   const { id } = useParams<{ id: string }>();
   const customerId = parseInt(id || "0", 10);
+  const queryClient = useQueryClient();
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const updateCustomer = useUpdateCustomer();
 
   const { data: customer, isLoading: customerLoading } = useGetCustomer(customerId, {
     query: { enabled: !!customerId, queryKey: getGetCustomerQueryKey(customerId) },
@@ -74,12 +89,72 @@ export default function CustomerDetail() {
           <ArrowLeft className="h-4 w-4" />
           View in aging report
         </Link>
-        <h1 className="text-3xl font-bold tracking-tight text-slate-900">{customer.name}</h1>
-        <p className="text-slate-500 mt-1">
-          {[customer.email, customer.phone].filter(Boolean).join(" · ") || "No contact info"}
-        </p>
+        <div className="flex items-center gap-3">
+          <h1 className="text-3xl font-bold tracking-tight text-slate-900">{customer.name}</h1>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setIsEditOpen(true)}
+            data-testid="button-edit-customer"
+          >
+            <Pencil className="mr-2 h-4 w-4" /> Edit
+          </Button>
+        </div>
+        <div className="mt-2 space-y-1 text-sm text-slate-600">
+          {customer.email && (
+            <p><span className="font-medium text-slate-500">Email:</span> {customer.email}</p>
+          )}
+          {customer.ccEmail && (
+            <p><span className="font-medium text-slate-500">CC (AP):</span> {customer.ccEmail}</p>
+          )}
+          {customer.phone && (
+            <p><span className="font-medium text-slate-500">Phone:</span> {customer.phone}</p>
+          )}
+          {customer.address && (
+            <p className="whitespace-pre-wrap">
+              <span className="font-medium text-slate-500">Billing Address:</span>{" "}
+              {customer.address}
+            </p>
+          )}
+          {!customer.email && !customer.phone && !customer.address && !customer.ccEmail && (
+            <p className="text-slate-400">No contact info — click Edit to add.</p>
+          )}
+        </div>
         {customer.notes && <p className="text-slate-500 mt-1 text-sm">{customer.notes}</p>}
       </div>
+
+      <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Customer</DialogTitle>
+          </DialogHeader>
+          {isEditOpen && (
+            <CustomerForm
+              defaultValues={{
+                name: customer.name,
+                email: customer.email || "",
+                phone: customer.phone || "",
+                address: customer.address || "",
+                ccEmail: customer.ccEmail || "",
+                notes: customer.notes || "",
+              }}
+              onSubmit={(data) => {
+                updateCustomer.mutate(
+                  { id: customerId, data: data as any },
+                  {
+                    onSuccess: () => {
+                      queryClient.invalidateQueries({ queryKey: getGetCustomerQueryKey(customerId) });
+                      queryClient.invalidateQueries({ queryKey: getListCustomersQueryKey() });
+                      setIsEditOpen(false);
+                    },
+                  },
+                );
+              }}
+              isLoading={updateCustomer.isPending}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
 
       {totalCreditCents > 0 && (
         <div
