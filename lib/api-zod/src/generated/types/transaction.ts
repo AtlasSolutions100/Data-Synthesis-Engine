@@ -51,6 +51,11 @@ export interface Transaction {
      * @nullable
      */
   billId?: number | null;
+  /**
+     * Object-storage path of the source document uploaded when the linked bill was created (read-only)
+     * @nullable
+     */
+  billDocumentPath?: string | null;
   /** Signed amount in integer cents */
   amountCents: number;
 }

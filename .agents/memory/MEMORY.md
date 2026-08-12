@@ -30,3 +30,5 @@
 - [Drizzle raw-sql array params](drizzle-sql-array-param.md) — arrays in sql`` expand to "($1,$2)" IN-list syntax; `= any(${arr})` breaks — use IN with sql.raw ids.
 - [Payroll upload draft strategy](payroll-upload-draft-strategy.md) — capture raw Upload Hours input locally; reserve the server draft for extracted review state, not unmount/debounce persistence.
 - [Demo data isDemo pattern](demo-data-pattern.md) — isDemo bool on 8 tables; load/remove via /demo/* routes with advisory lock + dependency-order deletes.
+- [getFullBill isDemo required field](getFullBill-isDemo.md) — getFullBill() must return isDemo or CreateBillResponse.parse() throws ZodError (500); isDemo is in Bill required array.
+- [ES module import/const interleaving](es-module-import-interleaving.md) — never place a const between two imports; esbuild silently breaks the route module, causing all routes to return 500.

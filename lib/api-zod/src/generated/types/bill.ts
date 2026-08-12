@@ -44,4 +44,9 @@ export interface Bill {
   lines: BillLine[];
   payments?: BillPayment[];
   credits?: VendorCredit[];
+  /**
+     * Object-storage path of the source invoice/bill scan uploaded at creation time
+     * @nullable
+     */
+  documentPath?: string | null;
 }

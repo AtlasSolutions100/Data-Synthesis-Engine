@@ -62,7 +62,11 @@ type BillPrefill = {
 function UploadInvoiceDialog({
   onExtracted,
 }: {
-  onExtracted: (prefill: BillPrefill, note: string | null) => void;
+  onExtracted: (
+    prefill: BillPrefill,
+    note: string | null,
+    documentPath: string | null,
+  ) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [error, setError] = useState("");
@@ -122,7 +126,7 @@ function UploadInvoiceDialog({
     if (jobMatch.note) notes.push(jobMatch.note);
     setOpen(false);
     reset();
-    onExtracted(prefill, notes.length ? notes.join(" ") : null);
+    onExtracted(prefill, notes.length ? notes.join(" ") : null, result.documentPath ?? null);
   };
 
   const handleFile = (file: File | undefined) => {
@@ -254,6 +258,7 @@ export default function Bills() {
   const [prefill, setPrefill] = useState<BillPrefill | null>(null);
   const [prefillNote, setPrefillNote] = useState<string | null>(null);
   const [prefillVersion, setPrefillVersion] = useState(0);
+  const [extractedDocumentPath, setExtractedDocumentPath] = useState<string | null>(null);
 
   const { data: bills, isLoading } = useListBills(undefined, {
     query: { queryKey: getListBillsQueryKey() },
@@ -307,10 +312,11 @@ export default function Bills() {
             }
           />
           <UploadInvoiceDialog
-            onExtracted={(extracted, note) => {
+            onExtracted={(extracted, note, documentPath) => {
               setPrefill(extracted);
               setPrefillNote(note);
               setPrefillVersion((v) => v + 1);
+              setExtractedDocumentPath(documentPath);
               setCreateError(null);
               setIsCreateOpen(true);
             }}
@@ -346,7 +352,9 @@ export default function Bills() {
                 suggestedVendorName={prefill?.vendorCreateName ?? null}
                 onSubmit={(data) => {
                   setCreateError(null);
-                  createBill.mutate({ data });
+                  createBill.mutate({
+                    data: { ...data, documentPath: extractedDocumentPath },
+                  });
                 }}
                 isLoading={createBill.isPending}
                 serverError={createError}

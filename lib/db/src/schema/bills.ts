@@ -33,6 +33,8 @@ export const billsTable = pgTable("bills", {
   postedToLedger: boolean("posted_to_ledger").notNull().default(false),
   /** True for records seeded by the Practice / Demo Data loader. */
   isDemo: boolean("is_demo").notNull().default(false),
+  /** Object-storage path of the source invoice/bill scan uploaded at bill-creation time. */
+  documentPath: text("document_path"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

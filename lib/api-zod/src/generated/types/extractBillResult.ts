@@ -34,5 +34,10 @@ export interface ExtractBillResult {
      * @nullable
      */
   poNumber?: string | null;
+  /**
+     * Object-storage path where the uploaded file was persisted, if the file was saved
+     * @nullable
+     */
+  documentPath?: string | null;
   lines: ExtractedBillLine[];
 }

@@ -11,7 +11,9 @@ import {
   jobsTable,
   accountsTable,
   transactionsTable,
+  jobDocumentsTable,
 } from "@workspace/db";
+import { ObjectStorageService } from "../lib/objectStorage";
 import {
   ListBillsQueryParams,
   ListBillsResponse,
@@ -34,6 +36,8 @@ import {
   MAX_EXTRACT_TEXT_LENGTH,
   extractTextTooLargeMessage,
 } from "@workspace/api-zod";
+
+const objectStorageService = new ObjectStorageService();
 
 const router: IRouter = Router();
 
@@ -80,6 +84,7 @@ router.post("/bills/extract", async (req, res): Promise<void> => {
     return;
   }
 
+  let mimeType: string | null = null;
   let filePart:
     | { type: "image_url"; image_url: { url: string } }
     | { type: "file"; file: { filename: string; file_data: string } }
@@ -93,6 +98,7 @@ router.post("/bills/extract", async (req, res): Promise<void> => {
       return;
     }
     const mime = match[1].toLowerCase();
+    mimeType = mime;
     const base64Body = fileData.slice(match[0].length);
     const approxBytes = Math.floor((base64Body.length * 3) / 4);
     if (approxBytes > MAX_EXTRACT_FILE_BYTES) {
@@ -230,6 +236,27 @@ router.post("/bills/extract", async (req, res): Promise<void> => {
       } => Boolean(l),
     );
 
+  // Upload the source file to object storage so it can be linked to the bill
+  // and previewed from the job-detail transactions view. Non-fatal: extraction
+  // results are returned even when the upload fails.
+  let documentPath: string | null = null;
+  if (fileData && mimeType) {
+    try {
+      const uploadURL = await objectStorageService.getObjectEntityUploadURL();
+      documentPath = objectStorageService.normalizeObjectEntityPath(uploadURL);
+      const base64Body = fileData.slice(fileData.indexOf(",") + 1);
+      const buffer = Buffer.from(base64Body, "base64");
+      await fetch(uploadURL, {
+        method: "PUT",
+        body: buffer,
+        headers: { "Content-Type": mimeType },
+      });
+    } catch (uploadErr) {
+      req.log?.warn({ err: uploadErr }, "bill extraction: file upload failed, continuing without document path");
+      documentPath = null;
+    }
+  }
+
   res.json(
     ExtractBillResponse.parse({
       vendorName: str(raw.vendorName),
@@ -239,6 +266,7 @@ router.post("/bills/extract", async (req, res): Promise<void> => {
       memo: str(raw.memo),
       jobName: str(raw.jobName),
       poNumber: str(raw.poNumber),
+      documentPath,
       lines,
     }),
   );
@@ -448,6 +476,7 @@ async function getFullBill(id: number) {
   return {
     id: row.bill.id,
     billNumber: row.bill.billNumber,
+    isDemo: row.bill.isDemo,
     vendorId: row.bill.vendorId,
     vendorName: row.vendorName,
     jobId: row.bill.jobId,
@@ -460,6 +489,7 @@ async function getFullBill(id: number) {
     paidCents,
     balanceCents: totalCents - paidCents,
     status: computeStatus(totalCents, paidCents),
+    documentPath: row.bill.documentPath ?? null,
     postedToLedger: row.bill.postedToLedger,
     linkedTransactionCount: Number(txCount?.count ?? 0),
     lines: lines.map((l) => ({
@@ -631,6 +661,7 @@ router.post("/bills", async (req, res): Promise<void> => {
         date: data.date,
         dueDate: data.dueDate ?? null,
         memo: data.memo ?? null,
+        documentPath: data.documentPath ?? null,
         // Provenance: API-created bills post to the ledger and stay in
         // sync on edit; legacy/imported bills keep false.
         postedToLedger: true,
@@ -645,6 +676,17 @@ router.post("/bills", async (req, res): Promise<void> => {
       })),
     );
     await syncBillTransactions(tx, bill.id);
+    // Link the source document to the job so the storage serving route can
+    // authorize downloads and the job-documents list includes it.
+    if (data.documentPath && data.jobId) {
+      await tx.insert(jobDocumentsTable).values({
+        jobId: data.jobId,
+        objectPath: data.documentPath,
+        fileName: data.billNumber ? `Bill ${data.billNumber}.pdf` : "bill-scan",
+        category: "bill",
+        contentType: null,
+      });
+    }
     return bill.id;
   });
 

@@ -18,11 +18,14 @@ import {
   getGetJobCostSummaryQueryKey,
   useListTransactions,
   getListTransactionsQueryKey,
+  useListInvoices,
+  getListInvoicesQueryKey,
+  useListJobDocuments,
+  getListJobDocumentsQueryKey,
   useCreateTransaction,
   useUpdateTransaction,
   useDeleteTransaction,
   useCreateInvoice,
-  getListInvoicesQueryKey,
   getListJobsQueryKey,
   getListCustomersQueryKey,
   useUpdateJob,
@@ -57,6 +60,12 @@ export default function JobDetail() {
 
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingTxnId, setEditingTxnId] = useState<number | null>(null);
+  const [previewDoc, setPreviewDoc] = useState<{
+    objectPath: string;
+    downloadToken: string;
+    contentType: string | null;
+    fileName: string;
+  } | null>(null);
   const [createError, setCreateError] = useState<ServerFieldError | null>(
     null,
   );
@@ -134,6 +143,28 @@ export default function JobDetail() {
       },
     }
   );
+
+  const { data: invoices } = useListInvoices(
+    { jobId },
+    { query: { enabled: !!jobId, queryKey: getListInvoicesQueryKey({ jobId }) } }
+  );
+
+  const { data: jobDocs } = useListJobDocuments(jobId, {
+    query: { enabled: !!jobId, queryKey: getListJobDocumentsQueryKey(jobId) },
+  });
+
+  const docByPath = useMemo(() => {
+    const map = new Map<string, { objectPath: string; downloadToken: string; contentType: string | null; fileName: string }>();
+    for (const doc of jobDocs ?? []) {
+      map.set(doc.objectPath, {
+        objectPath: doc.objectPath,
+        downloadToken: doc.downloadToken,
+        contentType: doc.contentType ?? null,
+        fileName: doc.fileName,
+      });
+    }
+    return map;
+  }, [jobDocs]);
 
   const createTransaction = useCreateTransaction({
     mutation: {
@@ -231,9 +262,15 @@ export default function JobDetail() {
     .filter((g) => isCostAccount(g.accountId))
     .reduce((sum, g) => sum + g.subtotalCents, 0);
 
-  const incomeToDateCents = groups
-    .filter((g) => isIncomeAccount(g.accountId))
-    .reduce((sum, g) => sum + g.subtotalCents, 0);
+  const invoiceIncomeCents = (invoices ?? []).reduce(
+    (s, inv) => s + inv.totalCents,
+    0,
+  );
+
+  const incomeToDateCents =
+    groups
+      .filter((g) => isIncomeAccount(g.accountId))
+      .reduce((sum, g) => sum + g.subtotalCents, 0) + invoiceIncomeCents;
 
   const formatType = (t: string) => t.replace(/_/g, " ");
 
@@ -547,12 +584,57 @@ export default function JobDetail() {
                 <TableRow>
                   <TableCell colSpan={5} className="text-center py-8 text-slate-500">Loading transactions...</TableCell>
                 </TableRow>
-              ) : groups.length === 0 ? (
+              ) : groups.length === 0 && !(invoices && invoices.length > 0) ? (
                 <TableRow>
                   <TableCell colSpan={5} className="text-center py-8 text-slate-500">No transactions recorded.</TableCell>
                 </TableRow>
               ) : (
                 <>
+                  {/* ── Invoices ──────────────────────────────────────────── */}
+                  {invoices && invoices.length > 0 && (
+                    <Fragment key="invoices-group">
+                      <TableRow className="bg-emerald-50 hover:bg-emerald-50">
+                        <TableCell colSpan={5} className="font-semibold text-emerald-700 py-2">
+                          Invoices
+                          <span className="ml-2 text-xs font-normal text-emerald-500">Income</span>
+                        </TableCell>
+                      </TableRow>
+                      {invoices.map((inv) => (
+                        <TableRow key={`inv-${inv.id}`}>
+                          <TableCell className="whitespace-nowrap text-slate-900">{inv.date}</TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className="capitalize text-xs">Invoice</Badge>
+                          </TableCell>
+                          <TableCell>
+                            <div className="font-medium text-slate-900">#{inv.invoiceNumber}</div>
+                            {inv.customerName && (
+                              <div className="text-xs text-slate-500">{inv.customerName}</div>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right font-medium text-emerald-700">
+                            {formatCents(inv.totalCents)}
+                          </TableCell>
+                          <TableCell>
+                            <Link href={`/invoices/${inv.id}`}>
+                              <Button variant="ghost" size="sm" className="h-8 text-xs text-blue-600 hover:text-blue-700">
+                                View →
+                              </Button>
+                            </Link>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                      <TableRow className="border-b-2 border-slate-200">
+                        <TableCell colSpan={3} className="text-right text-sm font-medium text-slate-500">
+                          Subtotal — Invoices
+                        </TableCell>
+                        <TableCell className="text-right font-semibold text-emerald-700">
+                          {formatCents(invoiceIncomeCents)}
+                        </TableCell>
+                        <TableCell />
+                      </TableRow>
+                    </Fragment>
+                  )}
+                  {/* ── Ledger transactions (by account) ──────────────────── */}
                   {groups.map((group) => (
                     <Fragment key={group.accountId}>
                       <TableRow className="bg-slate-100 hover:bg-slate-100">
@@ -582,6 +664,21 @@ export default function JobDetail() {
                           <TableCell className="text-right font-medium">{formatCents(txn.amountCents)}</TableCell>
                           <TableCell>
                             <div className="flex items-center gap-1 justify-end">
+                              {/* ── Source-document preview ──────────────────── */}
+                              {txn.billDocumentPath && docByPath.has(txn.billDocumentPath) && (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 text-blue-500 hover:text-blue-700 hover:bg-blue-50"
+                                  title="View source document"
+                                  onClick={() => {
+                                    const doc = docByPath.get(txn.billDocumentPath!);
+                                    if (doc) setPreviewDoc(doc);
+                                  }}
+                                >
+                                  <FileText className="h-4 w-4" />
+                                </Button>
+                              )}
                               <Dialog
                                 open={editingTxnId === txn.id}
                                 onOpenChange={(val) => {
@@ -668,6 +765,35 @@ export default function JobDetail() {
       </Card>
 
       <JobDocuments jobId={jobId} />
+
+      {/* ── Source-document preview dialog ──────────────────────────────── */}
+      <Dialog open={!!previewDoc} onOpenChange={(open) => { if (!open) setPreviewDoc(null); }}>
+        <DialogContent className="sm:max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>{previewDoc?.fileName ?? "Source Document"}</DialogTitle>
+          </DialogHeader>
+          {previewDoc && (() => {
+            const path = previewDoc.objectPath.replace(/^\/objects\//, "");
+            const url = `/api/storage/objects/${path}?token=${previewDoc.downloadToken}`;
+            const isPdf = previewDoc.contentType === "application/pdf" || previewDoc.fileName.endsWith(".pdf");
+            const isImage = previewDoc.contentType?.startsWith("image/") || /\.(png|jpe?g|webp|gif)$/i.test(previewDoc.fileName);
+            if (isPdf) {
+              return <iframe src={url} className="w-full h-[70vh] rounded border" title={previewDoc.fileName} />;
+            }
+            if (isImage) {
+              return <img src={url} alt={previewDoc.fileName} className="max-w-full rounded border mx-auto" />;
+            }
+            return (
+              <div className="text-center py-8">
+                <p className="text-slate-600 mb-4">Preview not available for this file type.</p>
+                <a href={url} download={previewDoc.fileName} className="text-blue-600 underline">
+                  Download {previewDoc.fileName}
+                </a>
+              </div>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

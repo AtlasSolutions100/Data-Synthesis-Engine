@@ -8,6 +8,7 @@ import {
   jobsTable,
   customersTable,
   vendorsTable,
+  billsTable,
 } from "@workspace/db";
 import {
   ListTransactionsQueryParams,
@@ -29,7 +30,6 @@ import {
 } from "@workspace/api-zod";
 import { dateRangeConds } from "../lib/finance";
 import { listUnlinkedBillTransactions } from "../lib/billLinkBackfill";
-import { billsTable } from "@workspace/db";
 
 const router: IRouter = Router();
 
@@ -112,6 +112,7 @@ function serializeTx(
   jobNumber: string | null,
   jobName: string | null,
   splitAccountName: string | null,
+  billDocumentPath?: string | null,
 ) {
   return {
     id: t.id,
@@ -131,6 +132,7 @@ function serializeTx(
     customerId: t.customerId,
     vendorId: t.vendorId,
     billId: t.billId,
+    billDocumentPath: billDocumentPath ?? null,
     amountCents: t.amountCents,
   };
 }
@@ -190,6 +192,8 @@ router.get("/transactions", async (req, res): Promise<void> => {
   }
   conds.push(...dateRangeConds(transactionsTable.date, query.data));
 
+  const sourceBills = alias(billsTable, "source_bills");
+
   const rows = await db
     .select({
       t: transactionsTable,
@@ -198,6 +202,7 @@ router.get("/transactions", async (req, res): Promise<void> => {
       jobNumber: jobsTable.jobNumber,
       jobName: jobsTable.name,
       splitAccountName: splitAccounts.name,
+      billDocumentPath: sourceBills.documentPath,
     })
     .from(transactionsTable)
     .leftJoin(accountsTable, eq(accountsTable.id, transactionsTable.accountId))
@@ -206,6 +211,7 @@ router.get("/transactions", async (req, res): Promise<void> => {
       splitAccounts,
       eq(splitAccounts.id, transactionsTable.splitAccountId),
     )
+    .leftJoin(sourceBills, eq(sourceBills.id, transactionsTable.billId))
     .where(conds.length ? and(...conds) : undefined)
     .orderBy(desc(transactionsTable.date), desc(transactionsTable.id));
 
@@ -219,6 +225,7 @@ router.get("/transactions", async (req, res): Promise<void> => {
           r.jobNumber,
           r.jobName,
           r.splitAccountName,
+          r.billDocumentPath,
         ),
       ),
     ),

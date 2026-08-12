@@ -19,6 +19,11 @@ export interface BillInput {
   dueDate?: string | null;
   /** @nullable */
   memo?: string | null;
+  /**
+     * Object-storage path of the source invoice scan; saved on the bill and creates a job-document record so the file can be previewed
+     * @nullable
+     */
+  documentPath?: string | null;
   /** @minItems 1 */
   lines: BillLineInput[];
 }

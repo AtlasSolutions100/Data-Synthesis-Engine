@@ -624,6 +624,11 @@ export interface Transaction {
      * @nullable
      */
   billId?: number | null;
+  /**
+     * Object-storage path of the source document uploaded when the linked bill was created (read-only)
+     * @nullable
+     */
+  billDocumentPath?: string | null;
   /** Signed amount in integer cents */
   amountCents: number;
 }
@@ -1244,6 +1249,11 @@ export interface Bill {
   lines: BillLine[];
   payments?: BillPayment[];
   credits?: VendorCredit[];
+  /**
+     * Object-storage path of the source invoice/bill scan uploaded at creation time
+     * @nullable
+     */
+  documentPath?: string | null;
 }
 
 export interface BillInput {
@@ -1258,6 +1268,11 @@ export interface BillInput {
   dueDate?: string | null;
   /** @nullable */
   memo?: string | null;
+  /**
+     * Object-storage path of the source invoice scan; saved on the bill and creates a job-document record so the file can be previewed
+     * @nullable
+     */
+  documentPath?: string | null;
   /** @minItems 1 */
   lines: BillLineInput[];
 }
@@ -1613,6 +1628,11 @@ export interface ExtractBillResult {
      * @nullable
      */
   poNumber?: string | null;
+  /**
+     * Object-storage path where the uploaded file was persisted, if the file was saved
+     * @nullable
+     */
+  documentPath?: string | null;
   lines: ExtractedBillLine[];
 }
 
