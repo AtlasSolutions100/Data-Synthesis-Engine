@@ -1,0 +1,28 @@
+Add a "Practice / Demo Data" feature to this app
+
+Context: This app is [describe your app in one sentence]. The main record types are [e.g., customers, projects, invoices — list your app's 2–4 core entities].
+
+Build a self-service demo-data system so a new user can explore the app with realistic sample data and remove it later with one click, without ever touching their real data.
+
+The UI: one card with two buttons
+
+Add a "Practice Data" card on the main dashboard/settings page with a short explanation of what demo data includes and a promise that removal never touches real records.
+Button 1: "Load demo data" — after loading, it changes to "Demo data is loaded" and disables. Show a badge with the count of demo records currently loaded.
+Button 2: "Remove all demo data" — disabled unless demo data is loaded. Clicking opens a confirmation dialog ("Remove all demo data?") that warns it will also remove any records the user created against demo records (e.g., real entries logged for a demo customer).
+Both buttons show a spinner and disable while working. Success shows a toast with counts of what was loaded/removed; failure shows a "Please try again" error toast. Refresh all on-screen data afterward.
+The demo data itself
+
+Seed a small but rich dataset that exercises every major feature of the app: a few of each core entity, with realistic names, history/older versions where the app tracks history, records in multiple states (e.g., pending vs. completed), and edge cases worth demonstrating.
+Use dates relative to "now" (current and previous month) so the demo always looks fresh — but clamp them so nothing lands in the future.
+Make the fake data obviously fake (clearly fictional names, example.com emails, 555 phone numbers).
+Safety and correctness rules (the important part)
+
+Tag everything. Every demo record gets an isDemo flag and a fixed, prefixed ID (e.g., demo-customer-1). Never identify demo data by name matching.
+Idempotent load. Clicking "Load" twice must never create duplicates — use the fixed IDs with conflict handling and existence checks.
+Contagious tagging. If a user creates a new record that references a demo record, tag the new record as demo too, so cleanup catches it.
+Complete, transactional removal. Delete everything tagged demo or referencing demo IDs, in one transaction, in dependency order. Return the fresh status so the UI updates.
+Real data is untouchable. Removal predicates must be structurally incapable of selecting real records. Write an automated test that creates a real record, runs load + remove, and verifies the real record survives.
+Guard external side effects. Demo records must be blocked from triggering anything real in the outside world (emails, payments, third-party API syncs) unless the integration is explicitly in sandbox/test mode.
+Concurrency-safe. Use a lock (e.g., a database advisory lock) so simultaneous load/remove/user actions can't interleave into a half-seeded or half-deleted state.
+Visible in the UI. Show a small "Demo" badge next to demo records anywhere they appear in lists and tables, so users always know what's practice and what's real.
+Also add automated tests for: double-load creates no duplicates, removal leaves zero demo records behind, real records survive removal, and external integrations reject demo records outside sandbox mode.

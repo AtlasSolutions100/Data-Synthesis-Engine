@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { CustomerForm } from "@/components/forms/customer-form";
+import { DemoBadge } from "@/components/demo-badge";
 import { useQueryClient } from "@tanstack/react-query";
 import { Plus, Edit2, Trash2, Search, ChevronRight, Download } from "lucide-react";
 import { Link } from "wouter";
@@ -169,13 +170,14 @@ export default function Customers() {
             <Card key={customer.id}>
               <CardContent className="p-0">
                 <div className="flex items-center justify-between border-b bg-slate-50 px-4 py-3 rounded-t-xl">
-                  <div className="flex items-baseline gap-3">
+                  <div className="flex items-baseline gap-3 flex-wrap">
                     <Link
                       href={`/customers/${customer.id}`}
                       className="text-lg font-semibold text-blue-700 hover:underline"
                     >
                       {customer.name}
                     </Link>
+                    <DemoBadge isDemo={customer.isDemo} />
                     <span className="text-sm text-slate-500">
                       {customerJobs.length} {customerJobs.length === 1 ? "job" : "jobs"}
                     </span>

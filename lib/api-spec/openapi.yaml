@@ -51,6 +51,49 @@ paths:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
 
+  /demo/status:
+    get:
+      operationId: getDemoStatus
+      tags: [demo]
+      summary: Get demo data status and record counts
+      responses:
+        "200":
+          description: Demo data status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DemoStatus"
+
+  /demo/load:
+    post:
+      operationId: loadDemoData
+      tags: [demo]
+      summary: Seed practice / demo data (idempotent)
+      responses:
+        "200":
+          description: Demo data loaded (or was already present)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DemoStatus"
+        "500":
+          $ref: "#/components/responses/Error"
+
+  /demo/remove:
+    delete:
+      operationId: removeDemoData
+      tags: [demo]
+      summary: Remove all demo-tagged records in dependency order
+      responses:
+        "200":
+          description: Demo data removed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DemoStatus"
+        "500":
+          $ref: "#/components/responses/Error"
+
   /accounts:
     get:
       operationId: listAccounts
@@ -2215,7 +2258,7 @@ components:
 
     Customer:
       type: object
-      required: [id, name]
+      required: [id, name, isDemo]
       properties:
         id:
           type: integer
@@ -2231,6 +2274,9 @@ components:
           type: ["string", "null"]
         notes:
           type: ["string", "null"]
+        isDemo:
+          type: boolean
+          description: True when this record was created by the Practice / Demo Data loader
     CustomerListItem:
       allOf:
         - $ref: "#/components/schemas/Customer"
@@ -2283,7 +2329,7 @@ components:
 
     Vendor:
       type: object
-      required: [id, name]
+      required: [id, name, isDemo]
       properties:
         id:
           type: integer
@@ -2295,6 +2341,9 @@ components:
           type: ["string", "null"]
         notes:
           type: ["string", "null"]
+        isDemo:
+          type: boolean
+          description: True when this record was created by the Practice / Demo Data loader
     VendorDuplicateCandidate:
       type: object
       required: [id, name]
@@ -2341,7 +2390,7 @@ components:
 
     Employee:
       type: object
-      required: [id, name]
+      required: [id, name, isDemo]
       properties:
         id:
           type: integer
@@ -2373,6 +2422,9 @@ components:
           description: When true, employer payroll taxes are not applied to this worker
         active:
           type: boolean
+        isDemo:
+          type: boolean
+          description: True when this record was created by the Practice / Demo Data loader
     EmployeeListItem:
       type: object
       required: [id, name]
@@ -2464,7 +2516,7 @@ components:
 
     Job:
       type: object
-      required: [id, jobNumber, name, status, contractAmountCents, incomeCents, costCents, profitCents, remainingCents, billedToDateCents, remainingContractCents, overUnderBillingCents]
+      required: [id, jobNumber, name, status, contractAmountCents, incomeCents, costCents, profitCents, remainingCents, billedToDateCents, remainingContractCents, overUnderBillingCents, isDemo]
       properties:
         id:
           type: integer
@@ -2479,6 +2531,9 @@ components:
           type: ["integer", "null"]
         customerName:
           type: ["string", "null"]
+        isDemo:
+          type: boolean
+          description: True when this record was created by the Practice / Demo Data loader
         description:
           type: ["string", "null"]
         status:
@@ -3047,12 +3102,15 @@ components:
           type: ["string", "null"]
     Invoice:
       type: object
-      required: [id, invoiceNumber, jobId, customerId, date, totalCents, paidCents, balanceCents, creditCents, status, lines]
+      required: [id, invoiceNumber, jobId, customerId, date, totalCents, paidCents, balanceCents, creditCents, status, lines, isDemo]
       properties:
         id:
           type: integer
         invoiceNumber:
           type: string
+        isDemo:
+          type: boolean
+          description: True when this record was created by the Practice / Demo Data loader
         jobId:
           type: integer
         jobNumber:
@@ -3234,12 +3292,15 @@ components:
           type: ["string", "null"]
     Bill:
       type: object
-      required: [id, vendorId, date, totalCents, paidCents, balanceCents, status, postedToLedger, linkedTransactionCount, lines]
+      required: [id, vendorId, date, totalCents, paidCents, balanceCents, status, postedToLedger, linkedTransactionCount, lines, isDemo]
       properties:
         id:
           type: integer
         billNumber:
           type: ["string", "null"]
+        isDemo:
+          type: boolean
+          description: True when this record was created by the Practice / Demo Data loader
         vendorId:
           type: integer
         vendorName:
@@ -3596,6 +3657,32 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/PayrollAllocationInput"
+    DemoStatus:
+      type: object
+      required: [loaded, counts]
+      properties:
+        loaded:
+          type: boolean
+          description: True when at least one demo record exists
+        counts:
+          type: object
+          required: [customers, vendors, employees, jobs, invoices, bills, payrollRuns]
+          properties:
+            customers:
+              type: integer
+            vendors:
+              type: integer
+            employees:
+              type: integer
+            jobs:
+              type: integer
+            invoices:
+              type: integer
+            bills:
+              type: integer
+            payrollRuns:
+              type: integer
+
     PayrollRun:
       type: object
       required:
@@ -3615,10 +3702,14 @@ components:
           grossWagesCents,
           burdenCents,
           totalCostCents,
+          isDemo,
         ]
       properties:
         id:
           type: integer
+        isDemo:
+          type: boolean
+          description: True when this record was created by the Practice / Demo Data loader
         payPeriodStart:
           type: string
         payPeriodEnd:

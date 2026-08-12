@@ -23,6 +23,8 @@ export const employeesTable = pgTable("employees", {
   overtimeRateCents: bigint("overtime_rate_cents", { mode: "number" }),
   taxExempt: boolean("tax_exempt").notNull().default(false),
   active: boolean("active").notNull().default(true),
+  /** True for records seeded by the Practice / Demo Data loader. */
+  isDemo: boolean("is_demo").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

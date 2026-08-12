@@ -14,6 +14,7 @@ import { DollarSign, Activity, CreditCard, Users, ChevronRight, ChevronDown } fr
 import { Link } from "wouter";
 import { DateRangePicker, type DateRangeValue, describeRange } from "@/components/date-range-picker";
 import { QuickJobDocUploadDialog } from "@/components/quick-upload-dialog";
+import { DemoDataCard } from "@/components/demo-data-card";
 
 export default function Dashboard() {
   const [range, setRange] = useState<DateRangeValue>({});
@@ -171,6 +172,8 @@ export default function Dashboard() {
           )}
         </CardContent>
       </Card>
+
+      <DemoDataCard />
 
       <Card>
         <CardHeader>

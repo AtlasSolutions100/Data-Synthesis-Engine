@@ -232,6 +232,8 @@ export interface Customer {
   ccEmail?: string | null;
   /** @nullable */
   notes?: string | null;
+  /** True when this record was created by the Practice / Demo Data loader */
+  isDemo: boolean;
 }
 
 export type CustomerListItem = Customer & {
@@ -282,6 +284,8 @@ export interface Vendor {
   phone?: string | null;
   /** @nullable */
   notes?: string | null;
+  /** True when this record was created by the Practice / Demo Data loader */
+  isDemo: boolean;
 }
 
 export interface VendorDuplicateCandidate {
@@ -356,6 +360,8 @@ export interface Employee {
   /** When true, employer payroll taxes are not applied to this worker */
   taxExempt?: boolean;
   active?: boolean;
+  /** True when this record was created by the Practice / Demo Data loader */
+  isDemo: boolean;
 }
 
 /**
@@ -469,6 +475,8 @@ export interface Job {
   customerId?: number | null;
   /** @nullable */
   customerName?: string | null;
+  /** True when this record was created by the Practice / Demo Data loader */
+  isDemo: boolean;
   /** @nullable */
   description?: string | null;
   status: JobStatus;
@@ -1032,6 +1040,8 @@ export const InvoiceStatus = {
 export interface Invoice {
   id: number;
   invoiceNumber: string;
+  /** True when this record was created by the Practice / Demo Data loader */
+  isDemo: boolean;
   jobId: number;
   /** @nullable */
   jobNumber?: string | null;
@@ -1204,6 +1214,8 @@ export interface Bill {
   id: number;
   /** @nullable */
   billNumber?: string | null;
+  /** True when this record was created by the Practice / Demo Data loader */
+  isDemo: boolean;
   vendorId: number;
   /** @nullable */
   vendorName?: string | null;
@@ -1460,8 +1472,26 @@ export interface PayrollLineInput {
   allocations?: PayrollAllocationInput[];
 }
 
+export type DemoStatusCounts = {
+  customers: number;
+  vendors: number;
+  employees: number;
+  jobs: number;
+  invoices: number;
+  bills: number;
+  payrollRuns: number;
+};
+
+export interface DemoStatus {
+  /** True when at least one demo record exists */
+  loaded: boolean;
+  counts: DemoStatusCounts;
+}
+
 export interface PayrollRun {
   id: number;
+  /** True when this record was created by the Practice / Demo Data loader */
+  isDemo: boolean;
   payPeriodStart: string;
   payPeriodEnd: string;
   payDate: string;

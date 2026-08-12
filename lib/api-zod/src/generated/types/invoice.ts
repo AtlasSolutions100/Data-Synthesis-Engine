@@ -12,6 +12,8 @@ import type { InvoiceStatus } from './invoiceStatus';
 export interface Invoice {
   id: number;
   invoiceNumber: string;
+  /** True when this record was created by the Practice / Demo Data loader */
+  isDemo: boolean;
   jobId: number;
   /** @nullable */
   jobNumber?: string | null;

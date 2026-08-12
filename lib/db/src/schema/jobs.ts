@@ -4,6 +4,7 @@ import {
   text,
   integer,
   bigint,
+  boolean,
   timestamp,
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
@@ -26,6 +27,8 @@ export const jobsTable = pgTable("jobs", {
   contractAmountCents: bigint("contract_amount_cents", { mode: "number" })
     .notNull()
     .default(0),
+  /** True for records seeded by the Practice / Demo Data loader. */
+  isDemo: boolean("is_demo").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

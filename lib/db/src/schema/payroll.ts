@@ -37,6 +37,8 @@ export const payrollRunsTable = pgTable("payroll_runs", {
   coSurchargeRateBps: integer("co_surcharge_rate_bps").notNull().default(22),
   posted: boolean("posted").notNull().default(false),
   postedAt: timestamp("posted_at", { withTimezone: true }),
+  /** True for records seeded by the Practice / Demo Data loader. */
+  isDemo: boolean("is_demo").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

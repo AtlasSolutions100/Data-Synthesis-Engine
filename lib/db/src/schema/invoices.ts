@@ -4,6 +4,7 @@ import {
   text,
   integer,
   bigint,
+  boolean,
   date,
   timestamp,
 } from "drizzle-orm/pg-core";
@@ -24,6 +25,8 @@ export const invoicesTable = pgTable("invoices", {
   date: date("date", { mode: "string" }).notNull(),
   dueDate: date("due_date", { mode: "string" }),
   memo: text("memo"),
+  /** True for records seeded by the Practice / Demo Data loader. */
+  isDemo: boolean("is_demo").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

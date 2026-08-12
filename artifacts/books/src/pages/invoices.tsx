@@ -34,6 +34,7 @@ import {
   type ServerFieldError,
 } from "@/lib/server-field-error";
 import { DateRangePicker, type DateRangeValue } from "@/components/date-range-picker";
+import { DemoBadge } from "@/components/demo-badge";
 import { useQueryClient } from "@tanstack/react-query";
 import { Plus, Trash2 } from "lucide-react";
 import { ImportDataDialog } from "@/components/import-data-dialog";
@@ -181,12 +182,15 @@ export default function Invoices() {
                 invoices?.map((inv) => (
                   <TableRow key={inv.id} className="hover:bg-slate-50 group">
                     <TableCell className="font-medium">
-                      <Link
-                        href={`/invoices/${inv.id}`}
-                        className="text-blue-600 hover:underline"
-                      >
-                        {inv.invoiceNumber}
-                      </Link>
+                      <div className="flex items-center gap-2">
+                        <Link
+                          href={`/invoices/${inv.id}`}
+                          className="text-blue-600 hover:underline"
+                        >
+                          {inv.invoiceNumber}
+                        </Link>
+                        <DemoBadge isDemo={inv.isDemo} />
+                      </div>
                     </TableCell>
                     <TableCell>{inv.jobName || "-"}</TableCell>
                     <TableCell>{inv.customerName || "-"}</TableCell>

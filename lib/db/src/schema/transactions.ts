@@ -4,6 +4,7 @@ import {
   text,
   integer,
   bigint,
+  boolean,
   date,
   timestamp,
 } from "drizzle-orm/pg-core";
@@ -56,6 +57,8 @@ export const transactionsTable = pgTable("transactions", {
     onDelete: "cascade",
   }),
   amountCents: bigint("amount_cents", { mode: "number" }).notNull(),
+  /** True for records seeded by the Practice / Demo Data loader. */
+  isDemo: boolean("is_demo").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

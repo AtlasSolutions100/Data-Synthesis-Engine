@@ -50,6 +50,8 @@ export * from './customerInput';
 export * from './customerListItem';
 export * from './customerUpdate';
 export * from './dashboardSummary';
+export * from './demoStatus';
+export * from './demoStatusCounts';
 export * from './duplicateInvoiceNumberError';
 export * from './employee';
 export * from './employeeInput';

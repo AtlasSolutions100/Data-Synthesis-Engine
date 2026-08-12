@@ -18,6 +18,57 @@ export const HealthCheckResponse = zod.object({
 
 
 /**
+ * @summary Get demo data status and record counts
+ */
+export const GetDemoStatusResponse = zod.object({
+  "loaded": zod.boolean().describe('True when at least one demo record exists'),
+  "counts": zod.object({
+  "customers": zod.number(),
+  "vendors": zod.number(),
+  "employees": zod.number(),
+  "jobs": zod.number(),
+  "invoices": zod.number(),
+  "bills": zod.number(),
+  "payrollRuns": zod.number()
+})
+})
+
+
+/**
+ * @summary Seed practice / demo data (idempotent)
+ */
+export const LoadDemoDataResponse = zod.object({
+  "loaded": zod.boolean().describe('True when at least one demo record exists'),
+  "counts": zod.object({
+  "customers": zod.number(),
+  "vendors": zod.number(),
+  "employees": zod.number(),
+  "jobs": zod.number(),
+  "invoices": zod.number(),
+  "bills": zod.number(),
+  "payrollRuns": zod.number()
+})
+})
+
+
+/**
+ * @summary Remove all demo-tagged records in dependency order
+ */
+export const RemoveDemoDataResponse = zod.object({
+  "loaded": zod.boolean().describe('True when at least one demo record exists'),
+  "counts": zod.object({
+  "customers": zod.number(),
+  "vendors": zod.number(),
+  "employees": zod.number(),
+  "jobs": zod.number(),
+  "invoices": zod.number(),
+  "bills": zod.number(),
+  "payrollRuns": zod.number()
+})
+})
+
+
+/**
  * @summary List chart of accounts
  */
 export const ListAccountsResponseItem = zod.object({
@@ -209,7 +260,8 @@ export const ListCustomersResponseItem = zod.object({
   "phone": zod.string().nullish(),
   "address": zod.string().nullish(),
   "ccEmail": zod.string().nullish(),
-  "notes": zod.string().nullish()
+  "notes": zod.string().nullish(),
+  "isDemo": zod.boolean().describe('True when this record was created by the Practice \/ Demo Data loader')
 }).and(zod.object({
   "jobCount": zod.number()
 }))
@@ -238,7 +290,8 @@ export const CreateCustomerResponse = zod.object({
   "phone": zod.string().nullish(),
   "address": zod.string().nullish(),
   "ccEmail": zod.string().nullish(),
-  "notes": zod.string().nullish()
+  "notes": zod.string().nullish(),
+  "isDemo": zod.boolean().describe('True when this record was created by the Practice \/ Demo Data loader')
 })
 
 
@@ -274,7 +327,8 @@ export const GetCustomerResponse = zod.object({
   "phone": zod.string().nullish(),
   "address": zod.string().nullish(),
   "ccEmail": zod.string().nullish(),
-  "notes": zod.string().nullish()
+  "notes": zod.string().nullish(),
+  "isDemo": zod.boolean().describe('True when this record was created by the Practice \/ Demo Data loader')
 })
 
 
@@ -304,7 +358,8 @@ export const UpdateCustomerResponse = zod.object({
   "phone": zod.string().nullish(),
   "address": zod.string().nullish(),
   "ccEmail": zod.string().nullish(),
-  "notes": zod.string().nullish()
+  "notes": zod.string().nullish(),
+  "isDemo": zod.boolean().describe('True when this record was created by the Practice \/ Demo Data loader')
 })
 
 
@@ -326,7 +381,8 @@ export const ListVendorsResponseItem = zod.object({
   "name": zod.string(),
   "email": zod.string().nullish(),
   "phone": zod.string().nullish(),
-  "notes": zod.string().nullish()
+  "notes": zod.string().nullish(),
+  "isDemo": zod.boolean().describe('True when this record was created by the Practice \/ Demo Data loader')
 })
 export const ListVendorsResponse = zod.array(ListVendorsResponseItem)
 
@@ -349,7 +405,8 @@ export const CreateVendorResponse = zod.object({
   "name": zod.string(),
   "email": zod.string().nullish(),
   "phone": zod.string().nullish(),
-  "notes": zod.string().nullish()
+  "notes": zod.string().nullish(),
+  "isDemo": zod.boolean().describe('True when this record was created by the Practice \/ Demo Data loader')
 })
 
 
@@ -383,7 +440,8 @@ export const GetVendorResponse = zod.object({
   "name": zod.string(),
   "email": zod.string().nullish(),
   "phone": zod.string().nullish(),
-  "notes": zod.string().nullish()
+  "notes": zod.string().nullish(),
+  "isDemo": zod.boolean().describe('True when this record was created by the Practice \/ Demo Data loader')
 })
 
 
@@ -409,7 +467,8 @@ export const UpdateVendorResponse = zod.object({
   "name": zod.string(),
   "email": zod.string().nullish(),
   "phone": zod.string().nullish(),
-  "notes": zod.string().nullish()
+  "notes": zod.string().nullish(),
+  "isDemo": zod.boolean().describe('True when this record was created by the Practice \/ Demo Data loader')
 })
 
 
@@ -487,7 +546,8 @@ export const CreateEmployeeResponse = zod.object({
   "straightTimeRateCents": zod.number().nullish().describe('Hourly straight-time pay rate in integer cents'),
   "overtimeRateCents": zod.number().nullish().describe('Hourly overtime pay rate in integer cents'),
   "taxExempt": zod.boolean().optional().describe('When true, employer payroll taxes are not applied to this worker'),
-  "active": zod.boolean().optional()
+  "active": zod.boolean().optional(),
+  "isDemo": zod.boolean().describe('True when this record was created by the Practice \/ Demo Data loader')
 })
 
 
@@ -551,7 +611,8 @@ export const GetEmployeeResponse = zod.object({
   "straightTimeRateCents": zod.number().nullish().describe('Hourly straight-time pay rate in integer cents'),
   "overtimeRateCents": zod.number().nullish().describe('Hourly overtime pay rate in integer cents'),
   "taxExempt": zod.boolean().optional().describe('When true, employer payroll taxes are not applied to this worker'),
-  "active": zod.boolean().optional()
+  "active": zod.boolean().optional(),
+  "isDemo": zod.boolean().describe('True when this record was created by the Practice \/ Demo Data loader')
 })
 
 
@@ -591,7 +652,8 @@ export const UpdateEmployeeResponse = zod.object({
   "straightTimeRateCents": zod.number().nullish().describe('Hourly straight-time pay rate in integer cents'),
   "overtimeRateCents": zod.number().nullish().describe('Hourly overtime pay rate in integer cents'),
   "taxExempt": zod.boolean().optional().describe('When true, employer payroll taxes are not applied to this worker'),
-  "active": zod.boolean().optional()
+  "active": zod.boolean().optional(),
+  "isDemo": zod.boolean().describe('True when this record was created by the Practice \/ Demo Data loader')
 })
 
 
@@ -646,6 +708,7 @@ export const ListJobsResponseItem = zod.object({
   "poNumber": zod.string().nullish().describe('Customer purchase order number for this job'),
   "customerId": zod.number().nullish(),
   "customerName": zod.string().nullish(),
+  "isDemo": zod.boolean().describe('True when this record was created by the Practice \/ Demo Data loader'),
   "description": zod.string().nullish(),
   "status": zod.enum(['active', 'completed', 'on_hold', 'inactive']),
   "inactiveNote": zod.string().nullish().describe('Why the job was made inactive; kept after reactivation'),
@@ -688,6 +751,7 @@ export const CreateJobResponse = zod.object({
   "poNumber": zod.string().nullish().describe('Customer purchase order number for this job'),
   "customerId": zod.number().nullish(),
   "customerName": zod.string().nullish(),
+  "isDemo": zod.boolean().describe('True when this record was created by the Practice \/ Demo Data loader'),
   "description": zod.string().nullish(),
   "status": zod.enum(['active', 'completed', 'on_hold', 'inactive']),
   "inactiveNote": zod.string().nullish().describe('Why the job was made inactive; kept after reactivation'),
@@ -737,6 +801,7 @@ export const GetJobResponse = zod.object({
   "poNumber": zod.string().nullish().describe('Customer purchase order number for this job'),
   "customerId": zod.number().nullish(),
   "customerName": zod.string().nullish(),
+  "isDemo": zod.boolean().describe('True when this record was created by the Practice \/ Demo Data loader'),
   "description": zod.string().nullish(),
   "status": zod.enum(['active', 'completed', 'on_hold', 'inactive']),
   "inactiveNote": zod.string().nullish().describe('Why the job was made inactive; kept after reactivation'),
@@ -783,6 +848,7 @@ export const UpdateJobResponse = zod.object({
   "poNumber": zod.string().nullish().describe('Customer purchase order number for this job'),
   "customerId": zod.number().nullish(),
   "customerName": zod.string().nullish(),
+  "isDemo": zod.boolean().describe('True when this record was created by the Practice \/ Demo Data loader'),
   "description": zod.string().nullish(),
   "status": zod.enum(['active', 'completed', 'on_hold', 'inactive']),
   "inactiveNote": zod.string().nullish().describe('Why the job was made inactive; kept after reactivation'),
@@ -1206,6 +1272,7 @@ export const GetDashboardSummaryResponse = zod.object({
   "poNumber": zod.string().nullish().describe('Customer purchase order number for this job'),
   "customerId": zod.number().nullish(),
   "customerName": zod.string().nullish(),
+  "isDemo": zod.boolean().describe('True when this record was created by the Practice \/ Demo Data loader'),
   "description": zod.string().nullish(),
   "status": zod.enum(['active', 'completed', 'on_hold', 'inactive']),
   "inactiveNote": zod.string().nullish().describe('Why the job was made inactive; kept after reactivation'),
@@ -1471,6 +1538,7 @@ export const ListInvoicesQueryParams = zod.object({
 export const ListInvoicesResponseItem = zod.object({
   "id": zod.number(),
   "invoiceNumber": zod.string(),
+  "isDemo": zod.boolean().describe('True when this record was created by the Practice \/ Demo Data loader'),
   "jobId": zod.number(),
   "jobNumber": zod.string().nullish(),
   "jobName": zod.string().nullish(),
@@ -1530,6 +1598,7 @@ export const CreateInvoiceBody = zod.object({
 export const CreateInvoiceResponse = zod.object({
   "id": zod.number(),
   "invoiceNumber": zod.string(),
+  "isDemo": zod.boolean().describe('True when this record was created by the Practice \/ Demo Data loader'),
   "jobId": zod.number(),
   "jobNumber": zod.string().nullish(),
   "jobName": zod.string().nullish(),
@@ -1581,6 +1650,7 @@ export const GetInvoiceParams = zod.object({
 export const GetInvoiceResponse = zod.object({
   "id": zod.number(),
   "invoiceNumber": zod.string(),
+  "isDemo": zod.boolean().describe('True when this record was created by the Practice \/ Demo Data loader'),
   "jobId": zod.number(),
   "jobNumber": zod.string().nullish(),
   "jobName": zod.string().nullish(),
@@ -1643,6 +1713,7 @@ export const UpdateInvoiceBody = zod.object({
 export const UpdateInvoiceResponse = zod.object({
   "id": zod.number(),
   "invoiceNumber": zod.string(),
+  "isDemo": zod.boolean().describe('True when this record was created by the Practice \/ Demo Data loader'),
   "jobId": zod.number(),
   "jobNumber": zod.string().nullish(),
   "jobName": zod.string().nullish(),
@@ -1707,6 +1778,7 @@ export const CreateInvoicePaymentBody = zod.object({
 export const CreateInvoicePaymentResponse = zod.object({
   "id": zod.number(),
   "invoiceNumber": zod.string(),
+  "isDemo": zod.boolean().describe('True when this record was created by the Practice \/ Demo Data loader'),
   "jobId": zod.number(),
   "jobNumber": zod.string().nullish(),
   "jobName": zod.string().nullish(),
@@ -1763,6 +1835,7 @@ export const ListBillsQueryParams = zod.object({
 export const ListBillsResponseItem = zod.object({
   "id": zod.number(),
   "billNumber": zod.string().nullish(),
+  "isDemo": zod.boolean().describe('True when this record was created by the Practice \/ Demo Data loader'),
   "vendorId": zod.number(),
   "vendorName": zod.string().nullish(),
   "jobId": zod.number().nullish(),
@@ -1827,6 +1900,7 @@ export const CreateBillBody = zod.object({
 export const CreateBillResponse = zod.object({
   "id": zod.number(),
   "billNumber": zod.string().nullish(),
+  "isDemo": zod.boolean().describe('True when this record was created by the Practice \/ Demo Data loader'),
   "vendorId": zod.number(),
   "vendorName": zod.string().nullish(),
   "jobId": zod.number().nullish(),
@@ -1910,6 +1984,7 @@ export const GetBillParams = zod.object({
 export const GetBillResponse = zod.object({
   "id": zod.number(),
   "billNumber": zod.string().nullish(),
+  "isDemo": zod.boolean().describe('True when this record was created by the Practice \/ Demo Data loader'),
   "vendorId": zod.number(),
   "vendorName": zod.string().nullish(),
   "jobId": zod.number().nullish(),
@@ -1977,6 +2052,7 @@ export const UpdateBillBody = zod.object({
 export const UpdateBillResponse = zod.object({
   "id": zod.number(),
   "billNumber": zod.string().nullish(),
+  "isDemo": zod.boolean().describe('True when this record was created by the Practice \/ Demo Data loader'),
   "vendorId": zod.number(),
   "vendorName": zod.string().nullish(),
   "jobId": zod.number().nullish(),
@@ -2047,6 +2123,7 @@ export const CreateBillPaymentBody = zod.object({
 export const CreateBillPaymentResponse = zod.object({
   "id": zod.number(),
   "billNumber": zod.string().nullish(),
+  "isDemo": zod.boolean().describe('True when this record was created by the Practice \/ Demo Data loader'),
   "vendorId": zod.number(),
   "vendorName": zod.string().nullish(),
   "jobId": zod.number().nullish(),
@@ -2106,6 +2183,7 @@ export const CreateVendorCreditBody = zod.object({
 export const CreateVendorCreditResponse = zod.object({
   "id": zod.number(),
   "billNumber": zod.string().nullish(),
+  "isDemo": zod.boolean().describe('True when this record was created by the Practice \/ Demo Data loader'),
   "vendorId": zod.number(),
   "vendorName": zod.string().nullish(),
   "jobId": zod.number().nullish(),
@@ -2193,6 +2271,7 @@ export const ListPayrollRunsQueryParams = zod.object({
 
 export const ListPayrollRunsResponseItem = zod.object({
   "id": zod.number(),
+  "isDemo": zod.boolean().describe('True when this record was created by the Practice \/ Demo Data loader'),
   "payPeriodStart": zod.string(),
   "payPeriodEnd": zod.string(),
   "payDate": zod.string(),
@@ -2305,6 +2384,7 @@ export const CreatePayrollRunBody = zod.object({
 
 export const CreatePayrollRunResponse = zod.object({
   "id": zod.number(),
+  "isDemo": zod.boolean().describe('True when this record was created by the Practice \/ Demo Data loader'),
   "payPeriodStart": zod.string(),
   "payPeriodEnd": zod.string(),
   "payDate": zod.string(),
@@ -2367,6 +2447,7 @@ export const GetPayrollRunParams = zod.object({
 
 export const GetPayrollRunResponse = zod.object({
   "id": zod.number(),
+  "isDemo": zod.boolean().describe('True when this record was created by the Practice \/ Demo Data loader'),
   "payPeriodStart": zod.string(),
   "payPeriodEnd": zod.string(),
   "payDate": zod.string(),
@@ -2482,6 +2563,7 @@ export const UpdatePayrollRunBody = zod.object({
 
 export const UpdatePayrollRunResponse = zod.object({
   "id": zod.number(),
+  "isDemo": zod.boolean().describe('True when this record was created by the Practice \/ Demo Data loader'),
   "payPeriodStart": zod.string(),
   "payPeriodEnd": zod.string(),
   "payDate": zod.string(),
@@ -2555,6 +2637,7 @@ export const PostPayrollRunParams = zod.object({
 
 export const PostPayrollRunResponse = zod.object({
   "id": zod.number(),
+  "isDemo": zod.boolean().describe('True when this record was created by the Practice \/ Demo Data loader'),
   "payPeriodStart": zod.string(),
   "payPeriodEnd": zod.string(),
   "payDate": zod.string(),
@@ -2618,6 +2701,7 @@ export const UnpostPayrollRunParams = zod.object({
 
 export const UnpostPayrollRunResponse = zod.object({
   "id": zod.number(),
+  "isDemo": zod.boolean().describe('True when this record was created by the Practice \/ Demo Data loader'),
   "payPeriodStart": zod.string(),
   "payPeriodEnd": zod.string(),
   "payDate": zod.string(),

@@ -19,4 +19,6 @@ export interface Customer {
   ccEmail?: string | null;
   /** @nullable */
   notes?: string | null;
+  /** True when this record was created by the Practice / Demo Data loader */
+  isDemo: boolean;
 }

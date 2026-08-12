@@ -38,6 +38,7 @@ import {
 } from "@/components/ui/select";
 import { useQueryClient } from "@tanstack/react-query";
 import { Plus, Trash2, Upload } from "lucide-react";
+import { DemoBadge } from "@/components/demo-badge";
 
 const CURRENT_YEAR = new Date().getFullYear();
 const YEAR_OPTIONS = Array.from({ length: 6 }, (_, i) => CURRENT_YEAR - i);
@@ -186,12 +187,15 @@ export default function Payroll() {
                 runs?.map((run) => (
                   <TableRow key={run.id} className="group hover:bg-slate-50">
                     <TableCell className="font-medium">
-                      <Link
-                        href={`/payroll/${run.id}`}
-                        className="text-blue-600 hover:underline"
-                      >
-                        {run.payPeriodStart} – {run.payPeriodEnd}
-                      </Link>
+                      <div className="flex items-center gap-2">
+                        <Link
+                          href={`/payroll/${run.id}`}
+                          className="text-blue-600 hover:underline"
+                        >
+                          {run.payPeriodStart} – {run.payPeriodEnd}
+                        </Link>
+                        <DemoBadge isDemo={run.isDemo} />
+                      </div>
                     </TableCell>
                     <TableCell className="whitespace-nowrap">
                       {run.payDate}

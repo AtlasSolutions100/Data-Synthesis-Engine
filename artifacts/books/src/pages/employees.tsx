@@ -16,6 +16,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ImportDataDialog } from "@/components/import-data-dialog";
 import { buildCsv, csvFilename, downloadCsv } from "@/lib/csv-export";
+import { DemoBadge } from "@/components/demo-badge";
 
 const CURRENT_YEAR = new Date().getFullYear();
 const YEAR_OPTIONS = Array.from({ length: 6 }, (_, i) => CURRENT_YEAR - i);
@@ -338,13 +339,16 @@ export default function Employees() {
                 visibleEmployees.map((employee) => (
                   <TableRow key={employee.id}>
                     <TableCell className="font-medium">
-                      <Link
-                        href={`/employees/${employee.id}`}
-                        className="text-blue-600 hover:underline"
-                        data-testid={`link-employee-${employee.id}`}
-                      >
-                        {employee.name}
-                      </Link>
+                      <div className="flex items-center gap-2">
+                        <Link
+                          href={`/employees/${employee.id}`}
+                          className="text-blue-600 hover:underline"
+                          data-testid={`link-employee-${employee.id}`}
+                        >
+                          {employee.name}
+                        </Link>
+                        <DemoBadge isDemo={employee.isDemo} />
+                      </div>
                     </TableCell>
                     <TableCell data-testid={`text-contact-${employee.id}`}>
                       {employee.email || employee.phone ? (

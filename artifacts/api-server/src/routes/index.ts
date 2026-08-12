@@ -14,6 +14,7 @@ import storageRouter from "./storage";
 import reportsRouter from "./reports";
 import importDataRouter from "./importData";
 import feedbackRouter from "./feedback";
+import demoRouter from "./demo";
 
 const router: IRouter = Router();
 
@@ -32,5 +33,6 @@ router.use(storageRouter);
 router.use(reportsRouter);
 router.use(importDataRouter);
 router.use(feedbackRouter);
+router.use(demoRouter);
 
 export default router;

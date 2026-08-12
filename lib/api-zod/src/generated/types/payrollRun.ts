@@ -9,6 +9,8 @@ import type { PayrollLine } from './payrollLine';
 
 export interface PayrollRun {
   id: number;
+  /** True when this record was created by the Practice / Demo Data loader */
+  isDemo: boolean;
   payPeriodStart: string;
   payPeriodEnd: string;
   payDate: string;

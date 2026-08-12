@@ -41,6 +41,7 @@ import type {
   CustomerListItem,
   CustomerUpdate,
   DashboardSummary,
+  DemoStatus,
   DuplicateInvoiceNumberError,
   Employee,
   EmployeeInput,
@@ -225,6 +226,223 @@ export function useHealthCheck<TData = Awaited<ReturnType<typeof healthCheck>>, 
 
 
 
+
+export const getGetDemoStatusUrl = () => {
+
+
+
+
+  return `/api/demo/status`
+}
+
+/**
+ * @summary Get demo data status and record counts
+ */
+export const getDemoStatus = async ( options?: RequestInit): Promise<DemoStatus> => {
+
+  return customFetch<DemoStatus>(getGetDemoStatusUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetDemoStatusQueryKey = () => {
+    return [
+    `/api/demo/status`
+    ] as const;
+    }
+
+
+export const getGetDemoStatusQueryOptions = <TData = Awaited<ReturnType<typeof getDemoStatus>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDemoStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetDemoStatusQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getDemoStatus>>> = ({ signal }) => getDemoStatus({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getDemoStatus>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetDemoStatusQueryResult = NonNullable<Awaited<ReturnType<typeof getDemoStatus>>>
+export type GetDemoStatusQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get demo data status and record counts
+ */
+
+export function useGetDemoStatus<TData = Awaited<ReturnType<typeof getDemoStatus>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDemoStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetDemoStatusQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getLoadDemoDataUrl = () => {
+
+
+
+
+  return `/api/demo/load`
+}
+
+/**
+ * @summary Seed practice / demo data (idempotent)
+ */
+export const loadDemoData = async ( options?: RequestInit): Promise<DemoStatus> => {
+
+  return customFetch<DemoStatus>(getLoadDemoDataUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getLoadDemoDataMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof loadDemoData>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof loadDemoData>>, TError,void, TContext> => {
+
+const mutationKey = ['loadDemoData'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof loadDemoData>>, void> = () => {
+
+
+          return  loadDemoData(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type LoadDemoDataMutationResult = NonNullable<Awaited<ReturnType<typeof loadDemoData>>>
+
+    export type LoadDemoDataMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Seed practice / demo data (idempotent)
+ */
+export const useLoadDemoData = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof loadDemoData>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof loadDemoData>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getLoadDemoDataMutationOptions(options));
+    }
+
+export const getRemoveDemoDataUrl = () => {
+
+
+
+
+  return `/api/demo/remove`
+}
+
+/**
+ * @summary Remove all demo-tagged records in dependency order
+ */
+export const removeDemoData = async ( options?: RequestInit): Promise<DemoStatus> => {
+
+  return customFetch<DemoStatus>(getRemoveDemoDataUrl(),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+export const getRemoveDemoDataMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof removeDemoData>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof removeDemoData>>, TError,void, TContext> => {
+
+const mutationKey = ['removeDemoData'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof removeDemoData>>, void> = () => {
+
+
+          return  removeDemoData(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RemoveDemoDataMutationResult = NonNullable<Awaited<ReturnType<typeof removeDemoData>>>
+
+    export type RemoveDemoDataMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Remove all demo-tagged records in dependency order
+ */
+export const useRemoveDemoData = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof removeDemoData>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof removeDemoData>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getRemoveDemoDataMutationOptions(options));
+    }
 
 export const getListAccountsUrl = () => {
 

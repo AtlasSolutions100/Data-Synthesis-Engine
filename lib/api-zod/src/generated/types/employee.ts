@@ -43,4 +43,6 @@ export interface Employee {
   /** When true, employer payroll taxes are not applied to this worker */
   taxExempt?: boolean;
   active?: boolean;
+  /** True when this record was created by the Practice / Demo Data loader */
+  isDemo: boolean;
 }

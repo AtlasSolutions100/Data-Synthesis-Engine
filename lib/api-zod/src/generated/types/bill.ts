@@ -14,6 +14,8 @@ export interface Bill {
   id: number;
   /** @nullable */
   billNumber?: string | null;
+  /** True when this record was created by the Practice / Demo Data loader */
+  isDemo: boolean;
   vendorId: number;
   /** @nullable */
   vendorName?: string | null;

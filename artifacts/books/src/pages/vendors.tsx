@@ -11,6 +11,7 @@ import { Link } from "wouter";
 import { Input } from "@/components/ui/input";
 import { ImportDataDialog } from "@/components/import-data-dialog";
 import { buildCsv, csvFilename, downloadCsv } from "@/lib/csv-export";
+import { DemoBadge } from "@/components/demo-badge";
 
 /** Download the visible vendors list as CSV (same columns as the table). */
 function exportVendorsCsv(vendors: Vendor[]) {
@@ -147,9 +148,12 @@ export default function Vendors() {
                 filteredVendors?.map((vendor) => (
                   <TableRow key={vendor.id}>
                     <TableCell className="font-medium">
-                      <Link href={`/vendors/${vendor.id}`} className="text-blue-600 hover:underline">
-                        {vendor.name}
-                      </Link>
+                      <div className="flex items-center gap-2">
+                        <Link href={`/vendors/${vendor.id}`} className="text-blue-600 hover:underline">
+                          {vendor.name}
+                        </Link>
+                        <DemoBadge isDemo={vendor.isDemo} />
+                      </div>
                     </TableCell>
                     <TableCell>{vendor.email || "-"}</TableCell>
                     <TableCell>{vendor.phone || "-"}</TableCell>

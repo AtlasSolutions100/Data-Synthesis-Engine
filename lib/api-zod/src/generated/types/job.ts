@@ -20,6 +20,8 @@ export interface Job {
   customerId?: number | null;
   /** @nullable */
   customerName?: string | null;
+  /** True when this record was created by the Practice / Demo Data loader */
+  isDemo: boolean;
   /** @nullable */
   description?: string | null;
   status: JobStatus;

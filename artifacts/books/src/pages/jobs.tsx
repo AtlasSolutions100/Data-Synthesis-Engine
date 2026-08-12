@@ -14,6 +14,7 @@ import { Plus, Edit2, Trash2, Download } from "lucide-react";
 import { QuickJobDocUploadDialog } from "@/components/quick-upload-dialog";
 import { ImportDataDialog } from "@/components/import-data-dialog";
 import { buildCsv, csvFilename, downloadCsv } from "@/lib/csv-export";
+import { DemoBadge } from "@/components/demo-badge";
 
 /** Download the visible jobs list as CSV (same columns as the table). */
 function exportJobsCsv(jobs: Job[]) {
@@ -162,9 +163,12 @@ export default function Jobs() {
                 jobs?.map((job) => (
                   <TableRow key={job.id} className="hover:bg-slate-50 group">
                     <TableCell className="font-medium">
-                      <Link href={`/jobs/${job.id}`} className="text-blue-600 hover:underline">
-                        {job.name}
-                      </Link>
+                      <div className="flex items-center gap-2">
+                        <Link href={`/jobs/${job.id}`} className="text-blue-600 hover:underline">
+                          {job.name}
+                        </Link>
+                        <DemoBadge isDemo={job.isDemo} />
+                      </div>
                     </TableCell>
                     <TableCell>{job.poNumber || "-"}</TableCell>
                     <TableCell>

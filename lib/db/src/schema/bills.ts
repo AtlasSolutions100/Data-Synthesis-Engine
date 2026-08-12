@@ -31,6 +31,8 @@ export const billsTable = pgTable("bills", {
   // sync on edit. Legacy/imported bills stay false and are never
   // back-filled onto the ledger.
   postedToLedger: boolean("posted_to_ledger").notNull().default(false),
+  /** True for records seeded by the Practice / Demo Data loader. */
+  isDemo: boolean("is_demo").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

@@ -29,3 +29,4 @@
 - [Import draft autosave](import-draft-autosave.md) — per-user jsonb draft; chain DELETE behind in-flight PUT, cap opaque body size (413), shape-validate restored state.
 - [Drizzle raw-sql array params](drizzle-sql-array-param.md) — arrays in sql`` expand to "($1,$2)" IN-list syntax; `= any(${arr})` breaks — use IN with sql.raw ids.
 - [Payroll upload draft strategy](payroll-upload-draft-strategy.md) — capture raw Upload Hours input locally; reserve the server draft for extracted review state, not unmount/debounce persistence.
+- [Demo data isDemo pattern](demo-data-pattern.md) — isDemo bool on 8 tables; load/remove via /demo/* routes with advisory lock + dependency-order deletes.

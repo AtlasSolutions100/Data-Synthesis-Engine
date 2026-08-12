@@ -40,6 +40,7 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { matchExtractedJob } from "@/lib/match-extracted-job";
 import { matchExtractedVendor } from "@/lib/match-extracted-vendor";
+import { DemoBadge } from "@/components/demo-badge";
 import { Plus, Trash2, Upload, Loader2 } from "lucide-react";
 import { ImportDataDialog } from "@/components/import-data-dialog";
 
@@ -395,12 +396,15 @@ export default function Bills() {
                 bills?.map((bill) => (
                   <TableRow key={bill.id} className="hover:bg-slate-50 group">
                     <TableCell className="font-medium">
-                      <Link
-                        href={`/bills/${bill.id}`}
-                        className="text-blue-600 hover:underline"
-                      >
-                        {bill.billNumber || `Bill #${bill.id}`}
-                      </Link>
+                      <div className="flex items-center gap-2">
+                        <Link
+                          href={`/bills/${bill.id}`}
+                          className="text-blue-600 hover:underline"
+                        >
+                          {bill.billNumber || `Bill #${bill.id}`}
+                        </Link>
+                        <DemoBadge isDemo={bill.isDemo} />
+                      </div>
                     </TableCell>
                     <TableCell>{bill.vendorName || "-"}</TableCell>
                     <TableCell>{bill.jobName || "-"}</TableCell>
