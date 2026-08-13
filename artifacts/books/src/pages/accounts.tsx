@@ -17,7 +17,8 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { AccountForm } from "@/components/forms/account-form";
 import { useQueryClient } from "@tanstack/react-query";
-import { Plus, Edit2, Trash2, Upload, Loader2 } from "lucide-react";
+import { Plus, Edit2, Trash2, Upload, Loader2, BookOpen } from "lucide-react";
+import { Link } from "wouter";
 
 import type { Account } from "@workspace/api-client-react";
 
@@ -222,6 +223,14 @@ export default function Accounts() {
                     <TableCell>{account.parentNumber || "-"}</TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2 justify-end">
+                        {account.type === "bank" && (
+                          <Link href={`/accounts/${account.id}/register`}>
+                            <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5 text-blue-700 border-blue-200 hover:bg-blue-50">
+                              <BookOpen className="h-3.5 w-3.5" />
+                              Register
+                            </Button>
+                          </Link>
+                        )}
                         <Dialog open={editingId === account.id} onOpenChange={(val) => setEditingId(val ? account.id : null)}>
                           <DialogTrigger asChild>
                             <Button variant="ghost" size="icon" className="h-8 w-8">

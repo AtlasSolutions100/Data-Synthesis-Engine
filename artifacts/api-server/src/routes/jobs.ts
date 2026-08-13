@@ -143,6 +143,7 @@ function serializeJob(
     overUnderBillingCents: billedToDateCents - costCents,
     invoiceCount: invoiceStats?.invoiceCount ?? 0,
     lastInvoicedDate: invoiceStats?.lastInvoicedDate ?? null,
+    isDemo: job.isDemo,
   };
 }
 

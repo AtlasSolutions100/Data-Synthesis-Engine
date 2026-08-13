@@ -17,6 +17,7 @@ import InvoiceDetail from "./pages/invoice-detail";
 import Bills from "./pages/bills";
 import BillDetail from "./pages/bill-detail";
 import Accounts from "./pages/accounts";
+import AccountRegister from "./pages/account-register";
 import Customers from "./pages/customers";
 import CustomerDetail from "./pages/customer-detail";
 import Vendors from "./pages/vendors";
@@ -267,6 +268,7 @@ function ClerkProviderWithRoutes() {
           <Route path="/bills"><ProtectedRoute component={Bills} /></Route>
           <Route path="/bills/:id"><ProtectedRoute component={BillDetail} /></Route>
           <Route path="/accounts"><ProtectedRoute component={Accounts} /></Route>
+          <Route path="/accounts/:id/register"><ProtectedRoute component={AccountRegister} /></Route>
           <Route path="/customers"><ProtectedRoute component={Customers} /></Route>
           <Route path="/customers/:id"><ProtectedRoute component={CustomerDetail} /></Route>
           <Route path="/vendors"><ProtectedRoute component={Vendors} /></Route>
