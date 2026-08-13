@@ -1333,6 +1333,31 @@ paths:
           description: Deleted
         "404":
           $ref: "#/components/responses/Error"
+  /invoices/{id}/email:
+    post:
+      operationId: emailInvoice
+      tags: [invoices]
+      summary: Email the invoice PDF to the customer's saved address
+      description: >
+        Generates a PDF of the invoice and sends it to the customer's primary
+        email (and ccEmail if set). Requires the customer to have an email on
+        file. Uses the configured AOL SMTP relay when SMTP_PASS is present, or
+        the connected Gmail relay otherwise.
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "200":
+          description: Email sent successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmailInvoiceResult"
+        "400":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+        "503":
+          $ref: "#/components/responses/Error"
 
   /bills:
     get:
@@ -2322,6 +2347,20 @@ components:
           $ref: "#/components/schemas/FeedbackStatus"
         starred:
           type: boolean
+
+    EmailInvoiceResult:
+      type: object
+      required: [sent, to]
+      properties:
+        sent:
+          type: boolean
+        to:
+          type: string
+          description: Primary recipient email address
+        cc:
+          type: string
+          nullable: true
+          description: CC email address (if set on the customer profile)
 
     DuplicateInvoiceNumberError:
       type: object

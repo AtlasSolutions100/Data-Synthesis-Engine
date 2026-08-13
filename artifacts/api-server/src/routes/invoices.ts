@@ -23,9 +23,11 @@ import {
   CreateInvoicePaymentBody,
   CreateInvoicePaymentResponse,
   DeleteInvoicePaymentParams,
+  EmailInvoiceParams,
 } from "@workspace/api-zod";
 import { dateRangeConds } from "../lib/finance";
 import { formatDollars } from "../lib/money";
+import { generateInvoicePdfBuffer, sendInvoiceEmail } from "../lib/invoice-email";
 
 const router: IRouter = Router();
 
@@ -608,5 +610,81 @@ router.delete(
     res.sendStatus(204);
   },
 );
+
+router.post("/invoices/:id/email", async (req, res): Promise<void> => {
+  const params = EmailInvoiceParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+
+  const invoice = await getFullInvoice(params.data.id);
+  if (!invoice) {
+    res.status(404).json({ error: "Invoice not found" });
+    return;
+  }
+
+  // Load the customer to get email / ccEmail / address
+  const [customer] = await db
+    .select({
+      email: customersTable.email,
+      ccEmail: customersTable.ccEmail,
+      address: customersTable.address,
+    })
+    .from(customersTable)
+    .where(eq(customersTable.id, invoice.customerId!));
+
+  const to = customer?.email;
+  if (!to) {
+    res.status(400).json({
+      error: "This customer has no email address on file — add one on the customer page first.",
+    });
+    return;
+  }
+
+  const cc = customer?.ccEmail ?? null;
+
+  // Load the job's PO number (the invoice row only carries the job name)
+  let jobPoNumber: string | null = null;
+  if (invoice.jobId) {
+    const [jobRow] = await db
+      .select({ poNumber: jobsTable.poNumber })
+      .from(jobsTable)
+      .where(eq(jobsTable.id, invoice.jobId));
+    jobPoNumber = jobRow?.poNumber ?? null;
+  }
+
+  // Generate PDF
+  let pdfBuffer: Buffer;
+  try {
+    pdfBuffer = await generateInvoicePdfBuffer({
+      invoiceNumber: invoice.invoiceNumber,
+      date: invoice.date,
+      dueDate: invoice.dueDate ?? null,
+      customerName: invoice.customerName ?? null,
+      customerAddress: customer?.address ?? null,
+      poNumber: jobPoNumber,
+      memo: invoice.memo ?? null,
+      lines: invoice.lines,
+      paidCents: invoice.paidCents,
+      totalCents: invoice.totalCents,
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    res.status(503).json({ error: `PDF generation failed: ${msg}` });
+    return;
+  }
+
+  // Send email
+  try {
+    await sendInvoiceEmail({ to, cc, invoiceNumber: invoice.invoiceNumber, pdfBuffer });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    res.status(503).json({ error: `Email delivery failed: ${msg}` });
+    return;
+  }
+
+  res.json({ sent: true, to, cc: cc ?? null });
+});
 
 export default router;

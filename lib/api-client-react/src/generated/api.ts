@@ -44,6 +44,7 @@ import type {
   DashboardSummary,
   DemoStatus,
   DuplicateInvoiceNumberError,
+  EmailInvoiceResult,
   Employee,
   EmployeeInput,
   EmployeeListItem,
@@ -5154,6 +5155,77 @@ export const useDeleteInvoicePayment = <TError = ErrorType<ErrorResponse>,
         TContext
       > => {
       return useMutation(getDeleteInvoicePaymentMutationOptions(options));
+    }
+
+export const getEmailInvoiceUrl = (id: number,) => {
+
+
+
+
+  return `/api/invoices/${id}/email`
+}
+
+/**
+ * Generates a PDF of the invoice and sends it to the customer's primary email (and ccEmail if set). Requires the customer to have an email on file. Uses the configured AOL SMTP relay when SMTP_PASS is present, or the connected Gmail relay otherwise.
+ * @summary Email the invoice PDF to the customer's saved address
+ */
+export const emailInvoice = async (id: number, options?: RequestInit): Promise<EmailInvoiceResult> => {
+
+  return customFetch<EmailInvoiceResult>(getEmailInvoiceUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getEmailInvoiceMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof emailInvoice>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof emailInvoice>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['emailInvoice'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof emailInvoice>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  emailInvoice(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type EmailInvoiceMutationResult = NonNullable<Awaited<ReturnType<typeof emailInvoice>>>
+
+    export type EmailInvoiceMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Email the invoice PDF to the customer's saved address
+ */
+export const useEmailInvoice = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof emailInvoice>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof emailInvoice>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getEmailInvoiceMutationOptions(options));
     }
 
 export const getListBillsUrl = (params?: ListBillsParams,) => {

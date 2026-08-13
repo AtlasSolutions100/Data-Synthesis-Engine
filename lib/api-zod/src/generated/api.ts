@@ -1830,6 +1830,21 @@ export const DeleteInvoicePaymentResponse = zod.void()
 
 
 /**
+ * Generates a PDF of the invoice and sends it to the customer's primary email (and ccEmail if set). Requires the customer to have an email on file. Uses the configured AOL SMTP relay when SMTP_PASS is present, or the connected Gmail relay otherwise.
+ * @summary Email the invoice PDF to the customer's saved address
+ */
+export const EmailInvoiceParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const EmailInvoiceResponse = zod.object({
+  "sent": zod.boolean(),
+  "to": zod.string().describe('Primary recipient email address'),
+  "cc": zod.string().nullish().describe('CC email address (if set on the customer profile)')
+})
+
+
+/**
  * @summary List vendor bills with computed totals
  */
 export const ListBillsQueryParams = zod.object({

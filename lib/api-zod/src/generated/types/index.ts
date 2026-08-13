@@ -54,6 +54,7 @@ export * from './dashboardSummary';
 export * from './demoStatus';
 export * from './demoStatusCounts';
 export * from './duplicateInvoiceNumberError';
+export * from './emailInvoiceResult';
 export * from './employee';
 export * from './employeeInput';
 export * from './employeeListItem';

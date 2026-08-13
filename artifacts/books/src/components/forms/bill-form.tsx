@@ -97,6 +97,19 @@ export function BillForm({
     query: { queryKey: getListCustomersQueryKey() },
   });
 
+  const todayIso = new Date().toISOString().split("T")[0];
+
+  /** Return the date ISO string that is `days` after `isoDate`. */
+  function addDaysToIso(isoDate: string, days: number): string {
+    const [y, m, d] = isoDate.split("-").map(Number);
+    const dt = new Date(y, m - 1, d);
+    dt.setDate(dt.getDate() + days);
+    return dt.toISOString().split("T")[0];
+  }
+
+  const initialDate = defaultValues?.date || todayIso;
+  const initialDueDate = defaultValues?.dueDate || addDaysToIso(initialDate, 30);
+
   const form = useForm<BillFormValues>({
     resolver: zodResolver(billSchema),
     defaultValues: {
@@ -104,14 +117,22 @@ export function BillForm({
       vendorId: defaultValues?.vendorId || "",
       customerId: defaultValues?.customerId || "",
       jobId: defaultValues?.jobId || "",
-      date: defaultValues?.date || new Date().toISOString().split("T")[0],
-      dueDate: defaultValues?.dueDate || "",
+      date: initialDate,
+      dueDate: initialDueDate,
       memo: defaultValues?.memo || "",
       lines: defaultValues?.lines || [
         { accountId: "", description: "", amount: "" },
       ],
     },
   });
+
+  // When the bill date changes, auto-advance the due date by 30 days so the
+  // Net-30 default stays in sync. The user can still override it manually.
+  const watchedDate = form.watch("date");
+  useEffect(() => {
+    if (!watchedDate) return;
+    form.setValue("dueDate", addDaysToIso(watchedDate, 30));
+  }, [watchedDate]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const { fields, append, remove } = useFieldArray({
     control: form.control,

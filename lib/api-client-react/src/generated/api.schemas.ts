@@ -105,6 +105,14 @@ export interface FeedbackUpdate {
   starred?: boolean;
 }
 
+export interface EmailInvoiceResult {
+  sent: boolean;
+  /** Primary recipient email address */
+  to: string;
+  /** CC email address (if set on the customer profile) */
+  cc?: string | null;
+}
+
 export interface DuplicateInvoiceNumberError {
   error: string;
   field: string;

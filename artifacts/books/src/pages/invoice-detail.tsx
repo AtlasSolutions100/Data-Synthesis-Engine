@@ -13,7 +13,9 @@ import {
   useGetCustomer,
   getGetCustomerQueryKey,
   useListJobs,
+  useEmailInvoice,
 } from "@workspace/api-client-react";
+import { useToast } from "@/hooks/use-toast";
 import {
   toServerFieldError,
   toSuggestedNumber,
@@ -70,8 +72,10 @@ export default function InvoiceDetail() {
   const [copySuggested, setCopySuggested] = useState<string | null>(null);
   const [editSuggested, setEditSuggested] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
+  const [emailing, setEmailing] = useState(false);
   const [, navigate] = useLocation();
   const [editError, setEditError] = useState<ServerFieldError | null>(null);
+  const { toast } = useToast();
   const [paymentError, setPaymentError] = useState<ServerFieldError | null>(
     null,
   );
@@ -191,6 +195,30 @@ export default function InvoiceDetail() {
   const deletePayment = useDeleteInvoicePayment({
     mutation: { onSuccess: invalidate },
   });
+
+  const emailInvoice = useEmailInvoice({
+    mutation: {
+      onSuccess: (result) => {
+        setEmailing(false);
+        toast({
+          title: "Invoice emailed",
+          description: `Sent to ${result.to}${result.cc ? ` (CC: ${result.cc})` : ""}`,
+        });
+      },
+      onError: (err) => {
+        setEmailing(false);
+        const msg =
+          (err as { response?: { data?: { error?: string } } })?.response?.data?.error ??
+          "Failed to send the email. Please try again.";
+        toast({ title: "Email failed", description: msg, variant: "destructive" });
+      },
+    },
+  });
+
+  const handleEmailInvoice = () => {
+    setEmailing(true);
+    emailInvoice.mutate({ id: invoiceId });
+  };
 
   if (isLoading) {
     return <div className="p-8 text-slate-500">Loading invoice...</div>;
@@ -323,12 +351,19 @@ export default function InvoiceDetail() {
           <Button
             variant="outline"
             size="sm"
-            disabled
-            title="Coming soon — requires linking customer email (P8-INV-05)"
+            onClick={handleEmailInvoice}
+            disabled={emailing || !customer?.email}
+            title={
+              !customer?.email
+                ? "No email on file — add one on the customer page"
+                : emailing
+                  ? "Sending…"
+                  : "Email invoice PDF to customer"
+            }
             data-testid="button-email-invoice"
           >
             <Mail className="mr-2 h-4 w-4" />
-            Email Invoice
+            {emailing ? "Sending…" : "Email Invoice"}
           </Button>
           <Dialog
             open={isCopyOpen}

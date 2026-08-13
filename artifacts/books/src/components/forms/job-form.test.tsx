@@ -81,16 +81,20 @@ async function customerTrigger(text: RegExp | string) {
   });
 }
 
+/** Pick a customer from the combobox by its visible name. */
+async function pickCustomer(name: string) {
+  fireEvent.click(await customerTrigger("Select customer"));
+  const option = await screen.findByText(name);
+  fireEvent.click(option.closest("[cmdk-item]") ?? option);
+  await customerTrigger(name);
+}
+
 function submit() {
   fireEvent.click(screen.getByRole("button", { name: /save job/i }));
 }
 
-function internalCheckbox() {
-  return screen.getByTestId("checkbox-internal-job");
-}
-
-describe("JobForm internal-job checkbox flow", () => {
-  it("blocks save with 'Customer is required' on the customer field when neither customer nor internal is set", async () => {
+describe("JobForm customer requirement", () => {
+  it("blocks save with 'Customer is required' when no customer is selected", async () => {
     const onSubmit = vi.fn();
     render(<JobForm onSubmit={onSubmit} />);
 
@@ -102,123 +106,34 @@ describe("JobForm internal-job checkbox flow", () => {
     const error = await screen.findByText("Customer is required");
     expect(onSubmit).not.toHaveBeenCalled();
 
-    // The error is attached to the customer field (same FormItem as its picker),
-    // not floating at the form level.
+    // The error is attached to the customer field (same FormItem as its picker).
     const trigger = await customerTrigger("Select customer");
     expect(error.closest("div")).toBe(trigger.closest("div"));
   });
 
-  it("checking the box clears the error, disables the picker, and allows saving with a null customer", async () => {
-    const onSubmit = vi.fn();
-    render(<JobForm onSubmit={onSubmit} />);
-
-    fireEvent.change(screen.getAllByRole("textbox")[0], {
-      target: { value: "Shop Cleanup" },
-    });
-    submit();
-    await screen.findByText("Customer is required");
-
-    fireEvent.click(internalCheckbox());
-
-    await waitFor(() =>
-      expect(screen.queryByText("Customer is required")).toBeNull(),
-    );
-    const trigger = await customerTrigger("Select customer");
-    expect(trigger).toHaveProperty("disabled", true);
-
-    submit();
-    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
-    const payload = onSubmit.mock.calls[0][0];
-    expect(payload.customerId).toBeNull();
-    expect(payload.isInternal).toBe(true);
-    expect(payload.name).toBe("Shop Cleanup");
+  it("internal-job checkbox is no longer present (P8-JOB-01)", () => {
+    render(<JobForm onSubmit={vi.fn()} />);
+    expect(screen.queryByTestId("checkbox-internal-job")).toBeNull();
   });
 
-  it("checking the box clears an already-selected customer so it is not submitted", async () => {
+  it("allows saving after a customer is selected", async () => {
     const onSubmit = vi.fn();
     render(<JobForm onSubmit={onSubmit} />);
 
     fireEvent.change(screen.getAllByRole("textbox")[0], {
-      target: { value: "Internal Move" },
+      target: { value: "River Walk" },
     });
-
-    // Pick a customer first.
-    fireEvent.click(await customerTrigger("Select customer"));
-    const option = await screen.findByText("HR Stadium LLC");
-    fireEvent.click(option.closest("[cmdk-item]") ?? option);
-    await customerTrigger("HR Stadium LLC");
-
-    // Then flip to internal — the selection is cleared and disabled.
-    fireEvent.click(internalCheckbox());
-    const trigger = await customerTrigger("Select customer");
-    expect(trigger).toHaveProperty("disabled", true);
-
-    submit();
-    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
-    const payload = onSubmit.mock.calls[0][0];
-    expect(payload.customerId).toBeNull();
-    expect(payload.isInternal).toBe(true);
-  });
-
-  it("unchecking the box re-enables the picker and re-blocks save until a customer is picked", async () => {
-    const onSubmit = vi.fn();
-    render(<JobForm onSubmit={onSubmit} />);
-
-    fireEvent.change(screen.getAllByRole("textbox")[0], {
-      target: { value: "Back to Billable" },
-    });
-    fireEvent.click(internalCheckbox());
-    fireEvent.click(internalCheckbox());
-
-    const trigger = await customerTrigger("Select customer");
-    expect(trigger).toHaveProperty("disabled", false);
-
-    submit();
-    await screen.findByText("Customer is required");
-    expect(onSubmit).not.toHaveBeenCalled();
-
-    fireEvent.click(trigger);
-    const option = await screen.findByText("Douglas County");
-    fireEvent.click(option.closest("[cmdk-item]") ?? option);
+    await pickCustomer("Douglas County");
 
     submit();
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
     const payload = onSubmit.mock.calls[0][0];
     expect(payload.customerId).toBe(8);
     expect(payload.isInternal).toBe(false);
+    expect(payload.name).toBe("River Walk");
   });
 
-  it("editing a customer-less job (Overhead / Office) opens pre-checked and saves unchanged", async () => {
-    const onSubmit = vi.fn();
-    render(
-      <JobForm
-        onSubmit={onSubmit}
-        defaultValues={{
-          name: "Overhead / Office",
-          poNumber: "",
-          customerId: "",
-          description: "Internal shop/office time",
-          status: "active",
-          contractAmount: "0",
-        }}
-      />,
-    );
-
-    const checkbox = internalCheckbox();
-    expect(checkbox.getAttribute("data-state")).toBe("checked");
-    const trigger = await customerTrigger("Select customer");
-    expect(trigger).toHaveProperty("disabled", true);
-
-    submit();
-    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
-    const payload = onSubmit.mock.calls[0][0];
-    expect(payload.name).toBe("Overhead / Office");
-    expect(payload.customerId).toBeNull();
-    expect(payload.isInternal).toBe(true);
-    expect(payload.status).toBe("active");
-  });
-
-  it("editing a job with a customer opens unchecked with the customer selected", async () => {
+  it("editing a job with a customer opens with the customer pre-selected and submits correctly", async () => {
     const onSubmit = vi.fn();
     render(
       <JobForm
@@ -231,7 +146,6 @@ describe("JobForm internal-job checkbox flow", () => {
       />,
     );
 
-    expect(internalCheckbox().getAttribute("data-state")).toBe("unchecked");
     const trigger = await customerTrigger("HR Stadium LLC");
     expect(trigger).toHaveProperty("disabled", false);
 
@@ -255,7 +169,7 @@ describe("JobForm duplicate-check flow", () => {
     fireEvent.change(screen.getAllByRole("textbox")[0], {
       target: { value: "New Warehouse" },
     });
-    fireEvent.click(internalCheckbox());
+    await pickCustomer("HR Stadium LLC");
     submit();
 
     await screen.findByText(/possible duplicate job/i);
@@ -275,7 +189,7 @@ describe("JobForm duplicate-check flow", () => {
     fireEvent.change(screen.getAllByRole("textbox")[0], {
       target: { value: "New Warehouse" },
     });
-    fireEvent.click(internalCheckbox());
+    await pickCustomer("HR Stadium LLC");
     submit();
 
     await screen.findByText(/possible duplicate job/i);
@@ -299,7 +213,7 @@ describe("JobForm duplicate-check flow", () => {
     fireEvent.change(screen.getAllByRole("textbox")[0], {
       target: { value: "New Warehouse" },
     });
-    fireEvent.click(internalCheckbox());
+    await pickCustomer("HR Stadium LLC");
     submit();
 
     await screen.findByText(/possible duplicate job/i);
@@ -309,8 +223,8 @@ describe("JobForm duplicate-check flow", () => {
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
     const payload = onSubmit.mock.calls[0][0];
     expect(payload.name).toBe("New Warehouse");
-    expect(payload.isInternal).toBe(true);
-    expect(payload.customerId).toBeNull();
+    expect(payload.isInternal).toBe(false);
+    expect(payload.customerId).toBe(7);
   });
 
   it("edit mode with an unchanged name skips the check and calls onSubmit directly", async () => {
@@ -402,7 +316,7 @@ describe("JobForm duplicate-check flow", () => {
     fireEvent.change(screen.getAllByRole("textbox")[0], {
       target: { value: "Fail Open Job" },
     });
-    fireEvent.click(internalCheckbox());
+    await pickCustomer("Douglas County");
     submit();
 
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
@@ -424,7 +338,7 @@ describe("JobForm duplicate-check flow", () => {
     fireEvent.change(screen.getAllByRole("textbox")[0], {
       target: { value: "Warehouse New" },
     });
-    fireEvent.click(internalCheckbox());
+    await pickCustomer("HR Stadium LLC");
     submit();
 
     await screen.findByText(/possible duplicate job/i);
