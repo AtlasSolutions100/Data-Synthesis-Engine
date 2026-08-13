@@ -61,6 +61,7 @@ router.get("/customers", async (_req, res): Promise<void> => {
       address: customersTable.address,
       ccEmail: customersTable.ccEmail,
       notes: customersTable.notes,
+      isDemo: customersTable.isDemo,
       jobCount: count(jobsTable.id),
     })
     .from(customersTable)

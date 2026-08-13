@@ -2046,6 +2046,91 @@ export interface UploadUrlResponse {
   metadata?: UploadUrlRequest;
 }
 
+export type ReconciliationPeriodStatus = typeof ReconciliationPeriodStatus[keyof typeof ReconciliationPeriodStatus];
+
+
+export const ReconciliationPeriodStatus = {
+  in_progress: 'in_progress',
+  completed: 'completed',
+} as const;
+
+export interface ReconciliationPeriod {
+  id: number;
+  accountId: number;
+  statementDate: string;
+  statementBalanceCents: number;
+  status: ReconciliationPeriodStatus;
+  statementDocumentPath?: string | null;
+  statementDocumentName?: string | null;
+  isDemo: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ReconciliationPeriodLine {
+  transactionId: number;
+  date: string;
+  type: string;
+  num: string | null;
+  partyName: string | null;
+  description: string | null;
+  otherAccountName: string | null;
+  withdrawalCents: number;
+  depositCents: number;
+  effectCents: number;
+  cleared: boolean;
+}
+
+export type ReconciliationPeriodDetailStatus = typeof ReconciliationPeriodDetailStatus[keyof typeof ReconciliationPeriodDetailStatus];
+
+
+export const ReconciliationPeriodDetailStatus = {
+  in_progress: 'in_progress',
+  completed: 'completed',
+} as const;
+
+export interface ReconciliationPeriodDetail {
+  id: number;
+  accountId: number;
+  accountName: string;
+  accountNumber: string;
+  statementDate: string;
+  statementBalanceCents: number;
+  status: ReconciliationPeriodDetailStatus;
+  statementDocumentPath?: string | null;
+  statementDocumentName?: string | null;
+  isDemo: boolean;
+  createdAt: string;
+  updatedAt: string;
+  openingBalanceCents: number;
+  clearedBalanceCents: number;
+  clearedDepositsCents: number;
+  clearedWithdrawalsCents: number;
+  lines: ReconciliationPeriodLine[];
+}
+
+export interface CreateReconciliationPeriod {
+  accountId: number;
+  /** @pattern ^\d{4}-\d{2}-\d{2}$ */
+  statementDate: string;
+  statementBalanceCents: number;
+  statementDocumentPath?: string | null;
+  statementDocumentName?: string | null;
+}
+
+export interface UpdateReconciliationPeriod {
+  /** @pattern ^\d{4}-\d{2}-\d{2}$ */
+  statementDate?: string;
+  statementBalanceCents?: number;
+  statementDocumentPath?: string | null;
+  statementDocumentName?: string | null;
+}
+
+export interface ToggleReconciliationClear {
+  transactionId: number;
+  cleared: boolean;
+}
+
 /**
  * Error
  */
@@ -2323,4 +2408,8 @@ export const ListFeedbackStarred = {
   true: 'true',
   false: 'false',
 } as const;
+
+export type ListReconciliationPeriodsParams = {
+accountId: number;
+};
 

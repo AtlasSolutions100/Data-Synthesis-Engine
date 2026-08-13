@@ -3122,3 +3122,249 @@ export const GetFeedbackScreenshotParams = zod.object({
 export const GetFeedbackScreenshotResponse = zod.unknown()
 
 
+/**
+ * @summary List reconciliation periods for an account
+ */
+export const ListReconciliationPeriodsQueryParams = zod.object({
+  "accountId": zod.coerce.number()
+})
+
+export const ListReconciliationPeriodsResponseItem = zod.object({
+  "id": zod.number(),
+  "accountId": zod.number(),
+  "statementDate": zod.string(),
+  "statementBalanceCents": zod.number(),
+  "status": zod.enum(['in_progress', 'completed']),
+  "statementDocumentPath": zod.string().nullish(),
+  "statementDocumentName": zod.string().nullish(),
+  "isDemo": zod.boolean(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+export const ListReconciliationPeriodsResponse = zod.array(ListReconciliationPeriodsResponseItem)
+
+
+/**
+ * @summary Start a new reconciliation period for an account
+ */
+export const createReconciliationPeriodBodyStatementDateRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+
+
+export const CreateReconciliationPeriodBody = zod.object({
+  "accountId": zod.number(),
+  "statementDate": zod.string().regex(createReconciliationPeriodBodyStatementDateRegExp),
+  "statementBalanceCents": zod.number(),
+  "statementDocumentPath": zod.string().nullish(),
+  "statementDocumentName": zod.string().nullish()
+})
+
+export const CreateReconciliationPeriodResponse = zod.object({
+  "id": zod.number(),
+  "accountId": zod.number(),
+  "statementDate": zod.string(),
+  "statementBalanceCents": zod.number(),
+  "status": zod.enum(['in_progress', 'completed']),
+  "statementDocumentPath": zod.string().nullish(),
+  "statementDocumentName": zod.string().nullish(),
+  "isDemo": zod.boolean(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Get a reconciliation period with cleared items and available transactions
+ */
+export const GetReconciliationPeriodParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetReconciliationPeriodResponse = zod.object({
+  "id": zod.number(),
+  "accountId": zod.number(),
+  "accountName": zod.string(),
+  "accountNumber": zod.string(),
+  "statementDate": zod.string(),
+  "statementBalanceCents": zod.number(),
+  "status": zod.enum(['in_progress', 'completed']),
+  "statementDocumentPath": zod.string().nullish(),
+  "statementDocumentName": zod.string().nullish(),
+  "isDemo": zod.boolean(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string(),
+  "openingBalanceCents": zod.number(),
+  "clearedBalanceCents": zod.number(),
+  "clearedDepositsCents": zod.number(),
+  "clearedWithdrawalsCents": zod.number(),
+  "lines": zod.array(zod.object({
+  "transactionId": zod.number(),
+  "date": zod.string(),
+  "type": zod.string(),
+  "num": zod.string().nullable(),
+  "partyName": zod.string().nullable(),
+  "description": zod.string().nullable(),
+  "otherAccountName": zod.string().nullable(),
+  "withdrawalCents": zod.number(),
+  "depositCents": zod.number(),
+  "effectCents": zod.number(),
+  "cleared": zod.boolean()
+}))
+})
+
+
+/**
+ * @summary Update statement balance, date, or attached document
+ */
+export const UpdateReconciliationPeriodParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const updateReconciliationPeriodBodyStatementDateRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+
+
+export const UpdateReconciliationPeriodBody = zod.object({
+  "statementDate": zod.string().regex(updateReconciliationPeriodBodyStatementDateRegExp).optional(),
+  "statementBalanceCents": zod.number().optional(),
+  "statementDocumentPath": zod.string().nullish(),
+  "statementDocumentName": zod.string().nullish()
+})
+
+export const UpdateReconciliationPeriodResponse = zod.object({
+  "id": zod.number(),
+  "accountId": zod.number(),
+  "statementDate": zod.string(),
+  "statementBalanceCents": zod.number(),
+  "status": zod.enum(['in_progress', 'completed']),
+  "statementDocumentPath": zod.string().nullish(),
+  "statementDocumentName": zod.string().nullish(),
+  "isDemo": zod.boolean(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Mark or unmark a transaction as cleared in this period
+ */
+export const ToggleReconciliationClearParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ToggleReconciliationClearBody = zod.object({
+  "transactionId": zod.number(),
+  "cleared": zod.boolean()
+})
+
+export const ToggleReconciliationClearResponse = zod.object({
+  "id": zod.number(),
+  "accountId": zod.number(),
+  "accountName": zod.string(),
+  "accountNumber": zod.string(),
+  "statementDate": zod.string(),
+  "statementBalanceCents": zod.number(),
+  "status": zod.enum(['in_progress', 'completed']),
+  "statementDocumentPath": zod.string().nullish(),
+  "statementDocumentName": zod.string().nullish(),
+  "isDemo": zod.boolean(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string(),
+  "openingBalanceCents": zod.number(),
+  "clearedBalanceCents": zod.number(),
+  "clearedDepositsCents": zod.number(),
+  "clearedWithdrawalsCents": zod.number(),
+  "lines": zod.array(zod.object({
+  "transactionId": zod.number(),
+  "date": zod.string(),
+  "type": zod.string(),
+  "num": zod.string().nullable(),
+  "partyName": zod.string().nullable(),
+  "description": zod.string().nullable(),
+  "otherAccountName": zod.string().nullable(),
+  "withdrawalCents": zod.number(),
+  "depositCents": zod.number(),
+  "effectCents": zod.number(),
+  "cleared": zod.boolean()
+}))
+})
+
+
+/**
+ * @summary Close a reconciliation period (requires difference = 0)
+ */
+export const CompleteReconciliationPeriodParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const CompleteReconciliationPeriodResponse = zod.object({
+  "id": zod.number(),
+  "accountId": zod.number(),
+  "accountName": zod.string(),
+  "accountNumber": zod.string(),
+  "statementDate": zod.string(),
+  "statementBalanceCents": zod.number(),
+  "status": zod.enum(['in_progress', 'completed']),
+  "statementDocumentPath": zod.string().nullish(),
+  "statementDocumentName": zod.string().nullish(),
+  "isDemo": zod.boolean(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string(),
+  "openingBalanceCents": zod.number(),
+  "clearedBalanceCents": zod.number(),
+  "clearedDepositsCents": zod.number(),
+  "clearedWithdrawalsCents": zod.number(),
+  "lines": zod.array(zod.object({
+  "transactionId": zod.number(),
+  "date": zod.string(),
+  "type": zod.string(),
+  "num": zod.string().nullable(),
+  "partyName": zod.string().nullable(),
+  "description": zod.string().nullable(),
+  "otherAccountName": zod.string().nullable(),
+  "withdrawalCents": zod.number(),
+  "depositCents": zod.number(),
+  "effectCents": zod.number(),
+  "cleared": zod.boolean()
+}))
+})
+
+
+/**
+ * @summary Reopen a completed period (unreconcile); clears all cleared marks
+ */
+export const ReopenReconciliationPeriodParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ReopenReconciliationPeriodResponse = zod.object({
+  "id": zod.number(),
+  "accountId": zod.number(),
+  "accountName": zod.string(),
+  "accountNumber": zod.string(),
+  "statementDate": zod.string(),
+  "statementBalanceCents": zod.number(),
+  "status": zod.enum(['in_progress', 'completed']),
+  "statementDocumentPath": zod.string().nullish(),
+  "statementDocumentName": zod.string().nullish(),
+  "isDemo": zod.boolean(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string(),
+  "openingBalanceCents": zod.number(),
+  "clearedBalanceCents": zod.number(),
+  "clearedDepositsCents": zod.number(),
+  "clearedWithdrawalsCents": zod.number(),
+  "lines": zod.array(zod.object({
+  "transactionId": zod.number(),
+  "date": zod.string(),
+  "type": zod.string(),
+  "num": zod.string().nullable(),
+  "partyName": zod.string().nullable(),
+  "description": zod.string().nullable(),
+  "otherAccountName": zod.string().nullable(),
+  "withdrawalCents": zod.number(),
+  "depositCents": zod.number(),
+  "effectCents": zod.number(),
+  "cleared": zod.boolean()
+}))
+})
+
+

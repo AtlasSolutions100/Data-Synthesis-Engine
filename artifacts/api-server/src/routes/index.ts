@@ -15,6 +15,7 @@ import reportsRouter from "./reports";
 import importDataRouter from "./importData";
 import feedbackRouter from "./feedback";
 import demoRouter from "./demo";
+import reconciliationRouter from "./reconciliation";
 
 const router: IRouter = Router();
 
@@ -34,5 +35,6 @@ router.use(reportsRouter);
 router.use(importDataRouter);
 router.use(feedbackRouter);
 router.use(demoRouter);
+router.use(reconciliationRouter);
 
 export default router;

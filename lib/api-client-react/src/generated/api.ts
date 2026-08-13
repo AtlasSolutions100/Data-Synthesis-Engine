@@ -35,6 +35,7 @@ import type {
   CheckCustomerDuplicatesParams,
   CheckJobDuplicatesParams,
   CheckVendorDuplicatesParams,
+  CreateReconciliationPeriod,
   Customer,
   CustomerDuplicateCandidate,
   CustomerInput,
@@ -97,6 +98,7 @@ import type {
   ListInvoicesParams,
   ListJobsParams,
   ListPayrollRunsParams,
+  ListReconciliationPeriodsParams,
   ListTransactionsParams,
   ManualBillLinkBody,
   PayrollByJob,
@@ -106,10 +108,14 @@ import type {
   PayrollRunInput,
   PayrollRunUpdate,
   PnlReport,
+  ReconciliationPeriod,
+  ReconciliationPeriodDetail,
+  ToggleReconciliationClear,
   Transaction,
   TransactionInput,
   TransactionUpdate,
   UnlinkedBillTransaction,
+  UpdateReconciliationPeriod,
   UploadUrlRequest,
   UploadUrlResponse,
   User,
@@ -7826,4 +7832,517 @@ export function useGetFeedbackScreenshot<TData = Awaited<ReturnType<typeof getFe
 
 
 
+
+export const getListReconciliationPeriodsUrl = (params: ListReconciliationPeriodsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/reconciliation/periods?${stringifiedParams}` : `/api/reconciliation/periods`
+}
+
+/**
+ * @summary List reconciliation periods for an account
+ */
+export const listReconciliationPeriods = async (params: ListReconciliationPeriodsParams, options?: RequestInit): Promise<ReconciliationPeriod[]> => {
+
+  return customFetch<ReconciliationPeriod[]>(getListReconciliationPeriodsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListReconciliationPeriodsQueryKey = (params?: ListReconciliationPeriodsParams,) => {
+    return [
+    `/api/reconciliation/periods`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListReconciliationPeriodsQueryOptions = <TData = Awaited<ReturnType<typeof listReconciliationPeriods>>, TError = ErrorType<ErrorResponse>>(params: ListReconciliationPeriodsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listReconciliationPeriods>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListReconciliationPeriodsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listReconciliationPeriods>>> = ({ signal }) => listReconciliationPeriods(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listReconciliationPeriods>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListReconciliationPeriodsQueryResult = NonNullable<Awaited<ReturnType<typeof listReconciliationPeriods>>>
+export type ListReconciliationPeriodsQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary List reconciliation periods for an account
+ */
+
+export function useListReconciliationPeriods<TData = Awaited<ReturnType<typeof listReconciliationPeriods>>, TError = ErrorType<ErrorResponse>>(
+ params: ListReconciliationPeriodsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listReconciliationPeriods>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListReconciliationPeriodsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateReconciliationPeriodUrl = () => {
+
+
+
+
+  return `/api/reconciliation/periods`
+}
+
+/**
+ * @summary Start a new reconciliation period for an account
+ */
+export const createReconciliationPeriod = async (createReconciliationPeriod: CreateReconciliationPeriod, options?: RequestInit): Promise<ReconciliationPeriod> => {
+
+  return customFetch<ReconciliationPeriod>(getCreateReconciliationPeriodUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createReconciliationPeriod)
+  }
+);}
+
+
+
+
+export const getCreateReconciliationPeriodMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createReconciliationPeriod>>, TError,{data: BodyType<CreateReconciliationPeriod>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createReconciliationPeriod>>, TError,{data: BodyType<CreateReconciliationPeriod>}, TContext> => {
+
+const mutationKey = ['createReconciliationPeriod'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createReconciliationPeriod>>, {data: BodyType<CreateReconciliationPeriod>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createReconciliationPeriod(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateReconciliationPeriodMutationResult = NonNullable<Awaited<ReturnType<typeof createReconciliationPeriod>>>
+    export type CreateReconciliationPeriodMutationBody = BodyType<CreateReconciliationPeriod>
+    export type CreateReconciliationPeriodMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Start a new reconciliation period for an account
+ */
+export const useCreateReconciliationPeriod = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createReconciliationPeriod>>, TError,{data: BodyType<CreateReconciliationPeriod>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createReconciliationPeriod>>,
+        TError,
+        {data: BodyType<CreateReconciliationPeriod>},
+        TContext
+      > => {
+      return useMutation(getCreateReconciliationPeriodMutationOptions(options));
+    }
+
+export const getGetReconciliationPeriodUrl = (id: number,) => {
+
+
+
+
+  return `/api/reconciliation/periods/${id}`
+}
+
+/**
+ * @summary Get a reconciliation period with cleared items and available transactions
+ */
+export const getReconciliationPeriod = async (id: number, options?: RequestInit): Promise<ReconciliationPeriodDetail> => {
+
+  return customFetch<ReconciliationPeriodDetail>(getGetReconciliationPeriodUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetReconciliationPeriodQueryKey = (id: number,) => {
+    return [
+    `/api/reconciliation/periods/${id}`
+    ] as const;
+    }
+
+
+export const getGetReconciliationPeriodQueryOptions = <TData = Awaited<ReturnType<typeof getReconciliationPeriod>>, TError = ErrorType<ErrorResponse>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getReconciliationPeriod>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetReconciliationPeriodQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getReconciliationPeriod>>> = ({ signal }) => getReconciliationPeriod(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getReconciliationPeriod>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetReconciliationPeriodQueryResult = NonNullable<Awaited<ReturnType<typeof getReconciliationPeriod>>>
+export type GetReconciliationPeriodQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary Get a reconciliation period with cleared items and available transactions
+ */
+
+export function useGetReconciliationPeriod<TData = Awaited<ReturnType<typeof getReconciliationPeriod>>, TError = ErrorType<ErrorResponse>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getReconciliationPeriod>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetReconciliationPeriodQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpdateReconciliationPeriodUrl = (id: number,) => {
+
+
+
+
+  return `/api/reconciliation/periods/${id}`
+}
+
+/**
+ * @summary Update statement balance, date, or attached document
+ */
+export const updateReconciliationPeriod = async (id: number,
+    updateReconciliationPeriod: UpdateReconciliationPeriod, options?: RequestInit): Promise<ReconciliationPeriod> => {
+
+  return customFetch<ReconciliationPeriod>(getUpdateReconciliationPeriodUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(updateReconciliationPeriod)
+  }
+);}
+
+
+
+
+export const getUpdateReconciliationPeriodMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateReconciliationPeriod>>, TError,{id: number;data: BodyType<UpdateReconciliationPeriod>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateReconciliationPeriod>>, TError,{id: number;data: BodyType<UpdateReconciliationPeriod>}, TContext> => {
+
+const mutationKey = ['updateReconciliationPeriod'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateReconciliationPeriod>>, {id: number;data: BodyType<UpdateReconciliationPeriod>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateReconciliationPeriod(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateReconciliationPeriodMutationResult = NonNullable<Awaited<ReturnType<typeof updateReconciliationPeriod>>>
+    export type UpdateReconciliationPeriodMutationBody = BodyType<UpdateReconciliationPeriod>
+    export type UpdateReconciliationPeriodMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Update statement balance, date, or attached document
+ */
+export const useUpdateReconciliationPeriod = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateReconciliationPeriod>>, TError,{id: number;data: BodyType<UpdateReconciliationPeriod>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateReconciliationPeriod>>,
+        TError,
+        {id: number;data: BodyType<UpdateReconciliationPeriod>},
+        TContext
+      > => {
+      return useMutation(getUpdateReconciliationPeriodMutationOptions(options));
+    }
+
+export const getToggleReconciliationClearUrl = (id: number,) => {
+
+
+
+
+  return `/api/reconciliation/periods/${id}/clears`
+}
+
+/**
+ * @summary Mark or unmark a transaction as cleared in this period
+ */
+export const toggleReconciliationClear = async (id: number,
+    toggleReconciliationClear: ToggleReconciliationClear, options?: RequestInit): Promise<ReconciliationPeriodDetail> => {
+
+  return customFetch<ReconciliationPeriodDetail>(getToggleReconciliationClearUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(toggleReconciliationClear)
+  }
+);}
+
+
+
+
+export const getToggleReconciliationClearMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof toggleReconciliationClear>>, TError,{id: number;data: BodyType<ToggleReconciliationClear>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof toggleReconciliationClear>>, TError,{id: number;data: BodyType<ToggleReconciliationClear>}, TContext> => {
+
+const mutationKey = ['toggleReconciliationClear'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof toggleReconciliationClear>>, {id: number;data: BodyType<ToggleReconciliationClear>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  toggleReconciliationClear(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ToggleReconciliationClearMutationResult = NonNullable<Awaited<ReturnType<typeof toggleReconciliationClear>>>
+    export type ToggleReconciliationClearMutationBody = BodyType<ToggleReconciliationClear>
+    export type ToggleReconciliationClearMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Mark or unmark a transaction as cleared in this period
+ */
+export const useToggleReconciliationClear = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof toggleReconciliationClear>>, TError,{id: number;data: BodyType<ToggleReconciliationClear>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof toggleReconciliationClear>>,
+        TError,
+        {id: number;data: BodyType<ToggleReconciliationClear>},
+        TContext
+      > => {
+      return useMutation(getToggleReconciliationClearMutationOptions(options));
+    }
+
+export const getCompleteReconciliationPeriodUrl = (id: number,) => {
+
+
+
+
+  return `/api/reconciliation/periods/${id}/complete`
+}
+
+/**
+ * @summary Close a reconciliation period (requires difference = 0)
+ */
+export const completeReconciliationPeriod = async (id: number, options?: RequestInit): Promise<ReconciliationPeriodDetail> => {
+
+  return customFetch<ReconciliationPeriodDetail>(getCompleteReconciliationPeriodUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getCompleteReconciliationPeriodMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof completeReconciliationPeriod>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof completeReconciliationPeriod>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['completeReconciliationPeriod'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof completeReconciliationPeriod>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  completeReconciliationPeriod(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CompleteReconciliationPeriodMutationResult = NonNullable<Awaited<ReturnType<typeof completeReconciliationPeriod>>>
+
+    export type CompleteReconciliationPeriodMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Close a reconciliation period (requires difference = 0)
+ */
+export const useCompleteReconciliationPeriod = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof completeReconciliationPeriod>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof completeReconciliationPeriod>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getCompleteReconciliationPeriodMutationOptions(options));
+    }
+
+export const getReopenReconciliationPeriodUrl = (id: number,) => {
+
+
+
+
+  return `/api/reconciliation/periods/${id}/reopen`
+}
+
+/**
+ * @summary Reopen a completed period (unreconcile); clears all cleared marks
+ */
+export const reopenReconciliationPeriod = async (id: number, options?: RequestInit): Promise<ReconciliationPeriodDetail> => {
+
+  return customFetch<ReconciliationPeriodDetail>(getReopenReconciliationPeriodUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getReopenReconciliationPeriodMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reopenReconciliationPeriod>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof reopenReconciliationPeriod>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['reopenReconciliationPeriod'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof reopenReconciliationPeriod>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  reopenReconciliationPeriod(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReopenReconciliationPeriodMutationResult = NonNullable<Awaited<ReturnType<typeof reopenReconciliationPeriod>>>
+
+    export type ReopenReconciliationPeriodMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Reopen a completed period (unreconcile); clears all cleared marks
+ */
+export const useReopenReconciliationPeriod = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reopenReconciliationPeriod>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof reopenReconciliationPeriod>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getReopenReconciliationPeriodMutationOptions(options));
+    }
 

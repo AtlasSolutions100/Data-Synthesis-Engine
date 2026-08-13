@@ -17,7 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { AccountForm } from "@/components/forms/account-form";
 import { useQueryClient } from "@tanstack/react-query";
-import { Plus, Edit2, Trash2, Upload, Loader2, BookOpen } from "lucide-react";
+import { Plus, Edit2, Trash2, Upload, Loader2, BookOpen, CheckCircle2 } from "lucide-react";
 import { Link } from "wouter";
 
 import type { Account } from "@workspace/api-client-react";
@@ -228,6 +228,14 @@ export default function Accounts() {
                             <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5 text-blue-700 border-blue-200 hover:bg-blue-50">
                               <BookOpen className="h-3.5 w-3.5" />
                               Register
+                            </Button>
+                          </Link>
+                        )}
+                        {!["income", "expense", "cogs", "other_expense"].includes(account.type) && (
+                          <Link href={`/accounts/${account.id}/reconcile`}>
+                            <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5 text-emerald-700 border-emerald-200 hover:bg-emerald-50">
+                              <CheckCircle2 className="h-3.5 w-3.5" />
+                              Reconcile
                             </Button>
                           </Link>
                         )}

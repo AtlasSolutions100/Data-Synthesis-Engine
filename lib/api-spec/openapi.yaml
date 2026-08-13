@@ -8,6 +8,8 @@ servers:
   - url: /api
     description: Base API path
 tags:
+  - name: reconciliation
+    description: Bank and vendor statement reconciliation
   - name: health
     description: Health operations
   - name: accounts
@@ -2027,6 +2029,151 @@ paths:
                 type: string
                 format: binary
         "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+
+  /reconciliation/periods:
+    get:
+      operationId: listReconciliationPeriods
+      tags: [reconciliation]
+      summary: List reconciliation periods for an account
+      parameters:
+        - name: accountId
+          in: query
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of periods
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ReconciliationPeriod"
+        "400":
+          $ref: "#/components/responses/Error"
+    post:
+      operationId: createReconciliationPeriod
+      tags: [reconciliation]
+      summary: Start a new reconciliation period for an account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateReconciliationPeriod"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReconciliationPeriod"
+        "400":
+          $ref: "#/components/responses/Error"
+
+  /reconciliation/periods/{id}:
+    get:
+      operationId: getReconciliationPeriod
+      tags: [reconciliation]
+      summary: Get a reconciliation period with cleared items and available transactions
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "200":
+          description: Period detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReconciliationPeriodDetail"
+        "404":
+          $ref: "#/components/responses/Error"
+    patch:
+      operationId: updateReconciliationPeriod
+      tags: [reconciliation]
+      summary: Update statement balance, date, or attached document
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateReconciliationPeriod"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReconciliationPeriod"
+        "400":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+
+  /reconciliation/periods/{id}/clears:
+    post:
+      operationId: toggleReconciliationClear
+      tags: [reconciliation]
+      summary: Mark or unmark a transaction as cleared in this period
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ToggleReconciliationClear"
+      responses:
+        "200":
+          description: Updated period detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReconciliationPeriodDetail"
+        "400":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+
+  /reconciliation/periods/{id}/complete:
+    post:
+      operationId: completeReconciliationPeriod
+      tags: [reconciliation]
+      summary: Close a reconciliation period (requires difference = 0)
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "200":
+          description: Completed period
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReconciliationPeriodDetail"
+        "400":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+
+  /reconciliation/periods/{id}/reopen:
+    post:
+      operationId: reopenReconciliationPeriod
+      tags: [reconciliation]
+      summary: Reopen a completed period (unreconcile); clears all cleared marks
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "200":
+          description: Reopened period detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReconciliationPeriodDetail"
+        "400":
           $ref: "#/components/responses/Error"
         "404":
           $ref: "#/components/responses/Error"
@@ -4364,3 +4511,187 @@ components:
           description: Normalized object path (e.g. `/objects/uploads/uuid`). Store this in your database.
         metadata:
           $ref: "#/components/schemas/UploadUrlRequest"
+
+    ReconciliationPeriod:
+      type: object
+      required:
+        - id
+        - accountId
+        - statementDate
+        - statementBalanceCents
+        - status
+        - isDemo
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: integer
+        accountId:
+          type: integer
+        statementDate:
+          type: string
+        statementBalanceCents:
+          type: integer
+        status:
+          type: string
+          enum: [in_progress, completed]
+        statementDocumentPath:
+          type: string
+          nullable: true
+        statementDocumentName:
+          type: string
+          nullable: true
+        isDemo:
+          type: boolean
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+
+    ReconciliationPeriodLine:
+      type: object
+      required:
+        - transactionId
+        - date
+        - type
+        - num
+        - partyName
+        - description
+        - otherAccountName
+        - withdrawalCents
+        - depositCents
+        - effectCents
+        - cleared
+      properties:
+        transactionId:
+          type: integer
+        date:
+          type: string
+        type:
+          type: string
+        num:
+          type: string
+          nullable: true
+        partyName:
+          type: string
+          nullable: true
+        description:
+          type: string
+          nullable: true
+        otherAccountName:
+          type: string
+          nullable: true
+        withdrawalCents:
+          type: integer
+        depositCents:
+          type: integer
+        effectCents:
+          type: integer
+        cleared:
+          type: boolean
+
+    ReconciliationPeriodDetail:
+      type: object
+      required:
+        - id
+        - accountId
+        - accountName
+        - accountNumber
+        - statementDate
+        - statementBalanceCents
+        - status
+        - isDemo
+        - createdAt
+        - updatedAt
+        - openingBalanceCents
+        - clearedBalanceCents
+        - clearedDepositsCents
+        - clearedWithdrawalsCents
+        - lines
+      properties:
+        id:
+          type: integer
+        accountId:
+          type: integer
+        accountName:
+          type: string
+        accountNumber:
+          type: string
+        statementDate:
+          type: string
+        statementBalanceCents:
+          type: integer
+        status:
+          type: string
+          enum: [in_progress, completed]
+        statementDocumentPath:
+          type: string
+          nullable: true
+        statementDocumentName:
+          type: string
+          nullable: true
+        isDemo:
+          type: boolean
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+        openingBalanceCents:
+          type: integer
+        clearedBalanceCents:
+          type: integer
+        clearedDepositsCents:
+          type: integer
+        clearedWithdrawalsCents:
+          type: integer
+        lines:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReconciliationPeriodLine"
+
+    CreateReconciliationPeriod:
+      type: object
+      required:
+        - accountId
+        - statementDate
+        - statementBalanceCents
+      properties:
+        accountId:
+          type: integer
+        statementDate:
+          type: string
+          pattern: '^\d{4}-\d{2}-\d{2}$'
+        statementBalanceCents:
+          type: integer
+        statementDocumentPath:
+          type: string
+          nullable: true
+        statementDocumentName:
+          type: string
+          nullable: true
+
+    UpdateReconciliationPeriod:
+      type: object
+      properties:
+        statementDate:
+          type: string
+          pattern: '^\d{4}-\d{2}-\d{2}$'
+        statementBalanceCents:
+          type: integer
+        statementDocumentPath:
+          type: string
+          nullable: true
+        statementDocumentName:
+          type: string
+          nullable: true
+
+    ToggleReconciliationClear:
+      type: object
+      required:
+        - transactionId
+        - cleared
+      properties:
+        transactionId:
+          type: integer
+        cleared:
+          type: boolean
