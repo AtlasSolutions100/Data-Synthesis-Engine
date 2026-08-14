@@ -106,6 +106,7 @@ async function getFullInvoice(id: number) {
   return {
     id: row.inv.id,
     invoiceNumber: row.inv.invoiceNumber,
+    isDemo: row.inv.isDemo,
     jobId: row.inv.jobId,
     jobNumber: row.jobNumber,
     jobName: row.jobName,
@@ -201,6 +202,7 @@ router.get("/invoices", async (req, res): Promise<void> => {
       return {
         id: r.inv.id,
         invoiceNumber: r.inv.invoiceNumber,
+        isDemo: r.inv.isDemo,
         jobId: r.inv.jobId,
         jobNumber: r.jobNumber,
         jobName: r.jobName,

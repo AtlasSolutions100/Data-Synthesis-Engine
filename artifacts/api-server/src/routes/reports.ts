@@ -170,6 +170,7 @@ router.get("/reports/dashboard", async (req, res): Promise<void> => {
         id: r.job.id,
         jobNumber: r.job.jobNumber,
         name: r.job.name,
+        isDemo: r.job.isDemo,
         customerId: r.job.customerId,
         customerName: r.customerName,
         description: r.job.description,
