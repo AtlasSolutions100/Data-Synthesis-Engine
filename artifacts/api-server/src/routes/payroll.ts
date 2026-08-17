@@ -159,6 +159,7 @@ async function getFullRun(id: number) {
 
   return {
     id: row.run.id,
+    isDemo: row.run.isDemo,
     payPeriodStart: row.run.payPeriodStart,
     payPeriodEnd: row.run.payPeriodEnd,
     payDate: row.run.payDate,
@@ -530,6 +531,7 @@ router.get("/payroll-runs", async (req, res): Promise<void> => {
     const t = totalsByRun.get(r.run.id) ?? { gross: 0, burden: 0, total: 0 };
     return {
       id: r.run.id,
+      isDemo: r.run.isDemo,
       payPeriodStart: r.run.payPeriodStart,
       payPeriodEnd: r.run.payPeriodEnd,
       payDate: r.run.payDate,

@@ -118,22 +118,34 @@ export function parseCsv(text: string): string[][] {
   return records;
 }
 
+/**
+ * Validate that a YYYY-MM-DD string is a real calendar date (e.g. reject Feb 30).
+ * Returns the string unchanged when valid, null otherwise.
+ */
+function validateCalendarDate(date: string): string | null {
+  const d = new Date(date + "T12:00:00Z");
+  // NaN or overflow (e.g. Feb 30 rolls into March) means the date was invalid.
+  if (isNaN(d.getTime())) return null;
+  if (d.toISOString().slice(0, 10) !== date) return null;
+  return date;
+}
+
 /** Attempt to parse a date string into YYYY-MM-DD. Supports MM/DD/YYYY, M/D/YYYY, YYYY-MM-DD. */
 function parseDate(raw: string): string | null {
   const s = raw.trim();
   // YYYY-MM-DD
-  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return validateCalendarDate(s);
   // MM/DD/YYYY or M/D/YYYY
   const mdy = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
   if (mdy) {
     const [, m, d, y] = mdy;
-    return `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
+    return validateCalendarDate(`${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`);
   }
   // MM-DD-YYYY
   const mdy2 = s.match(/^(\d{1,2})-(\d{1,2})-(\d{4})$/);
   if (mdy2) {
     const [, m, d, y] = mdy2;
-    return `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
+    return validateCalendarDate(`${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`);
   }
   return null;
 }
@@ -448,17 +460,32 @@ router.post("/reconciliation/periods", async (req, res) => {
     }
 
     for (const csvLine of parsedCsvLines) {
-      const window = dateWindow(csvLine.date);
       let matched = false;
-      for (const d of window) {
-        const key = `${d}:${csvLine.amountCents}`;
-        const candidates = ledgerByKey.get(key);
-        if (candidates && candidates.length > 0) {
-          matchedTransactionIds.push(candidates.shift()!);
-          matched = true;
-          break;
+
+      // Prefer exact-date match first; only fall back to ±1-day if no exact
+      // candidate exists.  This prevents a same-amount transaction from the
+      // preceding day from stealing the match when both are present.
+      const exactKey = `${csvLine.date}:${csvLine.amountCents}`;
+      const exactCandidates = ledgerByKey.get(exactKey);
+      if (exactCandidates && exactCandidates.length > 0) {
+        matchedTransactionIds.push(exactCandidates.shift()!);
+        matched = true;
+      }
+
+      if (!matched) {
+        // ±1-day fallback (skip exact date since we already checked it)
+        for (const d of dateWindow(csvLine.date)) {
+          if (d === csvLine.date) continue; // already tried
+          const key = `${d}:${csvLine.amountCents}`;
+          const candidates = ledgerByKey.get(key);
+          if (candidates && candidates.length > 0) {
+            matchedTransactionIds.push(candidates.shift()!);
+            matched = true;
+            break;
+          }
         }
       }
+
       if (!matched) unmatchedLines.push(csvLine);
     }
   }

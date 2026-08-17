@@ -588,6 +588,7 @@ router.get("/bills", async (req, res): Promise<void> => {
       return {
         id: r.bill.id,
         billNumber: r.bill.billNumber,
+        isDemo: r.bill.isDemo,
         vendorId: r.bill.vendorId,
         vendorName: r.vendorName,
         jobId: r.bill.jobId,

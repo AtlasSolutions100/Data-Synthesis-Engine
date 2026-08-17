@@ -500,6 +500,7 @@ export const GetVendorDefaultAccountResponse = zod.object({
 export const ListEmployeesResponseItem = zod.object({
   "id": zod.number(),
   "name": zod.string(),
+  "isDemo": zod.boolean().describe('True when this record was created by the Practice \/ Demo Data loader'),
   "ssnMasked": zod.string().nullish().describe('Masked SSN (•••-••-1234) when one is on file, null otherwise. Never contains the raw value.'),
   "address": zod.string().nullish(),
   "email": zod.string().nullish(),

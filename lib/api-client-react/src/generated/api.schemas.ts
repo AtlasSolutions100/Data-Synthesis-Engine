@@ -378,6 +378,8 @@ export interface Employee {
 export interface EmployeeListItem {
   id: number;
   name: string;
+  /** True when this record was created by the Practice / Demo Data loader */
+  isDemo: boolean;
   /**
      * Masked SSN (•••-••-1234) when one is on file, null otherwise. Never contains the raw value.
      * @nullable

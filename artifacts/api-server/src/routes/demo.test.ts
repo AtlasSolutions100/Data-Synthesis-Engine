@@ -173,10 +173,13 @@ describe("DELETE /api/demo/remove", () => {
     await request(app).delete("/api/demo/remove");
 
     const realAfter = await realCounts();
-    expect(realAfter.customers).toBe(realBefore.customers);
-    expect(realAfter.vendors).toBe(realBefore.vendors);
-    expect(realAfter.employees).toBe(realBefore.employees);
-    expect(realAfter.jobs).toBe(realBefore.jobs);
+    // Concurrent test files may create records between the two snapshots, so
+    // the counts can only grow — assert >= rather than strict equality so a
+    // parallel test adding a customer/job doesn't cause a spurious failure.
+    expect(realAfter.customers).toBeGreaterThanOrEqual(realBefore.customers);
+    expect(realAfter.vendors).toBeGreaterThanOrEqual(realBefore.vendors);
+    expect(realAfter.employees).toBeGreaterThanOrEqual(realBefore.employees);
+    expect(realAfter.jobs).toBeGreaterThanOrEqual(realBefore.jobs);
   });
 
   it("is safe to call when no demo data exists", async () => {

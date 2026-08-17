@@ -26,17 +26,33 @@ let jobId: number;
 let currentRole: "owner" | "bookkeeper" = "owner";
 
 async function cleanup(): Promise<void> {
-  const invoices = await db
+  // Delete by invoice number prefix (normal case).
+  const byNumber = await db
     .select({ id: invoicesTable.id })
     .from(invoicesTable)
     .where(like(invoicesTable.invoiceNumber, `${TP}%`));
-  if (invoices.length) {
+
+  // Also delete any invoices on the test job that didn't get renamed (e.g. a
+  // run that crashed before the rename step left a raw numeric invoice number).
+  const [testJob] = await db
+    .select({ id: jobsTable.id })
+    .from(jobsTable)
+    .where(eq(jobsTable.name, `${TP} Job`));
+  const byJob = testJob
+    ? await db
+        .select({ id: invoicesTable.id })
+        .from(invoicesTable)
+        .where(eq(invoicesTable.jobId, testJob.id))
+    : [];
+
+  const allIds = [...new Set([...byNumber, ...byJob].map((i) => i.id))];
+  if (allIds.length) {
     await db
       .delete(invoiceLinesTable)
-      .where(inArray(invoiceLinesTable.invoiceId, invoices.map((i) => i.id)));
+      .where(inArray(invoiceLinesTable.invoiceId, allIds));
     await db
       .delete(invoicesTable)
-      .where(inArray(invoicesTable.id, invoices.map((i) => i.id)));
+      .where(inArray(invoicesTable.id, allIds));
   }
   await db.delete(jobsTable).where(eq(jobsTable.name, `${TP} Job`));
   await db.delete(customersTable).where(eq(customersTable.name, `${TP} Cust`));
