@@ -474,47 +474,10 @@ export default function JobDetail() {
         </Dialog>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-slate-500">Contract Amount</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-slate-900">{formatCents(job.contractAmountCents)}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-slate-500">Total Income</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-slate-900">{formatCents(job.incomeCents)}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-slate-500">Total Cost</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-slate-900">{formatCents(job.costCents)}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-slate-500">Net Profit</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className={`text-2xl font-bold ${job.profitCents >= 0 ? "text-emerald-600" : "text-red-600"}`}>
-              {formatCents(job.profitCents)}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
       <div className="grid gap-6 md:grid-cols-3">
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-slate-500">Billed to Date</CardTitle>
+            <CardTitle className="text-sm font-medium text-slate-500">Invoice to Date</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-slate-900">{formatCents(job.billedToDateCents)}</div>
@@ -522,12 +485,25 @@ export default function JobDetail() {
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-slate-500">Unbilled Contract</CardTitle>
+            <CardTitle className="text-sm font-medium text-slate-500">Cost to Date</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className={`text-2xl font-bold ${job.remainingContractCents >= 0 ? "text-slate-900" : "text-red-600"}`}>
-              {formatCents(job.remainingContractCents)}
-            </div>
+            <div className="text-2xl font-bold text-slate-900">{formatCents(job.costCents)}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-slate-500">Profit</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {(() => {
+              const profitCents = job.billedToDateCents - job.costCents;
+              return (
+                <div className={`text-2xl font-bold ${profitCents >= 0 ? "text-emerald-600" : "text-red-600"}`}>
+                  {formatCents(profitCents)}
+                </div>
+              );
+            })()}
           </CardContent>
         </Card>
       </div>
