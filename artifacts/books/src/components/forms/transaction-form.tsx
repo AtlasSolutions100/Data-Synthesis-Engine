@@ -308,7 +308,7 @@ export function TransactionForm({
             name="partyName"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Party Name (Optional)</FormLabel>
+                <FormLabel>Vendor (Optional)</FormLabel>
                 <FormControl>
                   <Input {...field} />
                 </FormControl>

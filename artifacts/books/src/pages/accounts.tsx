@@ -208,14 +208,19 @@ export default function Accounts() {
               ) : (
                 orderAsTree(accounts ?? []).map(({ account, depth }) => (
                   <TableRow key={account.id}>
-                    <TableCell className="font-medium">{account.number}</TableCell>
+                    <TableCell className="font-medium">
+                      <Link href={`/accounts/${account.id}/register`} className="hover:text-blue-600 hover:underline transition-colors">
+                        {account.number}
+                      </Link>
+                    </TableCell>
                     <TableCell>
-                      <span
+                      <Link
+                        href={`/accounts/${account.id}/register`}
                         style={depth > 0 ? { paddingLeft: `${depth * 1.25}rem` } : undefined}
-                        className={depth > 0 ? "text-slate-600" : undefined}
+                        className={`hover:text-blue-600 hover:underline transition-colors ${depth > 0 ? "text-slate-600" : ""}`}
                       >
                         {account.name}
-                      </span>
+                      </Link>
                     </TableCell>
                     <TableCell>
                       <Badge variant="outline" className="capitalize">{account.type.replace('_', ' ')}</Badge>
