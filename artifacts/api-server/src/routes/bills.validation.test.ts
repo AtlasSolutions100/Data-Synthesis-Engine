@@ -218,7 +218,7 @@ describe("PATCH /api/bills/:id paid-amount floor", () => {
 
     const pay = await request(app)
       .post(`/api/bills/${paidBillId}/payments`)
-      .send({ date: "2098-01-20", method: "check", amountCents: 6000 });
+      .send({ date: "2098-01-20", method: "credit_card", amountCents: 6000 });
     expect(pay.status).toBe(201);
 
     const credit = await request(app)

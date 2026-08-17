@@ -66,6 +66,13 @@ export const billPaymentsTable = pgTable("bill_payments", {
   referenceNum: text("reference_num"),
   amountCents: bigint("amount_cents", { mode: "number" }).notNull(),
   memo: text("memo"),
+  // Bank account the payment was drawn from. When set, the payment posts a
+  // linked withdrawal transaction to this account's register (see
+  // transactions.bill_payment_id). Null for legacy payments recorded before
+  // register posting existed or when no bank account could be resolved.
+  bankAccountId: integer("bank_account_id").references(() => accountsTable.id, {
+    onDelete: "set null",
+  }),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

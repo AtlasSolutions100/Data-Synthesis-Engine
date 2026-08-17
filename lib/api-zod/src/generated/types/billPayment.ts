@@ -16,4 +16,6 @@ export interface BillPayment {
   amountCents: number;
   /** @nullable */
   memo?: string | null;
+  /** @nullable */
+  bankAccountId?: number | null;
 }

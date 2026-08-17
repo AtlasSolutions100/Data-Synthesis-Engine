@@ -1186,6 +1186,8 @@ export interface BillPayment {
   amountCents: number;
   /** @nullable */
   memo?: string | null;
+  /** @nullable */
+  bankAccountId?: number | null;
 }
 
 export type BillPaymentInputMethod = typeof BillPaymentInputMethod[keyof typeof BillPaymentInputMethod];
@@ -1208,6 +1210,8 @@ export interface BillPaymentInput {
   amountCents: number;
   /** @nullable */
   memo?: string | null;
+  /** @nullable */
+  bankAccountId?: number | null;
 }
 
 export interface VendorCredit {

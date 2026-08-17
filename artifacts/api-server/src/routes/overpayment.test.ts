@@ -40,6 +40,7 @@ let billsApp: Express;
 let invoicesApp: Express;
 let vendorId: number;
 let acctId: number;
+let bankId: number;
 let customerId: number;
 let jobId: number;
 const billIds: number[] = [];
@@ -63,6 +64,12 @@ beforeAll(async () => {
     .returning();
   acctId = acct.id;
 
+  const [bank] = await db
+    .insert(accountsTable)
+    .values({ number: "TEST-OVP-1000", name: "Test OVP Bank", type: "bank" })
+    .returning();
+  bankId = bank.id;
+
   const [customer] = await db
     .insert(customersTable)
     .values({ name: "TEST-OVP Customer" })
@@ -85,7 +92,7 @@ afterAll(async () => {
   }
   await db.delete(jobsTable).where(eq(jobsTable.id, jobId));
   await db.delete(customersTable).where(eq(customersTable.id, customerId));
-  await db.delete(accountsTable).where(eq(accountsTable.id, acctId));
+  await db.delete(accountsTable).where(inArray(accountsTable.id, [acctId, bankId]));
   await db.delete(vendorsTable).where(eq(vendorsTable.id, vendorId));
 });
 
@@ -121,7 +128,9 @@ async function createInvoice(): Promise<number> {
 }
 
 function payment(amountCents: number) {
-  return { date: "2098-02-10", method: "check", amountCents };
+  // Bank payments must name the account they are drawn from (the server
+  // rejects ambiguous omissions when multiple bank accounts exist).
+  return { date: "2098-02-10", method: "check", amountCents, bankAccountId: bankId };
 }
 
 describe("POST /api/bills/:id/payments overpayment guard", () => {

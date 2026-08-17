@@ -6,6 +6,10 @@ import {
   useUpdateBill,
   useCreateBillPayment,
   useCreateVendorCredit,
+  useDeleteBillPayment,
+  getListTransactionsQueryKey,
+  useListAccounts,
+  getListAccountsQueryKey,
   getListBillsQueryKey,
   getGetApAgingQueryKey,
 } from "@workspace/api-client-react";
@@ -42,7 +46,8 @@ import {
   type ServerFieldError,
 } from "@/lib/server-field-error";
 import { useQueryClient } from "@tanstack/react-query";
-import { Plus, ArrowLeft, Pencil } from "lucide-react";
+import { Plus, ArrowLeft, Pencil, Undo2 } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 const statusVariant: Record<string, "default" | "secondary" | "outline"> = {
   paid: "secondary",
@@ -66,6 +71,13 @@ export default function BillDetail() {
   const { data: bill, isLoading } = useGetBill(billId, {
     query: { enabled: !!billId, queryKey: getGetBillQueryKey(billId) },
   });
+
+  const { data: accounts } = useListAccounts({
+    query: { queryKey: getListAccountsQueryKey() },
+  });
+  const bankAccounts = (accounts ?? [])
+    .filter((a) => a.type === "bank")
+    .map((a) => ({ id: a.id, number: a.number, name: a.name }));
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: getGetBillQueryKey(billId) });
@@ -105,6 +117,30 @@ export default function BillDetail() {
             "Failed to record the payment. Please try again.",
           ),
         );
+      },
+    },
+  });
+
+  const { toast } = useToast();
+  const deletePayment = useDeleteBillPayment({
+    mutation: {
+      onSuccess: () => {
+        invalidate();
+        // The payment's register withdrawal was removed with it.
+        queryClient.invalidateQueries({
+          queryKey: getListTransactionsQueryKey(),
+        });
+        toast({
+          title: "Payment removed",
+          description: "The register withdrawal was removed with it.",
+        });
+      },
+      onError: () => {
+        toast({
+          title: "Could not remove the payment",
+          description: "Please try again.",
+          variant: "destructive",
+        });
       },
     },
   });
@@ -324,6 +360,7 @@ export default function BillDetail() {
                 <DialogTitle>Record Payment</DialogTitle>
               </DialogHeader>
               <PaymentForm
+                bankAccounts={bankAccounts}
                 defaultAmount={
                   bill.balanceCents > 0
                     ? (bill.balanceCents / 100).toString()
@@ -348,13 +385,14 @@ export default function BillDetail() {
                 <TableHead>Reference</TableHead>
                 <TableHead>Memo</TableHead>
                 <TableHead className="text-right">Amount</TableHead>
+                <TableHead className="w-12" />
               </TableRow>
             </TableHeader>
             <TableBody>
               {!bill.payments || bill.payments.length === 0 ? (
                 <TableRow>
                   <TableCell
-                    colSpan={5}
+                    colSpan={6}
                     className="text-center py-8 text-slate-500"
                   >
                     No payments recorded.
@@ -371,6 +409,20 @@ export default function BillDetail() {
                     <TableCell>{p.memo || "-"}</TableCell>
                     <TableCell className="text-right font-medium">
                       {formatCents(p.amountCents)}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        title="Undo payment"
+                        data-testid={`button-undo-payment-${p.id}`}
+                        disabled={deletePayment.isPending}
+                        onClick={() =>
+                          deletePayment.mutate({ id: billId, paymentId: p.id })
+                        }
+                      >
+                        <Undo2 className="h-4 w-4" />
+                      </Button>
                     </TableCell>
                   </TableRow>
                 ))

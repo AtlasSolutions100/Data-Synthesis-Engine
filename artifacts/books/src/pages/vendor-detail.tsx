@@ -6,6 +6,9 @@ import {
   useListBills,
   getListBillsQueryKey,
   useCreateBillPayment,
+  useListAccounts,
+  getListAccountsQueryKey,
+  getListTransactionsQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
@@ -65,6 +68,7 @@ function WriteCheckDialog({ vendorId, vendorName, openBills, onDone }: WriteChec
   const [printLater, setPrintLater] = useState(false);
   const [checkNum, setCheckNum] = useState("");
   const [memo, setMemo] = useState("");
+  const [bankAccountId, setBankAccountId] = useState<string>("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -72,6 +76,14 @@ function WriteCheckDialog({ vendorId, vendorName, openBills, onDone }: WriteChec
   const { toast } = useToast();
 
   const createPayment = useCreateBillPayment();
+
+  const { data: accounts } = useListAccounts({
+    query: { queryKey: getListAccountsQueryKey() },
+  });
+  const bankAccounts = useMemo(
+    () => (accounts ?? []).filter((a) => a.type === "bank"),
+    [accounts],
+  );
 
   // Reset when dialog opens
   const handleOpenChange = (v: boolean) => {
@@ -82,6 +94,7 @@ function WriteCheckDialog({ vendorId, vendorName, openBills, onDone }: WriteChec
       setPrintLater(false);
       setCheckNum("");
       setMemo("");
+      setBankAccountId(bankAccounts.length > 0 ? String(bankAccounts[0].id) : "");
       setError(null);
     }
     setOpen(v);
@@ -111,6 +124,10 @@ function WriteCheckDialog({ vendorId, vendorName, openBills, onDone }: WriteChec
       setError("Select at least one bill to pay.");
       return;
     }
+    if (method !== "credit_card" && bankAccounts.length > 0 && !bankAccountId) {
+      setError("Select the bank account to pay from.");
+      return;
+    }
     setError(null);
     setSubmitting(true);
     try {
@@ -124,11 +141,17 @@ function WriteCheckDialog({ vendorId, vendorName, openBills, onDone }: WriteChec
             referenceNum,
             amountCents: bill.balanceCents,
             memo: memo.trim() || null,
+            bankAccountId:
+              method !== "credit_card" && bankAccountId
+                ? Number(bankAccountId)
+                : null,
           },
         });
       }
-      // Invalidate bills list for this vendor
+      // Invalidate bills list for this vendor, plus the register data the
+      // payments just changed (bank transactions + account balances).
       await queryClient.invalidateQueries({ queryKey: getListBillsQueryKey({ vendorId }) });
+      await queryClient.invalidateQueries({ queryKey: getListTransactionsQueryKey() });
       toast({
         title: `${selectedBills.length} payment${selectedBills.length > 1 ? "s" : ""} recorded`,
         description: `${formatCents(totalCents)} to ${vendorName}${printLater ? " — marked for printing" : checkNum ? ` (check #${checkNum})` : ""}`,
@@ -227,6 +250,28 @@ function WriteCheckDialog({ vendorId, vendorName, openBills, onDone }: WriteChec
               </Select>
             </div>
           </div>
+
+          {/* Pay-from bank account */}
+          {method !== "credit_card" && bankAccounts.length > 0 && (
+            <div className="space-y-1.5">
+              <Label>Pay From Account</Label>
+              <Select value={bankAccountId} onValueChange={setBankAccountId}>
+                <SelectTrigger data-testid="select-bank-account">
+                  <SelectValue placeholder="Select bank account" />
+                </SelectTrigger>
+                <SelectContent>
+                  {bankAccounts.map((a) => (
+                    <SelectItem key={a.id} value={String(a.id)}>
+                      {a.number} · {a.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-slate-400">
+                The payment is recorded as a withdrawal in this account's register.
+              </p>
+            </div>
+          )}
 
           {/* Check number / print later */}
           {method === "check" && (

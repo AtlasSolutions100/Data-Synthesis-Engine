@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { and, desc, eq, inArray, sql, type SQL } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, sql, type SQL } from "drizzle-orm";
 import { formatDollars } from "../lib/money";
 import {
   db,
@@ -26,6 +26,8 @@ import {
   UpdateBillResponse,
   DeleteBillParams,
   CreateBillPaymentParams,
+  DeleteBillPaymentParams,
+  DeleteBillPaymentResponse,
   CreateBillPaymentBody,
   CreateBillPaymentResponse,
   CreateVendorCreditParams,
@@ -391,7 +393,15 @@ export async function syncBillTransactionsBatch(
     .orderBy(billLinesTable.billId, billLinesTable.id);
   await tx
     .delete(transactionsTable)
-    .where(inArray(transactionsTable.billId, billIds));
+    .where(
+      and(
+        inArray(transactionsTable.billId, billIds),
+        // Payment-generated register withdrawals are owned by their
+        // bill_payment row, not by the bill's line postings — never rewrite
+        // them here.
+        isNull(transactionsTable.billPaymentId),
+      ),
+    );
   const byBillId = new Map(bills.map((r) => [r.bill.id, r]));
   const values = lines.flatMap((l) => {
     if (l.accountId == null) return [];
@@ -506,6 +516,7 @@ async function getFullBill(id: number) {
       referenceNum: p.referenceNum,
       amountCents: Number(p.amountCents),
       memo: p.memo,
+      bankAccountId: p.bankAccountId,
     })),
     credits: credits.map((c) => ({
       id: c.id,
@@ -891,6 +902,44 @@ router.post("/bills/:id/payments", async (req, res): Promise<void> => {
     });
     return;
   }
+  const method = parsed.data.method ?? "check";
+  // Resolve the bank account the payment is drawn from, so the payment
+  // posts a withdrawal to that account's register. Explicit bankAccountId
+  // must exist and be a bank account; when omitted for a non-card payment,
+  // fall back to the company's sole bank account if there is exactly one
+  // (legacy clients don't send the field). Credit-card payments don't touch
+  // a checking register.
+  let bankAccountId: number | null = null;
+  if (parsed.data.bankAccountId != null) {
+    const [acct] = await db
+      .select({ id: accountsTable.id, type: accountsTable.type })
+      .from(accountsTable)
+      .where(eq(accountsTable.id, parsed.data.bankAccountId));
+    if (!acct || acct.type !== "bank") {
+      res.status(400).json({
+        error: "Bank account not found or not a bank account",
+        field: "bankAccountId",
+      });
+      return;
+    }
+    bankAccountId = acct.id;
+  } else if (method !== "credit_card") {
+    const bankAccounts = await db
+      .select({ id: accountsTable.id })
+      .from(accountsTable)
+      .where(eq(accountsTable.type, "bank"));
+    if (bankAccounts.length === 1) {
+      bankAccountId = bankAccounts[0].id;
+    } else if (bankAccounts.length > 1) {
+      // Never guess between bank accounts — a silently unposted (or
+      // wrongly posted) check would corrupt the register balance.
+      res.status(400).json({
+        error: "Choose which bank account this payment is drawn from",
+        field: "bankAccountId",
+      });
+      return;
+    }
+  }
   try {
     await db.transaction(async (tx) => {
       // Lock the bill row so this insert serializes with concurrent bill
@@ -906,14 +955,43 @@ router.post("/bills/:id/payments", async (req, res): Promise<void> => {
           "amountCents",
         );
       }
-      await tx.insert(billPaymentsTable).values({
-        billId: params.data.id,
-        date: parsed.data.date,
-        method: parsed.data.method ?? "check",
-        referenceNum: parsed.data.referenceNum ?? null,
-        amountCents: parsed.data.amountCents,
-        memo: parsed.data.memo ?? null,
-      });
+      const [payment] = await tx
+        .insert(billPaymentsTable)
+        .values({
+          billId: params.data.id,
+          date: parsed.data.date,
+          method,
+          referenceNum: parsed.data.referenceNum ?? null,
+          amountCents: parsed.data.amountCents,
+          memo: parsed.data.memo ?? null,
+          bankAccountId,
+        })
+        .returning();
+      if (bankAccountId != null) {
+        // Post the withdrawal to the bank register. Negative amount: bank is
+        // a debit-natured account and the primary-row convention is +amount
+        // increases the account's natural balance. Print-later checks (check
+        // with no number yet) show a "To Print" marker in the Num column so
+        // they read as forecasted entries until the check is printed.
+        const num =
+          parsed.data.referenceNum ??
+          (method === "check" ? "To Print" : null);
+        await tx.insert(transactionsTable).values({
+          date: parsed.data.date,
+          type: method,
+          num,
+          partyName: existing.vendorName,
+          description:
+            parsed.data.memo ??
+            `Payment — ${existing.billNumber || `Bill #${existing.id}`}`,
+          accountId: bankAccountId,
+          vendorId: existing.vendorId,
+          billId: params.data.id,
+          billPaymentId: payment.id,
+          amountCents: -parsed.data.amountCents,
+          isDemo: existing.isDemo,
+        });
+      }
     });
   } catch (err) {
     if (err instanceof BillValidationError) {
@@ -925,6 +1003,44 @@ router.post("/bills/:id/payments", async (req, res): Promise<void> => {
   const full = await getFullBill(params.data.id);
   res.status(201).json(CreateBillPaymentResponse.parse(full));
 });
+
+router.delete(
+  "/bills/:id/payments/:paymentId",
+  async (req, res): Promise<void> => {
+    const params = DeleteBillPaymentParams.safeParse(req.params);
+    if (!params.success) {
+      res.status(400).json({ error: params.error.message });
+      return;
+    }
+    const deleted = await db.transaction(async (tx) => {
+      // Same locking discipline as recording a payment: serialize with
+      // concurrent edits so the balance recomputation stays consistent.
+      await lockBillRow(tx, params.data.id);
+      // transactions.bill_payment_id cascades, so the register withdrawal
+      // generated by this payment is removed in the same statement.
+      const rows = await tx
+        .delete(billPaymentsTable)
+        .where(
+          and(
+            eq(billPaymentsTable.id, params.data.paymentId),
+            eq(billPaymentsTable.billId, params.data.id),
+          ),
+        )
+        .returning({ id: billPaymentsTable.id });
+      return rows.length > 0;
+    });
+    if (!deleted) {
+      res.status(404).json({ error: "Payment not found" });
+      return;
+    }
+    const full = await getFullBill(params.data.id);
+    if (!full) {
+      res.status(404).json({ error: "Bill not found" });
+      return;
+    }
+    res.json(DeleteBillPaymentResponse.parse(full));
+  },
+);
 
 router.post("/bills/:id/credits", async (req, res): Promise<void> => {
   const params = CreateVendorCreditParams.safeParse(req.params);

@@ -29,6 +29,7 @@ const paymentSchema = z.object({
   referenceNum: z.string().optional(),
   amount: z.string().min(1, "Amount is required"),
   memo: z.string().optional(),
+  bankAccountId: z.string().optional(),
 });
 
 type PaymentFormValues = z.infer<typeof paymentSchema>;
@@ -39,6 +40,13 @@ export interface PaymentSubmit {
   referenceNum: string | null;
   amountCents: number;
   memo: string | null;
+  bankAccountId?: number | null;
+}
+
+export interface PaymentBankAccountOption {
+  id: number;
+  number: string;
+  name: string;
 }
 
 const SERVER_FIELD_MAP: Record<string, FieldPath<PaymentFormValues>> = {
@@ -47,6 +55,7 @@ const SERVER_FIELD_MAP: Record<string, FieldPath<PaymentFormValues>> = {
   referenceNum: "referenceNum",
   amountCents: "amount",
   memo: "memo",
+  bankAccountId: "bankAccountId",
 };
 
 interface PaymentFormProps {
@@ -54,6 +63,13 @@ interface PaymentFormProps {
   onSubmit: (data: PaymentSubmit) => void;
   isLoading?: boolean;
   serverError?: ServerFieldError | null;
+  /**
+   * Bank accounts the payment can be drawn from. When provided (bill
+   * payments), non-card payments require a selection and post a withdrawal
+   * to that account's register. Omit for flows without register posting
+   * (e.g. invoice/customer payments).
+   */
+  bankAccounts?: PaymentBankAccountOption[];
 }
 
 export function PaymentForm({
@@ -61,6 +77,7 @@ export function PaymentForm({
   onSubmit,
   isLoading,
   serverError,
+  bankAccounts,
 }: PaymentFormProps) {
   const form = useForm<PaymentFormValues>({
     resolver: zodResolver(paymentSchema),
@@ -70,6 +87,8 @@ export function PaymentForm({
       referenceNum: "",
       amount: defaultAmount || "",
       memo: "",
+      bankAccountId:
+        bankAccounts && bankAccounts.length > 0 ? String(bankAccounts[0].id) : "",
     },
   });
 
@@ -86,15 +105,34 @@ export function PaymentForm({
     });
   }, [fieldError, mappedField, form]);
 
+  const hasBankAccounts = (bankAccounts?.length ?? 0) > 0;
+
   const handleSubmit = (values: PaymentFormValues) => {
+    if (
+      hasBankAccounts &&
+      values.method !== "credit_card" &&
+      !values.bankAccountId
+    ) {
+      form.setError("bankAccountId", {
+        type: "required",
+        message: "Choose which bank account this payment is drawn from",
+      });
+      return;
+    }
     onSubmit({
       date: values.date,
       method: values.method,
       referenceNum: values.referenceNum || null,
       amountCents: parseDollars(values.amount),
       memo: values.memo || null,
+      bankAccountId:
+        hasBankAccounts && values.method !== "credit_card" && values.bankAccountId
+          ? Number(values.bankAccountId)
+          : null,
     });
   };
+
+  const method = form.watch("method");
 
   return (
     <Form {...form}>
@@ -166,6 +204,32 @@ export function PaymentForm({
             )}
           />
         </div>
+        {hasBankAccounts && method !== "credit_card" && (
+          <FormField
+            control={form.control}
+            name="bankAccountId"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Pay From Account</FormLabel>
+                <Select onValueChange={field.onChange} value={field.value}>
+                  <FormControl>
+                    <SelectTrigger data-testid="select-payment-bank-account">
+                      <SelectValue placeholder="Select bank account" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {bankAccounts!.map((a) => (
+                      <SelectItem key={a.id} value={String(a.id)}>
+                        {a.number} · {a.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        )}
         <FormField
           control={form.control}
           name="memo"

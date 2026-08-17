@@ -1886,7 +1886,8 @@ export const ListBillsResponseItem = zod.object({
   "method": zod.enum(['check', 'credit_card', 'ach', 'cash', 'other']),
   "referenceNum": zod.string().nullish(),
   "amountCents": zod.number(),
-  "memo": zod.string().nullish()
+  "memo": zod.string().nullish(),
+  "bankAccountId": zod.number().nullish()
 })).optional(),
   "credits": zod.array(zod.object({
   "id": zod.number(),
@@ -1953,7 +1954,8 @@ export const CreateBillResponse = zod.object({
   "method": zod.enum(['check', 'credit_card', 'ach', 'cash', 'other']),
   "referenceNum": zod.string().nullish(),
   "amountCents": zod.number(),
-  "memo": zod.string().nullish()
+  "memo": zod.string().nullish(),
+  "bankAccountId": zod.number().nullish()
 })).optional(),
   "credits": zod.array(zod.object({
   "id": zod.number(),
@@ -2039,7 +2041,8 @@ export const GetBillResponse = zod.object({
   "method": zod.enum(['check', 'credit_card', 'ach', 'cash', 'other']),
   "referenceNum": zod.string().nullish(),
   "amountCents": zod.number(),
-  "memo": zod.string().nullish()
+  "memo": zod.string().nullish(),
+  "bankAccountId": zod.number().nullish()
 })).optional(),
   "credits": zod.array(zod.object({
   "id": zod.number(),
@@ -2108,7 +2111,8 @@ export const UpdateBillResponse = zod.object({
   "method": zod.enum(['check', 'credit_card', 'ach', 'cash', 'other']),
   "referenceNum": zod.string().nullish(),
   "amountCents": zod.number(),
-  "memo": zod.string().nullish()
+  "memo": zod.string().nullish(),
+  "bankAccountId": zod.number().nullish()
 })).optional(),
   "credits": zod.array(zod.object({
   "id": zod.number(),
@@ -2146,7 +2150,8 @@ export const CreateBillPaymentBody = zod.object({
   "method": zod.enum(['check', 'credit_card', 'ach', 'cash', 'other']).optional(),
   "referenceNum": zod.string().nullish(),
   "amountCents": zod.number(),
-  "memo": zod.string().nullish()
+  "memo": zod.string().nullish(),
+  "bankAccountId": zod.number().nullish()
 })
 
 export const CreateBillPaymentResponse = zod.object({
@@ -2180,7 +2185,61 @@ export const CreateBillPaymentResponse = zod.object({
   "method": zod.enum(['check', 'credit_card', 'ach', 'cash', 'other']),
   "referenceNum": zod.string().nullish(),
   "amountCents": zod.number(),
+  "memo": zod.string().nullish(),
+  "bankAccountId": zod.number().nullish()
+})).optional(),
+  "credits": zod.array(zod.object({
+  "id": zod.number(),
+  "date": zod.string(),
+  "referenceNum": zod.string().nullish(),
+  "amountCents": zod.number(),
   "memo": zod.string().nullish()
+})).optional(),
+  "documentPath": zod.string().nullish().describe('Object-storage path of the source invoice\/bill scan uploaded at creation time')
+})
+
+
+/**
+ * @summary Undo a recorded bill payment (also removes its register transaction)
+ */
+export const DeleteBillPaymentParams = zod.object({
+  "id": zod.coerce.number(),
+  "paymentId": zod.coerce.number()
+})
+
+export const DeleteBillPaymentResponse = zod.object({
+  "id": zod.number(),
+  "billNumber": zod.string().nullish(),
+  "isDemo": zod.boolean().describe('True when this record was created by the Practice \/ Demo Data loader'),
+  "vendorId": zod.number(),
+  "vendorName": zod.string().nullish(),
+  "jobId": zod.number().nullish(),
+  "jobNumber": zod.string().nullish(),
+  "jobName": zod.string().nullish(),
+  "date": zod.string(),
+  "dueDate": zod.string().nullish(),
+  "memo": zod.string().nullish(),
+  "totalCents": zod.number().describe('Sum of line items in cents'),
+  "paidCents": zod.number().describe('Payments plus applied vendor credits in cents'),
+  "balanceCents": zod.number().describe('totalCents minus paidCents'),
+  "status": zod.enum(['open', 'partial', 'paid']),
+  "postedToLedger": zod.boolean().describe('True when the app generated this bill\'s ledger transactions by posting it; false for legacy\/backfilled bills whose linked ledger rows were imported.'),
+  "linkedTransactionCount": zod.number().describe('Number of ledger transactions currently linked to this bill.'),
+  "lines": zod.array(zod.object({
+  "id": zod.number(),
+  "accountId": zod.number().nullish(),
+  "accountName": zod.string().nullish(),
+  "description": zod.string().nullish(),
+  "amountCents": zod.number()
+})),
+  "payments": zod.array(zod.object({
+  "id": zod.number(),
+  "date": zod.string(),
+  "method": zod.enum(['check', 'credit_card', 'ach', 'cash', 'other']),
+  "referenceNum": zod.string().nullish(),
+  "amountCents": zod.number(),
+  "memo": zod.string().nullish(),
+  "bankAccountId": zod.number().nullish()
 })).optional(),
   "credits": zod.array(zod.object({
   "id": zod.number(),
@@ -2241,7 +2300,8 @@ export const CreateVendorCreditResponse = zod.object({
   "method": zod.enum(['check', 'credit_card', 'ach', 'cash', 'other']),
   "referenceNum": zod.string().nullish(),
   "amountCents": zod.number(),
-  "memo": zod.string().nullish()
+  "memo": zod.string().nullish(),
+  "bankAccountId": zod.number().nullish()
 })).optional(),
   "credits": zod.array(zod.object({
   "id": zod.number(),

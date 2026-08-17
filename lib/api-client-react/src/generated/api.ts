@@ -5742,6 +5742,78 @@ export const useCreateBillPayment = <TError = ErrorType<ErrorResponse>,
       return useMutation(getCreateBillPaymentMutationOptions(options));
     }
 
+export const getDeleteBillPaymentUrl = (id: number,
+    paymentId: number,) => {
+
+
+
+
+  return `/api/bills/${id}/payments/${paymentId}`
+}
+
+/**
+ * @summary Undo a recorded bill payment (also removes its register transaction)
+ */
+export const deleteBillPayment = async (id: number,
+    paymentId: number, options?: RequestInit): Promise<Bill> => {
+
+  return customFetch<Bill>(getDeleteBillPaymentUrl(id,paymentId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+export const getDeleteBillPaymentMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteBillPayment>>, TError,{id: number;paymentId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteBillPayment>>, TError,{id: number;paymentId: number}, TContext> => {
+
+const mutationKey = ['deleteBillPayment'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteBillPayment>>, {id: number;paymentId: number}> = (props) => {
+          const {id,paymentId} = props ?? {};
+
+          return  deleteBillPayment(id,paymentId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteBillPaymentMutationResult = NonNullable<Awaited<ReturnType<typeof deleteBillPayment>>>
+
+    export type DeleteBillPaymentMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Undo a recorded bill payment (also removes its register transaction)
+ */
+export const useDeleteBillPayment = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteBillPayment>>, TError,{id: number;paymentId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteBillPayment>>,
+        TError,
+        {id: number;paymentId: number},
+        TContext
+      > => {
+      return useMutation(getDeleteBillPaymentMutationOptions(options));
+    }
+
 export const getCreateVendorCreditUrl = (id: number,) => {
 
 

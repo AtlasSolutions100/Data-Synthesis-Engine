@@ -1504,6 +1504,27 @@ paths:
           $ref: "#/components/responses/Error"
         "404":
           $ref: "#/components/responses/Error"
+  /bills/{id}/payments/{paymentId}:
+    delete:
+      operationId: deleteBillPayment
+      tags: [bills]
+      summary: Undo a recorded bill payment (also removes its register transaction)
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+        - name: paymentId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Updated bill with the payment removed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Bill"
+        "404":
+          $ref: "#/components/responses/Error"
   /bills/{id}/credits:
     post:
       operationId: createVendorCredit
@@ -3447,6 +3468,8 @@ components:
           type: integer
         memo:
           type: ["string", "null"]
+        bankAccountId:
+          type: ["integer", "null"]
     BillPaymentInput:
       type: object
       required: [date, amountCents]
@@ -3463,6 +3486,8 @@ components:
           type: integer
         memo:
           type: ["string", "null"]
+        bankAccountId:
+          type: ["integer", "null"]
     VendorCredit:
       type: object
       required: [id, date, amountCents]
