@@ -58,6 +58,9 @@ app.use(
     },
   }),
 );
+// 15 MB covers the worst-case base64 inflation of the 10 MB client-side cap
+// (~10 MB × 1.33 ≈ 13.3 MB) used for statement file uploads on the
+// reconciliation route. Raise both limits together if the cap ever changes.
 app.use(express.json({ limit: "15mb" }));
 app.use(express.urlencoded({ extended: true }));
 

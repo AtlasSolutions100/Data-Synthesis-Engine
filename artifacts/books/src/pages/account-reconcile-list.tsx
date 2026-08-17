@@ -9,6 +9,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { ArrowLeft, CheckCircle2, Clock, Plus, FileText, Loader2, Upload } from "lucide-react";
 import { useState, useRef } from "react";
 
+/** Maximum statement file size accepted by the client before upload. */
+const MAX_FILE_MB = 10;
+const MAX_FILE_BYTES = MAX_FILE_MB * 1024 * 1024;
+
 const fmt = (cents: number) => {
   const abs = Math.abs(cents) / 100;
   const str = abs.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -78,7 +82,16 @@ export default function AccountReconcileList() {
       // Navigate to the new period
       window.location.href = `/accounts/${accountId}/reconcile/${created.id}`;
     } catch (err: any) {
-      setSubmitError(err?.message ?? "Failed to start reconciliation.");
+      // HTTP 413 means the file was too large for the server even after the
+      // client-side guard (e.g. a slightly compressed file that expands to >10 MB
+      // when base64-encoded).
+      if (err?.status === 413) {
+        setSubmitError(
+          `The file is too large to upload. Please choose a statement file under ${MAX_FILE_MB} MB.`
+        );
+      } else {
+        setSubmitError(err?.message ?? "Failed to start reconciliation.");
+      }
     } finally {
       setSubmitting(false);
     }
@@ -172,7 +185,21 @@ export default function AccountReconcileList() {
                     type="file"
                     className="hidden"
                     accept=".pdf,.csv,.xlsx,.xls"
-                    onChange={(e) => setStatementFile(e.target.files?.[0] ?? null)}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0] ?? null;
+                      if (file && file.size > MAX_FILE_BYTES) {
+                        setSubmitError(
+                          `File is too large (${(file.size / 1024 / 1024).toFixed(1)} MB). ` +
+                          `Please choose a file under ${MAX_FILE_MB} MB.`
+                        );
+                        // Reset the input and clear any previously selected file
+                        if (fileRef.current) fileRef.current.value = "";
+                        setStatementFile(null);
+                        return;
+                      }
+                      setSubmitError(null);
+                      setStatementFile(file);
+                    }}
                   />
                 </div>
               </div>
