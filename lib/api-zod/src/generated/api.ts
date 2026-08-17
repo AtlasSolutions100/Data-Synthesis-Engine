@@ -1426,7 +1426,8 @@ export const GetAccountBalanceTransactionsResponse = zod.object({
   "description": zod.string().nullable(),
   "role": zod.enum(['primary', 'split']).describe('Whether this account is the transaction\'s primary account or its split (offset) account.'),
   "otherAccountName": zod.string().nullable().describe('The account on the other side of the entry (split account for primary rows, primary account for split rows).'),
-  "effectCents": zod.number().describe('Signed effect of this line on the account\'s natural balance.')
+  "effectCents": zod.number().describe('Signed effect of this line on the account\'s natural balance.'),
+  "clearedStatus": zod.enum(['cleared', 'pending', 'uncleared']).describe('Actual reconciliation status of this transaction for the account: \"cleared\" when checked off in a completed reconciliation period, \"pending\" when checked off in an in-progress period, and \"uncleared\" otherwise. A past date alone never makes a line cleared.\n')
 }))
 })
 
@@ -3172,7 +3173,8 @@ export const CreateReconciliationPeriodBody = zod.object({
   "statementBalanceCents": zod.number(),
   "statementDocumentPath": zod.string().nullish(),
   "statementDocumentName": zod.string().nullish(),
-  "statementCsvData": zod.string().nullish().describe('Base64-encoded CSV statement file. When provided, the server parses date+amount columns, pre-clears any ledger transactions that match by date (±1 day) and amount, and stores unmatched CSV rows on the period for review.\n')
+  "statementCsvData": zod.string().nullish().describe('Base64-encoded CSV statement file. When provided, the server parses date+amount columns, pre-clears any ledger transactions that match by date (±1 day) and amount, and stores unmatched CSV rows on the period for review.\n'),
+  "statementFileData": zod.string().nullish().describe('Base64-encoded statement file (CSV, XLSX, or PDF — detected from statementDocumentName\'s extension). Parsed into statement lines and matched like statementCsvData. Unsupported or unparseable files are rejected with a clear error explaining what to upload instead.\n')
 })
 
 export const CreateReconciliationPeriodResponse = zod.object({

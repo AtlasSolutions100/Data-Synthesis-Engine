@@ -18,6 +18,8 @@ import {
   payrollRunsTable,
   payrollLinesTable,
   payrollAllocationsTable,
+  reconciliationPeriodsTable,
+  reconciliationClearsTable,
 } from "@workspace/db";
 import {
   GetDashboardSummaryResponse,
@@ -418,7 +420,39 @@ router.get(
         .json({ error: "Account not found or not a balance-sheet account" });
       return;
     }
-    res.json(GetAccountBalanceTransactionsResponse.parse(ledger));
+
+    // Real cleared marks from reconciliation: "cleared" when checked off in a
+    // completed period, "pending" when checked off in an in-progress period,
+    // "uncleared" otherwise. A past date alone never makes a line cleared.
+    const clearRows = await db
+      .select({
+        transactionId: reconciliationClearsTable.transactionId,
+        periodStatus: reconciliationPeriodsTable.status,
+      })
+      .from(reconciliationClearsTable)
+      .innerJoin(
+        reconciliationPeriodsTable,
+        eq(reconciliationPeriodsTable.id, reconciliationClearsTable.periodId),
+      )
+      .where(eq(reconciliationPeriodsTable.accountId, accountId));
+    const statusByTx = new Map<number, "cleared" | "pending">();
+    for (const row of clearRows) {
+      if (row.periodStatus === "completed") {
+        statusByTx.set(row.transactionId, "cleared");
+      } else if (!statusByTx.has(row.transactionId)) {
+        statusByTx.set(row.transactionId, "pending");
+      }
+    }
+
+    res.json(
+      GetAccountBalanceTransactionsResponse.parse({
+        ...ledger,
+        lines: ledger.lines.map((line) => ({
+          ...line,
+          clearedStatus: statusByTx.get(line.transactionId) ?? "uncleared",
+        })),
+      }),
+    );
   },
 );
 

@@ -3153,7 +3153,7 @@ components:
 
     AccountBalanceTransactionLine:
       type: object
-      required: [transactionId, date, type, num, partyName, description, role, otherAccountName, effectCents]
+      required: [transactionId, date, type, num, partyName, description, role, otherAccountName, effectCents, clearedStatus]
       properties:
         transactionId:
           type: integer
@@ -3177,6 +3177,14 @@ components:
         effectCents:
           type: integer
           description: Signed effect of this line on the account's natural balance.
+        clearedStatus:
+          type: string
+          enum: [cleared, pending, uncleared]
+          description: >
+            Actual reconciliation status of this transaction for the account:
+            "cleared" when checked off in a completed reconciliation period,
+            "pending" when checked off in an in-progress period, and
+            "uncleared" otherwise. A past date alone never makes a line cleared.
     AccountBalanceTransactions:
       type: object
       required: [accountId, accountNumber, accountName, type, balanceCents, lines]
@@ -4743,6 +4751,14 @@ components:
             Base64-encoded CSV statement file. When provided, the server parses date+amount
             columns, pre-clears any ledger transactions that match by date (±1 day) and
             amount, and stores unmatched CSV rows on the period for review.
+        statementFileData:
+          type: string
+          nullable: true
+          description: >
+            Base64-encoded statement file (CSV, XLSX, or PDF — detected from
+            statementDocumentName's extension). Parsed into statement lines and matched
+            like statementCsvData. Unsupported or unparseable files are rejected with a
+            clear error explaining what to upload instead.
 
     UpdateReconciliationPeriod:
       type: object

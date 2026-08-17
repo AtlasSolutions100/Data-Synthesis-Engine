@@ -40,6 +40,12 @@ interface StatementLine {
   date: string;       // YYYY-MM-DD
   amountCents: number; // positive = deposit, negative = withdrawal
   description: string;
+  /**
+   * True when the source format couldn't reveal the amount's sign (PDF
+   * statements print unsigned amounts in deposit/withdrawal columns). The
+   * matcher then tries both +amount and -amount.
+   */
+  signUnknown?: boolean;
 }
 
 /**
@@ -172,19 +178,36 @@ function normalizeHeader(h: string): string {
   return h.toLowerCase().replace(/[^a-z ]/g, "").trim();
 }
 
+/** Decode a base64 (optionally data-URL-prefixed) string into a Buffer. */
+function decodeBase64(base64: string): Buffer | null {
+  try {
+    const raw = base64.includes(",") ? base64.split(",")[1] : base64;
+    return Buffer.from(raw, "base64");
+  } catch {
+    return null;
+  }
+}
+
 /** Parse a base64-encoded CSV string into statement lines. */
 export function parseStatementCsv(base64: string): StatementLine[] | { error: string } {
-  let text: string;
-  try {
-    // Strip data URL prefix if present
-    const raw = base64.includes(",") ? base64.split(",")[1] : base64;
-    text = Buffer.from(raw, "base64").toString("utf-8");
-  } catch {
-    return { error: "Could not decode CSV data" };
-  }
+  const buf = decodeBase64(base64);
+  if (!buf) return { error: "Could not decode CSV data" };
+  const text = buf.toString("utf-8");
 
   const records = parseCsv(text);
-  if (records.length < 2) return { error: "CSV has no data rows" };
+  return extractStatementLines(records, "CSV");
+}
+
+/**
+ * Shared tabular extraction: given raw records (from CSV rows or XLSX cells
+ * stringified), locate the header row, detect date/amount/description columns
+ * and produce statement lines.
+ */
+export function extractStatementLines(
+  records: string[][],
+  formatLabel: string,
+): StatementLine[] | { error: string } {
+  if (records.length < 2) return { error: `${formatLabel} has no data rows` };
 
   // Find the header row (skip comment/empty lines at top, look in first 10 records)
   let headerIdx = -1;
@@ -200,7 +223,8 @@ export function parseStatementCsv(base64: string): StatementLine[] | { error: st
       }
     }
   }
-  if (headerIdx === -1) return { error: "Could not find a date column in the CSV header" };
+  if (headerIdx === -1)
+    return { error: `Could not find a date column in the ${formatLabel} header` };
 
   // Detect column indices
   const dateIdx = headers.findIndex((h) => DATE_COLS.includes(h));
@@ -209,9 +233,11 @@ export function parseStatementCsv(base64: string): StatementLine[] | { error: st
   const creditIdx = headers.findIndex((h) => CREDIT_COLS.includes(h));
   const descIdx = headers.findIndex((h) => DESC_COLS.includes(h));
 
-  if (dateIdx === -1) return { error: "No date column found in CSV" };
+  if (dateIdx === -1) return { error: `No date column found in ${formatLabel}` };
   if (amountIdx === -1 && (debitIdx === -1 || creditIdx === -1)) {
-    return { error: "No amount column found in CSV (need 'Amount' or 'Debit'+'Credit' columns)" };
+    return {
+      error: `No amount column found in ${formatLabel} (need 'Amount' or 'Debit'+'Credit' columns)`,
+    };
   }
 
   const lines: StatementLine[] = [];
@@ -248,6 +274,195 @@ export function parseStatementCsv(base64: string): StatementLine[] | { error: st
   }
 
   return lines;
+}
+
+// ── XLSX / PDF statement parsing ─────────────────────────────────────────────
+
+/** Stringify an XLSX cell value the way our tabular extractor expects. */
+function cellToString(cell: unknown): string {
+  if (cell === null || cell === undefined) return "";
+  if (cell instanceof Date) {
+    // read-excel-file returns Dates parsed as UTC for date-formatted cells
+    return cell.toISOString().slice(0, 10);
+  }
+  return String(cell).trim();
+}
+
+/** Parse a base64-encoded XLSX workbook into statement lines. */
+export async function parseStatementXlsx(
+  base64: string,
+): Promise<StatementLine[] | { error: string }> {
+  const buf = decodeBase64(base64);
+  if (!buf) return { error: "Could not decode XLSX data" };
+
+  let rows: unknown[][];
+  try {
+    const { default: readXlsxFile } = await import("read-excel-file/node");
+    rows = (await readXlsxFile(buf)) as unknown[][];
+  } catch {
+    return {
+      error:
+        "Could not read this file as an XLSX workbook. Re-save it from your bank as .xlsx or export a CSV instead.",
+    };
+  }
+
+  const records = rows.map((row) => row.map(cellToString));
+  return extractStatementLines(records, "XLSX");
+}
+
+// Matches an amount like 1,234.56 / $1,234.56 / -1,234.56 / (1,234.56)
+const PDF_AMOUNT_RE = /\(?-?\$?\d{1,3}(?:,\d{3})*\.\d{2}\)?/g;
+// Matches a leading date token: MM/DD/YYYY, M/D/YY, YYYY-MM-DD, or MM/DD
+const PDF_DATE_RE = /\b(\d{4}-\d{2}-\d{2}|\d{1,2}\/\d{1,2}(?:\/\d{2,4})?)\b/;
+
+/** Resolve a possibly year-less PDF date token to YYYY-MM-DD using the statement date. */
+function resolvePdfDate(token: string, statementDate: string): string | null {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(token)) return validateCalendarDate(token);
+  const parts = token.split("/");
+  const stmtYear = Number(statementDate.slice(0, 4));
+  if (parts.length === 3) {
+    let [m, d, y] = parts;
+    if (y.length === 2) y = String(2000 + Number(y));
+    return validateCalendarDate(`${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`);
+  }
+  if (parts.length === 2) {
+    // MM/DD with no year — assume statement year; if that lands more than a
+    // month after the statement date, it belongs to the previous year
+    // (statements spanning a year boundary list December dates first).
+    const [m, d] = parts;
+    let year = stmtYear;
+    const candidate = `${year}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
+    if (candidate > statementDate) year -= 1;
+    return validateCalendarDate(`${year}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`);
+  }
+  return null;
+}
+
+/**
+ * Parse a base64-encoded PDF bank statement into statement lines by extracting
+ * the text layer and scanning for rows that start with a date and contain a
+ * dollar amount. Because most PDF statements print unsigned amounts in
+ * deposit/withdrawal columns we cannot always recover the sign, so PDF lines
+ * are flagged signUnknown and the matcher tries both signs.
+ */
+export async function parseStatementPdf(
+  base64: string,
+  statementDate: string,
+): Promise<StatementLine[] | { error: string }> {
+  const buf = decodeBase64(base64);
+  if (!buf) return { error: "Could not decode PDF data" };
+
+  let textLines: string[] = [];
+  try {
+    const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
+    const doc = await pdfjs.getDocument({
+      data: new Uint8Array(buf),
+      useSystemFonts: true,
+    }).promise;
+    for (let p = 1; p <= doc.numPages; p++) {
+      const page = await doc.getPage(p);
+      const content = await page.getTextContent();
+      // Group text items into visual lines by their y coordinate.
+      const byY = new Map<number, { x: number; str: string }[]>();
+      for (const item of content.items as Array<{
+        str: string;
+        transform: number[];
+      }>) {
+        if (!item.str || !item.str.trim()) continue;
+        const y = Math.round(item.transform[5]);
+        // Bucket within ±2px of an existing line
+        let key = y;
+        for (const existing of byY.keys()) {
+          if (Math.abs(existing - y) <= 2) {
+            key = existing;
+            break;
+          }
+        }
+        const bucket = byY.get(key) ?? [];
+        bucket.push({ x: item.transform[4], str: item.str });
+        byY.set(key, bucket);
+      }
+      const ys = [...byY.keys()].sort((a, b) => b - a); // top → bottom
+      for (const y of ys) {
+        const parts = byY.get(y)!.sort((a, b) => a.x - b.x);
+        textLines.push(parts.map((p2) => p2.str).join(" "));
+      }
+    }
+    await doc.cleanup();
+  } catch {
+    return {
+      error:
+        "Could not read this PDF. If it is password-protected or corrupted, export a CSV or XLSX from your bank instead.",
+    };
+  }
+
+  if (textLines.every((l) => !l.trim())) {
+    return {
+      error:
+        "This PDF has no extractable text — it looks like a scanned image. Export a CSV or XLSX from your bank's website instead.",
+    };
+  }
+
+  const lines: StatementLine[] = [];
+  for (const raw of textLines) {
+    const line = raw.trim();
+    const dateMatch = line.match(PDF_DATE_RE);
+    if (!dateMatch || line.indexOf(dateMatch[0]) > 20) continue; // date must lead the row
+    const date = resolvePdfDate(dateMatch[1], statementDate);
+    if (!date) continue;
+
+    const amounts = [...line.matchAll(PDF_AMOUNT_RE)].map((m) => m[0]);
+    if (amounts.length === 0) continue;
+    // When a running-balance column is present the row shows two amounts; the
+    // transaction amount is the first one.
+    const amountCents = parseDollarToCents(amounts[0]);
+    if (amountCents === null || amountCents === 0) continue;
+
+    // Description = text between the date token and the first amount
+    const afterDate = line.slice(line.indexOf(dateMatch[0]) + dateMatch[0].length);
+    const amtIdx = afterDate.indexOf(amounts[0]);
+    const description = (amtIdx >= 0 ? afterDate.slice(0, amtIdx) : afterDate).trim();
+
+    lines.push({ date, amountCents, description, signUnknown: true });
+  }
+
+  if (lines.length === 0) {
+    return {
+      error:
+        "Couldn't find any transaction rows (date + amount) in this PDF's text. Its layout may be unsupported — export a CSV or XLSX from your bank instead.",
+    };
+  }
+
+  return lines;
+}
+
+/**
+ * Parse a base64 statement file according to its filename extension.
+ * Supported: .csv, .xlsx, .pdf. Everything else returns a clear error.
+ */
+export async function parseStatementFile(
+  base64: string,
+  fileName: string,
+  statementDate: string,
+): Promise<StatementLine[] | { error: string }> {
+  const ext = (fileName.match(/\.([a-z0-9]+)$/i)?.[1] ?? "").toLowerCase();
+  switch (ext) {
+    case "csv":
+      return parseStatementCsv(base64);
+    case "xlsx":
+      return parseStatementXlsx(base64);
+    case "pdf":
+      return parseStatementPdf(base64, statementDate);
+    case "xls":
+      return {
+        error:
+          "Legacy .xls workbooks aren't supported. Re-save the statement as .xlsx or export a CSV.",
+      };
+    default:
+      return {
+        error: `Unsupported statement file type ".${ext || "?"}". Upload a CSV, XLSX, or PDF statement.`,
+      };
+  }
 }
 
 /** Return the set of date strings within ±1 day of the given date. */
@@ -433,9 +648,21 @@ router.post("/reconciliation/periods", async (req, res) => {
     });
   }
 
-  // Parse the CSV before opening the transaction (pure CPU, no DB)
+  // Parse the statement file before opening the transaction (no DB writes).
+  // statementFileData (CSV/XLSX/PDF, dispatched by filename) supersedes the
+  // legacy CSV-only statementCsvData field; both remain accepted.
   let parsedCsvLines: StatementLine[] | null = null;
-  if (body.data.statementCsvData) {
+  if (body.data.statementFileData) {
+    const result = await parseStatementFile(
+      body.data.statementFileData,
+      body.data.statementDocumentName ?? "",
+      body.data.statementDate,
+    );
+    if ("error" in result) {
+      return res.status(400).json({ error: `Statement parse error: ${result.error}` });
+    }
+    parsedCsvLines = result;
+  } else if (body.data.statementCsvData) {
     const result = parseStatementCsv(body.data.statementCsvData);
     if ("error" in result) {
       return res.status(400).json({ error: `CSV parse error: ${result.error}` });
@@ -459,34 +686,43 @@ router.post("/reconciliation/periods", async (req, res) => {
       ledgerByKey.set(key, bucket);
     }
 
-    for (const csvLine of parsedCsvLines) {
-      let matched = false;
-
+    // Try to consume one ledger transaction matching this date+amount.
+    const tryConsume = (date: string, amountCents: number): boolean => {
       // Prefer exact-date match first; only fall back to ±1-day if no exact
       // candidate exists.  This prevents a same-amount transaction from the
       // preceding day from stealing the match when both are present.
-      const exactKey = `${csvLine.date}:${csvLine.amountCents}`;
-      const exactCandidates = ledgerByKey.get(exactKey);
+      const exactCandidates = ledgerByKey.get(`${date}:${amountCents}`);
       if (exactCandidates && exactCandidates.length > 0) {
         matchedTransactionIds.push(exactCandidates.shift()!);
-        matched = true;
+        return true;
+      }
+      for (const d of dateWindow(date)) {
+        if (d === date) continue; // already tried
+        const candidates = ledgerByKey.get(`${d}:${amountCents}`);
+        if (candidates && candidates.length > 0) {
+          matchedTransactionIds.push(candidates.shift()!);
+          return true;
+        }
+      }
+      return false;
+    };
+
+    for (const csvLine of parsedCsvLines) {
+      let matched = tryConsume(csvLine.date, csvLine.amountCents);
+
+      // PDF statements often print unsigned amounts, so try the opposite sign.
+      if (!matched && csvLine.signUnknown && csvLine.amountCents !== 0) {
+        matched = tryConsume(csvLine.date, -csvLine.amountCents);
       }
 
       if (!matched) {
-        // ±1-day fallback (skip exact date since we already checked it)
-        for (const d of dateWindow(csvLine.date)) {
-          if (d === csvLine.date) continue; // already tried
-          const key = `${d}:${csvLine.amountCents}`;
-          const candidates = ledgerByKey.get(key);
-          if (candidates && candidates.length > 0) {
-            matchedTransactionIds.push(candidates.shift()!);
-            matched = true;
-            break;
-          }
-        }
+        // Persist only the schema fields (drop internal flags like signUnknown)
+        unmatchedLines.push({
+          date: csvLine.date,
+          amountCents: csvLine.amountCents,
+          description: csvLine.description,
+        });
       }
-
-      if (!matched) unmatchedLines.push(csvLine);
     }
   }
 
@@ -550,6 +786,20 @@ router.patch("/reconciliation/periods/:id", async (req, res) => {
 
   const body = UpdateReconciliationPeriodBody.safeParse(req.body);
   if (!body.success) return res.status(400).json({ error: body.error.message });
+
+  // A completed period passed the difference-is-zero check when it closed;
+  // editing its statement balance or date afterward would silently break that
+  // invariant. Require an explicit reopen first.
+  const [current] = await db
+    .select({ status: reconciliationPeriodsTable.status })
+    .from(reconciliationPeriodsTable)
+    .where(eq(reconciliationPeriodsTable.id, params.data.id));
+  if (!current) return res.status(404).json({ error: "Reconciliation period not found" });
+  if (current.status === "completed") {
+    return res
+      .status(400)
+      .json({ error: "Cannot modify a completed reconciliation period. Reopen it first." });
+  }
 
   const [updated] = await db
     .update(reconciliationPeriodsTable)

@@ -32,5 +32,16 @@ Mounted in `routes/index.ts`. Key endpoints:
 
 **Why:** Mike reconciles vendor charge accounts (Home Depot, Chase card = credit_card/liability) as well as checking/savings (bank). Income/expense accounts never receive statements.
 
+## Statement file parsing (CSV / XLSX / PDF)
+- `statementFileData` (base64, dispatched by `statementDocumentName` extension) supersedes legacy CSV-only `statementCsvData`; both accepted.
+- XLSX via `read-excel-file/node`; PDF via `pdfjs-dist/legacy/build/pdf.mjs` getTextContent, grouping items into lines by y (±2px), rows = leading date + first amount (second amount = running balance).
+- PDF amounts are unsigned → lines carry `signUnknown: true` and the matcher tries both +amt and −amt. Year-less MM/DD dates resolve against the statement year (roll back a year if after statement date).
+- .xls and unknown extensions → 400 with an actionable "export CSV/XLSX" message; scanned/textless PDFs likewise.
+- write-excel-file v4 node build: `writeXlsxFile(data, {buffer:true})` returns `{toBuffer, toStream, toFile}` — await `.toBuffer()`.
+
+## Register cleared marks
+- `AccountBalanceTransactionLine.clearedStatus` (cleared|pending|uncleared): "cleared" = in a completed period's clears, "pending" = in-progress period, else "uncleared". Past date alone never labels a row cleared. Computed in reports.ts register route by joining clears→periods for the account.
+- PATCH on a completed period is 400 ("Reopen it first") — statement balance is part of the diff=0 close invariant.
+
 ## isDemo pattern (ongoing)
 Partial `.select()` queries in route files must include `isDemo: table.isDemo` or the Zod response schema throws. Found and fixed in: `getFullBill()` (bills.ts), `serializeJob()` (jobs.ts), customers list (customers.ts). The vendors list uses `db.select()` (all columns) so it's safe.

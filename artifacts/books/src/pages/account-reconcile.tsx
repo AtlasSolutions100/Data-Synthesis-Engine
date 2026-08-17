@@ -441,8 +441,8 @@ export default function AccountReconcile() {
             </h2>
           </div>
           <p className="text-xs text-slate-500">
-            These rows from your uploaded CSV couldn't be matched to a ledger entry by date and
-            amount. Check for missing transactions or posting date differences.
+            These rows from your uploaded statement couldn't be matched to a ledger entry by date
+            and amount. Check for missing transactions or posting date differences.
           </p>
           <Card className="overflow-hidden border-amber-200">
             <CardContent className="p-0">

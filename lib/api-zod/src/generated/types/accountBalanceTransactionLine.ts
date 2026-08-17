@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { AccountBalanceTransactionLineClearedStatus } from './accountBalanceTransactionLineClearedStatus';
 import type { AccountBalanceTransactionLineRole } from './accountBalanceTransactionLineRole';
 
 export interface AccountBalanceTransactionLine {
@@ -26,4 +27,6 @@ export interface AccountBalanceTransactionLine {
   otherAccountName: string | null;
   /** Signed effect of this line on the account's natural balance. */
   effectCents: number;
+  /** Actual reconciliation status of this transaction for the account: "cleared" when checked off in a completed reconciliation period, "pending" when checked off in an in-progress period, and "uncleared" otherwise. A past date alone never makes a line cleared. */
+  clearedStatus: AccountBalanceTransactionLineClearedStatus;
 }

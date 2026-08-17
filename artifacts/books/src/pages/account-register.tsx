@@ -360,6 +360,7 @@ export default function AccountRegister() {
         depositCents: number;
         runningBalanceCents: number;
         isForecast: boolean;
+        clearedStatus: "cleared" | "pending" | "uncleared";
       }
     | { kind: "divider" };
 
@@ -393,6 +394,7 @@ export default function AccountRegister() {
         depositCents: line.effectCents > 0 ? line.effectCents : 0,
         runningBalanceCents: running,
         isForecast: line.date > todayStr,
+        clearedStatus: line.clearedStatus,
       });
     }
 
@@ -460,18 +462,26 @@ export default function AccountRegister() {
       </div>
 
       {/* legend */}
-      <div className="flex items-center gap-6 text-xs text-slate-500">
+      <div className="flex items-center gap-6 text-xs text-slate-500 flex-wrap">
+        <div className="flex items-center gap-1.5">
+          <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
+            <Check className="h-3 w-3" />
+          </span>
+          <span>Cleared — reconciled against a bank statement</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-amber-100 text-amber-600 text-[10px] font-bold">
+            ✱
+          </span>
+          <span>Pending — checked off in an open reconciliation</span>
+        </div>
         <div className="flex items-center gap-1.5">
           <div className="h-3 w-3 rounded-sm bg-white border border-slate-200" />
-          <span>Cleared / past entries</span>
+          <span>Uncleared — not yet on a statement</span>
         </div>
         <div className="flex items-center gap-1.5">
           <div className="h-3 w-3 rounded-sm bg-blue-50 border border-blue-200" />
           <span>Forecasted / future entries</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <Check className="h-3 w-3 text-slate-400" />
-          <span>Click any # cell to edit check number</span>
         </div>
       </div>
 
@@ -492,6 +502,12 @@ export default function AccountRegister() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-slate-200 bg-slate-50">
+                    <th
+                      className="text-center px-2 py-2.5 font-medium text-slate-600 text-xs uppercase tracking-wide w-[40px]"
+                      title="Cleared status from reconciliation"
+                    >
+                      ✓
+                    </th>
                     <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs uppercase tracking-wide w-[100px]">
                       Date
                     </th>
@@ -562,6 +578,29 @@ export default function AccountRegister() {
                         `}
                         data-testid={`row-register-${row.transactionId}`}
                       >
+                        {/* Cleared status */}
+                        <td className="px-2 py-2 text-center">
+                          {row.clearedStatus === "cleared" ? (
+                            <span
+                              className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-emerald-100 text-emerald-700"
+                              title="Cleared — reconciled against a bank statement"
+                            >
+                              <Check className="h-3 w-3" />
+                            </span>
+                          ) : row.clearedStatus === "pending" ? (
+                            <span
+                              className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-amber-100 text-amber-600 text-[10px] font-bold"
+                              title="Pending — checked off in an open reconciliation"
+                            >
+                              ✱
+                            </span>
+                          ) : (
+                            <span className="text-slate-200" title="Uncleared — not yet on a statement">
+                              —
+                            </span>
+                          )}
+                        </td>
+
                         {/* Date */}
                         <td className="px-4 py-2 text-slate-600 text-xs tabular-nums whitespace-nowrap">
                           <Link
@@ -694,7 +733,7 @@ export default function AccountRegister() {
                 {data && data.lines.length > 0 && (
                   <tfoot>
                     <tr className="border-t-2 border-slate-200 bg-slate-50">
-                      <td colSpan={5} className="px-4 py-2.5 text-xs font-medium text-slate-500 text-right">
+                      <td colSpan={6} className="px-4 py-2.5 text-xs font-medium text-slate-500 text-right">
                         Ending Balance
                       </td>
                       <td className="px-3 py-2.5 text-right tabular-nums text-xs text-red-600 font-semibold">

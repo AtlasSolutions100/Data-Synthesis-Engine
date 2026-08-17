@@ -901,6 +901,18 @@ export const AccountBalanceTransactionLineRole = {
   split: 'split',
 } as const;
 
+/**
+ * Actual reconciliation status of this transaction for the account: "cleared" when checked off in a completed reconciliation period, "pending" when checked off in an in-progress period, and "uncleared" otherwise. A past date alone never makes a line cleared.
+ */
+export type AccountBalanceTransactionLineClearedStatus = typeof AccountBalanceTransactionLineClearedStatus[keyof typeof AccountBalanceTransactionLineClearedStatus];
+
+
+export const AccountBalanceTransactionLineClearedStatus = {
+  cleared: 'cleared',
+  pending: 'pending',
+  uncleared: 'uncleared',
+} as const;
+
 export interface AccountBalanceTransactionLine {
   transactionId: number;
   date: string;
@@ -920,6 +932,8 @@ export interface AccountBalanceTransactionLine {
   otherAccountName: string | null;
   /** Signed effect of this line on the account's natural balance. */
   effectCents: number;
+  /** Actual reconciliation status of this transaction for the account: "cleared" when checked off in a completed reconciliation period, "pending" when checked off in an in-progress period, and "uncleared" otherwise. A past date alone never makes a line cleared. */
+  clearedStatus: AccountBalanceTransactionLineClearedStatus;
 }
 
 export type AccountBalanceTransactionsType = typeof AccountBalanceTransactionsType[keyof typeof AccountBalanceTransactionsType];
@@ -2139,6 +2153,8 @@ export interface CreateReconciliationPeriod {
   statementDocumentName?: string | null;
   /** Base64-encoded CSV statement file. When provided, the server parses date+amount columns, pre-clears any ledger transactions that match by date (±1 day) and amount, and stores unmatched CSV rows on the period for review. */
   statementCsvData?: string | null;
+  /** Base64-encoded statement file (CSV, XLSX, or PDF — detected from statementDocumentName's extension). Parsed into statement lines and matched like statementCsvData. Unsupported or unparseable files are rejected with a clear error explaining what to upload instead. */
+  statementFileData?: string | null;
 }
 
 export interface UpdateReconciliationPeriod {

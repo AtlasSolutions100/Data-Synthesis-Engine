@@ -48,10 +48,11 @@ export default function AccountReconcileList() {
     }
     setSubmitting(true);
     try {
-      // Read CSV file as base64 if it's a CSV
-      let statementCsvData: string | null = null;
-      if (statementFile && /\.(csv)$/i.test(statementFile.name)) {
-        statementCsvData = await new Promise<string>((resolve, reject) => {
+      // Send any statement file (CSV, XLSX, PDF) as base64 — the server
+      // dispatches parsing by the filename extension.
+      let statementFileData: string | null = null;
+      if (statementFile) {
+        statementFileData = await new Promise<string>((resolve, reject) => {
           const reader = new FileReader();
           reader.onload = () => resolve(reader.result as string);
           reader.onerror = reject;
@@ -66,7 +67,7 @@ export default function AccountReconcileList() {
           statementBalanceCents: balanceCents,
           statementDocumentName: statementFile?.name ?? null,
           statementDocumentPath: null,
-          statementCsvData,
+          statementFileData,
         },
       });
       setOpen(false);
@@ -163,7 +164,7 @@ export default function AccountReconcileList() {
                   ) : (
                     <div className="text-sm text-slate-400 flex items-center justify-center gap-1.5">
                       <Upload className="h-4 w-4" />
-                      Upload PDF or CSV for reference
+                      Upload CSV, XLSX, or PDF — lines are matched automatically
                     </div>
                   )}
                   <input

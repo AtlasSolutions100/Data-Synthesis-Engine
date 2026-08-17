@@ -10,6 +10,7 @@ export * from './account';
 export * from './accountBalance';
 export * from './accountBalances';
 export * from './accountBalanceTransactionLine';
+export * from './accountBalanceTransactionLineClearedStatus';
 export * from './accountBalanceTransactionLineRole';
 export * from './accountBalanceTransactions';
 export * from './accountBalanceTransactionsType';
