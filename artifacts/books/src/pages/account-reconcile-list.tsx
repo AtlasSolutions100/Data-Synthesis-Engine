@@ -48,6 +48,17 @@ export default function AccountReconcileList() {
     }
     setSubmitting(true);
     try {
+      // Read CSV file as base64 if it's a CSV
+      let statementCsvData: string | null = null;
+      if (statementFile && /\.(csv)$/i.test(statementFile.name)) {
+        statementCsvData = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(statementFile);
+        });
+      }
+
       const created = await createPeriod.mutateAsync({
         data: {
           accountId,
@@ -55,6 +66,7 @@ export default function AccountReconcileList() {
           statementBalanceCents: balanceCents,
           statementDocumentName: statementFile?.name ?? null,
           statementDocumentPath: null,
+          statementCsvData,
         },
       });
       setOpen(false);

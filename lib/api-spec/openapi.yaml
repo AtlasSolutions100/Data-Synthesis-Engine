@@ -4687,6 +4687,31 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ReconciliationPeriodLine"
+        unmatchedStatementLines:
+          type: array
+          description: >
+            CSV statement rows that could not be matched to any ledger transaction
+            by date (±1 day) and amount. Present only when a CSV was uploaded at
+            period creation. Empty array means all CSV rows were matched.
+          items:
+            $ref: "#/components/schemas/StatementUnmatchedLine"
+
+    StatementUnmatchedLine:
+      type: object
+      required:
+        - date
+        - amountCents
+        - description
+      properties:
+        date:
+          type: string
+          description: Date from the CSV (YYYY-MM-DD)
+        amountCents:
+          type: integer
+          description: Amount in cents (positive = deposit, negative = withdrawal)
+        description:
+          type: string
+          description: Raw description text from the CSV row
 
     CreateReconciliationPeriod:
       type: object
@@ -4708,6 +4733,13 @@ components:
         statementDocumentName:
           type: string
           nullable: true
+        statementCsvData:
+          type: string
+          nullable: true
+          description: >
+            Base64-encoded CSV statement file. When provided, the server parses date+amount
+            columns, pre-clears any ledger transactions that match by date (±1 day) and
+            amount, and stores unmatched CSV rows on the period for review.
 
     UpdateReconciliationPeriod:
       type: object

@@ -13,4 +13,6 @@ export interface CreateReconciliationPeriod {
   statementBalanceCents: number;
   statementDocumentPath?: string | null;
   statementDocumentName?: string | null;
+  /** Base64-encoded CSV statement file. When provided, the server parses date+amount columns, pre-clears any ledger transactions that match by date (±1 day) and amount, and stores unmatched CSV rows on the period for review. */
+  statementCsvData?: string | null;
 }

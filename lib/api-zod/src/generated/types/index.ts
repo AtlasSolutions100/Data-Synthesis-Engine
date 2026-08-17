@@ -173,6 +173,7 @@ export * from './reconciliationPeriodDetailStatus';
 export * from './reconciliationPeriodLine';
 export * from './reconciliationPeriodStatus';
 export * from './startDateParamParameter';
+export * from './statementUnmatchedLine';
 export * from './toggleReconciliationClear';
 export * from './transaction';
 export * from './transactionInput';

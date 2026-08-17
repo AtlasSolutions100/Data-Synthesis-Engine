@@ -3170,7 +3170,8 @@ export const CreateReconciliationPeriodBody = zod.object({
   "statementDate": zod.string().regex(createReconciliationPeriodBodyStatementDateRegExp),
   "statementBalanceCents": zod.number(),
   "statementDocumentPath": zod.string().nullish(),
-  "statementDocumentName": zod.string().nullish()
+  "statementDocumentName": zod.string().nullish(),
+  "statementCsvData": zod.string().nullish().describe('Base64-encoded CSV statement file. When provided, the server parses date+amount columns, pre-clears any ledger transactions that match by date (±1 day) and amount, and stores unmatched CSV rows on the period for review.\n')
 })
 
 export const CreateReconciliationPeriodResponse = zod.object({
@@ -3223,7 +3224,12 @@ export const GetReconciliationPeriodResponse = zod.object({
   "depositCents": zod.number(),
   "effectCents": zod.number(),
   "cleared": zod.boolean()
-}))
+})),
+  "unmatchedStatementLines": zod.array(zod.object({
+  "date": zod.string().describe('Date from the CSV (YYYY-MM-DD)'),
+  "amountCents": zod.number().describe('Amount in cents (positive = deposit, negative = withdrawal)'),
+  "description": zod.string().describe('Raw description text from the CSV row')
+})).optional().describe('CSV statement rows that could not be matched to any ledger transaction by date (±1 day) and amount. Present only when a CSV was uploaded at period creation. Empty array means all CSV rows were matched.\n')
 })
 
 
@@ -3299,7 +3305,12 @@ export const ToggleReconciliationClearResponse = zod.object({
   "depositCents": zod.number(),
   "effectCents": zod.number(),
   "cleared": zod.boolean()
-}))
+})),
+  "unmatchedStatementLines": zod.array(zod.object({
+  "date": zod.string().describe('Date from the CSV (YYYY-MM-DD)'),
+  "amountCents": zod.number().describe('Amount in cents (positive = deposit, negative = withdrawal)'),
+  "description": zod.string().describe('Raw description text from the CSV row')
+})).optional().describe('CSV statement rows that could not be matched to any ledger transaction by date (±1 day) and amount. Present only when a CSV was uploaded at period creation. Empty array means all CSV rows were matched.\n')
 })
 
 
@@ -3339,7 +3350,12 @@ export const CompleteReconciliationPeriodResponse = zod.object({
   "depositCents": zod.number(),
   "effectCents": zod.number(),
   "cleared": zod.boolean()
-}))
+})),
+  "unmatchedStatementLines": zod.array(zod.object({
+  "date": zod.string().describe('Date from the CSV (YYYY-MM-DD)'),
+  "amountCents": zod.number().describe('Amount in cents (positive = deposit, negative = withdrawal)'),
+  "description": zod.string().describe('Raw description text from the CSV row')
+})).optional().describe('CSV statement rows that could not be matched to any ledger transaction by date (±1 day) and amount. Present only when a CSV was uploaded at period creation. Empty array means all CSV rows were matched.\n')
 })
 
 
@@ -3379,7 +3395,12 @@ export const ReopenReconciliationPeriodResponse = zod.object({
   "depositCents": zod.number(),
   "effectCents": zod.number(),
   "cleared": zod.boolean()
-}))
+})),
+  "unmatchedStatementLines": zod.array(zod.object({
+  "date": zod.string().describe('Date from the CSV (YYYY-MM-DD)'),
+  "amountCents": zod.number().describe('Amount in cents (positive = deposit, negative = withdrawal)'),
+  "description": zod.string().describe('Raw description text from the CSV row')
+})).optional().describe('CSV statement rows that could not be matched to any ledger transaction by date (±1 day) and amount. Present only when a CSV was uploaded at period creation. Empty array means all CSV rows were matched.\n')
 })
 
 

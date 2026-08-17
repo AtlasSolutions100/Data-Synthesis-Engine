@@ -2097,6 +2097,15 @@ export const ReconciliationPeriodDetailStatus = {
   completed: 'completed',
 } as const;
 
+export interface StatementUnmatchedLine {
+  /** Date from the CSV (YYYY-MM-DD) */
+  date: string;
+  /** Amount in cents (positive = deposit, negative = withdrawal) */
+  amountCents: number;
+  /** Raw description text from the CSV row */
+  description: string;
+}
+
 export interface ReconciliationPeriodDetail {
   id: number;
   accountId: number;
@@ -2115,6 +2124,8 @@ export interface ReconciliationPeriodDetail {
   clearedDepositsCents: number;
   clearedWithdrawalsCents: number;
   lines: ReconciliationPeriodLine[];
+  /** CSV statement rows that could not be matched to any ledger transaction by date (±1 day) and amount. Present only when a CSV was uploaded at period creation. Empty array means all CSV rows were matched. */
+  unmatchedStatementLines?: StatementUnmatchedLine[];
 }
 
 export interface CreateReconciliationPeriod {
@@ -2124,6 +2135,8 @@ export interface CreateReconciliationPeriod {
   statementBalanceCents: number;
   statementDocumentPath?: string | null;
   statementDocumentName?: string | null;
+  /** Base64-encoded CSV statement file. When provided, the server parses date+amount columns, pre-clears any ledger transactions that match by date (±1 day) and amount, and stores unmatched CSV rows on the period for review. */
+  statementCsvData?: string | null;
 }
 
 export interface UpdateReconciliationPeriod {

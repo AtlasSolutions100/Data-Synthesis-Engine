@@ -7,6 +7,7 @@ import {
   boolean,
   timestamp,
   unique,
+  jsonb,
 } from "drizzle-orm/pg-core";
 import { accountsTable } from "./accounts";
 import { transactionsTable } from "./transactions";
@@ -23,6 +24,7 @@ export const reconciliationPeriodsTable = pgTable("reconciliation_periods", {
   status: text("status").notNull().default("in_progress"), // "in_progress" | "completed"
   statementDocumentPath: text("statement_document_path"),
   statementDocumentName: text("statement_document_name"),
+  unmatchedStatementLines: jsonb("unmatched_statement_lines"),
   isDemo: boolean("is_demo").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()

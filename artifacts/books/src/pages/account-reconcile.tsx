@@ -29,6 +29,7 @@ import {
   RotateCcw,
   Lock,
   Check,
+  Flag,
 } from "lucide-react";
 import { useState, useCallback } from "react";
 
@@ -429,6 +430,65 @@ export default function AccountReconcile() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Unmatched statement lines */}
+      {data.unmatchedStatementLines && data.unmatchedStatementLines.length > 0 && (
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <Flag className="h-4 w-4 text-amber-500" />
+            <h2 className="text-sm font-semibold text-slate-700">
+              Unmatched Statement Lines ({data.unmatchedStatementLines.length})
+            </h2>
+          </div>
+          <p className="text-xs text-slate-500">
+            These rows from your uploaded CSV couldn't be matched to a ledger entry by date and
+            amount. Check for missing transactions or posting date differences.
+          </p>
+          <Card className="overflow-hidden border-amber-200">
+            <CardContent className="p-0">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-amber-100 bg-amber-50">
+                      <th className="text-left px-3 py-2 text-xs font-medium text-amber-700 uppercase tracking-wide w-[110px]">
+                        Statement Date
+                      </th>
+                      <th className="text-right px-3 py-2 text-xs font-medium text-amber-700 uppercase tracking-wide w-[120px]">
+                        Amount
+                      </th>
+                      <th className="text-left px-3 py-2 text-xs font-medium text-amber-700 uppercase tracking-wide">
+                        Description
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.unmatchedStatementLines.map((line, i) => (
+                      <tr
+                        key={i}
+                        className="border-b border-amber-50 last:border-0 bg-white hover:bg-amber-50/40"
+                      >
+                        <td className="px-3 py-2 text-slate-600 text-xs tabular-nums whitespace-nowrap">
+                          {line.date}
+                        </td>
+                        <td className="px-3 py-2 text-right tabular-nums text-xs whitespace-nowrap">
+                          {line.amountCents < 0 ? (
+                            <span className="text-red-600">{fmt(line.amountCents)}</span>
+                          ) : (
+                            <span className="text-emerald-700">+{fmt(line.amountCents)}</span>
+                          )}
+                        </td>
+                        <td className="px-3 py-2 text-slate-700 max-w-[300px] truncate">
+                          {line.description || <span className="text-slate-300">—</span>}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {/* footer hint */}
       {!isCompleted && (
