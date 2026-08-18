@@ -8,6 +8,6 @@
 import type { BillImportDraftInputState } from './billImportDraftInputState';
 
 export interface BillImportDraftInput {
-  /** Opaque review-queue state (prefills, notes, documentPath, queueIndex) */
+  /** Opaque import-wizard state (extracted invoice queue, current index) */
   state: BillImportDraftInputState;
 }

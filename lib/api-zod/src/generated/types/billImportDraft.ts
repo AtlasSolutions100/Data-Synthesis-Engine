@@ -9,7 +9,7 @@ import type { BillImportDraftState } from './billImportDraftState';
 
 export interface BillImportDraft {
   /**
-     * Saved review-queue state, or null when the user has no draft
+     * Saved review queue, or null when the user has no draft
      * @nullable
      */
   state: BillImportDraftState;

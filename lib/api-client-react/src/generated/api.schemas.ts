@@ -1649,7 +1649,7 @@ export interface ExtractedBillLine {
 }
 
 /**
- * One invoice extracted from an uploaded file. A batched PDF produces multiple entries.
+ * One invoice extracted from the uploaded file. A batched PDF produces multiple entries.
  */
 export interface ExtractedBillInvoice {
   /**
@@ -1681,6 +1681,9 @@ export interface ExtractedBillInvoice {
   lines: ExtractedBillLine[];
 }
 
+/**
+ * Batch extraction result. A single-page invoice yields one entry; a batched PDF yields one entry per detected invoice.
+ */
 export interface ExtractBillResult {
   /**
      * Object-storage path where the uploaded file was persisted, if the file was saved
@@ -1959,24 +1962,24 @@ export interface ExtractPayrollHoursResult {
 }
 
 /**
- * Opaque review-queue state (prefills, notes, documentPath, queueIndex)
+ * Opaque import-wizard state (extracted invoice queue, current index)
  */
 export type BillImportDraftInputState = { [key: string]: unknown };
 
 export interface BillImportDraftInput {
-  /** Opaque review-queue state (prefills, notes, documentPath, queueIndex) */
+  /** Opaque import-wizard state (extracted invoice queue, current index) */
   state: BillImportDraftInputState;
 }
 
 /**
- * Saved review-queue state, or null when the user has no draft
+ * Saved review queue, or null when the user has no draft
  * @nullable
  */
 export type BillImportDraftState = { [key: string]: unknown } | null;
 
 export interface BillImportDraft {
   /**
-     * Saved review-queue state, or null when the user has no draft
+     * Saved review queue, or null when the user has no draft
      * @nullable
      */
   state: BillImportDraftState;

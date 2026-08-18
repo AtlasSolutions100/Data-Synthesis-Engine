@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { render, screen, cleanup, waitFor, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import Bills from "./bills";
@@ -13,6 +13,13 @@ import Bills from "./bills";
 // promise about the user's books.
 
 const deleteMutate = vi.fn();
+
+// The Bills page calls useCreateBill TWICE per render: first for the review
+// queue (createBill) and second for the manual "New Bill" dialog (manualCreateBill).
+// We track odd-numbered calls (1st, 3rd, …) as the queue callback and ignore
+// even ones so draft-restore tests can fire the correct onSuccess.
+let _createCallCount = 0;
+let capturedQueueOnSuccess: (() => void) | null = null;
 
 function bill(overrides: Record<string, unknown>) {
   return {
@@ -42,6 +49,16 @@ vi.mock("@workspace/api-client-react", async (importOriginal) => {
   return createApiClientReactMock(importOriginal, {
     useListBills: () => ({ data: billsData, isLoading: false }),
     useDeleteBill: () => ({ mutate: deleteMutate, isPending: false }),
+    useCreateBill: (config: {
+      mutation?: { onSuccess?: () => void; onError?: (e: unknown) => void };
+    }) => {
+      // Odd calls = review-queue createBill; even calls = manual dialog createBill.
+      _createCallCount++;
+      if (_createCallCount % 2 === 1) {
+        capturedQueueOnSuccess = config?.mutation?.onSuccess ?? null;
+      }
+      return { mutate: vi.fn(), isPending: false };
+    },
   });
 });
 
@@ -58,6 +75,8 @@ const confirmSpy = vi.fn();
 beforeEach(() => {
   vi.stubGlobal("confirm", confirmSpy);
   confirmSpy.mockReturnValue(false);
+  _createCallCount = 0;
+  capturedQueueOnSuccess = null;
 });
 
 afterEach(() => {
@@ -86,7 +105,55 @@ async function clickDelete() {
   await user.click(button);
 }
 
+// ---------------------------------------------------------------------------
+// Helper: build a fetch stub that returns a draft state for the import-draft
+// endpoint and no-ops for everything else.
+// ---------------------------------------------------------------------------
+
+function makeDraftFetch(
+  draftState: Record<string, unknown> | null,
+  onDelete?: () => void,
+): ReturnType<typeof vi.fn> {
+  return vi.fn(async (url: string, opts?: RequestInit) => {
+    const u = typeof url === "string" ? url : "";
+    if (u.includes("import-draft")) {
+      if (opts?.method === "DELETE") {
+        onDelete?.();
+        return { ok: true, json: async () => ({}) };
+      }
+      if (opts?.method === "PUT") {
+        return {
+          ok: true,
+          json: async () => ({ state: draftState, updatedAt: new Date().toISOString() }),
+        };
+      }
+      // GET
+      return {
+        ok: true,
+        json: async () => ({
+          state: draftState,
+          updatedAt: draftState ? new Date().toISOString() : null,
+        }),
+      };
+    }
+    // Any other endpoint — return empty success
+    return { ok: true, json: async () => ({}) };
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Delete confirmation message tests
+// ---------------------------------------------------------------------------
+
 describe("Bills page delete confirmation message", () => {
+  beforeEach(() => {
+    // Provide a null-draft fetch for tests that don't exercise draft logic
+    vi.stubGlobal(
+      "fetch",
+      makeDraftFetch(null),
+    );
+  });
+
   it("warns that imported transactions are kept/unlinked for legacy bills with linked history", async () => {
     billsData = [bill({ postedToLedger: false, linkedTransactionCount: 3 })];
     renderBills();
@@ -139,5 +206,145 @@ describe("Bills page delete confirmation message", () => {
     await clickDelete();
 
     expect(deleteMutate).toHaveBeenCalledWith({ id: 1 });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Draft restore tests (P10-BILL-03)
+// ---------------------------------------------------------------------------
+
+/** Two-invoice draft state that the Bills page stores via persistDraft. */
+function twoBillDraftState(queueIndex: number) {
+  return {
+    prefills: [
+      { vendorId: "1", billNumber: "INV-001", date: "2026-07-01", lines: [] },
+      { vendorId: "2", billNumber: "INV-002", date: "2026-07-02", lines: [] },
+    ],
+    notes: [null, null],
+    documentPath: null,
+    queueIndex,
+  };
+}
+
+describe("Bills page draft restore", () => {
+  it("opens the review dialog at invoice 2 of 2 when the draft carries queueIndex=1", async () => {
+    // Simulate: user reviewed invoice 1, saved it (persistDraft queueIndex=1),
+    // then reloaded the page. The dialog must reopen at the second invoice.
+    vi.stubGlobal("fetch", makeDraftFetch(twoBillDraftState(1)));
+    renderBills();
+
+    await waitFor(() => {
+      expect(screen.getByText("Review Invoice 2 of 2")).toBeTruthy();
+    });
+  });
+
+  it("opens at invoice 1 of 2 when the draft has queueIndex=0", async () => {
+    // Simulate: user navigated away before saving any bill — draft keeps the
+    // full queue at index 0 and reopens from the beginning.
+    vi.stubGlobal("fetch", makeDraftFetch(twoBillDraftState(0)));
+    renderBills();
+
+    await waitFor(() => {
+      expect(screen.getByText("Review Invoice 1 of 2")).toBeTruthy();
+    });
+  });
+
+  it("does not open the review dialog when there is no saved draft", async () => {
+    vi.stubGlobal("fetch", makeDraftFetch(null));
+    renderBills();
+
+    // Give enough time for the query to settle; dialog must not appear.
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 50));
+    });
+    expect(screen.queryByText(/Review Invoice/)).toBeNull();
+  });
+
+  it("does not open the review dialog when the draft state has an empty prefills array", async () => {
+    vi.stubGlobal(
+      "fetch",
+      makeDraftFetch({ prefills: [], notes: [], documentPath: null, queueIndex: 0 }),
+    );
+    renderBills();
+
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 50));
+    });
+    expect(screen.queryByText(/Review Invoice/)).toBeNull();
+  });
+
+  it("calls DELETE on the import-draft endpoint when the last bill in the queue is saved", async () => {
+    // Single-invoice draft — saving it is the final save, which must trigger
+    // clearDraft() → DELETE /api/bills/import-draft.
+    let deleteWasCalled = false;
+    vi.stubGlobal(
+      "fetch",
+      makeDraftFetch(
+        { prefills: [{ vendorId: "1", billNumber: "INV-001", date: "2026-07-01", lines: [] }], notes: [null], documentPath: null, queueIndex: 0 },
+        () => { deleteWasCalled = true; },
+      ),
+    );
+
+    renderBills();
+
+    // Wait for dialog to open (single-invoice queue shows "Review Invoice")
+    await waitFor(() => {
+      expect(screen.getByText("Review Invoice")).toBeTruthy();
+    });
+
+    // Simulate createBill mutation succeeding (fires the onSuccess callback
+    // captured from the useCreateBill hook override).
+    await act(async () => {
+      capturedQueueOnSuccess?.();
+    });
+
+    await waitFor(() => {
+      expect(deleteWasCalled).toBe(true);
+    });
+
+    // Dialog must be gone after the last save
+    expect(screen.queryByText("Review Invoice")).toBeNull();
+  });
+
+  it("advances to invoice 2 and saves an updated draft (not DELETE) when the first of two is saved", async () => {
+    const putBodies: unknown[] = [];
+    const fetchMock = vi.fn(async (url: string, opts?: RequestInit) => {
+      const u = typeof url === "string" ? url : "";
+      if (u.includes("import-draft")) {
+        if (opts?.method === "PUT") {
+          putBodies.push(JSON.parse(opts.body as string));
+          return { ok: true, json: async () => ({ state: {}, updatedAt: new Date().toISOString() }) };
+        }
+        // GET — return draft with 2 invoices at index 0
+        return { ok: true, json: async () => ({ state: twoBillDraftState(0), updatedAt: new Date().toISOString() }) };
+      }
+      return { ok: true, json: async () => ({}) };
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderBills();
+
+    await waitFor(() => {
+      expect(screen.getByText("Review Invoice 1 of 2")).toBeTruthy();
+    });
+
+    // Simulate saving invoice 0 → onSuccess advances to index 1 and calls persistDraft
+    await act(async () => {
+      capturedQueueOnSuccess?.();
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("Review Invoice 2 of 2")).toBeTruthy();
+    });
+
+    // persistDraft must have been called with queueIndex=1 (not DELETE)
+    const putWithIndex1 = putBodies.find(
+      (b) =>
+        typeof b === "object" &&
+        b !== null &&
+        (b as Record<string, unknown>).state !== undefined &&
+        ((b as Record<string, unknown>).state as Record<string, unknown>).queueIndex === 1,
+    );
+    expect(putWithIndex1).toBeDefined();
   });
 });

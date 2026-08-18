@@ -2010,36 +2010,37 @@ export const ExtractBillResponse = zod.object({
   "amountCents": zod.number().describe('Line amount in integer cents'),
   "accountId": zod.number().nullish().describe('Suggested chart-of-accounts id for this line, when the AI could match one')
 }))
-}).describe('One invoice extracted from an uploaded file. A batched PDF produces multiple entries.')).describe('One entry per invoice found in the uploaded file — batched PDFs produce multiple entries')
-})
+}).describe('One invoice extracted from the uploaded file. A batched PDF produces multiple entries.')).describe('One entry per invoice found in the uploaded file — batched PDFs produce multiple entries')
+}).describe('Batch extraction result. A single-page invoice yields one entry; a batched PDF yields one entry per detected invoice.')
 
 
 /**
- * Returns the saved review queue state for a partially reviewed invoice batch, or a null state when no draft exists.
- * @summary Get the signed-in user's in-progress bill-upload review draft
+ * Returns the saved review queue for a partially reviewed invoice batch, or a null state when no draft exists.
+ * @summary Get the signed-in user's in-progress invoice-upload draft
  */
 export const GetBillImportDraftResponse = zod.object({
-  "state": zod.record(zod.string(), zod.unknown()).nullable().describe('Saved review-queue state, or null when the user has no draft'),
+  "state": zod.record(zod.string(), zod.unknown()).nullable().describe('Saved review queue, or null when the user has no draft'),
   "updatedAt": zod.string().nullable().describe('When the draft was last autosaved (ISO timestamp)')
 })
 
 
 /**
- * Autosaved by the upload review dialog while stepping through invoices so closing the dialog never loses progress. One draft per user; saving replaces the previous one.
- * @summary Save (upsert) the signed-in user's bill-upload review draft
+ * Autosaved by the review dialog while the user works through a batch so closing or navigating away never loses the queue. One draft per user; saving replaces the previous one.
+ * @summary Save (upsert) the signed-in user's invoice-upload draft
  */
 export const SaveBillImportDraftBody = zod.object({
-  "state": zod.record(zod.string(), zod.unknown()).describe('Opaque review-queue state (prefills, notes, documentPath, queueIndex)')
+  "state": zod.record(zod.string(), zod.unknown()).describe('Opaque import-wizard state (extracted invoice queue, current index)')
 })
 
 export const SaveBillImportDraftResponse = zod.object({
-  "state": zod.record(zod.string(), zod.unknown()).nullable().describe('Saved review-queue state, or null when the user has no draft'),
+  "state": zod.record(zod.string(), zod.unknown()).nullable().describe('Saved review queue, or null when the user has no draft'),
   "updatedAt": zod.string().nullable().describe('When the draft was last autosaved (ISO timestamp)')
 })
 
 
 /**
- * @summary Delete the signed-in user's bill-upload review draft
+ * Called automatically when the last invoice in the batch is saved so the dialog does not reopen on the next visit.
+ * @summary Delete the signed-in user's invoice-upload draft
  */
 export const DeleteBillImportDraftResponse = zod.void()
 

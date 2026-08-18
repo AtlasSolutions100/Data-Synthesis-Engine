@@ -1434,8 +1434,8 @@ paths:
     get:
       operationId: getBillImportDraft
       tags: [bills]
-      summary: Get the signed-in user's in-progress bill-upload review draft
-      description: Returns the saved review queue state for a partially reviewed invoice batch, or a null state when no draft exists.
+      summary: Get the signed-in user's in-progress invoice-upload draft
+      description: Returns the saved review queue for a partially reviewed invoice batch, or a null state when no draft exists.
       responses:
         "200":
           description: Draft envelope (state is null when there is no draft)
@@ -1448,8 +1448,8 @@ paths:
     put:
       operationId: saveBillImportDraft
       tags: [bills]
-      summary: Save (upsert) the signed-in user's bill-upload review draft
-      description: Autosaved by the upload review dialog while stepping through invoices so closing the dialog never loses progress. One draft per user; saving replaces the previous one.
+      summary: Save (upsert) the signed-in user's invoice-upload draft
+      description: Autosaved by the review dialog while the user works through a batch so closing or navigating away never loses the queue. One draft per user; saving replaces the previous one.
       requestBody:
         required: true
         content:
@@ -1472,12 +1472,14 @@ paths:
     delete:
       operationId: deleteBillImportDraft
       tags: [bills]
-      summary: Delete the signed-in user's bill-upload review draft
+      summary: Delete the signed-in user's invoice-upload draft
+      description: Called automatically when the last invoice in the batch is saved so the dialog does not reopen on the next visit.
       responses:
         "204":
           description: Deleted (also returned when no draft existed)
         "401":
           $ref: "#/components/responses/Error"
+
   /bills/{id}:
     get:
       operationId: getBill
@@ -4138,8 +4140,8 @@ components:
           description: Suggested chart-of-accounts id for this line, when the AI could match one
     ExtractedBillInvoice:
       type: object
-      description: One invoice extracted from an uploaded file. A batched PDF produces multiple entries.
       required: [lines]
+      description: One invoice extracted from the uploaded file. A batched PDF produces multiple entries.
       properties:
         vendorName:
           type: ["string", "null"]
@@ -4166,6 +4168,7 @@ components:
     ExtractBillResult:
       type: object
       required: [invoices]
+      description: Batch extraction result. A single-page invoice yields one entry; a batched PDF yields one entry per detected invoice.
       properties:
         documentPath:
           type: ["string", "null"]
@@ -4468,7 +4471,7 @@ components:
         state:
           type: object
           additionalProperties: true
-          description: Opaque review-queue state (prefills, notes, documentPath, queueIndex)
+          description: Opaque import-wizard state (extracted invoice queue, current index)
     BillImportDraft:
       type: object
       required: [state, updatedAt]
@@ -4476,7 +4479,7 @@ components:
         state:
           type: ["object", "null"]
           additionalProperties: true
-          description: Saved review-queue state, or null when the user has no draft
+          description: Saved review queue, or null when the user has no draft
         updatedAt:
           type: ["string", "null"]
           description: When the draft was last autosaved (ISO timestamp)
