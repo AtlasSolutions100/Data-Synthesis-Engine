@@ -111,6 +111,106 @@ function makePdfBase64(lines: string[]): Promise<string> {
   });
 }
 
+/**
+ * A single row in a realistic multi-column bank statement PDF.
+ * When `date` is absent the row is a continuation/header line with no leading
+ * date token — the parser should skip it.
+ */
+interface BankPdfRow {
+  /** Leading date token placed in the leftmost column (e.g. "01/05/2098"). */
+  date?: string;
+  /** Description placed in the second column. */
+  description: string;
+  /** Unsigned withdrawal amount string, e.g. "1,234.56". */
+  withdrawal?: string;
+  /** Unsigned deposit amount string, e.g. "5,000.00". */
+  deposit?: string;
+  /** Running balance string placed in the rightmost column, e.g. "9,765.44". */
+  balance?: string;
+}
+
+/**
+ * Build a realistic multi-column bank statement PDF as base64.
+ *
+ * Each column token is written as a separate pdfkit text item at an absolute
+ * (x, y) position so the parser's X-sort + Y-bucket logic is exercised:
+ *
+ *   X_DATE=50  X_DESC=140  X_WDRAW=340  X_DEP=420  X_BAL=490
+ *
+ * Each page gets a bank-name header, an account line, column-label row, and a
+ * separator line — all of which must be skipped because they carry no leading
+ * date token. Rows whose `date` field is absent are continuation lines.
+ *
+ * Pages is an array of row arrays; `doc.addPage()` is called between pages.
+ */
+function makeMultiColumnBankPdf(pages: BankPdfRow[][]): Promise<string> {
+  const X_DATE = 50;
+  const X_DESC = 140;
+  const X_WDRAW = 340;
+  const X_DEP = 420;
+  const X_BAL = 490;
+  const ROW_H = 15;
+
+  return new Promise((resolve, reject) => {
+    const doc = new PDFDocument({ size: "letter", margin: 50 });
+    const chunks: Buffer[] = [];
+    doc.on("data", (c: Buffer) => chunks.push(c));
+    doc.on("end", () =>
+      resolve("data:application/pdf;base64," + Buffer.concat(chunks).toString("base64")),
+    );
+    doc.on("error", reject);
+
+    doc.fontSize(8);
+
+    for (let pi = 0; pi < pages.length; pi++) {
+      if (pi > 0) doc.addPage();
+
+      let y = 60;
+
+      // ── Page header block (no numeric date tokens — must all be skipped) ──
+      // Bank name: all alphabetic, no date-shaped tokens.
+      doc.fontSize(11).text("FIRST NATIONAL BANK", X_DATE, y);
+      y += ROW_H + 4;
+
+      // Account/period line: spelled-out month so PDF_DATE_RE does not fire.
+      doc.fontSize(8).text("Statement ending January 31, 2098", X_DATE, y);
+      y += ROW_H;
+
+      // Page number line: no date-shaped tokens.
+      doc.fontSize(8).text(`Account: ****5678    Page ${pi + 1} of ${pages.length}`, X_DATE, y);
+      y += ROW_H;
+
+      // Column labels — each placed at its own absolute X so they share the
+      // same Y in the PDF's text stream.
+      doc.text("Date", X_DATE, y);
+      doc.text("Description", X_DESC, y);
+      doc.text("Withdrawal", X_WDRAW, y);
+      doc.text("Deposit", X_DEP, y);
+      doc.text("Balance", X_BAL, y);
+      y += ROW_H;
+
+      // Separator — no date, no amount.
+      doc.text("---------------------------------------------------", X_DATE, y);
+      y += ROW_H;
+
+      // ── Transaction / continuation rows ──────────────────────────────────
+      for (const row of pages[pi]) {
+        // When calling doc.text(str, x, absY) pdfkit moves its cursor to
+        // (x, absY) before rendering, so successive calls with the same absY
+        // but different x values all land on the same visual line.
+        if (row.date !== undefined) doc.text(row.date, X_DATE, y);
+        doc.text(row.description, X_DESC, y);
+        if (row.withdrawal !== undefined) doc.text(row.withdrawal, X_WDRAW, y);
+        if (row.deposit !== undefined) doc.text(row.deposit, X_DEP, y);
+        if (row.balance !== undefined) doc.text(row.balance, X_BAL, y);
+        y += ROW_H;
+      }
+    }
+
+    doc.end();
+  });
+}
+
 // ── app setup ──────────────────────────────────────────────────────────────
 
 let app: Express;
@@ -407,4 +507,137 @@ describe("GET /reports/account-balances/:id/transactions — clearedStatus", () 
       await teardownAccount(acctId);
     }
   });
+});
+
+// ── unit: realistic multi-page / multi-column PDF layouts ──────────────────
+
+describe("parseStatementPdf — realistic multi-column bank statement layouts", () => {
+  /**
+   * Multi-page statement: transactions appear on both pages; page-header rows
+   * (bank name, account line, column-label row, separator) carry no leading
+   * date token and must not produce spurious StatementLines.
+   */
+  it("parses transactions from both pages and ignores page headers", async () => {
+    const b64 = await makeMultiColumnBankPdf([
+      // Page 1
+      [
+        {
+          date: "01/05/2098",
+          description: "ACH PAYMENT XYZ COMPANY",
+          withdrawal: "1,234.56",
+          balance: "8,765.44",
+        },
+        {
+          date: "01/12/2098",
+          description: "DIRECT DEPOSIT PAYROLL",
+          deposit: "5,000.00",
+          balance: "13,765.44",
+        },
+      ],
+      // Page 2 — page header repeats but must still be skipped
+      [
+        {
+          date: "01/20/2098",
+          description: "CHECK 1099 HOME DEPOT",
+          withdrawal: "487.23",
+          balance: "13,278.21",
+        },
+      ],
+    ]);
+
+    const result = (await parseStatementPdf(b64, "2098-01-31")) as any[];
+    expect(Array.isArray(result)).toBe(true);
+    // Exactly 3 transaction rows; page headers, column labels, and separator
+    // lines carry no leading date token and must all be skipped.
+    expect(result).toHaveLength(3);
+    expect(result[0]).toMatchObject({
+      date: "2098-01-05",
+      amountCents: 123456,
+      signUnknown: true,
+    });
+    expect(result[1]).toMatchObject({
+      date: "2098-01-12",
+      amountCents: 500000,
+      signUnknown: true,
+    });
+    expect(result[2]).toMatchObject({
+      date: "2098-01-20",
+      amountCents: 48723,
+      signUnknown: true,
+    });
+  }, 30000);
+
+  /**
+   * Running-balance column: each transaction row contains two amounts —
+   * the transaction amount and the running balance. The parser must pick the
+   * first amount (transaction), not the running balance.
+   */
+  it("picks the transaction amount (first) not the running balance (second)", async () => {
+    const b64 = await makeMultiColumnBankPdf([
+      [
+        // withdrawal=234.10, balance=14,044.11 — parser must yield 23410, not 1404411
+        {
+          date: "01/08/2098",
+          description: "GROCERY MARKET PURCHASE",
+          withdrawal: "234.10",
+          balance: "14,044.11",
+        },
+        // withdrawal=98.50, balance=13,945.61 — parser must yield 9850, not 1394561
+        {
+          date: "01/15/2098",
+          description: "UTILITY BILL PAYMENT",
+          withdrawal: "98.50",
+          balance: "13,945.61",
+        },
+      ],
+    ]);
+
+    const result = (await parseStatementPdf(b64, "2098-01-31")) as any[];
+    expect(Array.isArray(result)).toBe(true);
+    expect(result).toHaveLength(2);
+
+    expect(result[0]).toMatchObject({ date: "2098-01-08", amountCents: 23410 });
+    expect(result[1]).toMatchObject({ date: "2098-01-15", amountCents: 9850 });
+
+    // Running balance amounts must not appear as the parsed transaction amount.
+    const cents = result.map((l: any) => l.amountCents);
+    expect(cents).not.toContain(1404411); // 14,044.11
+    expect(cents).not.toContain(1394561); // 13,945.61
+  }, 30000);
+
+  /**
+   * Wrapped description: a long description that the bank's PDF renderer splits
+   * across two visual lines. The continuation line has no leading date token so
+   * it must be skipped outright — it must not be parsed as a transaction with a
+   * wrong amount, and it must not corrupt the next valid transaction.
+   */
+  it("skips a wrapped-description continuation line and does not mis-parse it", async () => {
+    const b64 = await makeMultiColumnBankPdf([
+      [
+        // Transaction row: date + truncated description + amount + balance.
+        {
+          date: "01/25/2098",
+          description: "ONLINE TRANSFER TO SAVING",
+          withdrawal: "2,000.00",
+          balance: "11,278.21",
+        },
+        // Continuation row: no date, no amounts — must be skipped entirely.
+        { description: "S ACCT 8888 REF 20980125" },
+        // Next normal transaction — must parse cleanly after the continuation.
+        {
+          date: "01/28/2098",
+          description: "ATM WITHDRAWAL",
+          withdrawal: "80.00",
+          balance: "11,198.21",
+        },
+      ],
+    ]);
+
+    const result = (await parseStatementPdf(b64, "2098-01-31")) as any[];
+    expect(Array.isArray(result)).toBe(true);
+    // Continuation line is skipped → exactly 2 real transactions.
+    expect(result).toHaveLength(2);
+    expect(result[0]).toMatchObject({ date: "2098-01-25", amountCents: 200000 });
+    expect(result[1]).toMatchObject({ date: "2098-01-28", amountCents: 8000 });
+  }, 30000);
 });
