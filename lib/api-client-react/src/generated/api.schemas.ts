@@ -1648,7 +1648,8 @@ export interface ExtractedBillLine {
   accountId?: number | null;
 }
 
-export interface ExtractBillResult {
+/** One invoice extracted from an uploaded file. A batched PDF produces multiple entries. */
+export interface ExtractedBillInvoice {
   /**
      * Vendor name as written on the invoice
      * @nullable
@@ -1675,12 +1676,17 @@ export interface ExtractBillResult {
      * @nullable
      */
   poNumber?: string | null;
+  lines: ExtractedBillLine[];
+}
+
+export interface ExtractBillResult {
   /**
      * Object-storage path where the uploaded file was persisted, if the file was saved
      * @nullable
      */
   documentPath?: string | null;
-  lines: ExtractedBillLine[];
+  /** One entry per invoice found in the uploaded file — batched PDFs produce multiple entries */
+  invoices: ExtractedBillInvoice[];
 }
 
 export interface ImportChartOfAccountsInput {

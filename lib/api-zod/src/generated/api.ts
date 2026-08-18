@@ -1948,7 +1948,7 @@ export const ExtractBillBody = zod.object({
   "fileName": zod.string().max(extractBillBodyFileNameMax).optional().describe('Original filename of the uploaded image\/PDF, used to detect the file type')
 })
 
-export const ExtractBillResponse = zod.object({
+export const ExtractedBillInvoice = zod.object({
   "vendorName": zod.string().nullish().describe('Vendor name as written on the invoice'),
   "billNumber": zod.string().nullish(),
   "date": zod.string().nullish().describe('Invoice date (YYYY-MM-DD) when stated'),
@@ -1956,13 +1956,33 @@ export const ExtractBillResponse = zod.object({
   "memo": zod.string().nullish(),
   "jobName": zod.string().nullish().describe('Job\/project name referenced on the invoice, when visible'),
   "poNumber": zod.string().nullish().describe('Purchase order (PO) number referenced on the invoice, when visible'),
-  "documentPath": zod.string().nullish().describe('Object-storage path where the uploaded file was persisted, if the file was saved'),
   "lines": zod.array(zod.object({
   "description": zod.string().nullish(),
   "amountCents": zod.number().describe('Line amount in integer cents'),
   "accountId": zod.number().nullish().describe('Suggested chart-of-accounts id for this line, when the AI could match one')
 }))
 })
+
+export const ExtractBillResponse = zod.object({
+  "documentPath": zod.string().nullish().describe('Object-storage path where the uploaded file was persisted, if the file was saved'),
+  "invoices": zod.array(ExtractedBillInvoice).describe('One entry per invoice found in the uploaded file — batched PDFs produce multiple entries')
+})
+
+export const GetBillImportDraftResponse = zod.object({
+  "state": zod.record(zod.string(), zod.unknown()).nullable().describe('Saved review queue, or null when the user has no draft'),
+  "updatedAt": zod.string().nullable().describe('When the draft was last autosaved (ISO timestamp)')
+})
+
+export const SaveBillImportDraftBody = zod.object({
+  "state": zod.record(zod.string(), zod.unknown()).describe('Opaque import-wizard state (extracted invoice queue, current index)')
+})
+
+export const SaveBillImportDraftResponse = zod.object({
+  "state": zod.record(zod.string(), zod.unknown()).nullable().describe('Saved review queue, or null when the user has no draft'),
+  "updatedAt": zod.string().nullable().describe('When the draft was last autosaved (ISO timestamp)')
+})
+
+export const DeleteBillImportDraftResponse = zod.void()
 
 
 /**

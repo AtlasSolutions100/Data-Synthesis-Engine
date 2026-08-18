@@ -7,6 +7,7 @@ import {
   billLinesTable,
   billPaymentsTable,
   vendorCreditsTable,
+  billImportDraftsTable,
   vendorsTable,
   jobsTable,
   accountsTable,
@@ -37,19 +38,24 @@ import {
   ExtractBillResponse,
   MAX_EXTRACT_TEXT_LENGTH,
   extractTextTooLargeMessage,
+  GetBillImportDraftResponse,
+  SaveBillImportDraftBody,
+  SaveBillImportDraftResponse,
 } from "@workspace/api-zod";
 
 const objectStorageService = new ObjectStorageService();
 
 const router: IRouter = Router();
 
-const EXTRACT_BILL_SYSTEM_PROMPT = `You extract vendor bill details from invoices: uploaded scans/photos (images or PDFs) or pasted text. Formats vary widely.
+const EXTRACT_BILL_SYSTEM_PROMPT = `You extract vendor bill details from invoices: uploaded scans/photos (images or PDFs) or pasted text. Formats vary widely. A single file may contain multiple invoices.
 
 Return ONLY a JSON object of this exact shape:
-{"vendorName": string|null, "billNumber": string|null, "date": string|null, "dueDate": string|null, "memo": string|null, "jobName": string|null, "poNumber": string|null, "lines": [{"description": string|null, "amount": number, "accountNumber": string|null}]}
+{"invoices": [{"vendorName": string|null, "billNumber": string|null, "date": string|null, "dueDate": string|null, "memo": string|null, "jobName": string|null, "poNumber": string|null, "lines": [{"description": string|null, "amount": number, "accountNumber": string|null}]}]}
 
 Rules:
-- vendorName: the company issuing the invoice (the seller/supplier), exactly as written. null if unclear.
+- Return one element in the invoices array per distinct invoice in the file. If the file contains 4 separate invoices (different invoice numbers, amounts, or jobs), return 4 elements. Never merge separate invoices into one.
+- If the content is not an invoice at all, return {"invoices": []}.
+- vendorName: the company issuing the invoice (the seller/supplier), exactly as written. If a KNOWN VENDORS list is appended below, resolve abbreviations or acronyms to the matching vendor name when you are confident (e.g. "CES" → "City Electric Supply"). If genuinely ambiguous, return the abbreviation as written. null if unclear.
 - billNumber: the invoice/bill number as written (e.g. "INV-1042"). null if not present.
 - date: the invoice date in YYYY-MM-DD. null if not stated or ambiguous.
 - dueDate: the payment due date in YYYY-MM-DD. null if not stated. If terms like "Net 30" are given with an invoice date, compute the due date.
@@ -59,8 +65,7 @@ Rules:
 - lines: one entry per billed line item with description and amount in DOLLARS (e.g. 125.50). If only a grand total is visible, return a single line with the total. Exclude sales tax lines only if they are clearly separate — otherwise include everything so the lines sum to the invoice total.
 - amount must be a plain number in dollars (no currency symbols, no strings).
 - accountNumber: for each line, the account number from the CHART OF ACCOUNTS list appended below that best categorizes the expense based on the line description (e.g. fuel -> a gas/oil account). Use ONLY numbers that appear in the list, copied exactly. If no account in the list is a clear fit, or no list is provided, use null. Never invent an account number.
-- Ignore remittance addresses, logos, and marketing text.
-- If the content is not an invoice at all, return {"vendorName": null, "billNumber": null, "date": null, "dueDate": null, "memo": null, "jobName": null, "poNumber": null, "lines": []}.`;
+- Ignore remittance addresses, logos, and marketing text.`;
 
 const MAX_EXTRACT_FILE_BYTES = 10 * 1024 * 1024;
 
@@ -155,19 +160,28 @@ router.post("/bills/extract", async (req, res): Promise<void> => {
     userParts.push(filePart);
   }
 
-  const accounts = await db
-    .select({
-      id: accountsTable.id,
-      number: accountsTable.number,
-      name: accountsTable.name,
-    })
-    .from(accountsTable)
-    .orderBy(accountsTable.number);
-  const systemPrompt = accounts.length
-    ? `${EXTRACT_BILL_SYSTEM_PROMPT}\n\nCHART OF ACCOUNTS (number — name):\n${accounts
-        .map((a) => `${a.number} — ${a.name}`)
-        .join("\n")}`
-    : EXTRACT_BILL_SYSTEM_PROMPT;
+  const [accounts, knownVendors] = await Promise.all([
+    db
+      .select({ id: accountsTable.id, number: accountsTable.number, name: accountsTable.name })
+      .from(accountsTable)
+      .orderBy(accountsTable.number),
+    db
+      .select({ name: vendorsTable.name })
+      .from(vendorsTable)
+      .orderBy(vendorsTable.name),
+  ]);
+  const systemPromptParts: string[] = [EXTRACT_BILL_SYSTEM_PROMPT];
+  if (accounts.length) {
+    systemPromptParts.push(
+      `CHART OF ACCOUNTS (number — name):\n${accounts.map((a) => `${a.number} — ${a.name}`).join("\n")}`,
+    );
+  }
+  if (knownVendors.length) {
+    systemPromptParts.push(
+      `KNOWN VENDORS (resolve abbreviations/acronyms to one of these exact names when confident):\n${knownVendors.map((v) => v.name).join("\n")}`,
+    );
+  }
+  const systemPrompt = systemPromptParts.join("\n\n");
 
   let content: string;
   try {
@@ -210,35 +224,61 @@ router.post("/bills/extract", async (req, res): Promise<void> => {
   // Map suggested account numbers back to ids; drop any number the model
   // returns that isn't in the chart of accounts (no hallucinated codes).
   const accountIdByNumber = new Map(accounts.map((a) => [a.number, a.id]));
-  const lines = (Array.isArray(raw.lines) ? raw.lines : [])
-    .map((l) => {
-      const line = (l ?? {}) as Record<string, unknown>;
-      const amount =
-        typeof line.amount === "number" && Number.isFinite(line.amount)
-          ? line.amount
-          : null;
-      if (amount == null) return null;
-      const accountNumber = str(line.accountNumber);
-      return {
-        description: str(line.description),
-        amountCents: Math.round(amount * 100),
-        accountId:
-          accountNumber != null
-            ? (accountIdByNumber.get(accountNumber) ?? null)
-            : null,
-      };
-    })
+
+  const normaliseLines = (rawLines: unknown) =>
+    (Array.isArray(rawLines) ? rawLines : [])
+      .map((l) => {
+        const line = (l ?? {}) as Record<string, unknown>;
+        const amount =
+          typeof line.amount === "number" && Number.isFinite(line.amount)
+            ? line.amount
+            : null;
+        if (amount == null) return null;
+        const accountNumber = str(line.accountNumber);
+        return {
+          description: str(line.description),
+          amountCents: Math.round(amount * 100),
+          accountId:
+            accountNumber != null
+              ? (accountIdByNumber.get(accountNumber) ?? null)
+              : null,
+        };
+      })
+      .filter(
+        (
+          l,
+        ): l is {
+          description: string | null;
+          amountCents: number;
+          accountId: number | null;
+        } => Boolean(l),
+      );
+
+  const normaliseInvoice = (r: Record<string, unknown>) => ({
+    vendorName: str(r.vendorName),
+    billNumber: str(r.billNumber),
+    date: dateStr(r.date),
+    dueDate: dateStr(r.dueDate),
+    memo: str(r.memo),
+    jobName: str(r.jobName),
+    poNumber: str(r.poNumber),
+    lines: normaliseLines(r.lines),
+  });
+
+  // Support the new batch format { invoices: [...] } and fall back to treating
+  // a single-object response as one invoice (backward-compat with older shape).
+  const rawInvoices: Record<string, unknown>[] = Array.isArray(raw.invoices)
+    ? (raw.invoices as Record<string, unknown>[])
+    : [raw];
+
+  const invoices = rawInvoices
+    .map((r) => normaliseInvoice(r))
     .filter(
-      (
-        l,
-      ): l is {
-        description: string | null;
-        amountCents: number;
-        accountId: number | null;
-      } => Boolean(l),
+      (inv) =>
+        inv.vendorName != null || inv.billNumber != null || inv.lines.length > 0,
     );
 
-  // Upload the source file to object storage so it can be linked to the bill
+  // Upload the source file to object storage so it can be linked to each bill
   // and previewed from the job-detail transactions view. Non-fatal: extraction
   // results are returned even when the upload fails.
   let documentPath: string | null = null;
@@ -259,19 +299,67 @@ router.post("/bills/extract", async (req, res): Promise<void> => {
     }
   }
 
+  res.json(ExtractBillResponse.parse({ documentPath, invoices }));
+});
+
+// ---------------------------------------------------------------------------
+// Bill-upload import drafts (P10-BILL-03): one autosaved review queue per
+// user so a partially reviewed batch survives closing the dialog or navigating
+// away; cleared on final save or explicit delete.
+// ---------------------------------------------------------------------------
+
+router.get("/bills/import-draft", async (req, res): Promise<void> => {
+  const userId = req.currentUser?.id;
+  if (!userId) { res.status(401).json({ error: "Not signed in" }); return; }
+  const [row] = await db
+    .select()
+    .from(billImportDraftsTable)
+    .where(eq(billImportDraftsTable.userId, userId));
   res.json(
-    ExtractBillResponse.parse({
-      vendorName: str(raw.vendorName),
-      billNumber: str(raw.billNumber),
-      date: dateStr(raw.date),
-      dueDate: dateStr(raw.dueDate),
-      memo: str(raw.memo),
-      jobName: str(raw.jobName),
-      poNumber: str(raw.poNumber),
-      documentPath,
-      lines,
+    GetBillImportDraftResponse.parse({
+      state: row ? row.state : null,
+      updatedAt: row ? row.updatedAt.toISOString() : null,
     }),
   );
+});
+
+const BILL_DRAFT_MAX_BYTES = 256 * 1024;
+
+router.put("/bills/import-draft", async (req, res): Promise<void> => {
+  const userId = req.currentUser?.id;
+  if (!userId) { res.status(401).json({ error: "Not signed in" }); return; }
+  const parsed = SaveBillImportDraftBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+  if (Buffer.byteLength(JSON.stringify(parsed.data.state), "utf8") > BILL_DRAFT_MAX_BYTES) {
+    res.status(413).json({ error: "Draft is too large to save. Save some bills first." });
+    return;
+  }
+  const [row] = await db
+    .insert(billImportDraftsTable)
+    .values({ userId, state: parsed.data.state })
+    .onConflictDoUpdate({
+      target: billImportDraftsTable.userId,
+      set: { state: parsed.data.state, updatedAt: new Date() },
+    })
+    .returning();
+  res.json(
+    SaveBillImportDraftResponse.parse({
+      state: row.state,
+      updatedAt: row.updatedAt.toISOString(),
+    }),
+  );
+});
+
+router.delete("/bills/import-draft", async (req, res): Promise<void> => {
+  const userId = req.currentUser?.id;
+  if (!userId) { res.status(401).json({ error: "Not signed in" }); return; }
+  await db
+    .delete(billImportDraftsTable)
+    .where(eq(billImportDraftsTable.userId, userId));
+  res.status(204).end();
 });
 
 /**

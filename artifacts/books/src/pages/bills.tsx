@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect, useCallback } from "react";
 import {
   useListBills,
   useCreateBill,
@@ -37,11 +37,11 @@ import {
   toServerFieldError,
   type ServerFieldError,
 } from "@/lib/server-field-error";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { matchExtractedJob } from "@/lib/match-extracted-job";
 import { matchExtractedVendor } from "@/lib/match-extracted-vendor";
 import { DemoBadge } from "@/components/demo-badge";
-import { Plus, Trash2, Upload, Loader2 } from "lucide-react";
+import { Plus, Trash2, Upload, Loader2, ChevronUp, ChevronDown } from "lucide-react";
 import { ImportDataDialog } from "@/components/import-data-dialog";
 
 const UPLOAD_MAX_BYTES = 10 * 1024 * 1024;
@@ -59,14 +59,45 @@ type BillPrefill = {
   vendorCreateName?: string;
 };
 
+type ReviewQueue = {
+  prefills: BillPrefill[];
+  notes: (string | null)[];
+  documentPath: string | null;
+};
+
+// ---------------------------------------------------------------------------
+// Draft persistence — raw fetch wrappers (not in generated client yet)
+// ---------------------------------------------------------------------------
+
+const DRAFT_KEY = ["bills", "import-draft"] as const;
+
+async function fetchBillDraft(): Promise<{ state: Record<string, unknown> | null; updatedAt: string | null }> {
+  const res = await fetch("/api/bills/import-draft", { credentials: "include" });
+  if (!res.ok) throw new Error("Failed to load draft");
+  return res.json();
+}
+
+async function saveBillDraft(state: Record<string, unknown>): Promise<void> {
+  await fetch("/api/bills/import-draft", {
+    method: "PUT",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ state }),
+  });
+}
+
+async function deleteBillDraft(): Promise<void> {
+  await fetch("/api/bills/import-draft", { method: "DELETE", credentials: "include" });
+}
+
+// ---------------------------------------------------------------------------
+// Upload dialog
+// ---------------------------------------------------------------------------
+
 function UploadInvoiceDialog({
   onExtracted,
 }: {
-  onExtracted: (
-    prefill: BillPrefill,
-    note: string | null,
-    documentPath: string | null,
-  ) => void;
+  onExtracted: (queue: ReviewQueue) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [error, setError] = useState("");
@@ -89,44 +120,59 @@ function UploadInvoiceDialog({
   };
 
   const finish = (result: ExtractBillResult) => {
-    const vendorMatch = matchExtractedVendor(
-      vendors ?? [],
-      result.vendorName ?? null,
-    );
-    const jobMatch = matchExtractedJob(
-      jobs ?? [],
-      result.jobName ?? null,
-      result.poNumber ?? null,
-    );
-    const prefill: BillPrefill = {
-      vendorId: vendorMatch.vendor ? String(vendorMatch.vendor.id) : "",
-      customerId:
-        jobMatch.job && jobMatch.confident && jobMatch.job.customerId != null
-          ? String(jobMatch.job.customerId)
-          : "",
-      jobId:
-        jobMatch.job && jobMatch.confident ? String(jobMatch.job.id) : "",
-      billNumber: result.billNumber ?? "",
-      date: result.date ?? undefined,
-      dueDate: result.dueDate ?? "",
-      memo: result.memo ?? "",
-      lines: result.lines.length
-        ? result.lines.map((l) => ({
-            accountId: l.accountId != null ? String(l.accountId) : "",
-            description: l.description ?? "",
-            amount: (l.amountCents / 100).toFixed(2),
-          }))
-        : undefined,
-    };
-    if (!vendorMatch.vendor && result.vendorName) {
-      prefill.vendorCreateName = result.vendorName.trim();
+    if (result.invoices.length === 0) {
+      setError(
+        "Couldn't find invoice details in that file. Try a clearer scan or enter the bill manually.",
+      );
+      return;
     }
-    const notes: string[] = [];
-    if (vendorMatch.note) notes.push(vendorMatch.note);
-    if (jobMatch.note) notes.push(jobMatch.note);
+
+    const prefills: BillPrefill[] = [];
+    const notes: (string | null)[] = [];
+
+    for (const inv of result.invoices) {
+      const vendorMatch = matchExtractedVendor(
+        vendors ?? [],
+        inv.vendorName ?? null,
+      );
+      const jobMatch = matchExtractedJob(
+        jobs ?? [],
+        inv.jobName ?? null,
+        inv.poNumber ?? null,
+      );
+      const prefill: BillPrefill = {
+        vendorId: vendorMatch.vendor ? String(vendorMatch.vendor.id) : "",
+        customerId:
+          jobMatch.job && jobMatch.confident && jobMatch.job.customerId != null
+            ? String(jobMatch.job.customerId)
+            : "",
+        jobId:
+          jobMatch.job && jobMatch.confident ? String(jobMatch.job.id) : "",
+        billNumber: inv.billNumber ?? "",
+        date: inv.date ?? undefined,
+        dueDate: inv.dueDate ?? "",
+        memo: inv.memo ?? "",
+        lines: inv.lines.length
+          ? inv.lines.map((l: { accountId?: number | null; description?: string | null; amountCents: number }) => ({
+              accountId: l.accountId != null ? String(l.accountId) : "",
+              description: l.description ?? "",
+              amount: (l.amountCents / 100).toFixed(2),
+            }))
+          : undefined,
+      };
+      if (!vendorMatch.vendor && inv.vendorName) {
+        prefill.vendorCreateName = inv.vendorName.trim();
+      }
+      const invNotes: string[] = [];
+      if (vendorMatch.note) invNotes.push(vendorMatch.note);
+      if (jobMatch.note) invNotes.push(jobMatch.note);
+      prefills.push(prefill);
+      notes.push(invNotes.length ? invNotes.join(" ") : null);
+    }
+
     setOpen(false);
     reset();
-    onExtracted(prefill, notes.length ? notes.join(" ") : null, result.documentPath ?? null);
+    onExtracted({ prefills, notes, documentPath: result.documentPath ?? null });
   };
 
   const handleFile = (file: File | undefined) => {
@@ -148,12 +194,6 @@ function UploadInvoiceDialog({
         { data: payload },
         {
           onSuccess: (result) => {
-            if (!result.lines.length && !result.vendorName) {
-              setError(
-                "Couldn't find invoice details in that file. Try a clearer scan or enter the bill manually.",
-              );
-              return;
-            }
             finish(result);
           },
           onError: (err) => {
@@ -188,7 +228,8 @@ function UploadInvoiceDialog({
         </DialogHeader>
         <p className="text-sm text-slate-500">
           Drop an invoice scan, photo, or PDF and the details will be read
-          automatically into a new bill for your review.
+          automatically. Batched PDFs (multiple invoices in one file) are split
+          into separate bills for review.
         </p>
         <div
           className={`rounded-lg border-2 border-dashed p-8 text-center cursor-pointer transition-colors ${
@@ -246,27 +287,92 @@ function UploadInvoiceDialog({
   );
 }
 
+// ---------------------------------------------------------------------------
+// Status badge config
+// ---------------------------------------------------------------------------
+
 const statusVariant: Record<string, "default" | "secondary" | "outline"> = {
   paid: "secondary",
   partial: "outline",
   open: "default",
 };
 
+// ---------------------------------------------------------------------------
+// Main Bills page
+// ---------------------------------------------------------------------------
+
 export default function Bills() {
   const queryClient = useQueryClient();
-  const [isCreateOpen, setIsCreateOpen] = useState(false);
-  const [prefill, setPrefill] = useState<BillPrefill | null>(null);
-  const [prefillNote, setPrefillNote] = useState<string | null>(null);
-  const [prefillVersion, setPrefillVersion] = useState(0);
-  const [extractedDocumentPath, setExtractedDocumentPath] = useState<string | null>(null);
+
+  // Review queue — one entry per invoice extracted from the uploaded file
+  const [queue, setQueue] = useState<ReviewQueue | null>(null);
+  const [queueIndex, setQueueIndex] = useState(0);
+  const [isReviewOpen, setIsReviewOpen] = useState(false);
+  const [createError, setCreateError] = useState<ServerFieldError | null>(null);
+
+  // Manual "New Bill" dialog — separate state so it doesn't interfere with the review queue
+  const [isManualOpen, setIsManualOpen] = useState(false);
+  const [manualError, setManualError] = useState<ServerFieldError | null>(null);
+
+  // ---------------------------------------------------------------------------
+  // Draft: restore on mount, autosave on queue change
+  // ---------------------------------------------------------------------------
+
+  const { data: draftData } = useQuery({
+    queryKey: DRAFT_KEY,
+    queryFn: fetchBillDraft,
+    staleTime: Infinity,
+  });
+
+  // Restore draft on first load (only if not already reviewing)
+  useEffect(() => {
+    if (!draftData?.state || isReviewOpen) return;
+    try {
+      const s = draftData.state as { prefills?: unknown; notes?: unknown; documentPath?: unknown; queueIndex?: unknown };
+      if (Array.isArray(s.prefills) && s.prefills.length > 0) {
+        setQueue({
+          prefills: s.prefills as BillPrefill[],
+          notes: Array.isArray(s.notes) ? s.notes as (string | null)[] : s.prefills.map(() => null),
+          documentPath: typeof s.documentPath === "string" ? s.documentPath : null,
+        });
+        setQueueIndex(typeof s.queueIndex === "number" ? s.queueIndex : 0);
+        setIsReviewOpen(true);
+      }
+    } catch {
+      // Malformed draft — ignore
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draftData]);
+
+  const saveDraftMutation = useMutation({ mutationFn: saveBillDraft });
+  const deleteDraftMutation = useMutation({ mutationFn: deleteBillDraft });
+
+  const persistDraft = useCallback(
+    (q: ReviewQueue, idx: number) => {
+      saveDraftMutation.mutate({
+        prefills: q.prefills,
+        notes: q.notes,
+        documentPath: q.documentPath,
+        queueIndex: idx,
+      } as Record<string, unknown>);
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
+
+  const clearDraft = useCallback(() => {
+    deleteDraftMutation.mutate();
+    queryClient.setQueryData(DRAFT_KEY, { state: null, updatedAt: null });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [queryClient]);
+
+  // ---------------------------------------------------------------------------
+  // Bill list + mutations
+  // ---------------------------------------------------------------------------
 
   const { data: bills, isLoading } = useListBills(undefined, {
     query: { queryKey: getListBillsQueryKey() },
   });
-
-  const [createError, setCreateError] = useState<ServerFieldError | null>(
-    null,
-  );
 
   const createBill = useCreateBill({
     mutation: {
@@ -274,12 +380,39 @@ export default function Bills() {
         queryClient.invalidateQueries({ queryKey: getListBillsQueryKey() });
         queryClient.invalidateQueries({ queryKey: getGetApAgingQueryKey() });
         setCreateError(null);
-        setIsCreateOpen(false);
+
+        // Advance to the next invoice in the queue
+        if (queue && queueIndex < queue.prefills.length - 1) {
+          const nextIdx = queueIndex + 1;
+          setQueueIndex(nextIdx);
+          persistDraft(queue, nextIdx);
+        } else {
+          // All invoices reviewed — close and clear draft
+          setIsReviewOpen(false);
+          setQueue(null);
+          setQueueIndex(0);
+          clearDraft();
+        }
       },
       onError: (error) => {
         setCreateError(
           toServerFieldError(error, "Failed to save the bill. Please try again."),
         );
+      },
+    },
+  });
+
+  // Separate mutation for the manual "New Bill" dialog
+  const manualCreateBill = useCreateBill({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getListBillsQueryKey() });
+        queryClient.invalidateQueries({ queryKey: getGetApAgingQueryKey() });
+        setManualError(null);
+        setIsManualOpen(false);
+      },
+      onError: (error) => {
+        setManualError(toServerFieldError(error, "Failed to save the bill. Please try again."));
       },
     },
   });
@@ -292,6 +425,35 @@ export default function Bills() {
       },
     },
   });
+
+  // ---------------------------------------------------------------------------
+  // Handlers
+  // ---------------------------------------------------------------------------
+
+  const handleExtracted = (newQueue: ReviewQueue) => {
+    setQueue(newQueue);
+    setQueueIndex(0);
+    setCreateError(null);
+    setIsReviewOpen(true);
+    persistDraft(newQueue, 0);
+  };
+
+  const handleReviewClose = (open: boolean) => {
+    setIsReviewOpen(open);
+    if (!open) {
+      // Keep the draft when the user just closes/navigates away so they
+      // can return to it. Draft is only cleared on final save (above).
+      setCreateError(null);
+    }
+  };
+
+  const currentPrefill = queue ? queue.prefills[queueIndex] ?? null : null;
+  const currentNote = queue ? queue.notes[queueIndex] ?? null : null;
+  const totalInQueue = queue?.prefills.length ?? 0;
+
+  // ---------------------------------------------------------------------------
+  // Render
+  // ---------------------------------------------------------------------------
 
   return (
     <div className="space-y-8">
@@ -311,27 +473,10 @@ export default function Bills() {
               queryClient.invalidateQueries({ queryKey: getListBillsQueryKey() })
             }
           />
-          <UploadInvoiceDialog
-            onExtracted={(extracted, note, documentPath) => {
-              setPrefill(extracted);
-              setPrefillNote(note);
-              setPrefillVersion((v) => v + 1);
-              setExtractedDocumentPath(documentPath);
-              setCreateError(null);
-              setIsCreateOpen(true);
-            }}
-          />
-          <Dialog
-            open={isCreateOpen}
-            onOpenChange={(open) => {
-              setIsCreateOpen(open);
-              if (!open) {
-                setCreateError(null);
-                setPrefill(null);
-                setPrefillNote(null);
-              }
-            }}
-          >
+          <UploadInvoiceDialog onExtracted={handleExtracted} />
+
+          {/* Manual "New Bill" button */}
+          <Dialog open={isManualOpen} onOpenChange={(v) => { setIsManualOpen(v); if (!v) setManualError(null); }}>
             <DialogTrigger asChild>
               <Button className="bg-blue-600 hover:bg-blue-700">
                 <Plus className="mr-2 h-4 w-4" /> New Bill
@@ -341,29 +486,106 @@ export default function Bills() {
               <DialogHeader>
                 <DialogTitle>Create Bill</DialogTitle>
               </DialogHeader>
-              {prefillNote ? (
-                <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
-                  {prefillNote}
-                </p>
-              ) : null}
               <BillForm
-                key={prefill ? `prefilled-${prefillVersion}` : "blank"}
-                defaultValues={prefill ?? undefined}
-                suggestedVendorName={prefill?.vendorCreateName ?? null}
+                key="manual"
                 onSubmit={(data) => {
-                  setCreateError(null);
-                  createBill.mutate({
-                    data: { ...data, documentPath: extractedDocumentPath },
-                  });
+                  setManualError(null);
+                  manualCreateBill.mutate({ data });
                 }}
-                isLoading={createBill.isPending}
-                serverError={createError}
+                isLoading={manualCreateBill.isPending}
+                serverError={manualError}
               />
             </DialogContent>
           </Dialog>
         </div>
       </div>
 
+      {/* ------------------------------------------------------------------ */}
+      {/* Invoice review dialog — shown after upload or draft restore         */}
+      {/* ------------------------------------------------------------------ */}
+      <Dialog open={isReviewOpen} onOpenChange={handleReviewClose}>
+        <DialogContent className="sm:max-w-[700px]">
+          <DialogHeader>
+            <div className="flex items-center justify-between">
+              <DialogTitle>
+                {totalInQueue > 1
+                  ? `Review Invoice ${queueIndex + 1} of ${totalInQueue}`
+                  : "Review Invoice"}
+              </DialogTitle>
+
+              {/* Up / Down navigation (P10-BILL-02) */}
+              {totalInQueue > 1 && (
+                <div className="flex items-center gap-1 mr-6">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7"
+                    disabled={queueIndex === 0}
+                    onClick={() => {
+                      const idx = queueIndex - 1;
+                      setQueueIndex(idx);
+                      if (queue) persistDraft(queue, idx);
+                    }}
+                    title="Previous invoice"
+                  >
+                    <ChevronUp className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7"
+                    disabled={queueIndex === totalInQueue - 1}
+                    onClick={() => {
+                      const idx = queueIndex + 1;
+                      setQueueIndex(idx);
+                      if (queue) persistDraft(queue, idx);
+                    }}
+                    title="Next invoice"
+                  >
+                    <ChevronDown className="h-4 w-4" />
+                  </Button>
+                  <span className="text-xs text-slate-400 ml-1">
+                    {queueIndex + 1}/{totalInQueue}
+                  </span>
+                </div>
+              )}
+            </div>
+          </DialogHeader>
+
+          {currentNote ? (
+            <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
+              {currentNote}
+            </p>
+          ) : null}
+
+          {totalInQueue > 1 && (
+            <p className="text-xs text-slate-500 -mt-1">
+              Use ▲ ▼ above to navigate between invoices without saving. Each
+              bill is saved individually.
+            </p>
+          )}
+
+          <BillForm
+            key={`queue-${queueIndex}`}
+            defaultValues={currentPrefill ?? undefined}
+            suggestedVendorName={currentPrefill?.vendorCreateName ?? null}
+            onSubmit={(data) => {
+              setCreateError(null);
+              createBill.mutate({
+                data: { ...data, documentPath: queue?.documentPath ?? null },
+              });
+            }}
+            isLoading={createBill.isPending}
+            serverError={createError}
+          />
+        </DialogContent>
+      </Dialog>
+
+      {/* ------------------------------------------------------------------ */}
+      {/* Bills table                                                          */}
+      {/* ------------------------------------------------------------------ */}
       <Card>
         <CardContent className="p-0">
           <Table>

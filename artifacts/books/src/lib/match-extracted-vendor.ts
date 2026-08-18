@@ -10,10 +10,16 @@ export type ExtractedVendorMatch = {
 
 /**
  * Fuzzy-match an extracted vendor name against existing vendors.
- * Pre-select only on a unique match: an exact (case/whitespace-insensitive)
- * match wins outright; otherwise a unique substring match either way.
- * Multiple candidates or no candidates never pre-select — the user is
- * asked to pick the right vendor instead. Never creates vendors.
+ *
+ * Match priority (first hit wins, ties go to the next tier):
+ *  1. Exact case/whitespace-insensitive match.
+ *  2. Unique bidirectional substring match.
+ *  3. Initials/acronym match — "CES" matches "City Electric Supply" when
+ *     the extracted name is a short ALL-CAPS token and the vendor's first
+ *     letters form that acronym. If multiple vendors share the same initials
+ *     the user is asked to pick.
+ *
+ * Multiple candidates or no candidates never pre-select. Never creates vendors.
  */
 export function matchExtractedVendor(
   vendors: VendorOption[],
@@ -24,25 +30,59 @@ export function matchExtractedVendor(
   }
   const norm = (s: string) => s.trim().toLowerCase();
   const target = norm(vendorName);
+
+  // 1. Exact match
   const exact = vendors.filter((v) => norm(v.name) === target);
-  if (exact.length === 1) {
-    return { vendor: exact[0], note: null };
-  }
-  const candidates = exact.length
+  if (exact.length === 1) return { vendor: exact[0], note: null };
+
+  // 2. Substring match (either direction)
+  const substringCandidates = exact.length
     ? exact
     : vendors.filter(
         (v) =>
           norm(v.name).includes(target) || target.includes(norm(v.name)),
       );
-  if (candidates.length === 1) {
-    return { vendor: candidates[0], note: null };
+  if (substringCandidates.length === 1) {
+    return { vendor: substringCandidates[0], note: null };
   }
-  if (candidates.length > 1) {
+  if (substringCandidates.length > 1) {
     return {
       vendor: null,
-      note: `Vendor "${vendorName}" on the invoice matches several vendors (e.g. "${candidates[0].name}") — pick the right vendor below.`,
+      note: `Vendor "${vendorName}" on the invoice matches several vendors (e.g. "${substringCandidates[0].name}") — pick the right vendor below.`,
     };
   }
+
+  // 3. Initials / acronym match
+  //    Only attempt when the extracted name looks like an acronym: short,
+  //    all upper-case letters/digits (2–6 chars), e.g. "CES", "ACME", "HD".
+  const trimmed = vendorName.trim();
+  if (/^[A-Z0-9]{2,6}$/.test(trimmed)) {
+    const acronymTarget = trimmed.toLowerCase();
+    const acronymCandidates = vendors.filter((v) => {
+      // Build initials from whitespace / punctuation word boundaries
+      const initials = norm(v.name)
+        .split(/[\s&/,.\-_]+/)
+        .filter(Boolean)
+        .map((w) => w[0])
+        .join("");
+      return initials === acronymTarget;
+    });
+    if (acronymCandidates.length === 1) {
+      return {
+        vendor: acronymCandidates[0],
+        note: `"${vendorName}" recognized as ${acronymCandidates[0].name}.`,
+      };
+    }
+    if (acronymCandidates.length > 1) {
+      return {
+        vendor: null,
+        note: `"${vendorName}" could be ${acronymCandidates
+          .map((v) => `"${v.name}"`)
+          .join(" or ")} — pick the right vendor below.`,
+      };
+    }
+  }
+
   return {
     vendor: null,
     note: `Vendor "${vendorName}" was read from the invoice but doesn't match any vendor on file — pick the right vendor below.`,

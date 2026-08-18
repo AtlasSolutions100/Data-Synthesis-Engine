@@ -7,12 +7,14 @@ import {
   boolean,
   date,
   timestamp,
+  jsonb,
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { vendorsTable } from "./vendors";
 import { jobsTable } from "./jobs";
 import { accountsTable } from "./accounts";
+import { usersTable } from "./users";
 
 export const billsTable = pgTable("bills", {
   id: serial("id").primaryKey(),
@@ -102,3 +104,26 @@ export type Bill = typeof billsTable.$inferSelect;
 export type BillLine = typeof billLinesTable.$inferSelect;
 export type BillPayment = typeof billPaymentsTable.$inferSelect;
 export type VendorCredit = typeof vendorCreditsTable.$inferSelect;
+
+/**
+ * One in-progress invoice-upload draft per user (P10-BILL-03). The review
+ * queue autosaves here so a partially reviewed batch survives closing the
+ * dialog or navigating away; cleared on final save or explicit delete.
+ * `state` is opaque client state (extracted invoice queue, current index) —
+ * never posted to the ledger.
+ */
+export const billImportDraftsTable = pgTable("bill_import_drafts", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id")
+    .notNull()
+    .unique()
+    .references(() => usersTable.id, { onDelete: "cascade" }),
+  state: jsonb("state").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => new Date()),
+});
