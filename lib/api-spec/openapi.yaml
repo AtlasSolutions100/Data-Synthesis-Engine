@@ -4664,6 +4664,24 @@ components:
           type: integer
         cleared:
           type: boolean
+        matchedStatementLine:
+          description: >
+            The statement line (from an uploaded CSV/XLSX/PDF) that was
+            automatically matched to this transaction when the period was
+            created. Null for manually-cleared transactions.
+          nullable: true
+          type: object
+          required:
+            - date
+            - amountCents
+            - description
+          properties:
+            date:
+              type: string
+            amountCents:
+              type: integer
+            description:
+              type: string
 
     ReconciliationPeriodDetail:
       type: object

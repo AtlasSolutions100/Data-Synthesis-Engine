@@ -45,6 +45,13 @@ export const reconciliationClearsTable = pgTable(
     transactionId: integer("transaction_id")
       .notNull()
       .references(() => transactionsTable.id, { onDelete: "cascade" }),
+    /**
+     * The statement line (date/amountCents/description) that was automatically
+     * matched to this transaction when the period was created. Null for
+     * manually-cleared transactions (no statement upload, or user re-cleared
+     * after detaching).
+     */
+    matchedStatementLine: jsonb("matched_statement_line"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

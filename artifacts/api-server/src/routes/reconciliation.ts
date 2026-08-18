@@ -520,12 +520,18 @@ async function buildPeriodDetail(periodId: number) {
   const ledger = await getAccountLedger(account.id, period.statementDate);
   const ledgerLines = ledger?.lines ?? [];
 
-  // Which transactions are cleared in this period
+  // Which transactions are cleared in this period (include matched statement lines)
   const clears = await db
-    .select({ transactionId: reconciliationClearsTable.transactionId })
+    .select({
+      transactionId: reconciliationClearsTable.transactionId,
+      matchedStatementLine: reconciliationClearsTable.matchedStatementLine,
+    })
     .from(reconciliationClearsTable)
     .where(eq(reconciliationClearsTable.periodId, period.id));
   const clearedSet = new Set(clears.map((c) => c.transactionId));
+  const matchedLineByTxId = new Map<number, { date: string; amountCents: number; description: string } | null>(
+    clears.map((c) => [c.transactionId, c.matchedStatementLine as { date: string; amountCents: number; description: string } | null]),
+  );
 
   // Build detail lines + compute cleared totals
   let clearedEffectCents = 0;
@@ -553,6 +559,7 @@ async function buildPeriodDetail(periodId: number) {
       depositCents: deposit,
       effectCents: line.effectCents,
       cleared,
+      matchedStatementLine: matchedLineByTxId.get(line.transactionId) ?? null,
     };
   });
 
@@ -671,7 +678,11 @@ router.post("/reconciliation/periods", async (req, res) => {
   }
 
   // Fetch ledger before the transaction (read-only, no side effects)
-  let matchedTransactionIds: number[] = [];
+  interface MatchedClear {
+    transactionId: number;
+    statementLine: { date: string; amountCents: number; description: string };
+  }
+  let matchedClears: MatchedClear[] = [];
   let unmatchedLines: StatementLine[] = [];
   if (parsedCsvLines && parsedCsvLines.length > 0) {
     const ledger = await getAccountLedger(account.id, body.data.statementDate);
@@ -687,41 +698,45 @@ router.post("/reconciliation/periods", async (req, res) => {
     }
 
     // Try to consume one ledger transaction matching this date+amount.
-    const tryConsume = (date: string, amountCents: number): boolean => {
+    // Returns the matched transactionId or null.
+    const tryConsume = (date: string, amountCents: number): number | null => {
       // Prefer exact-date match first; only fall back to ±1-day if no exact
       // candidate exists.  This prevents a same-amount transaction from the
       // preceding day from stealing the match when both are present.
       const exactCandidates = ledgerByKey.get(`${date}:${amountCents}`);
       if (exactCandidates && exactCandidates.length > 0) {
-        matchedTransactionIds.push(exactCandidates.shift()!);
-        return true;
+        return exactCandidates.shift()!;
       }
       for (const d of dateWindow(date)) {
         if (d === date) continue; // already tried
         const candidates = ledgerByKey.get(`${d}:${amountCents}`);
         if (candidates && candidates.length > 0) {
-          matchedTransactionIds.push(candidates.shift()!);
-          return true;
+          return candidates.shift()!;
         }
       }
-      return false;
+      return null;
     };
 
+
     for (const csvLine of parsedCsvLines) {
-      let matched = tryConsume(csvLine.date, csvLine.amountCents);
+      const statementLine = {
+        date: csvLine.date,
+        amountCents: csvLine.amountCents,
+        description: csvLine.description,
+      };
+
+      let txId = tryConsume(csvLine.date, csvLine.amountCents);
 
       // PDF statements often print unsigned amounts, so try the opposite sign.
-      if (!matched && csvLine.signUnknown && csvLine.amountCents !== 0) {
-        matched = tryConsume(csvLine.date, -csvLine.amountCents);
+      if (txId === null && csvLine.signUnknown && csvLine.amountCents !== 0) {
+        txId = tryConsume(csvLine.date, -csvLine.amountCents);
       }
 
-      if (!matched) {
+      if (txId !== null) {
+        matchedClears.push({ transactionId: txId, statementLine });
+      } else {
         // Persist only the schema fields (drop internal flags like signUnknown)
-        unmatchedLines.push({
-          date: csvLine.date,
-          amountCents: csvLine.amountCents,
-          description: csvLine.description,
-        });
+        unmatchedLines.push(statementLine);
       }
     }
   }
@@ -741,10 +756,16 @@ router.post("/reconciliation/periods", async (req, res) => {
       })
       .returning();
 
-    if (matchedTransactionIds.length > 0) {
+    if (matchedClears.length > 0) {
       await tx
         .insert(reconciliationClearsTable)
-        .values(matchedTransactionIds.map((txId) => ({ periodId: period.id, transactionId: txId })))
+        .values(
+          matchedClears.map((mc) => ({
+            periodId: period.id,
+            transactionId: mc.transactionId,
+            matchedStatementLine: mc.statementLine,
+          })),
+        )
         .onConflictDoNothing();
     }
 
@@ -864,7 +885,20 @@ router.post("/reconciliation/periods/:id/clears", async (req, res) => {
       .values({ periodId: params.data.id, transactionId: body.data.transactionId })
       .onConflictDoNothing();
   } else {
-    // Remove clear
+    // Look up the clear to see if it had a matched statement line (detach flow)
+    const [existingClear] = await db
+      .select({
+        matchedStatementLine: reconciliationClearsTable.matchedStatementLine,
+      })
+      .from(reconciliationClearsTable)
+      .where(
+        and(
+          eq(reconciliationClearsTable.periodId, params.data.id),
+          eq(reconciliationClearsTable.transactionId, body.data.transactionId),
+        ),
+      );
+
+    // Remove the clear
     await db
       .delete(reconciliationClearsTable)
       .where(
@@ -873,6 +907,26 @@ router.post("/reconciliation/periods/:id/clears", async (req, res) => {
           eq(reconciliationClearsTable.transactionId, body.data.transactionId),
         ),
       );
+
+    // If this was an auto-matched clear, return the statement line to the
+    // unmatched list so the user can see it is no longer accounted for.
+    const matchedLine = existingClear?.matchedStatementLine as
+      | { date: string; amountCents: number; description: string }
+      | null
+      | undefined;
+    if (matchedLine) {
+      const current = await db
+        .select({ unmatchedStatementLines: reconciliationPeriodsTable.unmatchedStatementLines })
+        .from(reconciliationPeriodsTable)
+        .where(eq(reconciliationPeriodsTable.id, params.data.id));
+      const existing = (current[0]?.unmatchedStatementLines as
+        | { date: string; amountCents: number; description: string }[]
+        | null) ?? [];
+      await db
+        .update(reconciliationPeriodsTable)
+        .set({ unmatchedStatementLines: [...existing, matchedLine] })
+        .where(eq(reconciliationPeriodsTable.id, params.data.id));
+    }
   }
 
   const detail = await buildPeriodDetail(params.data.id);

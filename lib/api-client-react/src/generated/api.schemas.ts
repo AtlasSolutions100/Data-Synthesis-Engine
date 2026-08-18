@@ -2095,6 +2095,15 @@ export interface ReconciliationPeriod {
   updatedAt: string;
 }
 
+/**
+ * The statement line (from an uploaded CSV/XLSX/PDF) that was automatically matched to this transaction when the period was created. Null for manually-cleared transactions.
+ */
+export type ReconciliationPeriodLineMatchedStatementLine = {
+  date: string;
+  amountCents: number;
+  description: string;
+} | null;
+
 export interface ReconciliationPeriodLine {
   transactionId: number;
   date: string;
@@ -2107,6 +2116,8 @@ export interface ReconciliationPeriodLine {
   depositCents: number;
   effectCents: number;
   cleared: boolean;
+  /** The statement line (from an uploaded CSV/XLSX/PDF) that was automatically matched to this transaction when the period was created. Null for manually-cleared transactions. */
+  matchedStatementLine?: ReconciliationPeriodLineMatchedStatementLine;
 }
 
 export type ReconciliationPeriodDetailStatus = typeof ReconciliationPeriodDetailStatus[keyof typeof ReconciliationPeriodDetailStatus];

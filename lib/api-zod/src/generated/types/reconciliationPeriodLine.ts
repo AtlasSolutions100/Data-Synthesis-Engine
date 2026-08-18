@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { ReconciliationPeriodLineMatchedStatementLine } from './reconciliationPeriodLineMatchedStatementLine';
 
 export interface ReconciliationPeriodLine {
   transactionId: number;
@@ -18,4 +19,6 @@ export interface ReconciliationPeriodLine {
   depositCents: number;
   effectCents: number;
   cleared: boolean;
+  /** The statement line (from an uploaded CSV/XLSX/PDF) that was automatically matched to this transaction when the period was created. Null for manually-cleared transactions. */
+  matchedStatementLine?: ReconciliationPeriodLineMatchedStatementLine;
 }

@@ -3286,7 +3286,12 @@ export const GetReconciliationPeriodResponse = zod.object({
   "withdrawalCents": zod.number(),
   "depositCents": zod.number(),
   "effectCents": zod.number(),
-  "cleared": zod.boolean()
+  "cleared": zod.boolean(),
+  "matchedStatementLine": zod.object({
+  "date": zod.string(),
+  "amountCents": zod.number(),
+  "description": zod.string()
+}).nullish().describe('The statement line (from an uploaded CSV\/XLSX\/PDF) that was automatically matched to this transaction when the period was created. Null for manually-cleared transactions.\n')
 })),
   "unmatchedStatementLines": zod.array(zod.object({
   "date": zod.string().describe('Date from the CSV (YYYY-MM-DD)'),
@@ -3367,7 +3372,12 @@ export const ToggleReconciliationClearResponse = zod.object({
   "withdrawalCents": zod.number(),
   "depositCents": zod.number(),
   "effectCents": zod.number(),
-  "cleared": zod.boolean()
+  "cleared": zod.boolean(),
+  "matchedStatementLine": zod.object({
+  "date": zod.string(),
+  "amountCents": zod.number(),
+  "description": zod.string()
+}).nullish().describe('The statement line (from an uploaded CSV\/XLSX\/PDF) that was automatically matched to this transaction when the period was created. Null for manually-cleared transactions.\n')
 })),
   "unmatchedStatementLines": zod.array(zod.object({
   "date": zod.string().describe('Date from the CSV (YYYY-MM-DD)'),
@@ -3412,7 +3422,12 @@ export const CompleteReconciliationPeriodResponse = zod.object({
   "withdrawalCents": zod.number(),
   "depositCents": zod.number(),
   "effectCents": zod.number(),
-  "cleared": zod.boolean()
+  "cleared": zod.boolean(),
+  "matchedStatementLine": zod.object({
+  "date": zod.string(),
+  "amountCents": zod.number(),
+  "description": zod.string()
+}).nullish().describe('The statement line (from an uploaded CSV\/XLSX\/PDF) that was automatically matched to this transaction when the period was created. Null for manually-cleared transactions.\n')
 })),
   "unmatchedStatementLines": zod.array(zod.object({
   "date": zod.string().describe('Date from the CSV (YYYY-MM-DD)'),
@@ -3457,7 +3472,12 @@ export const ReopenReconciliationPeriodResponse = zod.object({
   "withdrawalCents": zod.number(),
   "depositCents": zod.number(),
   "effectCents": zod.number(),
-  "cleared": zod.boolean()
+  "cleared": zod.boolean(),
+  "matchedStatementLine": zod.object({
+  "date": zod.string(),
+  "amountCents": zod.number(),
+  "description": zod.string()
+}).nullish().describe('The statement line (from an uploaded CSV\/XLSX\/PDF) that was automatically matched to this transaction when the period was created. Null for manually-cleared transactions.\n')
 })),
   "unmatchedStatementLines": zod.array(zod.object({
   "date": zod.string().describe('Date from the CSV (YYYY-MM-DD)'),

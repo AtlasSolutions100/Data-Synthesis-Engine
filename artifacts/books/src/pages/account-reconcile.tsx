@@ -30,6 +30,8 @@ import {
   Lock,
   Check,
   Flag,
+  Link2,
+  Link2Off,
 } from "lucide-react";
 import { useState, useCallback } from "react";
 
@@ -359,6 +361,7 @@ export default function AccountReconcile() {
                   const payee = [line.partyName, line.description]
                     .filter(Boolean)
                     .join(" — ");
+                  const stmtLine = line.matchedStatementLine;
                   return (
                     <tr
                       key={line.transactionId}
@@ -402,8 +405,29 @@ export default function AccountReconcile() {
                       <td className="px-3 py-2 text-slate-500 text-xs font-mono whitespace-nowrap">
                         {line.num ?? "—"}
                       </td>
-                      <td className="px-3 py-2 text-slate-700 max-w-[220px] truncate">
-                        {payee || <span className="text-slate-300">—</span>}
+                      <td className="px-3 py-2 text-slate-700 max-w-[220px]">
+                        <div className="truncate">
+                          {payee || <span className="text-slate-300">—</span>}
+                        </div>
+                        {/* Statement match badge — shown when this clear was auto-matched */}
+                        {line.cleared && stmtLine && (
+                          <div className="flex items-center gap-1 mt-0.5 group/match">
+                            <Link2 className="h-3 w-3 text-emerald-500 shrink-0" />
+                            <span className="text-[10px] text-emerald-700 truncate max-w-[180px]" title={stmtLine.description || undefined}>
+                              {stmtLine.date} · {stmtLine.amountCents < 0
+                                ? `-$${(Math.abs(stmtLine.amountCents) / 100).toFixed(2)}`
+                                : `$${(stmtLine.amountCents / 100).toFixed(2)}`}
+                              {stmtLine.description ? ` · ${stmtLine.description}` : ""}
+                            </span>
+                            {!isCompleted && (
+                              <span className="hidden group-hover/match:inline text-[10px] text-slate-400 shrink-0">
+                                (uncheck to detach)
+                              </span>
+                            )}
+                          </div>
+                        )}
+                        {/* Icon-only hint for auto-matched clears during hover of the row */}
+                        {line.cleared && !stmtLine && null}
                       </td>
                       <td className="px-3 py-2 text-slate-400 text-xs max-w-[110px] truncate">
                         {line.otherAccountName ?? "—"}
@@ -494,6 +518,11 @@ export default function AccountReconcile() {
       {!isCompleted && (
         <p className="text-xs text-slate-400 text-center">
           Click any row to toggle its cleared status — your progress saves automatically.
+          {data.lines.some((l) => l.cleared && l.matchedStatementLine) && (
+            <span className="ml-1">
+              <Link2 className="h-3 w-3 inline -mt-0.5 text-emerald-500" /> rows were auto-matched from your statement — uncheck to detach a wrong match.
+            </span>
+          )}
         </p>
       )}
     </div>
