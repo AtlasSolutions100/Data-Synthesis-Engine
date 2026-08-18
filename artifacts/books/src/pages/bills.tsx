@@ -41,7 +41,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { matchExtractedJob } from "@/lib/match-extracted-job";
 import { matchExtractedVendor } from "@/lib/match-extracted-vendor";
 import { DemoBadge } from "@/components/demo-badge";
-import { Plus, Trash2, Upload, Loader2, ChevronUp, ChevronDown } from "lucide-react";
+import { Plus, Trash2, Upload, Loader2, ChevronLeft, ChevronRight } from "lucide-react";
 import { ImportDataDialog } from "@/components/import-data-dialog";
 
 const UPLOAD_MAX_BYTES = 10 * 1024 * 1024;
@@ -550,53 +550,52 @@ export default function Bills() {
       <Dialog open={isReviewOpen} onOpenChange={handleReviewClose}>
         <DialogContent className="sm:max-w-[700px]">
           <DialogHeader>
-            <div className="flex items-center justify-between">
-              <DialogTitle>
-                {totalInQueue > 1
-                  ? `Review Invoice ${queueIndex + 1} of ${totalInQueue}`
-                  : "Review Invoice"}
-              </DialogTitle>
-
-              {/* Up / Down navigation (P10-BILL-02) */}
-              {totalInQueue > 1 && (
-                <div className="flex items-center gap-1 mr-6">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7"
-                    disabled={queueIndex === 0}
-                    onClick={() => {
-                      const idx = queueIndex - 1;
-                      setQueueIndex(idx);
-                      if (queue) persistDraft(queue, idx);
-                    }}
-                    title="Previous invoice"
-                  >
-                    <ChevronUp className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7"
-                    disabled={queueIndex === totalInQueue - 1}
-                    onClick={() => {
-                      const idx = queueIndex + 1;
-                      setQueueIndex(idx);
-                      if (queue) persistDraft(queue, idx);
-                    }}
-                    title="Next invoice"
-                  >
-                    <ChevronDown className="h-4 w-4" />
-                  </Button>
-                  <span className="text-xs text-slate-400 ml-1">
-                    {queueIndex + 1}/{totalInQueue}
-                  </span>
-                </div>
-              )}
-            </div>
+            <DialogTitle>
+              {totalInQueue > 1
+                ? `Review Invoice ${queueIndex + 1} of ${totalInQueue}`
+                : "Review Invoice"}
+            </DialogTitle>
           </DialogHeader>
+
+          {/* Invoice navigation — rendered outside DialogHeader so Radix
+              layout never intercepts the button clicks */}
+          {totalInQueue > 1 && (
+            <div className="flex items-center justify-between rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-8 gap-1 text-slate-600"
+                disabled={queueIndex === 0}
+                onClick={() => {
+                  const idx = queueIndex - 1;
+                  setQueueIndex(idx);
+                  if (queue) persistDraft(queue, idx);
+                }}
+              >
+                <ChevronLeft className="h-4 w-4" />
+                Previous
+              </Button>
+              <span className="text-sm text-slate-500 font-medium">
+                {queueIndex + 1} / {totalInQueue}
+              </span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-8 gap-1 text-slate-600"
+                disabled={queueIndex === totalInQueue - 1}
+                onClick={() => {
+                  const idx = queueIndex + 1;
+                  setQueueIndex(idx);
+                  if (queue) persistDraft(queue, idx);
+                }}
+              >
+                Next
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
 
           {draftSaveWarning ? (
             <p
@@ -616,8 +615,8 @@ export default function Bills() {
 
           {totalInQueue > 1 && (
             <p className="text-xs text-slate-500 -mt-1">
-              Use ▲ ▼ above to navigate between invoices without saving. Each
-              bill is saved individually.
+              Use Previous / Next above to navigate between invoices without
+              saving. Each bill is saved individually.
             </p>
           )}
 
