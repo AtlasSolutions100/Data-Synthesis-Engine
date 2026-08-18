@@ -6,6 +6,7 @@ import {
   useListBills,
   getListBillsQueryKey,
   useCreateBillPayment,
+  useCreateVendorCredit,
   useListAccounts,
   getListAccountsQueryKey,
   getListTransactionsQueryKey,
@@ -69,6 +70,8 @@ function WriteCheckDialog({ vendorId, vendorName, openBills, onDone }: WriteChec
   const [checkNum, setCheckNum] = useState("");
   const [memo, setMemo] = useState("");
   const [bankAccountId, setBankAccountId] = useState<string>("");
+  // credit inputs: billId → raw dollar string entered by Mike
+  const [creditInputs, setCreditInputs] = useState<Record<number, string>>({});
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -76,6 +79,7 @@ function WriteCheckDialog({ vendorId, vendorName, openBills, onDone }: WriteChec
   const { toast } = useToast();
 
   const createPayment = useCreateBillPayment();
+  const createCredit = useCreateVendorCredit();
 
   const { data: accounts } = useListAccounts({
     query: { queryKey: getListAccountsQueryKey() },
@@ -94,6 +98,7 @@ function WriteCheckDialog({ vendorId, vendorName, openBills, onDone }: WriteChec
       setPrintLater(false);
       setCheckNum("");
       setMemo("");
+      setCreditInputs({});
       setBankAccountId(bankAccounts.length > 0 ? String(bankAccounts[0].id) : "");
       setError(null);
     }
@@ -115,8 +120,23 @@ function WriteCheckDialog({ vendorId, vendorName, openBills, onDone }: WriteChec
     }
   };
 
+  // Parse a dollar string → integer cents (0 if blank / invalid).
+  const parseCreditCents = (raw: string): number => {
+    const n = parseFloat(raw);
+    return isNaN(n) || n < 0 ? 0 : Math.round(n * 100);
+  };
+
   const selectedBills = openBills.filter((b) => selectedIds.has(b.id));
-  const totalCents = selectedBills.reduce((s, b) => s + b.balanceCents, 0);
+
+  // Per-bill: net payment = balance − credit entered by Mike
+  const billNetCents = (bill: (typeof openBills)[0]): number =>
+    Math.max(0, bill.balanceCents - parseCreditCents(creditInputs[bill.id] ?? ""));
+
+  const totalCreditCents = selectedBills.reduce(
+    (s, b) => s + parseCreditCents(creditInputs[b.id] ?? ""),
+    0,
+  );
+  const totalPaymentCents = selectedBills.reduce((s, b) => s + billNetCents(b), 0);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -128,33 +148,68 @@ function WriteCheckDialog({ vendorId, vendorName, openBills, onDone }: WriteChec
       setError("Select the bank account to pay from.");
       return;
     }
+    // Validate credit amounts don't exceed each bill's balance
+    for (const bill of selectedBills) {
+      const creditCents = parseCreditCents(creditInputs[bill.id] ?? "");
+      if (creditCents > bill.balanceCents) {
+        setError(
+          `Credit for ${bill.billNumber || `Bill #${bill.id}`} ($${(creditCents / 100).toFixed(2)}) exceeds its outstanding balance ($${(bill.balanceCents / 100).toFixed(2)}).`,
+        );
+        return;
+      }
+    }
     setError(null);
     setSubmitting(true);
     try {
       const referenceNum = printLater ? null : (checkNum.trim() || null);
       for (const bill of selectedBills) {
-        await createPayment.mutateAsync({
-          id: bill.id,
-          data: {
-            date,
-            method,
-            referenceNum,
-            amountCents: bill.balanceCents,
-            memo: memo.trim() || null,
-            bankAccountId:
-              method !== "credit_card" && bankAccountId
-                ? Number(bankAccountId)
-                : null,
-          },
-        });
+        const creditCents = parseCreditCents(creditInputs[bill.id] ?? "");
+        const paymentCents = bill.balanceCents - creditCents;
+
+        // Apply credit first so the payment doesn't exceed the reduced balance
+        if (creditCents > 0) {
+          await createCredit.mutateAsync({
+            id: bill.id,
+            data: {
+              date,
+              amountCents: creditCents,
+              referenceNum: referenceNum ?? null,
+              memo: memo.trim() || `Credit applied — ${bill.billNumber || `Bill #${bill.id}`}`,
+            },
+          });
+        }
+
+        // Only record a payment if there's a remaining balance after the credit
+        if (paymentCents > 0) {
+          await createPayment.mutateAsync({
+            id: bill.id,
+            data: {
+              date,
+              method,
+              referenceNum,
+              amountCents: paymentCents,
+              memo: memo.trim() || null,
+              bankAccountId:
+                method !== "credit_card" && bankAccountId
+                  ? Number(bankAccountId)
+                  : null,
+            },
+          });
+        }
       }
       // Invalidate bills list for this vendor, plus the register data the
       // payments just changed (bank transactions + account balances).
       await queryClient.invalidateQueries({ queryKey: getListBillsQueryKey({ vendorId }) });
       await queryClient.invalidateQueries({ queryKey: getListTransactionsQueryKey() });
+
+      const parts: string[] = [];
+      if (totalCreditCents > 0) parts.push(`${formatCents(totalCreditCents)} credited`);
+      if (totalPaymentCents > 0)
+        parts.push(`${formatCents(totalPaymentCents)} paid${printLater ? " (to print)" : checkNum ? ` (check #${checkNum})` : ""}`);
+
       toast({
-        title: `${selectedBills.length} payment${selectedBills.length > 1 ? "s" : ""} recorded`,
-        description: `${formatCents(totalCents)} to ${vendorName}${printLater ? " — marked for printing" : checkNum ? ` (check #${checkNum})` : ""}`,
+        title: `${selectedBills.length} bill${selectedBills.length > 1 ? "s" : ""} settled — ${vendorName}`,
+        description: parts.join(", "),
       });
       setOpen(false);
       onDone();
@@ -166,7 +221,6 @@ function WriteCheckDialog({ vendorId, vendorName, openBills, onDone }: WriteChec
   };
 
   const allChecked = selectedIds.size === openBills.length && openBills.length > 0;
-  const someChecked = selectedIds.size > 0 && selectedIds.size < openBills.length;
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -176,13 +230,13 @@ function WriteCheckDialog({ vendorId, vendorName, openBills, onDone }: WriteChec
           Write Check
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-xl">
         <DialogHeader>
           <DialogTitle>Write Check — {vendorName}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-5 pt-1">
 
-          {/* Bill selector */}
+          {/* Bill selector with per-bill credit input */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <Label className="text-sm font-medium">Open Bills</Label>
@@ -196,31 +250,101 @@ function WriteCheckDialog({ vendorId, vendorName, openBills, onDone }: WriteChec
                 </button>
               )}
             </div>
-            <div className="border rounded-md divide-y max-h-52 overflow-y-auto">
-              {openBills.map((bill) => (
-                <label
-                  key={bill.id}
-                  className="flex items-center gap-3 px-3 py-2.5 cursor-pointer hover:bg-slate-50 select-none"
-                >
-                  <Checkbox
-                    checked={selectedIds.has(bill.id)}
-                    onCheckedChange={() => toggle(bill.id)}
-                  />
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium text-slate-800 truncate">
-                      {bill.billNumber || `Bill #${bill.id}`}
-                      {bill.jobName && (
-                        <span className="text-slate-400 font-normal ml-1">· {bill.jobName}</span>
+
+            {/* Column headers */}
+            <div className="grid grid-cols-[auto_1fr_auto_auto] gap-x-3 px-3 pb-0.5 text-xs font-medium text-slate-400 uppercase tracking-wide">
+              <span />
+              <span>Bill</span>
+              <span className="text-right">Credit ($)</span>
+              <span className="text-right">Net Due</span>
+            </div>
+
+            <div className="border rounded-md divide-y max-h-64 overflow-y-auto">
+              {openBills.map((bill) => {
+                const isSelected = selectedIds.has(bill.id);
+                const creditCents = parseCreditCents(creditInputs[bill.id] ?? "");
+                const netCents = Math.max(0, bill.balanceCents - creditCents);
+                const creditExceeds = creditCents > bill.balanceCents;
+                return (
+                  <div
+                    key={bill.id}
+                    className={`grid grid-cols-[auto_1fr_auto_auto] items-center gap-x-3 px-3 py-2.5 ${
+                      isSelected ? "bg-white hover:bg-slate-50" : "bg-slate-50 opacity-60"
+                    }`}
+                  >
+                    {/* Checkbox */}
+                    <Checkbox
+                      checked={isSelected}
+                      onCheckedChange={() => toggle(bill.id)}
+                    />
+
+                    {/* Bill info — clicking selects the row */}
+                    <button
+                      type="button"
+                      onClick={() => toggle(bill.id)}
+                      className="text-left min-w-0"
+                    >
+                      <div className="text-sm font-medium text-slate-800 truncate">
+                        {bill.billNumber || `Bill #${bill.id}`}
+                        {bill.jobName && (
+                          <span className="text-slate-400 font-normal ml-1">· {bill.jobName}</span>
+                        )}
+                      </div>
+                      <div className="text-xs text-slate-400">
+                        {bill.date} · Balance {formatCents(bill.balanceCents)}
+                      </div>
+                    </button>
+
+                    {/* Credit input — isolated so clicks don't toggle checkbox */}
+                    <div
+                      className="w-24"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <div className="relative">
+                        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-xs">$</span>
+                        <Input
+                          className={`h-7 pl-5 pr-2 text-xs text-right ${creditExceeds ? "border-red-400 focus-visible:ring-red-400" : ""}`}
+                          placeholder="0.00"
+                          value={creditInputs[bill.id] ?? ""}
+                          disabled={!isSelected}
+                          onChange={(e) =>
+                            setCreditInputs((prev) => ({
+                              ...prev,
+                              [bill.id]: e.target.value,
+                            }))
+                          }
+                          inputMode="decimal"
+                        />
+                      </div>
+                      {creditExceeds && (
+                        <p className="text-red-500 text-[10px] mt-0.5 text-right">Exceeds balance</p>
                       )}
                     </div>
-                    <div className="text-xs text-slate-400">{bill.date}</div>
+
+                    {/* Net payment */}
+                    <div
+                      className={`text-sm font-semibold tabular-nums whitespace-nowrap w-20 text-right ${
+                        !isSelected
+                          ? "text-slate-400"
+                          : netCents === 0
+                          ? "text-emerald-600"
+                          : "text-amber-700"
+                      }`}
+                    >
+                      {isSelected ? formatCents(netCents) : "—"}
+                    </div>
                   </div>
-                  <div className="text-sm font-semibold text-amber-700 tabular-nums whitespace-nowrap">
-                    {formatCents(bill.balanceCents)}
-                  </div>
-                </label>
-              ))}
+                );
+              })}
             </div>
+
+            {/* Credit summary row */}
+            {totalCreditCents > 0 && (
+              <div className="flex items-center justify-end gap-4 px-1 text-xs text-slate-500">
+                <span>Credits applied: <span className="font-medium text-emerald-700">{formatCents(totalCreditCents)}</span></span>
+                <span>Check total: <span className="font-medium text-slate-800">{formatCents(totalPaymentCents)}</span></span>
+              </div>
+            )}
           </div>
 
           {/* Payment details */}
@@ -316,24 +440,31 @@ function WriteCheckDialog({ vendorId, vendorName, openBills, onDone }: WriteChec
 
           <div className="flex items-center justify-between pt-1">
             <div>
-              <div className="text-xs text-slate-500 uppercase tracking-wide">Total Payment</div>
+              <div className="text-xs text-slate-500 uppercase tracking-wide">
+                {totalCreditCents > 0 ? "Check Total" : "Total Payment"}
+              </div>
               <div className="text-xl font-bold tabular-nums text-slate-900">
-                {formatCents(totalCents)}
+                {formatCents(totalPaymentCents)}
               </div>
               {selectedBills.length > 0 && (
                 <div className="text-xs text-slate-400">
                   {selectedBills.length} bill{selectedBills.length !== 1 ? "s" : ""}
+                  {totalCreditCents > 0 && ` · ${formatCents(totalCreditCents)} credited`}
                 </div>
               )}
             </div>
-            <Button type="submit" disabled={submitting || selectedBills.length === 0} className="min-w-[140px]">
+            <Button
+              type="submit"
+              disabled={submitting || selectedBills.length === 0}
+              className="min-w-[140px]"
+            >
               {submitting ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin mr-2" />
                   Recording…
                 </>
               ) : (
-                `Record ${selectedBills.length > 1 ? `${selectedBills.length} Payments` : "Payment"}`
+                `Record ${selectedBills.length > 1 ? `${selectedBills.length} Bills` : "Payment"}`
               )}
             </Button>
           </div>
