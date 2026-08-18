@@ -47,6 +47,7 @@ import {
   Edit2,
   Trash2,
   Ban,
+  RotateCcw,
 } from "lucide-react";
 
 /* ── helpers ──────────────────────────────────────────────────────────── */
@@ -83,6 +84,21 @@ const VOID_PREFIX = "VOID";
 
 function isVoided(description: string | null): boolean {
   return (description ?? "").trimStart().toUpperCase().startsWith(VOID_PREFIX);
+}
+
+/**
+ * Strip the "VOID:" or "VOID" prefix that the void action prepends.
+ * Returns null for an empty/pure-VOID description.
+ */
+function stripVoidPrefix(description: string | null): string | null {
+  const raw = (description ?? "").trimStart();
+  const upper = raw.toUpperCase();
+  if (upper.startsWith("VOID: ")) {
+    const rest = raw.slice(6).trim();
+    return rest || null;
+  }
+  if (upper === VOID_PREFIX) return null;
+  return description;
 }
 
 /* ── inline num editor ───────────────────────────────────────────────── */
@@ -261,7 +277,9 @@ export default function AccountRegister() {
   const [createError, setCreateError] = useState<ServerFieldError | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [confirmAction, setConfirmAction] = useState<
-    | { kind: "delete" | "void"; transactionId: number; label: string; description: string | null }
+    | { kind: "delete"; transactionId: number; label: string; description: string | null }
+    | { kind: "void"; transactionId: number; label: string; description: string | null; amountCents: number }
+    | { kind: "unvoid"; transactionId: number; label: string; description: string | null; voidedAmountCents: number }
     | null
   >(null);
 
@@ -325,11 +343,23 @@ export default function AccountRegister() {
     },
   });
 
+  const unvoidTransaction = useUpdateTransaction({
+    mutation: {
+      onSuccess: () => {
+        invalidate();
+        toast({ title: "Transaction un-voided", description: "Original amount restored." });
+      },
+      onError: () => {
+        toast({ title: "Could not un-void transaction", variant: "destructive" });
+      },
+    },
+  });
+
   const handleConfirm = () => {
     if (!confirmAction) return;
     if (confirmAction.kind === "delete") {
       deleteTransaction.mutate({ id: confirmAction.transactionId });
-    } else {
+    } else if (confirmAction.kind === "void") {
       const desc = confirmAction.description;
       const voidedDesc = isVoided(desc)
         ? desc
@@ -338,7 +368,14 @@ export default function AccountRegister() {
           : VOID_PREFIX;
       voidTransaction.mutate({
         id: confirmAction.transactionId,
-        data: { amountCents: 0, description: voidedDesc } as any,
+        data: { amountCents: 0, description: voidedDesc, voidedAmountCents: confirmAction.amountCents } as any,
+      });
+    } else {
+      // unvoid: restore original amount, strip VOID prefix, clear voidedAmountCents
+      const stripped = stripVoidPrefix(confirmAction.description);
+      unvoidTransaction.mutate({
+        id: confirmAction.transactionId,
+        data: { amountCents: confirmAction.voidedAmountCents, description: stripped, voidedAmountCents: null } as any,
       });
     }
     setConfirmAction(null);
@@ -361,6 +398,10 @@ export default function AccountRegister() {
         runningBalanceCents: number;
         isForecast: boolean;
         clearedStatus: "cleared" | "pending" | "uncleared";
+        /** Raw signed transaction amount (may differ from effectCents for split rows). */
+        amountCents: number;
+        /** Non-null when this entry was previously voided. */
+        voidedAmountCents: number | null;
       }
     | { kind: "divider" };
 
@@ -395,6 +436,8 @@ export default function AccountRegister() {
         runningBalanceCents: running,
         isForecast: line.date > todayStr,
         clearedStatus: line.clearedStatus,
+        amountCents: line.amountCents,
+        voidedAmountCents: line.voidedAmountCents ?? null,
       });
     }
 
@@ -687,24 +730,54 @@ export default function AccountRegister() {
                             >
                               <Edit2 className="h-3.5 w-3.5 text-slate-500" />
                             </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7 text-amber-600 hover:text-amber-700 hover:bg-amber-50"
-                              title={voided ? "Already voided" : "Void transaction (keeps the entry, zeroes the amount)"}
-                              disabled={voided}
-                              onClick={() =>
-                                setConfirmAction({
-                                  kind: "void",
-                                  transactionId: row.transactionId,
-                                  label: payee || `#${row.transactionId}`,
-                                  description: row.description,
-                                })
-                              }
-                              data-testid={`button-void-${row.transactionId}`}
-                            >
-                              <Ban className="h-3.5 w-3.5" />
-                            </Button>
+                            {/* Authoritative void state: voidedAmountCents != null means
+                                the entry was voided and the original amount is stored.
+                                We do NOT rely on the description prefix — a user may
+                                have edited it away. */}
+                            {row.voidedAmountCents != null ? (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+                                title={`Unvoid — restores original amount (${fmtDollars(row.voidedAmountCents)})`}
+                                onClick={() =>
+                                  setConfirmAction({
+                                    kind: "unvoid",
+                                    transactionId: row.transactionId,
+                                    label: payee || `#${row.transactionId}`,
+                                    description: row.description,
+                                    voidedAmountCents: row.voidedAmountCents!,
+                                  })
+                                }
+                                data-testid={`button-unvoid-${row.transactionId}`}
+                              >
+                                <RotateCcw className="h-3.5 w-3.5" />
+                              </Button>
+                            ) : (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 text-amber-600 hover:text-amber-700 hover:bg-amber-50"
+                                title={
+                                  voided
+                                    ? "Already voided (no original amount stored — use Edit to restore manually)"
+                                    : "Void transaction (keeps the entry, zeroes the amount)"
+                                }
+                                disabled={voided}
+                                onClick={() =>
+                                  setConfirmAction({
+                                    kind: "void",
+                                    transactionId: row.transactionId,
+                                    label: payee || `#${row.transactionId}`,
+                                    description: row.description,
+                                    amountCents: row.amountCents,
+                                  })
+                                }
+                                data-testid={`button-void-${row.transactionId}`}
+                              >
+                                <Ban className="h-3.5 w-3.5" />
+                              </Button>
+                            )}
                             <Button
                               variant="ghost"
                               size="icon"
@@ -799,7 +872,7 @@ export default function AccountRegister() {
         />
       )}
 
-      {/* delete / void confirmation */}
+      {/* delete / void / unvoid confirmation */}
       <AlertDialog
         open={confirmAction != null}
         onOpenChange={(open) => { if (!open) setConfirmAction(null); }}
@@ -807,7 +880,11 @@ export default function AccountRegister() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              {confirmAction?.kind === "delete" ? "Delete this transaction?" : "Void this transaction?"}
+              {confirmAction?.kind === "delete"
+                ? "Delete this transaction?"
+                : confirmAction?.kind === "unvoid"
+                  ? "Un-void this transaction?"
+                  : "Void this transaction?"}
             </AlertDialogTitle>
             <AlertDialogDescription>
               {confirmAction?.kind === "delete" ? (
@@ -815,10 +892,17 @@ export default function AccountRegister() {
                   "{confirmAction.label}" will be permanently removed from the books and the
                   register balance will update. This cannot be undone.
                 </>
+              ) : confirmAction?.kind === "unvoid" ? (
+                <>
+                  "{confirmAction.label}" will have its original amount of{" "}
+                  <strong>{fmtDollars(confirmAction.voidedAmountCents)}</strong> restored and
+                  the VOID mark removed. The register balance will update.
+                </>
               ) : (
                 <>
                   "{confirmAction?.label}" will stay in the register with its amount set to
-                  $0.00 and marked VOID, so the check number stays on record.
+                  $0.00 and marked VOID, so the check number stays on record. You can
+                  un-void it later to restore the original amount.
                 </>
               )}
             </AlertDialogDescription>
@@ -830,11 +914,17 @@ export default function AccountRegister() {
               className={
                 confirmAction?.kind === "delete"
                   ? "bg-red-600 hover:bg-red-700"
-                  : "bg-amber-600 hover:bg-amber-700"
+                  : confirmAction?.kind === "unvoid"
+                    ? "bg-emerald-600 hover:bg-emerald-700"
+                    : "bg-amber-600 hover:bg-amber-700"
               }
               data-testid="button-confirm-register-action"
             >
-              {confirmAction?.kind === "delete" ? "Delete" : "Void"}
+              {confirmAction?.kind === "delete"
+                ? "Delete"
+                : confirmAction?.kind === "unvoid"
+                  ? "Restore original amount"
+                  : "Void"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

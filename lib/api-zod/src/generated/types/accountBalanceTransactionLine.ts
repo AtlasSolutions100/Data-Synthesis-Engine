@@ -27,6 +27,13 @@ export interface AccountBalanceTransactionLine {
   otherAccountName: string | null;
   /** Signed effect of this line on the account's natural balance. */
   effectCents: number;
+  /** Raw signed transaction amount in cents (as stored on the transaction row). */
+  amountCents: number;
+  /**
+     * Original amount in cents before voiding; null when not voided.
+     * @nullable
+     */
+  voidedAmountCents?: number | null;
   /** Actual reconciliation status of this transaction for the account: "cleared" when checked off in a completed reconciliation period, "pending" when checked off in an in-progress period, and "uncleared" otherwise. A past date alone never makes a line cleared. */
   clearedStatus: AccountBalanceTransactionLineClearedStatus;
 }

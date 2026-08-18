@@ -2905,6 +2905,13 @@ components:
         amountCents:
           type: integer
           description: Signed amount in integer cents
+        voidedAmountCents:
+          type: ["integer", "null"]
+          description: >
+            Original amount in cents before the transaction was voided via the
+            register Void action. Present (non-null) when amountCents is 0 and
+            the entry was zeroed through Void; null otherwise. Used by the
+            Unvoid action to restore the entry.
     TransactionInput:
       type: object
       required: [date, type, accountId, amountCents]
@@ -2960,6 +2967,9 @@ components:
           type: ["integer", "null"]
         amountCents:
           type: integer
+        voidedAmountCents:
+          type: ["integer", "null"]
+          description: Original amount in cents before voiding; pass null to clear.
 
     LegacySplitGroup:
       type: object
@@ -3174,7 +3184,7 @@ components:
 
     AccountBalanceTransactionLine:
       type: object
-      required: [transactionId, date, type, num, partyName, description, role, otherAccountName, effectCents, clearedStatus]
+      required: [transactionId, date, type, num, partyName, description, role, otherAccountName, effectCents, amountCents, clearedStatus]
       properties:
         transactionId:
           type: integer
@@ -3198,6 +3208,12 @@ components:
         effectCents:
           type: integer
           description: Signed effect of this line on the account's natural balance.
+        amountCents:
+          type: integer
+          description: Raw signed transaction amount in cents (as stored on the transaction row).
+        voidedAmountCents:
+          type: ["integer", "null"]
+          description: Original amount in cents before voiding; null when not voided.
         clearedStatus:
           type: string
           enum: [cleared, pending, uncleared]

@@ -27,4 +27,9 @@ export interface TransactionUpdate {
   /** @nullable */
   vendorId?: number | null;
   amountCents?: number;
+  /**
+     * Original amount in cents before voiding; pass null to clear.
+     * @nullable
+     */
+  voidedAmountCents?: number | null;
 }

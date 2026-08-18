@@ -273,6 +273,10 @@ export type AccountLedgerLine = {
   role: "primary" | "split";
   otherAccountName: string | null;
   effectCents: number;
+  /** Raw signed transaction amount (as stored on the row). */
+  amountCents: number;
+  /** Non-null when the entry was voided via the register Void action. */
+  voidedAmountCents: number | null;
 };
 
 export type AccountLedger = AccountBalanceRow & { lines: AccountLedgerLine[] };
@@ -349,6 +353,8 @@ export async function getAccountLedger(
         role: "primary",
         otherAccountName: r.t.splitAccountId != null ? r.splitName : null,
         effectCents: amount,
+        amountCents: amount,
+        voidedAmountCents: r.t.voidedAmountCents ?? null,
       });
     }
     if (r.t.splitAccountId === accountId) {
@@ -365,6 +371,8 @@ export async function getAccountLedger(
         role: "split",
         otherAccountName: r.primaryName,
         effectCents: effect,
+        amountCents: amount,
+        voidedAmountCents: r.t.voidedAmountCents ?? null,
       });
     }
   }

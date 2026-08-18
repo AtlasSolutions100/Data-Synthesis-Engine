@@ -58,4 +58,9 @@ export interface Transaction {
   billDocumentPath?: string | null;
   /** Signed amount in integer cents */
   amountCents: number;
+  /**
+     * Original amount in cents before the transaction was voided via the register Void action. Present (non-null) when amountCents is 0 and the entry was zeroed through Void; null otherwise. Used by the Unvoid action to restore the entry.
+     * @nullable
+     */
+  voidedAmountCents?: number | null;
 }

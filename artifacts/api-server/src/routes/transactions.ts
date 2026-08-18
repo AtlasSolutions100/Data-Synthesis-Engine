@@ -134,6 +134,7 @@ function serializeTx(
     billId: t.billId,
     billDocumentPath: billDocumentPath ?? null,
     amountCents: t.amountCents,
+    voidedAmountCents: t.voidedAmountCents ?? null,
   };
 }
 

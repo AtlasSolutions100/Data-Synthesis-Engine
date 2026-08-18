@@ -641,6 +641,11 @@ export interface Transaction {
   billDocumentPath?: string | null;
   /** Signed amount in integer cents */
   amountCents: number;
+  /**
+     * Original amount in cents before the transaction was voided via the register Void action. Present (non-null) when amountCents is 0 and the entry was zeroed through Void; null otherwise. Used by the Unvoid action to restore the entry.
+     * @nullable
+     */
+  voidedAmountCents?: number | null;
 }
 
 export type TransactionInputType = typeof TransactionInputType[keyof typeof TransactionInputType];
@@ -717,6 +722,11 @@ export interface TransactionUpdate {
   /** @nullable */
   vendorId?: number | null;
   amountCents?: number;
+  /**
+     * Original amount in cents before voiding; pass null to clear.
+     * @nullable
+     */
+  voidedAmountCents?: number | null;
 }
 
 export interface LegacySplitGroup {
@@ -932,6 +942,13 @@ export interface AccountBalanceTransactionLine {
   otherAccountName: string | null;
   /** Signed effect of this line on the account's natural balance. */
   effectCents: number;
+  /** Raw signed transaction amount in cents (as stored on the transaction row). */
+  amountCents: number;
+  /**
+     * Original amount in cents before voiding; null when not voided.
+     * @nullable
+     */
+  voidedAmountCents?: number | null;
   /** Actual reconciliation status of this transaction for the account: "cleared" when checked off in a completed reconciliation period, "pending" when checked off in an in-progress period, and "uncleared" otherwise. A past date alone never makes a line cleared. */
   clearedStatus: AccountBalanceTransactionLineClearedStatus;
 }

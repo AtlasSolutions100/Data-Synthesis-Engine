@@ -66,6 +66,11 @@ export const transactionsTable = pgTable("transactions", {
     { onDelete: "cascade" },
   ),
   amountCents: bigint("amount_cents", { mode: "number" }).notNull(),
+  /**
+   * The original amount in cents before this transaction was voided via the
+   * register Void action. Set when amountCents is zeroed; cleared on Unvoid.
+   */
+  voidedAmountCents: bigint("voided_amount_cents", { mode: "number" }),
   /** True for records seeded by the Practice / Demo Data loader. */
   isDemo: boolean("is_demo").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true })
