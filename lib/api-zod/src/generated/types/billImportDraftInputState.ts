@@ -7,6 +7,6 @@
  */
 
 /**
- * Opaque review-queue state (prefills, notes, documentPath, queueIndex)
+ * Opaque import-wizard state (extracted invoice queue, current index)
  */
 export type BillImportDraftInputState = { [key: string]: unknown };

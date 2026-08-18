@@ -7,6 +7,9 @@
  */
 import type { ExtractedBillInvoice } from './extractedBillInvoice';
 
+/**
+ * Batch extraction result. A single-page invoice yields one entry; a batched PDF yields one entry per detected invoice.
+ */
 export interface ExtractBillResult {
   /**
      * Object-storage path where the uploaded file was persisted, if the file was saved

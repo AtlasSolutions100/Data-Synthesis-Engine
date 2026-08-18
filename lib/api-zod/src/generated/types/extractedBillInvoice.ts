@@ -8,7 +8,7 @@
 import type { ExtractedBillLine } from './extractedBillLine';
 
 /**
- * One invoice extracted from an uploaded file. A batched PDF produces multiple entries.
+ * One invoice extracted from the uploaded file. A batched PDF produces multiple entries.
  */
 export interface ExtractedBillInvoice {
   /**

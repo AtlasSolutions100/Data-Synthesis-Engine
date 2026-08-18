@@ -306,6 +306,45 @@ describe("Bills page draft restore", () => {
     expect(screen.queryByText("Review Invoice")).toBeNull();
   });
 
+  it("shows a draft-save warning when the PUT returns 413", async () => {
+    // Setup: 2-invoice draft at index 0; PUT always returns 413
+    const fetchMock = vi.fn(async (url: string, opts?: RequestInit) => {
+      const u = typeof url === "string" ? url : "";
+      if (u.includes("import-draft")) {
+        if (opts?.method === "PUT") {
+          return { ok: false, status: 413, json: async () => ({ error: "Draft is too large" }) };
+        }
+        // GET — return 2-invoice draft
+        return { ok: true, json: async () => ({ state: twoBillDraftState(0), updatedAt: new Date().toISOString() }) };
+      }
+      return { ok: true, json: async () => ({}) };
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderBills();
+
+    // Wait for dialog to open
+    await waitFor(() => {
+      expect(screen.getByText("Review Invoice 1 of 2")).toBeTruthy();
+    });
+
+    // Warning must not be present before any failed save
+    expect(screen.queryByTestId("draft-save-warning")).toBeNull();
+
+    // Simulate saving invoice 0 → onSuccess advances to index 1 and calls
+    // persistDraft → PUT → 413 → onError → warning appears
+    await act(async () => {
+      capturedQueueOnSuccess?.();
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("draft-save-warning")).toBeTruthy();
+    });
+    expect(screen.getByTestId("draft-save-warning").textContent).toContain(
+      "Couldn't save your progress",
+    );
+  });
+
   it("advances to invoice 2 and saves an updated draft (not DELETE) when the first of two is saved", async () => {
     const putBodies: unknown[] = [];
     const fetchMock = vi.fn(async (url: string, opts?: RequestInit) => {

@@ -78,12 +78,13 @@ async function fetchBillDraft(): Promise<{ state: Record<string, unknown> | null
 }
 
 async function saveBillDraft(state: Record<string, unknown>): Promise<void> {
-  await fetch("/api/bills/import-draft", {
+  const res = await fetch("/api/bills/import-draft", {
     method: "PUT",
     credentials: "include",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ state }),
   });
+  if (!res.ok) throw new Error("Draft save failed");
 }
 
 async function deleteBillDraft(): Promise<void> {
@@ -313,6 +314,7 @@ export default function Bills() {
   // Manual "New Bill" dialog — separate state so it doesn't interfere with the review queue
   const [isManualOpen, setIsManualOpen] = useState(false);
   const [manualError, setManualError] = useState<ServerFieldError | null>(null);
+  const [draftSaveWarning, setDraftSaveWarning] = useState(false);
 
   // ---------------------------------------------------------------------------
   // Draft: restore on mount, autosave on queue change
@@ -344,7 +346,11 @@ export default function Bills() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [draftData]);
 
-  const saveDraftMutation = useMutation({ mutationFn: saveBillDraft });
+  const saveDraftMutation = useMutation({
+    mutationFn: saveBillDraft,
+    onError: () => setDraftSaveWarning(true),
+    onSuccess: () => setDraftSaveWarning(false),
+  });
   const deleteDraftMutation = useMutation({ mutationFn: deleteBillDraft });
 
   const persistDraft = useCallback(
@@ -444,6 +450,7 @@ export default function Bills() {
       // Keep the draft when the user just closes/navigates away so they
       // can return to it. Draft is only cleared on final save (above).
       setCreateError(null);
+      setDraftSaveWarning(false);
     }
   };
 
@@ -553,6 +560,16 @@ export default function Bills() {
               )}
             </div>
           </DialogHeader>
+
+          {draftSaveWarning ? (
+            <p
+              role="alert"
+              data-testid="draft-save-warning"
+              className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-md px-3 py-2"
+            >
+              Couldn't save your progress. Don't navigate away until this batch is finished.
+            </p>
+          ) : null}
 
           {currentNote ? (
             <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">

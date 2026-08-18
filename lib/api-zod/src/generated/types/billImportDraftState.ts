@@ -7,7 +7,7 @@
  */
 
 /**
- * Saved review-queue state, or null when the user has no draft
+ * Saved review queue, or null when the user has no draft
  * @nullable
  */
 export type BillImportDraftState = { [key: string]: unknown } | null;
