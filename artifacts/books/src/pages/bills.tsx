@@ -548,7 +548,7 @@ export default function Bills() {
       {/* Invoice review dialog — shown after upload or draft restore         */}
       {/* ------------------------------------------------------------------ */}
       <Dialog open={isReviewOpen} onOpenChange={handleReviewClose}>
-        <DialogContent className="sm:max-w-[700px]">
+        <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               {totalInQueue > 1
