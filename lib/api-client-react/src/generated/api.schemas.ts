@@ -1648,7 +1648,9 @@ export interface ExtractedBillLine {
   accountId?: number | null;
 }
 
-/** One invoice extracted from an uploaded file. A batched PDF produces multiple entries. */
+/**
+ * One invoice extracted from an uploaded file. A batched PDF produces multiple entries.
+ */
 export interface ExtractedBillInvoice {
   /**
      * Vendor name as written on the invoice
@@ -1954,6 +1956,35 @@ export interface ExtractedHourRow {
 
 export interface ExtractPayrollHoursResult {
   rows: ExtractedHourRow[];
+}
+
+/**
+ * Opaque review-queue state (prefills, notes, documentPath, queueIndex)
+ */
+export type BillImportDraftInputState = { [key: string]: unknown };
+
+export interface BillImportDraftInput {
+  /** Opaque review-queue state (prefills, notes, documentPath, queueIndex) */
+  state: BillImportDraftInputState;
+}
+
+/**
+ * Saved review-queue state, or null when the user has no draft
+ * @nullable
+ */
+export type BillImportDraftState = { [key: string]: unknown } | null;
+
+export interface BillImportDraft {
+  /**
+     * Saved review-queue state, or null when the user has no draft
+     * @nullable
+     */
+  state: BillImportDraftState;
+  /**
+     * When the draft was last autosaved (ISO timestamp)
+     * @nullable
+     */
+  updatedAt: string | null;
 }
 
 /**
@@ -2491,3 +2522,4 @@ export const ListFeedbackStarred = {
 export type ListReconciliationPeriodsParams = {
 accountId: number;
 };
+

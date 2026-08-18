@@ -5,39 +5,14 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
-import type { ExtractedBillLine } from './extractedBillLine';
+import type { ExtractedBillInvoice } from './extractedBillInvoice';
 
 export interface ExtractBillResult {
-  /**
-     * Vendor name as written on the invoice
-     * @nullable
-     */
-  vendorName?: string | null;
-  /** @nullable */
-  billNumber?: string | null;
-  /**
-     * Invoice date (YYYY-MM-DD) when stated
-     * @nullable
-     */
-  date?: string | null;
-  /** @nullable */
-  dueDate?: string | null;
-  /** @nullable */
-  memo?: string | null;
-  /**
-     * Job/project name referenced on the invoice, when visible
-     * @nullable
-     */
-  jobName?: string | null;
-  /**
-     * Purchase order (PO) number referenced on the invoice, when visible
-     * @nullable
-     */
-  poNumber?: string | null;
   /**
      * Object-storage path where the uploaded file was persisted, if the file was saved
      * @nullable
      */
   documentPath?: string | null;
-  lines: ExtractedBillLine[];
+  /** One entry per invoice found in the uploaded file — batched PDFs produce multiple entries */
+  invoices: ExtractedBillInvoice[];
 }

@@ -29,6 +29,8 @@ import type {
   ApAging,
   ArAging,
   Bill,
+  BillImportDraft,
+  BillImportDraftInput,
   BillInput,
   BillPaymentInput,
   BillUpdate,
@@ -5451,6 +5453,225 @@ export const useExtractBill = <TError = ErrorType<ErrorResponse>,
         TContext
       > => {
       return useMutation(getExtractBillMutationOptions(options));
+    }
+
+export const getGetBillImportDraftUrl = () => {
+
+
+
+
+  return `/api/bills/import-draft`
+}
+
+/**
+ * Returns the saved review queue state for a partially reviewed invoice batch, or a null state when no draft exists.
+ * @summary Get the signed-in user's in-progress bill-upload review draft
+ */
+export const getBillImportDraft = async ( options?: RequestInit): Promise<BillImportDraft> => {
+
+  return customFetch<BillImportDraft>(getGetBillImportDraftUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetBillImportDraftQueryKey = () => {
+    return [
+    `/api/bills/import-draft`
+    ] as const;
+    }
+
+
+export const getGetBillImportDraftQueryOptions = <TData = Awaited<ReturnType<typeof getBillImportDraft>>, TError = ErrorType<ErrorResponse>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getBillImportDraft>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetBillImportDraftQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getBillImportDraft>>> = ({ signal }) => getBillImportDraft({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getBillImportDraft>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetBillImportDraftQueryResult = NonNullable<Awaited<ReturnType<typeof getBillImportDraft>>>
+export type GetBillImportDraftQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary Get the signed-in user's in-progress bill-upload review draft
+ */
+
+export function useGetBillImportDraft<TData = Awaited<ReturnType<typeof getBillImportDraft>>, TError = ErrorType<ErrorResponse>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getBillImportDraft>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetBillImportDraftQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getSaveBillImportDraftUrl = () => {
+
+
+
+
+  return `/api/bills/import-draft`
+}
+
+/**
+ * Autosaved by the upload review dialog while stepping through invoices so closing the dialog never loses progress. One draft per user; saving replaces the previous one.
+ * @summary Save (upsert) the signed-in user's bill-upload review draft
+ */
+export const saveBillImportDraft = async (billImportDraftInput: BillImportDraftInput, options?: RequestInit): Promise<BillImportDraft> => {
+
+  return customFetch<BillImportDraft>(getSaveBillImportDraftUrl(),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(billImportDraftInput)
+  }
+);}
+
+
+
+
+export const getSaveBillImportDraftMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveBillImportDraft>>, TError,{data: BodyType<BillImportDraftInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof saveBillImportDraft>>, TError,{data: BodyType<BillImportDraftInput>}, TContext> => {
+
+const mutationKey = ['saveBillImportDraft'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof saveBillImportDraft>>, {data: BodyType<BillImportDraftInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  saveBillImportDraft(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SaveBillImportDraftMutationResult = NonNullable<Awaited<ReturnType<typeof saveBillImportDraft>>>
+    export type SaveBillImportDraftMutationBody = BodyType<BillImportDraftInput>
+    export type SaveBillImportDraftMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Save (upsert) the signed-in user's bill-upload review draft
+ */
+export const useSaveBillImportDraft = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveBillImportDraft>>, TError,{data: BodyType<BillImportDraftInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof saveBillImportDraft>>,
+        TError,
+        {data: BodyType<BillImportDraftInput>},
+        TContext
+      > => {
+      return useMutation(getSaveBillImportDraftMutationOptions(options));
+    }
+
+export const getDeleteBillImportDraftUrl = () => {
+
+
+
+
+  return `/api/bills/import-draft`
+}
+
+/**
+ * @summary Delete the signed-in user's bill-upload review draft
+ */
+export const deleteBillImportDraft = async ( options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getDeleteBillImportDraftUrl(),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+export const getDeleteBillImportDraftMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteBillImportDraft>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteBillImportDraft>>, TError,void, TContext> => {
+
+const mutationKey = ['deleteBillImportDraft'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteBillImportDraft>>, void> = () => {
+
+
+          return  deleteBillImportDraft(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteBillImportDraftMutationResult = NonNullable<Awaited<ReturnType<typeof deleteBillImportDraft>>>
+
+    export type DeleteBillImportDraftMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Delete the signed-in user's bill-upload review draft
+ */
+export const useDeleteBillImportDraft = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteBillImportDraft>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteBillImportDraft>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getDeleteBillImportDraftMutationOptions(options));
     }
 
 export const getGetBillUrl = (id: number,) => {

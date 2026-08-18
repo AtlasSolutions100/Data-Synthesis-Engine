@@ -28,6 +28,17 @@ vi.mock("@workspace/integrations-openai-ai-server", () => ({
   },
 }));
 
+// Prevent the non-fatal object-storage upload (triggered when fileData is
+// present) from making real network calls during tests.
+vi.mock("../lib/objectStorage", () => {
+  class ObjectStorageService {
+    getObjectEntityUploadURL = vi.fn().mockResolvedValue("https://storage.test/fake-upload");
+    normalizeObjectEntityPath = (url: string) => url.replace("https://storage.test/", "objects/");
+  }
+  class ObjectNotFoundError extends Error {}
+  return { ObjectStorageService, ObjectNotFoundError };
+});
+
 function completionWith(content: string) {
   return { choices: [{ message: { content } }] };
 }
@@ -174,6 +185,113 @@ describe("POST /api/bills/extract account suggestions", () => {
     // Each invoice has its own amount, not a combined total
     expect(res.body.invoices[0].lines[0].amountCents).toBe(10000);
     expect(res.body.invoices[3].lines[0].amountCents).toBe(40000);
+  });
+
+  it("splits a CES 4-invoice PDF file upload into 4 separate bills (PDF upload path)", async () => {
+    // Minimal valid PDF bytes — the route's MIME-type gate checks the data: URL
+    // prefix, not the PDF structure, and the AI is mocked, so any small PDF-like
+    // buffer is sufficient as a fixture here.
+    const pdfBytes = Buffer.from(
+      "%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\nendobj\n%%EOF\n",
+      "latin1",
+    );
+    const fileData = `data:application/pdf;base64,${pdfBytes.toString("base64")}`;
+
+    // Stub the global fetch used to PUT the file to object storage so the test
+    // does not make real network calls (the upload is non-fatal either way).
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response(null, { status: 200 }));
+
+    // CES 4-invoice batch: each invoice has a distinct bill number, job
+    // reference, and amount.  Amounts are chosen so that no single amount
+    // equals the sum of any two others, confirming they were not merged.
+    mockCreate.mockResolvedValue(
+      completionWith(
+        JSON.stringify({
+          invoices: [
+            {
+              vendorName: "City Electric Supply",
+              billNumber: "CES-10042",
+              date: "2026-03-01",
+              jobName: "HR Stadium",
+              lines: [{ description: "Wire — 12 AWG THHN", amount: 487.50, accountNumber: null }],
+            },
+            {
+              vendorName: "City Electric Supply",
+              billNumber: "CES-10043",
+              date: "2026-03-01",
+              jobName: "Larkspur Gear",
+              lines: [{ description: "Conduit — 1\" EMT", amount: 312.00, accountNumber: null }],
+            },
+            {
+              vendorName: "City Electric Supply",
+              billNumber: "CES-10044",
+              date: "2026-03-01",
+              jobName: "HR Stadium",
+              lines: [{ description: "Panel breakers 20A", amount: 756.25, accountNumber: null }],
+            },
+            {
+              vendorName: "City Electric Supply",
+              billNumber: "CES-10045",
+              date: "2026-03-02",
+              jobName: "Larkspur Gear",
+              lines: [{ description: "Junction boxes — 4\"", amount: 198.00, accountNumber: null }],
+            },
+          ],
+        }),
+      ),
+    );
+
+    const res = await request(app)
+      .post("/api/bills/extract")
+      .send({ fileData, fileName: "ces-batch.pdf" })
+      .expect(200);
+
+    fetchSpy.mockRestore();
+
+    // Assert the PDF file part was forwarded to the AI call — a regression in
+    // the file-part construction (e.g. accidentally omitting it or sending text
+    // instead) would otherwise go undetected since the AI is mocked.
+    expect(mockCreate).toHaveBeenCalledOnce();
+    const aiCall = mockCreate.mock.calls[0][0];
+    const userMessage = aiCall.messages.find(
+      (m: { role: string }) => m.role === "user",
+    );
+    expect(Array.isArray(userMessage.content)).toBe(true);
+    const filePart = (userMessage.content as Array<{ type: string; file?: { filename: string; file_data: string } }>)
+      .find((p) => p.type === "file");
+    expect(filePart).toBeDefined();
+    expect(filePart?.file?.filename).toBe("ces-batch.pdf");
+    expect(filePart?.file?.file_data).toBe(fileData);
+
+    // Must return exactly 4 invoices — not merged into one
+    expect(res.body.invoices).toHaveLength(4);
+
+    // Each invoice carries its own distinct bill number
+    expect(
+      res.body.invoices.map((i: { billNumber: string }) => i.billNumber),
+    ).toEqual(["CES-10042", "CES-10043", "CES-10044", "CES-10045"]);
+
+    // Amounts are kept separate — no invoice's amount equals the combined
+    // total of the remaining three, which would indicate a merge regression.
+    const amountsCents: number[] = res.body.invoices.map(
+      (i: { lines: Array<{ amountCents: number }> }) => i.lines[0].amountCents,
+    );
+    expect(amountsCents).toEqual([48750, 31200, 75625, 19800]);
+    const totalCents = amountsCents.reduce((a, b) => a + b, 0);
+    for (const amt of amountsCents) {
+      expect(amt).not.toBe(totalCents - amt);
+    }
+
+    // Each invoice has its own job reference (not the same job for all)
+    const jobNames: (string | null)[] = res.body.invoices.map(
+      (i: { jobName: string | null }) => i.jobName,
+    );
+    expect(new Set(jobNames).size).toBeGreaterThan(1);
+
+    // Vendor name resolved to the full name returned by the AI
+    expect(res.body.invoices[0].vendorName).toBe("City Electric Supply");
   });
 
   it("falls back to treating a single-object response as one invoice (backward compat)", async () => {

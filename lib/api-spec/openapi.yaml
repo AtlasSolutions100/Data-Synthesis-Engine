@@ -1430,6 +1430,54 @@ paths:
                 $ref: "#/components/schemas/ExtractBillResult"
         "400":
           $ref: "#/components/responses/Error"
+  /bills/import-draft:
+    get:
+      operationId: getBillImportDraft
+      tags: [bills]
+      summary: Get the signed-in user's in-progress bill-upload review draft
+      description: Returns the saved review queue state for a partially reviewed invoice batch, or a null state when no draft exists.
+      responses:
+        "200":
+          description: Draft envelope (state is null when there is no draft)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BillImportDraft"
+        "401":
+          $ref: "#/components/responses/Error"
+    put:
+      operationId: saveBillImportDraft
+      tags: [bills]
+      summary: Save (upsert) the signed-in user's bill-upload review draft
+      description: Autosaved by the upload review dialog while stepping through invoices so closing the dialog never loses progress. One draft per user; saving replaces the previous one.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BillImportDraftInput"
+      responses:
+        "200":
+          description: Saved draft
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BillImportDraft"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Error"
+        "413":
+          $ref: "#/components/responses/Error"
+    delete:
+      operationId: deleteBillImportDraft
+      tags: [bills]
+      summary: Delete the signed-in user's bill-upload review draft
+      responses:
+        "204":
+          description: Deleted (also returned when no draft existed)
+        "401":
+          $ref: "#/components/responses/Error"
   /bills/{id}:
     get:
       operationId: getBill
@@ -4088,8 +4136,9 @@ components:
         accountId:
           type: ["integer", "null"]
           description: Suggested chart-of-accounts id for this line, when the AI could match one
-    ExtractBillResult:
+    ExtractedBillInvoice:
       type: object
+      description: One invoice extracted from an uploaded file. A batched PDF produces multiple entries.
       required: [lines]
       properties:
         vendorName:
@@ -4110,13 +4159,22 @@ components:
         poNumber:
           type: ["string", "null"]
           description: Purchase order (PO) number referenced on the invoice, when visible
-        documentPath:
-          type: ["string", "null"]
-          description: Object-storage path where the uploaded file was persisted, if the file was saved
         lines:
           type: array
           items:
             $ref: "#/components/schemas/ExtractedBillLine"
+    ExtractBillResult:
+      type: object
+      required: [invoices]
+      properties:
+        documentPath:
+          type: ["string", "null"]
+          description: Object-storage path where the uploaded file was persisted, if the file was saved
+        invoices:
+          type: array
+          description: One entry per invoice found in the uploaded file — batched PDFs produce multiple entries
+          items:
+            $ref: "#/components/schemas/ExtractedBillInvoice"
     ImportChartOfAccountsInput:
       type: object
       required: [fileData]
@@ -4403,6 +4461,25 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ExtractedHourRow"
+    BillImportDraftInput:
+      type: object
+      required: [state]
+      properties:
+        state:
+          type: object
+          additionalProperties: true
+          description: Opaque review-queue state (prefills, notes, documentPath, queueIndex)
+    BillImportDraft:
+      type: object
+      required: [state, updatedAt]
+      properties:
+        state:
+          type: ["object", "null"]
+          additionalProperties: true
+          description: Saved review-queue state, or null when the user has no draft
+        updatedAt:
+          type: ["string", "null"]
+          description: When the draft was last autosaved (ISO timestamp)
     PayrollImportDraftInput:
       type: object
       required: [state]
