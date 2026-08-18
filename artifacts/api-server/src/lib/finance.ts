@@ -156,7 +156,7 @@ export const BALANCE_SHEET_TYPES = [
 ] as const;
 
 /** Account types whose natural balance is a debit (increases with debits). */
-const DEBIT_NATURED_TYPES = [
+export const DEBIT_NATURED_TYPES = [
   "asset",
   "bank",
   "expense",

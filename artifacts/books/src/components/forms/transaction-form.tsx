@@ -68,6 +68,12 @@ interface TransactionFormProps {
   onSubmit: (data: TransactionInput | TransactionUpdate) => void;
   isLoading?: boolean;
   serverError?: ServerFieldError | null;
+  /**
+   * When true, this form is editing an existing transfer transaction.
+   * Accounting fields (type, amount, accounts) are hidden; only date,
+   * num, partyName, and description are editable.
+   */
+  transferReadOnly?: boolean;
 }
 
 export function TransactionForm({
@@ -75,6 +81,7 @@ export function TransactionForm({
   onSubmit,
   isLoading,
   serverError,
+  transferReadOnly = false,
 }: TransactionFormProps) {
   const { data: customers } = useListCustomers({
     query: { queryKey: getListCustomersQueryKey() },
@@ -222,7 +229,14 @@ export function TransactionForm({
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
-        <div className="grid grid-cols-2 gap-4">
+        {transferReadOnly && (
+          <div className="rounded-md bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800">
+            <strong>Transfer — accounting fields are locked.</strong> To change the
+            amount or accounts, void this entry and record a new transfer.
+            You can still update the date, reference number, and description below.
+          </div>
+        )}
+        <div className={transferReadOnly ? "" : "grid grid-cols-2 gap-4"}>
           <FormField
             control={form.control}
             name="date"
@@ -236,6 +250,7 @@ export function TransactionForm({
               </FormItem>
             )}
           />
+          {!transferReadOnly && (
           <FormField
             control={form.control}
             name="type"
@@ -265,7 +280,9 @@ export function TransactionForm({
               </FormItem>
             )}
           />
+          )}
         </div>
+        {!transferReadOnly && (
         <div className="grid grid-cols-2 gap-4">
           <FormField
             control={form.control}
@@ -302,6 +319,7 @@ export function TransactionForm({
             )}
           />
         </div>
+        )}
         <div className="grid grid-cols-2 gap-4">
           <FormField
             control={form.control}
@@ -330,6 +348,7 @@ export function TransactionForm({
             )}
           />
         </div>
+        {!transferReadOnly && (
         <div className="grid grid-cols-3 gap-4">
           <FormField
             control={form.control}
@@ -395,6 +414,8 @@ export function TransactionForm({
             )}
           />
         </div>
+        )}
+        {!transferReadOnly && (
         <FormField
           control={form.control}
           name="splitAccountId"
@@ -415,6 +436,7 @@ export function TransactionForm({
             </FormItem>
           )}
         />
+        )}
         <FormField
           control={form.control}
           name="description"

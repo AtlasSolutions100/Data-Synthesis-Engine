@@ -662,6 +662,7 @@ export const TransactionInputType = {
   credit_card: 'credit_card',
   payroll: 'payroll',
   deposit: 'deposit',
+  transfer: 'transfer',
 } as const;
 
 export interface TransactionInput {
@@ -700,6 +701,7 @@ export const TransactionUpdateType = {
   credit_card: 'credit_card',
   payroll: 'payroll',
   deposit: 'deposit',
+  transfer: 'transfer',
 } as const;
 
 export interface TransactionUpdate {
@@ -2483,4 +2485,3 @@ export const ListFeedbackStarred = {
 export type ListReconciliationPeriodsParams = {
 accountId: number;
 };
-

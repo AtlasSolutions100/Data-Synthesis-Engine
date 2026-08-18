@@ -28,7 +28,8 @@ import {
   LinkTransactionBillParams,
   LinkTransactionBillBody,
 } from "@workspace/api-zod";
-import { dateRangeConds } from "../lib/finance";
+import { dateRangeConds, BALANCE_SHEET_TYPES, DEBIT_NATURED_TYPES } from "../lib/finance";
+import * as z from "zod";
 import { listUnlinkedBillTransactions } from "../lib/billLinkBackfill";
 
 const router: IRouter = Router();
@@ -239,6 +240,17 @@ router.post("/transactions", async (req, res): Promise<void> => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
+  // Transfers must go through POST /transactions/transfer, which validates
+  // both accounts, enforces the two-account invariant, and computes the
+  // correct sign. The generic route cannot guarantee those invariants.
+  if (parsed.data.type === "transfer") {
+    res.status(400).json({
+      field: "type",
+      error:
+        'Use POST /transactions/transfer to create transfer entries. The generic transaction route does not enforce transfer invariants.',
+    });
+    return;
+  }
   const refError = await validateReferences(parsed.data);
   if (refError) {
     res.status(400).json(refError);
@@ -250,6 +262,111 @@ router.post("/transactions", async (req, res): Promise<void> => {
     .returning();
   const enriched = await fetchEnrichedTx(tx.id);
   res.status(201).json(GetTransactionResponse.parse(enriched));
+});
+
+/**
+ * Transfer endpoint: records a two-account balance-sheet transfer.
+ *
+ * The client sends a positive `transferAmountCents`; this route looks up both
+ * account types and computes the stored amountCents sign so that:
+ *   - the from account's register shows a withdrawal (balance decreases)
+ *   - the to account's register shows a deposit (balance increases)
+ *
+ * Sign rule (accountId = from, splitAccountId = to):
+ *   effectCents_from  = stored_amount
+ *   effectCents_to    = sameNature ? -stored_amount : stored_amount
+ *
+ * To get effectCents_from < 0 and effectCents_to > 0 we need:
+ *   - from debit-natured OR both credit-natured: stored = -|amount|
+ *   - from credit-natured, to debit-natured:     stored = +|amount|
+ *     (cash advance / equity disbursement — both balances increase)
+ *
+ * NOTE: must be registered before /transactions/:id so "transfer" is not
+ * parsed as an id.
+ */
+
+const TransferBody = z.object({
+  date: z.string().min(1, "Date is required"),
+  fromAccountId: z.number().int().positive(),
+  toAccountId: z.number().int().positive(),
+  transferAmountCents: z.number().int().positive("Amount must be positive"),
+  description: z.string().nullish(),
+});
+
+const BALANCE_SHEET_SET = new Set<string>([...BALANCE_SHEET_TYPES]);
+const DEBIT_NATURED_SET = new Set<string>([...DEBIT_NATURED_TYPES]);
+
+router.post("/transactions/transfer", async (req, res): Promise<void> => {
+  const parsed = TransferBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+  const { date, fromAccountId, toAccountId, transferAmountCents, description } =
+    parsed.data;
+
+  if (fromAccountId === toAccountId) {
+    res.status(400).json({
+      field: "toAccountId",
+      error: "From and To accounts must be different",
+    });
+    return;
+  }
+
+  // Look up both accounts and validate they are balance-sheet types.
+  const accounts = await db
+    .select({ id: accountsTable.id, type: accountsTable.type })
+    .from(accountsTable)
+    .where(inArray(accountsTable.id, [fromAccountId, toAccountId]));
+
+  const fromAccount = accounts.find((a) => a.id === fromAccountId);
+  const toAccount = accounts.find((a) => a.id === toAccountId);
+
+  if (!fromAccount || !BALANCE_SHEET_SET.has(fromAccount.type)) {
+    res.status(400).json({
+      field: "fromAccountId",
+      error: "From account must be a balance-sheet account (bank, asset, liability, credit card, or equity)",
+    });
+    return;
+  }
+  if (!toAccount || !BALANCE_SHEET_SET.has(toAccount.type)) {
+    res.status(400).json({
+      field: "toAccountId",
+      error: "To account must be a balance-sheet account (bank, asset, liability, credit card, or equity)",
+    });
+    return;
+  }
+
+  // Compute stored sign. Primary (from) effectCents = storedAmount.
+  // Split (to) effectCents = sameNature ? -storedAmount : storedAmount.
+  // We want from to decrease and to to increase, so:
+  //   - from debit-natured or both credit-natured: store -|amount|
+  //   - from credit-natured, to debit-natured: store +|amount|
+  const fromDebit = DEBIT_NATURED_SET.has(fromAccount.type);
+  const toDebit = DEBIT_NATURED_SET.has(toAccount.type);
+  const storedAmountCents =
+    !fromDebit && toDebit
+      ? Math.abs(transferAmountCents)
+      : -Math.abs(transferAmountCents);
+
+  const [tx] = await db
+    .insert(transactionsTable)
+    .values({
+      date,
+      type: "transfer",
+      accountId: fromAccountId,
+      splitAccountId: toAccountId,
+      amountCents: storedAmountCents,
+      description: description ?? null,
+      num: null,
+      partyName: null,
+      jobId: null,
+      customerId: null,
+      vendorId: null,
+    })
+    .returning({ id: transactionsTable.id });
+
+  res.status(201).json({ id: tx.id });
 });
 
 /**
@@ -447,6 +564,16 @@ router.get("/transactions/:id", async (req, res): Promise<void> => {
   res.json(GetTransactionResponse.parse(enriched));
 });
 
+// Fields that encode the accounting effect of a transfer. Changing any of
+// these on an existing transfer would corrupt the two-account invariant that
+// POST /transactions/transfer establishes.
+const TRANSFER_PROTECTED_FIELDS = new Set([
+  "type",
+  "amountCents",
+  "accountId",
+  "splitAccountId",
+]);
+
 router.patch("/transactions/:id", async (req, res): Promise<void> => {
   const params = UpdateTransactionParams.safeParse(req.params);
   if (!params.success) {
@@ -458,6 +585,40 @@ router.patch("/transactions/:id", async (req, res): Promise<void> => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
+
+  // Reject attempts to convert any transaction into a transfer via the generic
+  // route — use POST /transactions/transfer instead.
+  if (parsed.data.type === "transfer") {
+    res.status(400).json({
+      field: "type",
+      error:
+        'Use POST /transactions/transfer to create transfer entries. The generic update route does not enforce transfer invariants.',
+    });
+    return;
+  }
+
+  // Guard existing transfer transactions: their accounting fields (the signed
+  // amount and both account links) must only be changed via a dedicated flow,
+  // not through the generic patch which cannot recompute the correct sign.
+  // Non-accounting fields (date, description, num, partyName) are always editable.
+  const touchedProtectedField = Object.keys(parsed.data).some((k) =>
+    TRANSFER_PROTECTED_FIELDS.has(k),
+  );
+  if (touchedProtectedField) {
+    const [existing] = await db
+      .select({ type: transactionsTable.type })
+      .from(transactionsTable)
+      .where(eq(transactionsTable.id, params.data.id))
+      .limit(1);
+    if (existing?.type === "transfer") {
+      res.status(400).json({
+        error:
+          "Accounting fields (amount, accounts) on a transfer cannot be changed via the generic update route. Use the Transfer form to adjust the amounts, or void and re-enter.",
+      });
+      return;
+    }
+  }
+
   const refError = await validateReferences(parsed.data);
   if (refError) {
     res.status(400).json(refError);

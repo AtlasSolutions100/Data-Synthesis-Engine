@@ -229,6 +229,9 @@ importers:
       read-excel-file:
         specifier: 5.8.7
         version: 5.8.7
+      zod:
+        specifier: 'catalog:'
+        version: 3.25.76
     devDependencies:
       '@types/cookie-parser':
         specifier: ^1.4.10

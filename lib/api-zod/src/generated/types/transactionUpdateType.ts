@@ -20,4 +20,5 @@ export const TransactionUpdateType = {
   credit_card: 'credit_card',
   payroll: 'payroll',
   deposit: 'deposit',
+  transfer: 'transfer',
 } as const;

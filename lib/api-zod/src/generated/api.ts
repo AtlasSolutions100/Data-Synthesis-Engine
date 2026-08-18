@@ -86,8 +86,6 @@ export const ListAccountsResponse = zod.array(ListAccountsResponseItem)
  */
 
 
-
-
 export const CreateAccountBody = zod.object({
   "number": zod.string().min(1),
   "name": zod.string().min(1),
@@ -111,7 +109,6 @@ export const CreateAccountResponse = zod.object({
 export const importChartOfAccountsBodyFileDataMax = 14000000;
 
 export const importChartOfAccountsBodyFileNameMax = 300;
-
 
 
 export const ImportChartOfAccountsBody = zod.object({
@@ -145,7 +142,6 @@ export const importDataBodyExcludeRowsMax = 20000;
 export const importDataBodyPlanTokenMax = 128;
 
 export const importDataBodyAccountOverridesMax = 20000;
-
 
 
 export const ImportDataBody = zod.object({
@@ -221,9 +217,6 @@ export const UpdateAccountParams = zod.object({
 })
 
 
-
-
-
 export const UpdateAccountBody = zod.object({
   "number": zod.string().min(1).optional(),
   "name": zod.string().min(1).optional(),
@@ -273,7 +266,6 @@ export const ListCustomersResponse = zod.array(ListCustomersResponseItem)
  */
 
 
-
 export const CreateCustomerBody = zod.object({
   "name": zod.string().min(1),
   "email": zod.string().nullish(),
@@ -299,7 +291,6 @@ export const CreateCustomerResponse = zod.object({
  * Returns customers whose name shares ≥50% word-overlap (Jaccard on normalised tokens) with the query string. Used to warn before creating a new customer that looks like a duplicate.
  * @summary Find customers with a similar name
  */
-
 
 
 export const CheckCustomerDuplicatesQueryParams = zod.object({
@@ -338,8 +329,6 @@ export const GetCustomerResponse = zod.object({
 export const UpdateCustomerParams = zod.object({
   "id": zod.coerce.number()
 })
-
-
 
 
 export const UpdateCustomerBody = zod.object({
@@ -392,7 +381,6 @@ export const ListVendorsResponse = zod.array(ListVendorsResponseItem)
  */
 
 
-
 export const CreateVendorBody = zod.object({
   "name": zod.string().min(1),
   "email": zod.string().nullish(),
@@ -414,7 +402,6 @@ export const CreateVendorResponse = zod.object({
  * Returns vendors whose name shares ≥50% word-overlap (Jaccard on normalised tokens) with the query string. Used to warn before creating a new vendor that looks like a duplicate.
  * @summary Find vendors with a similar name
  */
-
 
 
 export const CheckVendorDuplicatesQueryParams = zod.object({
@@ -451,8 +438,6 @@ export const GetVendorResponse = zod.object({
 export const UpdateVendorParams = zod.object({
   "id": zod.coerce.number()
 })
-
-
 
 
 export const UpdateVendorBody = zod.object({
@@ -520,7 +505,6 @@ export const ListEmployeesResponse = zod.array(ListEmployeesResponseItem)
  */
 
 
-
 export const CreateEmployeeBody = zod.object({
   "name": zod.string().min(1),
   "address": zod.string().nullish(),
@@ -563,7 +547,6 @@ export const extractEmployeesBodyFileDataMax = 14000000;
 export const extractEmployeesBodyFileNameMax = 300;
 
 
-
 export const ExtractEmployeesBody = zod.object({
   "text": zod.string().max(extractEmployeesBodyTextMax).optional().describe('Free-form pasted text (email, rate sheet, notes)'),
   "fileData": zod.string().max(extractEmployeesBodyFileDataMax).optional().describe('Base64 data URL of an uploaded image or PDF (scan\/photo)'),
@@ -573,7 +556,6 @@ export const ExtractEmployeesBody = zod.object({
 export const extractEmployeesResponseRowsItemRegularRateMin = 0;
 
 export const extractEmployeesResponseRowsItemOvertimeRateMin = 0;
-
 
 
 export const ExtractEmployeesResponse = zod.object({
@@ -623,8 +605,6 @@ export const GetEmployeeResponse = zod.object({
 export const UpdateEmployeeParams = zod.object({
   "id": zod.coerce.number()
 })
-
-
 
 
 export const UpdateEmployeeBody = zod.object({
@@ -732,8 +712,6 @@ export const ListJobsResponse = zod.array(ListJobsResponseItem)
  */
 
 
-
-
 export const CreateJobBody = zod.object({
   "jobNumber": zod.string().min(1).optional().describe('Optional internal identifier; auto-generated when omitted'),
   "name": zod.string().min(1),
@@ -773,7 +751,6 @@ export const CreateJobResponse = zod.object({
  * Returns jobs whose name shares ≥50% word-overlap (Jaccard on normalised tokens) with the query string. Used to warn before creating a new job that looks like a duplicate.
  * @summary Find jobs with a similar name
  */
-
 
 
 export const CheckJobDuplicatesQueryParams = zod.object({
@@ -825,9 +802,6 @@ export const GetJobResponse = zod.object({
 export const UpdateJobParams = zod.object({
   "id": zod.coerce.number()
 })
-
-
-
 
 
 export const UpdateJobBody = zod.object({
@@ -936,9 +910,6 @@ export const CreateJobDocumentParams = zod.object({
 })
 
 
-
-
-
 export const CreateJobDocumentBody = zod.object({
   "category": zod.enum(['contract', 'certified_payroll', 'timesheet', 'invoice_backup', 'permit_insurance', 'other']),
   "fileName": zod.string().min(1),
@@ -1021,10 +992,9 @@ export const ListTransactionsResponse = zod.array(ListTransactionsResponseItem)
  */
 
 
-
 export const CreateTransactionBody = zod.object({
   "date": zod.string().min(1),
-  "type": zod.enum(['invoice', 'bill', 'expense', 'check', 'payment', 'journal', 'vendor_credit', 'credit_card', 'payroll', 'deposit']),
+  "type": zod.enum(['invoice', 'bill', 'expense', 'check', 'payment', 'journal', 'vendor_credit', 'credit_card', 'payroll', 'deposit', 'transfer']),
   "num": zod.string().nullish(),
   "partyName": zod.string().nullish(),
   "description": zod.string().nullish(),
@@ -1099,11 +1069,9 @@ export const UpdateTransactionParams = zod.object({
 })
 
 
-
-
 export const UpdateTransactionBody = zod.object({
   "date": zod.string().min(1).optional(),
-  "type": zod.enum(['invoice', 'bill', 'expense', 'check', 'payment', 'journal', 'vendor_credit', 'credit_card', 'payroll', 'deposit']).optional(),
+  "type": zod.enum(['invoice', 'bill', 'expense', 'check', 'payment', 'journal', 'vendor_credit', 'credit_card', 'payroll', 'deposit', 'transfer']).optional(),
   "num": zod.string().nullish(),
   "partyName": zod.string().nullish(),
   "description": zod.string().nullish(),
@@ -1166,7 +1134,6 @@ export const ListLegacySplitsResponse = zod.array(ListLegacySplitsResponseItem)
  */
 
 
-
 export const MapLegacySplitBody = zod.object({
   "name": zod.string().min(1).describe('Legacy free-text split account name to resolve'),
   "accountId": zod.number().describe('Account to link the matching transactions to')
@@ -1182,8 +1149,6 @@ export const MapLegacySplitResponse = zod.object({
 /**
  * @summary Undo a previous legacy split mapping for explicit transactions
  */
-
-
 
 
 export const UndoLegacySplitMappingBody = zod.object({
@@ -1595,9 +1560,6 @@ export const ListInvoicesResponse = zod.array(ListInvoicesResponseItem)
  */
 
 
-
-
-
 export const CreateInvoiceBody = zod.object({
   "invoiceNumber": zod.string().min(1),
   "jobId": zod.number(),
@@ -1709,10 +1671,6 @@ export const UpdateInvoiceParams = zod.object({
 })
 
 
-
-
-
-
 export const UpdateInvoiceBody = zod.object({
   "invoiceNumber": zod.string().min(1).optional(),
   "jobId": zod.number().optional(),
@@ -1780,8 +1738,6 @@ export const DeleteInvoiceResponse = zod.void()
 export const CreateInvoicePaymentParams = zod.object({
   "id": zod.coerce.number()
 })
-
-
 
 
 export const CreateInvoicePaymentBody = zod.object({
@@ -1915,8 +1871,6 @@ export const ListBillsResponse = zod.array(ListBillsResponseItem)
  */
 
 
-
-
 export const CreateBillBody = zod.object({
   "billNumber": zod.string().nullish(),
   "vendorId": zod.number(),
@@ -1986,7 +1940,6 @@ export const extractBillBodyTextMax = 20000;
 export const extractBillBodyFileDataMax = 14000000;
 
 export const extractBillBodyFileNameMax = 300;
-
 
 
 export const ExtractBillBody = zod.object({
@@ -2072,9 +2025,6 @@ export const UpdateBillParams = zod.object({
 })
 
 
-
-
-
 export const UpdateBillBody = zod.object({
   "billNumber": zod.string().nullish(),
   "vendorId": zod.number().optional(),
@@ -2150,8 +2100,6 @@ export const DeleteBillResponse = zod.void()
 export const CreateBillPaymentParams = zod.object({
   "id": zod.coerce.number()
 })
-
-
 
 
 export const CreateBillPaymentBody = zod.object({
@@ -2267,8 +2215,6 @@ export const DeleteBillPaymentResponse = zod.object({
 export const CreateVendorCreditParams = zod.object({
   "id": zod.coerce.number()
 })
-
-
 
 
 export const CreateVendorCreditBody = zod.object({
@@ -2866,7 +2812,6 @@ export const extractPayrollHoursBodyFileDataMax = 14000000;
 export const extractPayrollHoursBodyFileNameMax = 300;
 
 
-
 export const ExtractPayrollHoursBody = zod.object({
   "text": zod.string().max(extractPayrollHoursBodyTextMax).optional().describe('Free-form pasted email text or uploaded timesheet contents'),
   "fileData": zod.string().max(extractPayrollHoursBodyFileDataMax).optional().describe('Base64 data URL of an uploaded image or PDF timesheet (scan\/photo)'),
@@ -2991,18 +2936,11 @@ export const DeleteUserResponse = zod.void()
  */
 
 
-
-
-
 export const RequestUploadUrlBody = zod.object({
   "name": zod.string().min(1).describe('Original file name.'),
   "size": zod.number().min(1).describe('File size in bytes.'),
   "contentType": zod.string().min(1).describe('MIME type of the file (e.g. `image\/jpeg`).')
 })
-
-
-
-
 
 
 export const RequestUploadUrlResponse = zod.object({
@@ -3043,7 +2981,6 @@ export const GetStorageObjectResponse = zod.unknown()
 /**
  * @summary Submit a feedback item (any authenticated user)
  */
-
 
 
 export const CreateFeedbackBody = zod.object({
@@ -3159,8 +3096,6 @@ export const MarkMyFeedbackViewedResponse = zod.void()
 export const UpdateFeedbackParams = zod.object({
   "id": zod.coerce.string().uuid()
 })
-
-
 
 
 export const UpdateFeedbackBody = zod.object({
@@ -3494,5 +3429,4 @@ export const ReopenReconciliationPeriodResponse = zod.object({
   "description": zod.string().describe('Raw description text from the CSV row')
 })).optional().describe('CSV statement rows that could not be matched to any ledger transaction by date (±1 day) and amount. Present only when a CSV was uploaded at period creation. Empty array means all CSV rows were matched.\n')
 })
-
 

@@ -33,6 +33,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { TransactionForm } from "@/components/forms/transaction-form";
+import { TransferForm } from "@/components/forms/transfer-form";
 import {
   toServerFieldError,
   type ServerFieldError,
@@ -48,6 +49,7 @@ import {
   Trash2,
   Ban,
   RotateCcw,
+  ArrowLeftRight,
 } from "lucide-react";
 
 /* ── helpers ──────────────────────────────────────────────────────────── */
@@ -236,6 +238,43 @@ function EditTransactionDialog({
             <Loader2 className="h-4 w-4 animate-spin mr-2" />
             Loading transaction…
           </div>
+        ) : txn.type === "transfer" ? (
+          /* Transfer transactions have server-enforced invariants (two
+             balance-sheet accounts, computed sign). Only non-accounting
+             fields can be edited here; the full form would expose
+             type/amount/account fields that the server rejects for transfers. */
+          <TransactionForm
+            defaultValues={{
+              date: txn.date,
+              type: "journal", // placeholder — type field is locked below
+              num: txn.num || "",
+              partyName: txn.partyName || "",
+              description: txn.description || "",
+              accountId: txn.accountId.toString(),
+              splitAccountId: txn.splitAccountId?.toString() || "",
+              jobId: txn.jobId?.toString() || "",
+              customerId: txn.customerId?.toString() || "",
+              vendorId: txn.vendorId?.toString() || "",
+              amount: (Math.abs(txn.amountCents) / 100).toString(),
+            }}
+            transferReadOnly
+            onSubmit={(data) => {
+              setEditError(null);
+              // Only send the safe non-accounting fields the server allows
+              // on an existing transfer.
+              updateTransaction.mutate({
+                id: transactionId,
+                data: {
+                  date: (data as any).date,
+                  num: (data as any).num || null,
+                  partyName: (data as any).partyName || null,
+                  description: (data as any).description || null,
+                } as any,
+              });
+            }}
+            isLoading={updateTransaction.isPending}
+            serverError={editError}
+          />
         ) : (
           <TransactionForm
             defaultValues={{
@@ -274,6 +313,7 @@ export default function AccountRegister() {
   const params = {};
 
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [isTransferOpen, setIsTransferOpen] = useState(false);
   const [createError, setCreateError] = useState<ServerFieldError | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [confirmAction, setConfirmAction] = useState<
@@ -480,6 +520,13 @@ export default function AccountRegister() {
         </div>
 
         <div className="flex items-start gap-4">
+          <Button
+            variant="outline"
+            onClick={() => setIsTransferOpen(true)}
+            data-testid="button-register-new-transfer"
+          >
+            <ArrowLeftRight className="mr-2 h-4 w-4" /> Transfer
+          </Button>
           <Button
             className="bg-blue-600 hover:bg-blue-700"
             onClick={() => setIsCreateOpen(true)}
@@ -835,6 +882,23 @@ export default function AccountRegister() {
           )}
         </CardContent>
       </Card>
+
+      {/* transfer dialog */}
+      <Dialog open={isTransferOpen} onOpenChange={setIsTransferOpen}>
+        <DialogContent className="sm:max-w-[520px]">
+          <DialogHeader>
+            <DialogTitle>Record a Transfer</DialogTitle>
+          </DialogHeader>
+          <TransferForm
+            defaultFromAccountId={Number.isFinite(accountId) ? String(accountId) : undefined}
+            onSuccess={() => {
+              invalidate();
+              setIsTransferOpen(false);
+            }}
+            onCancel={() => setIsTransferOpen(false)}
+          />
+        </DialogContent>
+      </Dialog>
 
       {/* create dialog */}
       <Dialog
