@@ -13,6 +13,7 @@ import Bills from "./bills";
 // promise about the user's books.
 
 const deleteMutate = vi.fn();
+const extractMutateAsync = vi.fn();
 
 // The Bills page calls useCreateBill TWICE per render: first for the review
 // queue (createBill) and second for the manual "New Bill" dialog (manualCreateBill).
@@ -49,6 +50,11 @@ vi.mock("@workspace/api-client-react", async (importOriginal) => {
   return createApiClientReactMock(importOriginal, {
     useListBills: () => ({ data: billsData, isLoading: false }),
     useDeleteBill: () => ({ mutate: deleteMutate, isPending: false }),
+    useExtractBill: () => ({
+      mutateAsync: extractMutateAsync,
+      isPending: false,
+      reset: vi.fn(),
+    }),
     useCreateBill: (config: {
       mutation?: { onSuccess?: () => void; onError?: (e: unknown) => void };
     }) => {
@@ -77,6 +83,7 @@ beforeEach(() => {
   confirmSpy.mockReturnValue(false);
   _createCallCount = 0;
   capturedQueueOnSuccess = null;
+  extractMutateAsync.mockReset();
 });
 
 afterEach(() => {
@@ -385,5 +392,82 @@ describe("Bills page draft restore", () => {
         ((b as Record<string, unknown>).state as Record<string, unknown>).queueIndex === 1,
     );
     expect(putWithIndex1).toBeDefined();
+  });
+});
+
+describe("Bills page invoice upload", () => {
+  beforeEach(() => {
+    vi.stubGlobal("fetch", makeDraftFetch(null));
+  });
+
+  it("opens the upload dialog from the Bills tab button", async () => {
+    renderBills();
+
+    await userEvent.setup().click(screen.getByTestId("button-upload-invoice"));
+
+    expect(screen.getByText("Upload an Invoice")).toBeTruthy();
+    expect(screen.getByTestId("dropzone-invoice")).toBeTruthy();
+  });
+
+  it("accepts multiple selected files and combines their invoices in order", async () => {
+    extractMutateAsync
+      .mockResolvedValueOnce({
+        documentPath: "/objects/invoice-1.pdf",
+        invoices: [
+          {
+            vendorName: "Vendor One",
+            billNumber: "INV-001",
+            date: "2026-08-01",
+            dueDate: null,
+            memo: null,
+            jobName: null,
+            poNumber: null,
+            lines: [],
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        documentPath: "/objects/invoice-2.pdf",
+        invoices: [
+          {
+            vendorName: "Vendor Two",
+            billNumber: "INV-002",
+            date: "2026-08-02",
+            dueDate: null,
+            memo: null,
+            jobName: null,
+            poNumber: null,
+            lines: [],
+          },
+        ],
+      });
+
+    renderBills();
+    const user = userEvent.setup();
+    await user.click(screen.getByTestId("button-upload-invoice"));
+
+    const input = document.querySelector(
+      'input[type="file"]',
+    ) as HTMLInputElement;
+    expect(input.multiple).toBe(true);
+
+    await user.upload(input, [
+      new File(["invoice one"], "invoice-1.pdf", {
+        type: "application/pdf",
+      }),
+      new File(["invoice two"], "invoice-2.pdf", {
+        type: "application/pdf",
+      }),
+    ]);
+
+    await waitFor(() => {
+      expect(screen.getByText("Review Invoice 1 of 2")).toBeTruthy();
+    });
+    expect(extractMutateAsync).toHaveBeenCalledTimes(2);
+    expect(
+      extractMutateAsync.mock.calls.map(
+        ([request]) => request.data.fileName,
+      ),
+    ).toEqual(["invoice-1.pdf", "invoice-2.pdf"]);
   });
 });

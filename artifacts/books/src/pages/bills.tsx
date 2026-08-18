@@ -55,6 +55,8 @@ type BillPrefill = {
   dueDate?: string;
   memo?: string;
   lines?: { accountId: string; description: string; amount: string }[];
+  /** Source document for this invoice when the upload contained multiple files. */
+  documentPath?: string | null;
   /** Extracted vendor name that didn't match any vendor on file. */
   vendorCreateName?: string;
 };
@@ -120,8 +122,14 @@ function UploadInvoiceDialog({
     extract.reset();
   };
 
-  const finish = (result: ExtractBillResult) => {
-    if (result.invoices.length === 0) {
+  const finish = (results: ExtractBillResult[]) => {
+    const extracted = results.flatMap((result) =>
+      result.invoices.map((inv) => ({
+        invoice: inv,
+        documentPath: result.documentPath ?? null,
+      })),
+    );
+    if (extracted.length === 0) {
       setError(
         "Couldn't find invoice details in that file. Try a clearer scan or enter the bill manually.",
       );
@@ -131,7 +139,7 @@ function UploadInvoiceDialog({
     const prefills: BillPrefill[] = [];
     const notes: (string | null)[] = [];
 
-    for (const inv of result.invoices) {
+    for (const { invoice: inv, documentPath } of extracted) {
       const vendorMatch = matchExtractedVendor(
         vendors ?? [],
         inv.vendorName ?? null,
@@ -153,6 +161,7 @@ function UploadInvoiceDialog({
         date: inv.date ?? undefined,
         dueDate: inv.dueDate ?? "",
         memo: inv.memo ?? "",
+        documentPath,
         lines: inv.lines.length
           ? inv.lines.map((l: { accountId?: number | null; description?: string | null; amountCents: number }) => ({
               accountId: l.accountId != null ? String(l.accountId) : "",
@@ -173,41 +182,63 @@ function UploadInvoiceDialog({
 
     setOpen(false);
     reset();
-    onExtracted({ prefills, notes, documentPath: result.documentPath ?? null });
+    onExtracted({
+      prefills,
+      notes,
+      // Keep the legacy queue-level value for older drafts. New bills use the
+      // per-prefill path so multiple selected files stay linked correctly.
+      documentPath: results.length === 1 ? results[0].documentPath ?? null : null,
+    });
   };
 
-  const handleFile = (file: File | undefined) => {
-    if (!file) return;
+  const handleFiles = async (fileList: FileList | File[] | undefined) => {
+    const files = Array.from(fileList ?? []);
+    if (files.length === 0) return;
     setError("");
-    if (file.size > UPLOAD_MAX_BYTES) {
-      setError("File is larger than 10 MB. Upload a smaller file.");
+    const oversized = files.find((file) => file.size > UPLOAD_MAX_BYTES);
+    if (oversized) {
+      setError(`"${oversized.name}" is larger than 10 MB. Upload a smaller file.`);
       return;
     }
-    setFileName(file.name);
-    const isTextLike =
-      file.type.startsWith("text/") || /\.(txt|csv)$/i.test(file.name);
-    const reader = new FileReader();
-    reader.onload = () => {
-      const payload = isTextLike
-        ? { text: String(reader.result ?? "") }
-        : { fileData: String(reader.result ?? ""), fileName: file.name };
-      extract.mutate(
-        { data: payload },
-        {
-          onSuccess: (result) => {
-            finish(result);
-          },
-          onError: (err) => {
-            const msg =
-              (err as { error?: string } | null)?.error ??
-              "Couldn't read the invoice. Please try again.";
-            setError(msg);
-          },
-        },
-      );
-    };
-    if (isTextLike) reader.readAsText(file);
-    else reader.readAsDataURL(file);
+    setFileName(
+      files.length === 1
+        ? files[0].name
+        : `${files.length} invoice files`,
+    );
+
+    const readFile = (file: File): Promise<{ text: string } | { fileData: string; fileName: string }> =>
+      new Promise((resolve, reject) => {
+        const isTextLike =
+          file.type.startsWith("text/") || /\.(txt|csv)$/i.test(file.name);
+        const reader = new FileReader();
+        reader.onload = () => {
+          const value = String(reader.result ?? "");
+          resolve(
+            isTextLike
+              ? { text: value }
+              : { fileData: value, fileName: file.name },
+          );
+        };
+        reader.onerror = () => reject(new Error(`Couldn't read ${file.name}`));
+        if (isTextLike) reader.readAsText(file);
+        else reader.readAsDataURL(file);
+      });
+
+    try {
+      // Keep file order deterministic and avoid sending several large base64
+      // payloads to the AI service at once.
+      const results: ExtractBillResult[] = [];
+      for (const file of files) {
+        const payload = await readFile(file);
+        results.push(await extract.mutateAsync({ data: payload }));
+      }
+      finish(results);
+    } catch (err) {
+      const msg =
+        (err as { error?: string } | null)?.error ??
+        "Couldn't read the invoice. Please try again.";
+      setError(msg);
+    }
   };
 
   return (
@@ -219,7 +250,12 @@ function UploadInvoiceDialog({
       }}
     >
       <DialogTrigger asChild>
-        <Button variant="outline" data-testid="button-upload-invoice">
+        <Button
+          type="button"
+          variant="outline"
+          data-testid="button-upload-invoice"
+          onClick={() => setOpen(true)}
+        >
           <Upload className="mr-2 h-4 w-4" /> Upload Invoice
         </Button>
       </DialogTrigger>
@@ -247,7 +283,7 @@ function UploadInvoiceDialog({
           onDrop={(e) => {
             e.preventDefault();
             setDragOver(false);
-            handleFile(e.dataTransfer.files?.[0]);
+            handleFiles(e.dataTransfer.files);
           }}
           data-testid="dropzone-invoice"
         >
@@ -272,9 +308,10 @@ function UploadInvoiceDialog({
           ref={fileInputRef}
           type="file"
           accept=".pdf,.png,.jpg,.jpeg,.webp,.gif,.txt,.csv,application/pdf,image/*,text/plain"
+          multiple
           className="hidden"
           onChange={(e) => {
-            handleFile(e.target.files?.[0]);
+            handleFiles(e.target.files ?? undefined);
             e.target.value = "";
           }}
         />
@@ -591,7 +628,13 @@ export default function Bills() {
             onSubmit={(data) => {
               setCreateError(null);
               createBill.mutate({
-                data: { ...data, documentPath: queue?.documentPath ?? null },
+                data: {
+                  ...data,
+                  documentPath:
+                    currentPrefill?.documentPath ??
+                    queue?.documentPath ??
+                    null,
+                },
               });
             }}
             isLoading={createBill.isPending}
