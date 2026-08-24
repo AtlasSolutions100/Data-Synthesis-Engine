@@ -395,6 +395,95 @@ describe("Bills page draft restore", () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// Bill-number search
+// ---------------------------------------------------------------------------
+
+describe("Bills page bill-number search", () => {
+  beforeEach(() => {
+    vi.stubGlobal("fetch", makeDraftFetch(null));
+  });
+
+  it("renders the search input on the bills page", async () => {
+    billsData = [bill({ billNumber: "INV-001" })];
+    renderBills();
+    expect(screen.getByTestId("bill-number-search")).toBeTruthy();
+  });
+
+  it("shows only matching bills for a partial search term", async () => {
+    billsData = [
+      bill({ id: 1, billNumber: "INV-001" }),
+      bill({ id: 2, billNumber: "INV-002", vendorName: "Other Vendor" }),
+      bill({ id: 3, billNumber: "BILL-500", vendorName: "Third Vendor" }),
+    ];
+    renderBills();
+    const user = userEvent.setup();
+    await user.type(screen.getByTestId("bill-number-search"), "INV");
+
+    await waitFor(() => {
+      expect(screen.getByText("INV-001")).toBeTruthy();
+      expect(screen.getByText("INV-002")).toBeTruthy();
+    });
+    expect(screen.queryByText("BILL-500")).toBeNull();
+  });
+
+  it("matches case-insensitively", async () => {
+    billsData = [bill({ billNumber: "DNC/378170" })];
+    renderBills();
+    const user = userEvent.setup();
+    await user.type(screen.getByTestId("bill-number-search"), "dnc");
+
+    await waitFor(() => {
+      expect(screen.getByText("DNC/378170")).toBeTruthy();
+    });
+  });
+
+  it("shows the no-results empty state with the search term when nothing matches", async () => {
+    billsData = [bill({ billNumber: "INV-001" })];
+    renderBills();
+    const user = userEvent.setup();
+    await user.type(screen.getByTestId("bill-number-search"), "ZZZNOMATCH");
+
+    await waitFor(() => {
+      expect(screen.getByTestId("bill-search-no-results")).toBeTruthy();
+      expect(screen.getByTestId("bill-search-no-results").textContent).toContain("ZZZNOMATCH");
+    });
+    // Original bill must be hidden
+    expect(screen.queryByText("INV-001")).toBeNull();
+  });
+
+  it("restores the full list when the clear button is clicked", async () => {
+    billsData = [
+      bill({ id: 1, billNumber: "INV-001" }),
+      bill({ id: 2, billNumber: "BILL-500", vendorName: "Other Vendor" }),
+    ];
+    renderBills();
+    const user = userEvent.setup();
+    await user.type(screen.getByTestId("bill-number-search"), "INV");
+
+    // Only INV-001 visible
+    await waitFor(() => {
+      expect(screen.queryByText("BILL-500")).toBeNull();
+    });
+
+    await user.click(screen.getByTestId("bill-number-search-clear"));
+
+    // Both visible again after clearing
+    await waitFor(() => {
+      expect(screen.getByText("INV-001")).toBeTruthy();
+      expect(screen.getByText("BILL-500")).toBeTruthy();
+    });
+  });
+
+  it("shows the generic empty state (not the search message) when there are no bills at all", async () => {
+    billsData = [];
+    renderBills();
+    // No search active — must show "No bills yet"
+    expect(screen.getByText("No bills yet.")).toBeTruthy();
+    expect(screen.queryByTestId("bill-search-no-results")).toBeNull();
+  });
+});
+
 describe("Bills page invoice upload", () => {
   beforeEach(() => {
     vi.stubGlobal("fetch", makeDraftFetch(null));

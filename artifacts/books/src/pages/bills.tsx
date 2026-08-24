@@ -41,7 +41,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { matchExtractedJob } from "@/lib/match-extracted-job";
 import { matchExtractedVendor } from "@/lib/match-extracted-vendor";
 import { DemoBadge } from "@/components/demo-badge";
-import { Plus, Trash2, Upload, Loader2, ChevronLeft, ChevronRight } from "lucide-react";
+import { Plus, Trash2, Upload, Loader2, ChevronLeft, ChevronRight, Search, X } from "lucide-react";
+import { Input } from "@/components/ui/input";
 import { ImportDataDialog } from "@/components/import-data-dialog";
 
 const UPLOAD_MAX_BYTES = 10 * 1024 * 1024;
@@ -348,6 +349,9 @@ export default function Bills() {
   const [isReviewOpen, setIsReviewOpen] = useState(false);
   const [createError, setCreateError] = useState<ServerFieldError | null>(null);
 
+  // Bill-number search
+  const [billSearch, setBillSearch] = useState("");
+
   // Manual "New Bill" dialog — separate state so it doesn't interfere with the review queue
   const [isManualOpen, setIsManualOpen] = useState(false);
   const [manualError, setManualError] = useState<ServerFieldError | null>(null);
@@ -494,6 +498,14 @@ export default function Bills() {
   const currentPrefill = queue ? queue.prefills[queueIndex] ?? null : null;
   const currentNote = queue ? queue.notes[queueIndex] ?? null : null;
   const totalInQueue = queue?.prefills.length ?? 0;
+
+  // Client-side bill-number search — filter after all bills are loaded
+  const billSearchTrimmed = billSearch.trim().toLowerCase();
+  const filteredBills = billSearchTrimmed
+    ? (bills ?? []).filter((b) =>
+        (b.billNumber ?? "").toLowerCase().includes(billSearchTrimmed),
+      )
+    : (bills ?? []);
 
   // ---------------------------------------------------------------------------
   // Render
@@ -643,6 +655,34 @@ export default function Bills() {
       </Dialog>
 
       {/* ------------------------------------------------------------------ */}
+      {/* Bill-number search bar                                               */}
+      {/* ------------------------------------------------------------------ */}
+      <div className="flex items-center gap-2 max-w-sm">
+        <div className="relative flex-1">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
+          <Input
+            data-testid="bill-number-search"
+            type="search"
+            placeholder="Search by bill number…"
+            value={billSearch}
+            onChange={(e) => setBillSearch(e.target.value)}
+            className="pl-8 pr-8"
+          />
+          {billSearch && (
+            <button
+              type="button"
+              aria-label="Clear search"
+              data-testid="bill-number-search-clear"
+              onClick={() => setBillSearch("")}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* ------------------------------------------------------------------ */}
       {/* Bills table                                                          */}
       {/* ------------------------------------------------------------------ */}
       <Card>
@@ -672,7 +712,17 @@ export default function Bills() {
                     Loading bills...
                   </TableCell>
                 </TableRow>
-              ) : bills?.length === 0 ? (
+              ) : filteredBills.length === 0 && billSearchTrimmed ? (
+                <TableRow>
+                  <TableCell
+                    colSpan={10}
+                    className="text-center py-8 text-slate-500"
+                    data-testid="bill-search-no-results"
+                  >
+                    No bills match &ldquo;{billSearch.trim()}&rdquo;.
+                  </TableCell>
+                </TableRow>
+              ) : filteredBills.length === 0 ? (
                 <TableRow>
                   <TableCell
                     colSpan={10}
@@ -682,7 +732,7 @@ export default function Bills() {
                   </TableCell>
                 </TableRow>
               ) : (
-                bills?.map((bill) => (
+                filteredBills.map((bill) => (
                   <TableRow key={bill.id} className="hover:bg-slate-50 group">
                     <TableCell className="font-medium">
                       <div className="flex items-center gap-2">
