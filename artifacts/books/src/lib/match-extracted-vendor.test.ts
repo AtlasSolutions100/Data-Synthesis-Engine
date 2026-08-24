@@ -11,6 +11,11 @@ const vendors: VendorOption[] = [
   { id: 4, name: "Grainger" },
 ];
 
+const vendorsWithCES: VendorOption[] = [
+  ...vendors,
+  { id: 5, name: "City Electric Supply" },
+];
+
 describe("matchExtractedVendor", () => {
   it("exact match pre-selects the vendor", () => {
     const r = matchExtractedVendor(vendors, "Grainger");
@@ -77,5 +82,65 @@ describe("matchExtractedVendor", () => {
     const r = matchExtractedVendor([], "Grainger");
     expect(r.vendor).toBeNull();
     expect(r.note).toContain("doesn't match any vendor on file");
+  });
+
+  describe("acronym match — plain token", () => {
+    it("plain acronym pre-selects the matching vendor", () => {
+      const r = matchExtractedVendor(vendorsWithCES, "CES");
+      expect(r.vendor?.id).toBe(5);
+      expect(r.note).toContain('"CES" recognized as City Electric Supply.');
+    });
+  });
+
+  describe("acronym match — dotted abbreviations", () => {
+    it("dotted form 'C.E.S.' matches same as plain 'CES'", () => {
+      const r = matchExtractedVendor(vendorsWithCES, "C.E.S.");
+      expect(r.vendor?.id).toBe(5);
+      expect(r.note).toContain('"C.E.S." recognized as City Electric Supply.');
+    });
+
+    it("dotted form without trailing dot 'C.E.S' also matches", () => {
+      const r = matchExtractedVendor(vendorsWithCES, "C.E.S");
+      expect(r.vendor?.id).toBe(5);
+      expect(r.note).toContain('"C.E.S" recognized as City Electric Supply.');
+    });
+  });
+
+  describe("acronym match — parenthesised sub-brand suffix", () => {
+    it("strips suffix before matching: 'CES (US Wholesale Division)'", () => {
+      const r = matchExtractedVendor(
+        vendorsWithCES,
+        "CES (US Wholesale Division)",
+      );
+      expect(r.vendor?.id).toBe(5);
+      expect(r.note).toContain(
+        '"CES (US Wholesale Division)" recognized as City Electric Supply.',
+      );
+    });
+
+    it("strips dots and suffix: 'C.E.S. (US Wholesale Division)'", () => {
+      const r = matchExtractedVendor(
+        vendorsWithCES,
+        "C.E.S. (US Wholesale Division)",
+      );
+      expect(r.vendor?.id).toBe(5);
+      expect(r.note).toContain(
+        '"C.E.S. (US Wholesale Division)" recognized as City Electric Supply.',
+      );
+    });
+  });
+
+  describe("acronym match — ambiguous dotted form", () => {
+    it("dotted acronym with multiple matches asks user to pick", () => {
+      // AES matches both "Acme Electrical Supply" and any second AES vendor
+      const withTwo: VendorOption[] = [
+        { id: 10, name: "Applied Engineering Services" },
+        { id: 11, name: "Acme Electrical Supply" },
+      ];
+      const r = matchExtractedVendor(withTwo, "A.E.S.");
+      expect(r.vendor).toBeNull();
+      expect(r.note).toContain('"A.E.S." could be');
+      expect(r.note).toContain("pick the right vendor below");
+    });
   });
 });
