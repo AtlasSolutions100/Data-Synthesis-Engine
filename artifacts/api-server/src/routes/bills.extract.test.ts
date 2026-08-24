@@ -492,6 +492,108 @@ describe("POST /api/bills/extract account suggestions", () => {
     expect(res.body.invoices[1].lines[0].amountCents).toBe(40000);
   });
 
+  // -------------------------------------------------------------------------
+  // Sales-tax inclusion tests (Task #369)
+  // -------------------------------------------------------------------------
+
+  it("preserves a separate sales-tax line so the total matches the invoice grand total", async () => {
+    // A typical invoice: itemised subtotal + a clearly separate "Sales Tax"
+    // line.  Previously the prompt said "exclude sales tax if clearly
+    // separate", which caused the extracted total to be lower than the
+    // invoice grand total.  The updated prompt must include the tax line.
+    mockCreate.mockResolvedValue(
+      completionWith(
+        JSON.stringify({
+          invoices: [
+            {
+              vendorName: "Parts Plus",
+              billNumber: "PP-5512",
+              date: "2026-08-01",
+              lines: [
+                { description: "Steel pipe — 2\" sch40 × 20 ft", amount: 340.00, accountNumber: null },
+                { description: "Pipe fittings assorted",          amount: 87.50,  accountNumber: null },
+                { description: "Sales Tax (8.5%)",                amount: 36.02,  accountNumber: null },
+              ],
+            },
+          ],
+        }),
+      ),
+    );
+
+    const res = await request(app)
+      .post("/api/bills/extract")
+      .send({ text: "Parts Plus invoice with tax" })
+      .expect(200);
+
+    expect(res.body.invoices).toHaveLength(1);
+    const inv = res.body.invoices[0];
+
+    // All three lines must survive — including the tax line
+    expect(inv.lines).toHaveLength(3);
+    expect(inv.lines.map((l: { amountCents: number }) => l.amountCents)).toEqual([
+      34000, 8750, 3602,
+    ]);
+
+    // Grand total = subtotal + tax  ($340 + $87.50 + $36.02 = $463.52)
+    const totalCents = inv.lines.reduce(
+      (s: number, l: { amountCents: number }) => s + l.amountCents, 0,
+    );
+    expect(totalCents).toBe(46352);
+
+    // The tax line description is preserved as-is
+    expect(inv.lines[2].description).toMatch(/sales tax/i);
+  });
+
+  it("handles an invoice whose tax is rolled into item prices (no separate tax line)", async () => {
+    // When the AI returns no separate tax line (tax is already baked into the
+    // item amounts), the extraction should work normally with no changes.
+    mockCreate.mockResolvedValue(
+      completionWith(
+        JSON.stringify({
+          invoices: [
+            {
+              vendorName: "Tool Depot",
+              billNumber: "TD-9901",
+              date: "2026-08-05",
+              lines: [
+                { description: "Drill bits set", amount: 54.99, accountNumber: null },
+                { description: "Work gloves",    amount: 18.00, accountNumber: null },
+              ],
+            },
+          ],
+        }),
+      ),
+    );
+
+    const res = await request(app)
+      .post("/api/bills/extract")
+      .send({ text: "Tool Depot no separate tax" })
+      .expect(200);
+
+    expect(res.body.invoices).toHaveLength(1);
+    expect(res.body.invoices[0].lines).toHaveLength(2);
+    const totalCents = res.body.invoices[0].lines.reduce(
+      (s: number, l: { amountCents: number }) => s + l.amountCents, 0,
+    );
+    expect(totalCents).toBe(7299); // $54.99 + $18.00
+  });
+
+  it("includes the sales-tax instruction in the system prompt", async () => {
+    mockCreate.mockResolvedValue(
+      completionWith(JSON.stringify(batchOf({ vendorName: "V", lines: [] }))),
+    );
+    await request(app)
+      .post("/api/bills/extract")
+      .send({ text: "invoice text" })
+      .expect(200);
+
+    const call = mockCreate.mock.calls[0][0];
+    const system = call.messages.find((m: { role: string }) => m.role === "system");
+    // Prompt must say to ALWAYS include sales tax (not exclude it)
+    expect(system.content).toMatch(/always include sales tax/i);
+    expect(system.content).not.toMatch(/exclude sales tax/i);
+  });
+
   it("includes the multi-page clarification in the system prompt", async () => {
     mockCreate.mockResolvedValue(
       completionWith(JSON.stringify(batchOf({ vendorName: "V", lines: [] }))),
