@@ -313,4 +313,200 @@ describe("POST /api/bills/extract account suggestions", () => {
     expect(res.body.invoices).toHaveLength(1);
     expect(res.body.invoices[0].vendorName).toBe("Legacy Vendor");
   });
+
+  // -------------------------------------------------------------------------
+  // Multi-page invoice regression tests (Task #368)
+  // -------------------------------------------------------------------------
+
+  it("passes a multi-page PDF through as one invoice when the AI correctly returns all lines in one entry", async () => {
+    // A 2-page DNC invoice: the AI reads both pages and returns a single
+    // invoice object with lines from both pages.  The server must not split
+    // or duplicate it.
+    mockCreate.mockResolvedValue(
+      completionWith(
+        JSON.stringify({
+          invoices: [
+            {
+              vendorName: "DNC Supply Co",
+              billNumber: "DNC/378170",
+              date: "2026-07-15",
+              lines: [
+                { description: "Copper wire 12 AWG — 500 ft",  amount: 312.50, accountNumber: null },
+                { description: "Conduit fittings — 2\" EMT",   amount: 187.00, accountNumber: null },
+                // page 2 lines
+                { description: "Junction boxes — 4\" sq",      amount: 94.25,  accountNumber: null },
+                { description: "Freight",                       amount: 22.00,  accountNumber: null },
+              ],
+            },
+          ],
+        }),
+      ),
+    );
+
+    const res = await request(app)
+      .post("/api/bills/extract")
+      .send({ text: "DNC/378170 two-page invoice" })
+      .expect(200);
+
+    // Exactly one invoice — the whole DNC/378170, not one per page
+    expect(res.body.invoices).toHaveLength(1);
+    const inv = res.body.invoices[0];
+    expect(inv.billNumber).toBe("DNC/378170");
+    // All four lines are present, in order
+    expect(inv.lines).toHaveLength(4);
+    expect(inv.lines.map((l: { amountCents: number }) => l.amountCents)).toEqual([
+      31250, 18700, 9425, 2200,
+    ]);
+    // Total equals the sum of all lines (no lines dropped)
+    const totalCents = inv.lines.reduce((s: number, l: { amountCents: number }) => s + l.amountCents, 0);
+    expect(totalCents).toBe(61575);
+  });
+
+  it("merges two page-split entries for the same bill number into one invoice (AI misread multi-page as two invoices)", async () => {
+    // Regression for the DNC/378170 bug: model returned one entry per page,
+    // each carrying a subset of lines.  The server must merge them so the
+    // user only reviews one form with all lines and the correct grand total.
+    mockCreate.mockResolvedValue(
+      completionWith(
+        JSON.stringify({
+          invoices: [
+            {
+              vendorName: "DNC Supply Co",
+              billNumber: "DNC/378170",
+              date: "2026-07-15",
+              lines: [
+                { description: "Copper wire 12 AWG — 500 ft", amount: 312.50, accountNumber: null },
+                { description: "Conduit fittings — 2\" EMT",  amount: 187.00, accountNumber: null },
+              ],
+            },
+            {
+              // Second "invoice" is really page 2 of the same document
+              vendorName: "DNC Supply Co",
+              billNumber: "DNC/378170",
+              date: "2026-07-15",
+              lines: [
+                { description: "Junction boxes — 4\" sq",  amount: 94.25, accountNumber: null },
+                { description: "Freight",                   amount: 22.00, accountNumber: null },
+              ],
+            },
+          ],
+        }),
+      ),
+    );
+
+    const res = await request(app)
+      .post("/api/bills/extract")
+      .send({ text: "DNC/378170 two-page invoice" })
+      .expect(200);
+
+    // Server must merge → exactly ONE invoice with all four lines
+    expect(res.body.invoices).toHaveLength(1);
+    const inv = res.body.invoices[0];
+    expect(inv.billNumber).toBe("DNC/378170");
+    expect(inv.vendorName).toBe("DNC Supply Co");
+    expect(inv.lines).toHaveLength(4);
+
+    // Lines arrive in page order: page-1 lines first, then page-2 lines
+    expect(inv.lines.map((l: { amountCents: number }) => l.amountCents)).toEqual([
+      31250, 18700, 9425, 2200,
+    ]);
+
+    // Grand total of merged invoice equals the sum of all four lines
+    const totalCents = inv.lines.reduce((s: number, l: { amountCents: number }) => s + l.amountCents, 0);
+    expect(totalCents).toBe(61575); // $312.50 + $187.00 + $94.25 + $22.00
+  });
+
+  it("does NOT merge two distinct invoices that happen to have no bill number", async () => {
+    // If neither invoice has a bill number, they cannot be matched by number;
+    // treat them as separate bills.
+    mockCreate.mockResolvedValue(
+      completionWith(
+        JSON.stringify({
+          invoices: [
+            { vendorName: "Vendor A", billNumber: null, lines: [{ description: "Item A", amount: 100, accountNumber: null }] },
+            { vendorName: "Vendor B", billNumber: null, lines: [{ description: "Item B", amount: 200, accountNumber: null }] },
+          ],
+        }),
+      ),
+    );
+
+    const res = await request(app)
+      .post("/api/bills/extract")
+      .send({ text: "two unnumbered invoices" })
+      .expect(200);
+
+    // Both must survive — no incorrect merge on null key
+    expect(res.body.invoices).toHaveLength(2);
+    expect(res.body.invoices[0].lines[0].amountCents).toBe(10000);
+    expect(res.body.invoices[1].lines[0].amountCents).toBe(20000);
+  });
+
+  it("merges case-insensitively so 'dnc/378170' and 'DNC/378170' from the same vendor collapse into one", async () => {
+    mockCreate.mockResolvedValue(
+      completionWith(
+        JSON.stringify({
+          invoices: [
+            { vendorName: "DNC Supply Co", billNumber: "DNC/378170", lines: [{ description: "Page 1 item", amount: 100, accountNumber: null }] },
+            // Same vendor, same bill number with different casing → page 2 continuation
+            { vendorName: "dnc supply co", billNumber: "dnc/378170", lines: [{ description: "Page 2 item", amount: 50,  accountNumber: null }] },
+          ],
+        }),
+      ),
+    );
+
+    const res = await request(app)
+      .post("/api/bills/extract")
+      .send({ text: "mixed-case bill number" })
+      .expect(200);
+
+    expect(res.body.invoices).toHaveLength(1);
+    expect(res.body.invoices[0].lines).toHaveLength(2);
+    expect(res.body.invoices[0].lines.map((l: { amountCents: number }) => l.amountCents)).toEqual([10000, 5000]);
+  });
+
+  it("keeps two invoices separate when they share a bill number but come from different vendors", async () => {
+    // This would be a batch PDF containing one invoice from each of two
+    // vendors that happen to share an invoice number — merging them would
+    // produce a materially incorrect payable bill.
+    mockCreate.mockResolvedValue(
+      completionWith(
+        JSON.stringify({
+          invoices: [
+            { vendorName: "Vendor Alpha", billNumber: "INV-100", lines: [{ description: "Alpha item", amount: 250, accountNumber: null }] },
+            { vendorName: "Vendor Beta",  billNumber: "INV-100", lines: [{ description: "Beta item",  amount: 400, accountNumber: null }] },
+          ],
+        }),
+      ),
+    );
+
+    const res = await request(app)
+      .post("/api/bills/extract")
+      .send({ text: "two vendors same bill number" })
+      .expect(200);
+
+    // Must remain two separate invoices — NOT merged
+    expect(res.body.invoices).toHaveLength(2);
+    expect(res.body.invoices[0].vendorName).toBe("Vendor Alpha");
+    expect(res.body.invoices[0].lines[0].amountCents).toBe(25000);
+    expect(res.body.invoices[1].vendorName).toBe("Vendor Beta");
+    expect(res.body.invoices[1].lines[0].amountCents).toBe(40000);
+  });
+
+  it("includes the multi-page clarification in the system prompt", async () => {
+    mockCreate.mockResolvedValue(
+      completionWith(JSON.stringify(batchOf({ vendorName: "V", lines: [] }))),
+    );
+    await request(app)
+      .post("/api/bills/extract")
+      .send({ text: "invoice text" })
+      .expect(200);
+
+    const call = mockCreate.mock.calls[0][0];
+    const system = call.messages.find((m: { role: string }) => m.role === "system");
+    // The prompt must explicitly address multi-page invoices so the AI knows
+    // not to create a separate entry per page.
+    expect(system.content).toMatch(/span.*multiple pages|multiple pages.*span/i);
+    expect(system.content).toContain("Page 1 of 2");
+    expect(system.content).toContain("ONE invoice");
+  });
 });

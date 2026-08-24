@@ -54,6 +54,7 @@ Return ONLY a JSON object of this exact shape:
 
 Rules:
 - Return one element in the invoices array per distinct invoice in the file. If the file contains 4 separate invoices (different invoice numbers, amounts, or jobs), return 4 elements. Never merge separate invoices into one.
+- A single invoice may span multiple pages ("Page 1 of 2", "Page 2 of 2", "continued on next page"). When all pages share the same invoice number, treat them as ONE invoice object and include ALL line items from every page. Do NOT create a separate invoices array entry per page — page headers, page footers, and "continued" labels are not new invoices.
 - If the content is not an invoice at all, return {"invoices": []}.
 - vendorName: the company issuing the invoice (the seller/supplier), exactly as written. If a KNOWN VENDORS list is appended below, resolve abbreviations or acronyms to the matching vendor name when you are confident (e.g. "CES" → "City Electric Supply"). If genuinely ambiguous, return the abbreviation as written. null if unclear.
 - billNumber: the invoice/bill number as written (e.g. "INV-1042"). null if not present.
@@ -271,12 +272,44 @@ router.post("/bills/extract", async (req, res): Promise<void> => {
     ? (raw.invoices as Record<string, unknown>[])
     : [raw];
 
-  const invoices = rawInvoices
+  const normalisedInvoices = rawInvoices
     .map((r) => normaliseInvoice(r))
     .filter(
       (inv) =>
         inv.vendorName != null || inv.billNumber != null || inv.lines.length > 0,
     );
+
+  // Safety-net deduplication: if the AI returned multiple entries for the
+  // same invoice (e.g. one per page of a multi-page document), merge them
+  // into a single invoice so the user only reviews one form. Lines are
+  // combined in order; other header fields come from the first entry.
+  //
+  // Match requires BOTH bill number AND vendor name to be non-null and equal
+  // (case-insensitive, trimmed). Matching on bill number alone would wrongly
+  // collapse distinct invoices that share a number but come from different
+  // vendors (e.g. Vendor A / INV-100 and Vendor B / INV-100).
+  const seenKeys = new Map<string, number>(); // composite key → index in mergedInvoices[]
+  const mergedInvoices: typeof normalisedInvoices = [];
+  for (const inv of normalisedInvoices) {
+    const billKey = inv.billNumber?.trim().toLowerCase() ?? null;
+    const vendorKey = inv.vendorName?.trim().toLowerCase() ?? null;
+    // Only deduplicate when both identifiers are present and match
+    const compositeKey =
+      billKey != null && vendorKey != null
+        ? `${vendorKey}\x00${billKey}`
+        : null;
+    if (compositeKey != null && seenKeys.has(compositeKey)) {
+      const idx = seenKeys.get(compositeKey)!;
+      mergedInvoices[idx] = {
+        ...mergedInvoices[idx],
+        lines: [...mergedInvoices[idx].lines, ...inv.lines],
+      };
+    } else {
+      if (compositeKey != null) seenKeys.set(compositeKey, mergedInvoices.length);
+      mergedInvoices.push({ ...inv });
+    }
+  }
+  const invoices = mergedInvoices;
 
   // Upload the source file to object storage so it can be linked to each bill
   // and previewed from the job-detail transactions view. Non-fatal: extraction
