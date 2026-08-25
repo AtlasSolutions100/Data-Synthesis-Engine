@@ -913,3 +913,195 @@ describe("Tax-bearing invoice end-to-end: extract → save → verify persisted 
     expect(storedSubtotalCents + storedTaxLine.amountCents).toBe(savedBill.totalCents);
   });
 });
+
+// =============================================================================
+// Task #374 — Multi-invoice batch: tax lines must survive the merge path
+//
+// Exercises the mergedInvoices deduplication logic in bills.ts (~lines 291-312)
+// to confirm that Sales Tax lines are never dropped during:
+//   (a) a two-invoice batch PDF where each distinct invoice has its own tax line
+//   (b) a page-split scenario where only the last page carries the tax line and
+//       both pages refer to the same bill number (merged into one invoice)
+// =============================================================================
+
+describe("Multi-invoice batch: Sales Tax lines survive the merge/deduplication path (Task #374)", () => {
+  beforeEach(() => {
+    mockCreate.mockReset();
+  });
+
+  it("preserves a Sales Tax line on each invoice in a two-invoice batch", async () => {
+    // Simulate a batch PDF containing two completely distinct invoices.
+    // Each has material lines plus a separate "Sales Tax" line.
+    // The deduplication logic must leave them as two separate invoices and
+    // must NOT drop the tax line from either.
+    //
+    // Invoice A — Parts Plus PP-7001
+    //   Pipe fittings    $200.00
+    //   Sales Tax (8%)   $ 16.00
+    //   Grand total      $216.00  (21600 ¢)
+    //
+    // Invoice B — Tool Depot TD-4400
+    //   Safety supplies  $150.00
+    //   Sales Tax (8%)   $ 12.00
+    //   Grand total      $162.00  (16200 ¢)
+    mockCreate.mockResolvedValue(
+      completionWith(
+        JSON.stringify({
+          invoices: [
+            {
+              vendorName: "Parts Plus",
+              billNumber: "PP-7001",
+              date: "2026-08-10",
+              lines: [
+                { description: "Pipe fittings assorted", amount: 200.00, accountNumber: null },
+                { description: "Sales Tax (8%)",          amount:  16.00, accountNumber: null },
+              ],
+            },
+            {
+              vendorName: "Tool Depot",
+              billNumber: "TD-4400",
+              date: "2026-08-10",
+              lines: [
+                { description: "Safety supplies",  amount: 150.00, accountNumber: null },
+                { description: "Sales Tax (8%)",   amount:  12.00, accountNumber: null },
+              ],
+            },
+          ],
+        }),
+      ),
+    );
+
+    const res = await request(app)
+      .post("/api/bills/extract")
+      .send({ text: "two-invoice batch with tax" })
+      .expect(200);
+
+    // Both invoices must survive — no incorrect merge
+    expect(res.body.invoices).toHaveLength(2);
+
+    const invA = res.body.invoices[0];
+    const invB = res.body.invoices[1];
+
+    // Invoice A: both lines preserved, tax line intact
+    expect(invA.billNumber).toBe("PP-7001");
+    expect(invA.lines).toHaveLength(2);
+    const taxLineA = invA.lines.find(
+      (l: { description: string | null }) =>
+        l.description != null && /sales tax/i.test(l.description),
+    );
+    expect(taxLineA).toBeDefined();
+    expect(taxLineA.amountCents).toBe(1600); // $16.00
+
+    const totalCentsA: number = invA.lines.reduce(
+      (s: number, l: { amountCents: number }) => s + l.amountCents,
+      0,
+    );
+    expect(totalCentsA).toBe(21600); // $200 + $16 = $216.00
+
+    // Invoice B: both lines preserved, tax line intact
+    expect(invB.billNumber).toBe("TD-4400");
+    expect(invB.lines).toHaveLength(2);
+    const taxLineB = invB.lines.find(
+      (l: { description: string | null }) =>
+        l.description != null && /sales tax/i.test(l.description),
+    );
+    expect(taxLineB).toBeDefined();
+    expect(taxLineB.amountCents).toBe(1200); // $12.00
+
+    const totalCentsB: number = invB.lines.reduce(
+      (s: number, l: { amountCents: number }) => s + l.amountCents,
+      0,
+    );
+    expect(totalCentsB).toBe(16200); // $150 + $12 = $162.00
+  });
+
+  it("preserves the Sales Tax line when it appears only on the last page of a merged invoice", async () => {
+    // The AI mis-reads a two-page invoice as two entries sharing the same
+    // bill number and vendor name.  The material lines land on page 1 and the
+    // Sales Tax line lands on page 2.  After the server merges these two
+    // entries into one invoice, the Sales Tax line must still be present.
+    //
+    // Page 1 entry (no tax):
+    //   Steel pipe 2" sch40 × 20 ft   $340.00
+    //   Pipe fittings assorted         $ 87.50
+    //
+    // Page 2 entry (tax only):
+    //   Sales Tax (8.5%)               $ 36.02
+    //
+    // Merged grand total: $340.00 + $87.50 + $36.02 = $463.52  (46352 ¢)
+    mockCreate.mockResolvedValue(
+      completionWith(
+        JSON.stringify({
+          invoices: [
+            {
+              vendorName: "Parts Plus",
+              billNumber: "PP-5512",
+              date: "2026-08-01",
+              lines: [
+                { description: "Steel pipe 2\" sch40 × 20 ft", amount: 340.00, accountNumber: null },
+                { description: "Pipe fittings assorted",        amount:  87.50, accountNumber: null },
+              ],
+            },
+            {
+              // Same vendor + same bill number → page 2 of the same document
+              vendorName: "Parts Plus",
+              billNumber: "PP-5512",
+              date: "2026-08-01",
+              lines: [
+                { description: "Sales Tax (8.5%)", amount: 36.02, accountNumber: null },
+              ],
+            },
+          ],
+        }),
+      ),
+    );
+
+    const res = await request(app)
+      .post("/api/bills/extract")
+      .send({ text: "PP-5512 two-page invoice with tax on last page" })
+      .expect(200);
+
+    // Server must merge the two page-split entries into ONE invoice
+    expect(res.body.invoices).toHaveLength(1);
+    const inv = res.body.invoices[0];
+
+    expect(inv.billNumber).toBe("PP-5512");
+    expect(inv.vendorName).toBe("Parts Plus");
+
+    // All three lines must be present: two material lines from page 1 and the
+    // Sales Tax line from page 2
+    expect(inv.lines).toHaveLength(3);
+
+    // Lines arrive in page order: page-1 lines first, then page-2 tax line
+    expect(
+      inv.lines.map((l: { amountCents: number }) => l.amountCents),
+    ).toEqual([34000, 8750, 3602]);
+
+    // The Sales Tax line must be present and carry the correct amount
+    const taxLine = inv.lines.find(
+      (l: { description: string | null }) =>
+        l.description != null && /sales tax/i.test(l.description),
+    );
+    expect(taxLine).toBeDefined();
+    expect(taxLine.amountCents).toBe(3602); // $36.02
+
+    // Grand total = $340.00 + $87.50 + $36.02 = $463.52
+    const totalCents: number = inv.lines.reduce(
+      (s: number, l: { amountCents: number }) => s + l.amountCents,
+      0,
+    );
+    expect(totalCents).toBe(46352);
+
+    // Subtotal of non-tax lines = $340.00 + $87.50 = $427.50
+    const subtotalCents: number = inv.lines
+      .filter(
+        (l: { description: string | null }) =>
+          l.description == null || !/sales tax/i.test(l.description),
+      )
+      .reduce((s: number, l: { amountCents: number }) => s + l.amountCents, 0);
+    expect(subtotalCents).toBe(42750); // $427.50
+
+    // Tax is exactly the difference
+    expect(totalCents - subtotalCents).toBe(3602); // $36.02
+  });
+});
