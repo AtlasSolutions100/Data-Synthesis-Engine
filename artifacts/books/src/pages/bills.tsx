@@ -499,11 +499,13 @@ export default function Bills() {
   const currentNote = queue ? queue.notes[queueIndex] ?? null : null;
   const totalInQueue = queue?.prefills.length ?? 0;
 
-  // Client-side bill-number search — filter after all bills are loaded
+  // Client-side search — matches bill number or vendor name
   const billSearchTrimmed = billSearch.trim().toLowerCase();
   const filteredBills = billSearchTrimmed
-    ? (bills ?? []).filter((b) =>
-        (b.billNumber ?? "").toLowerCase().includes(billSearchTrimmed),
+    ? (bills ?? []).filter(
+        (b) =>
+          (b.billNumber ?? "").toLowerCase().includes(billSearchTrimmed) ||
+          (b.vendorName ?? "").toLowerCase().includes(billSearchTrimmed),
       )
     : (bills ?? []);
 
@@ -663,7 +665,7 @@ export default function Bills() {
           <Input
             data-testid="bill-number-search"
             type="search"
-            placeholder="Search by bill number…"
+            placeholder="Search by bill number or vendor…"
             value={billSearch}
             onChange={(e) => setBillSearch(e.target.value)}
             className="pl-8 pr-8"

@@ -484,6 +484,95 @@ describe("Bills page bill-number search", () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// Vendor-name search
+// ---------------------------------------------------------------------------
+
+describe("Bills page vendor-name search", () => {
+  beforeEach(() => {
+    vi.stubGlobal("fetch", makeDraftFetch(null));
+  });
+
+  it("shows only bills whose vendor name matches a partial search term", async () => {
+    billsData = [
+      bill({ id: 1, billNumber: "INV-001", vendorName: "City Electric" }),
+      bill({ id: 2, billNumber: "INV-002", vendorName: "Volt Supply Co" }),
+      bill({ id: 3, billNumber: "INV-003", vendorName: "City Plumbing" }),
+    ];
+    renderBills();
+    const user = userEvent.setup();
+    await user.type(screen.getByTestId("bill-number-search"), "City");
+
+    await waitFor(() => {
+      expect(screen.getByText("INV-001")).toBeTruthy();
+      expect(screen.getByText("INV-003")).toBeTruthy();
+    });
+    expect(screen.queryByText("INV-002")).toBeNull();
+  });
+
+  it("matches vendor names case-insensitively", async () => {
+    billsData = [bill({ billNumber: "INV-001", vendorName: "City Electric" })];
+    renderBills();
+    const user = userEvent.setup();
+    await user.type(screen.getByTestId("bill-number-search"), "city electric");
+
+    await waitFor(() => {
+      expect(screen.getByText("INV-001")).toBeTruthy();
+    });
+  });
+
+  it("returns bills that match by bill number OR vendor name", async () => {
+    billsData = [
+      bill({ id: 1, billNumber: "INV-001", vendorName: "City Electric" }),
+      bill({ id: 2, billNumber: "CITY-100", vendorName: "Volt Supply Co" }),
+      bill({ id: 3, billNumber: "BILL-500", vendorName: "Other Vendor" }),
+    ];
+    renderBills();
+    const user = userEvent.setup();
+    await user.type(screen.getByTestId("bill-number-search"), "city");
+
+    await waitFor(() => {
+      expect(screen.getByText("INV-001")).toBeTruthy();
+      expect(screen.getByText("CITY-100")).toBeTruthy();
+    });
+    expect(screen.queryByText("BILL-500")).toBeNull();
+  });
+
+  it("shows the no-results empty state when the vendor name doesn't match", async () => {
+    billsData = [bill({ billNumber: "INV-001", vendorName: "City Electric" })];
+    renderBills();
+    const user = userEvent.setup();
+    await user.type(screen.getByTestId("bill-number-search"), "ZZZNOMATCH");
+
+    await waitFor(() => {
+      expect(screen.getByTestId("bill-search-no-results")).toBeTruthy();
+      expect(screen.getByTestId("bill-search-no-results").textContent).toContain("ZZZNOMATCH");
+    });
+    expect(screen.queryByText("INV-001")).toBeNull();
+  });
+
+  it("restores all bills when clear is clicked after a vendor search", async () => {
+    billsData = [
+      bill({ id: 1, billNumber: "INV-001", vendorName: "City Electric" }),
+      bill({ id: 2, billNumber: "BILL-500", vendorName: "Volt Supply Co" }),
+    ];
+    renderBills();
+    const user = userEvent.setup();
+    await user.type(screen.getByTestId("bill-number-search"), "City Electric");
+
+    await waitFor(() => {
+      expect(screen.queryByText("BILL-500")).toBeNull();
+    });
+
+    await user.click(screen.getByTestId("bill-number-search-clear"));
+
+    await waitFor(() => {
+      expect(screen.getByText("INV-001")).toBeTruthy();
+      expect(screen.getByText("BILL-500")).toBeTruthy();
+    });
+  });
+});
+
 describe("Bills page invoice upload", () => {
   beforeEach(() => {
     vi.stubGlobal("fetch", makeDraftFetch(null));
