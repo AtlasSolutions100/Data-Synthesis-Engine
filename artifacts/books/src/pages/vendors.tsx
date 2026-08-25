@@ -1,17 +1,25 @@
-import { useState } from "react";
-import { useListVendors, useCreateVendor, useUpdateVendor, useDeleteVendor, getListVendorsQueryKey, type Vendor } from "@workspace/api-client-react";
+import { useState, useMemo } from "react";
+import { useListVendors, useCreateVendor, useUpdateVendor, useDeleteVendor, getListVendorsQueryKey, useListAccounts, getListAccountsQueryKey, type Vendor } from "@workspace/api-client-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { VendorForm } from "@/components/forms/vendor-form";
 import { useQueryClient } from "@tanstack/react-query";
-import { Plus, Edit2, Trash2, Search, Download } from "lucide-react";
-import { Link } from "wouter";
+import { Plus, Edit2, Trash2, Search, Download, CheckCircle2 } from "lucide-react";
+import { Link, useLocation } from "wouter";
 import { Input } from "@/components/ui/input";
 import { ImportDataDialog } from "@/components/import-data-dialog";
 import { buildCsv, csvFilename, downloadCsv } from "@/lib/csv-export";
 import { DemoBadge } from "@/components/demo-badge";
+
+const NON_RECONCILABLE_TYPES = new Set([
+  "income",
+  "expense",
+  "cogs",
+  "other_expense",
+  "other_income",
+]);
 
 /** Download the visible vendors list as CSV (same columns as the table). */
 function exportVendorsCsv(vendors: Vendor[]) {
@@ -30,10 +38,39 @@ export default function Vendors() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [search, setSearch] = useState("");
+  const [, navigate] = useLocation();
 
   const { data: vendors, isLoading } = useListVendors({
     query: { queryKey: getListVendorsQueryKey() }
   });
+
+  const { data: accounts } = useListAccounts({
+    query: { queryKey: getListAccountsQueryKey() },
+  });
+
+  // Build a map of normalized vendor name → reconcilable account IDs so each
+  // row can show a direct "Reconcile" link without an extra round-trip.
+  const reconcilableAccountByVendorName = useMemo(() => {
+    const map = new Map<string, number[]>();
+    for (const acct of accounts ?? []) {
+      if (NON_RECONCILABLE_TYPES.has(acct.type)) continue;
+      const key = acct.name.trim().toLowerCase();
+      map.set(key, [...(map.get(key) ?? []), acct.id]);
+    }
+    return map;
+  }, [accounts]);
+
+  function handleReconcile(vendorName: string) {
+    const key = vendorName.trim().toLowerCase();
+    const ids = reconcilableAccountByVendorName.get(key);
+    if (ids?.length === 1) {
+      navigate(`/accounts/${ids[0]}/reconcile`);
+    } else {
+      // Multiple matches or none — drop the user at the Accounts page so they
+      // can pick the right account themselves.
+      navigate("/accounts");
+    }
+  }
 
   const normalizedSearch = search.trim().toLowerCase();
   const filteredVendors = normalizedSearch
@@ -160,6 +197,19 @@ export default function Vendors() {
                     <TableCell className="text-slate-500 truncate max-w-xs">{vendor.notes || "-"}</TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2 justify-end">
+                        {/* 10D: Reconcile handoff — routes into the existing account
+                            reconciliation engine for any account matching this vendor's name. */}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-8 text-xs gap-1.5 text-emerald-700 border-emerald-200 hover:bg-emerald-50"
+                          onClick={() => handleReconcile(vendor.name)}
+                          data-testid={`button-vendor-reconcile-${vendor.id}`}
+                          title="Reconcile the account linked to this vendor"
+                        >
+                          <CheckCircle2 className="h-3.5 w-3.5" />
+                          Reconcile
+                        </Button>
                         <Dialog open={editingId === vendor.id} onOpenChange={(val) => setEditingId(val ? vendor.id : null)}>
                           <DialogTrigger asChild>
                             <Button variant="ghost" size="icon" className="h-8 w-8">

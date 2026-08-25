@@ -13,7 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { DollarSign, Activity, CreditCard, Users, ChevronRight, ChevronDown } from "lucide-react";
 import { Link } from "wouter";
 import { DateRangePicker, type DateRangeValue, describeRange } from "@/components/date-range-picker";
-import { QuickJobDocUploadDialog } from "@/components/quick-upload-dialog";
+import { QuickDashboardUploadDialog } from "@/components/quick-upload-dialog";
 import { DemoDataCard } from "@/components/demo-data-card";
 
 export default function Dashboard() {
@@ -55,7 +55,7 @@ export default function Dashboard() {
           </p>
         </div>
         <div className="flex items-end gap-3">
-          <QuickJobDocUploadDialog />
+          <QuickDashboardUploadDialog />
           <DateRangePicker value={range} onChange={setRange} />
         </div>
       </div>

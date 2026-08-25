@@ -132,6 +132,20 @@ export function TransactionForm({
     });
   }, [fieldError, form]);
 
+  // 10C: when a job is selected, auto-fill its linked customer if the customer
+  // field is currently empty. Customer remains optional — saves never block on it.
+  const watchedJobId = form.watch("jobId");
+  useEffect(() => {
+    if (!watchedJobId || !jobs) return;
+    const job = jobs.find((j) => String(j.id) === watchedJobId);
+    if (!job?.customerId) return;
+    if (!form.getValues("customerId")) {
+      form.setValue("customerId", String(job.customerId), {
+        shouldDirty: true,
+      });
+    }
+  }, [watchedJobId, jobs, form]);
+
   // Smart default: when a vendor is picked and no account is set yet,
   // pre-fill the account this vendor's costs are usually categorized to.
   const watchedTxnVendorId = form.watch("vendorId");

@@ -197,8 +197,36 @@ router.post("/accounts", async (req, res): Promise<void> => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
-  const [row] = await db.insert(accountsTable).values(parsed.data).returning();
-  res.status(201).json(GetAccountResponse.parse(row));
+  // Dedup guard: reject if an account with this number already exists so the
+  // chart stays clean without relying on a DB unique constraint.
+  const [existing] = await db
+    .select({ id: accountsTable.id, name: accountsTable.name })
+    .from(accountsTable)
+    .where(eq(accountsTable.number, parsed.data.number));
+  if (existing) {
+    res.status(409).json({
+      error: `Account number ${parsed.data.number} already exists ("${existing.name}"). Use a different number or edit the existing account.`,
+    });
+    return;
+  }
+  let row: (typeof accountsTable.$inferSelect) | undefined;
+  try {
+    [row] = await db.insert(accountsTable).values(parsed.data).returning();
+  } catch (err: unknown) {
+    if (
+      err != null &&
+      typeof err === "object" &&
+      "code" in err &&
+      (err as { code: unknown }).code === "23505"
+    ) {
+      res.status(409).json({
+        error: `Account number ${parsed.data.number} already exists. Use a different number or edit the existing account.`,
+      });
+      return;
+    }
+    throw err;
+  }
+  res.status(201).json(GetAccountResponse.parse(row!));
 });
 
 router.get("/accounts/:id", async (req, res): Promise<void> => {
@@ -229,11 +257,41 @@ router.patch("/accounts/:id", async (req, res): Promise<void> => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
-  const [row] = await db
-    .update(accountsTable)
-    .set(parsed.data)
-    .where(eq(accountsTable.id, params.data.id))
-    .returning();
+  // If the request changes the account number, reject it when another account
+  // already owns that number (excludes the record being edited).
+  if (parsed.data.number !== undefined) {
+    const [conflict] = await db
+      .select({ id: accountsTable.id, name: accountsTable.name })
+      .from(accountsTable)
+      .where(eq(accountsTable.number, parsed.data.number));
+    if (conflict && conflict.id !== params.data.id) {
+      res.status(409).json({
+        error: `Account number ${parsed.data.number} already exists ("${conflict.name}"). Use a different number or edit the existing account.`,
+      });
+      return;
+    }
+  }
+  let row: (typeof accountsTable.$inferSelect) | undefined;
+  try {
+    [row] = await db
+      .update(accountsTable)
+      .set(parsed.data)
+      .where(eq(accountsTable.id, params.data.id))
+      .returning();
+  } catch (err: unknown) {
+    // Catch a DB-level unique violation (code 23505) in case the constraint
+    // was added after the in-app check ran (race condition).
+    if (
+      err != null &&
+      typeof err === "object" &&
+      "code" in err &&
+      (err as { code: unknown }).code === "23505"
+    ) {
+      res.status(409).json({ error: "Account number already exists." });
+      return;
+    }
+    throw err;
+  }
   if (!row) {
     res.status(404).json({ error: "Account not found" });
     return;

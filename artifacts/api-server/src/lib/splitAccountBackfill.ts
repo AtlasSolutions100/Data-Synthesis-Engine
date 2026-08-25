@@ -19,7 +19,9 @@ const BALANCE_SHEET_ACCOUNTS = [
   { number: "10100", name: "Checking", type: "bank" },
   { number: "11000", name: "Accounts Receivable", type: "asset" },
   { number: "20000", name: "Accounts Payable", type: "liability" },
-  { number: "20500", name: "Home Depot", type: "credit_card" },
+  // Home Depot credit card uses account 21100 (the canonical number retained
+  // after the 20500 duplicate was removed in the 10E COA cleanup).
+  { number: "21100", name: "Home Depot", type: "credit_card" },
 ];
 
 export interface SplitAccountBackfillResult {

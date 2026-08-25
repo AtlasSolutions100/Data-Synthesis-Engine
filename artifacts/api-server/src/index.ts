@@ -3,6 +3,8 @@ import { logger } from "./lib/logger";
 import { startOrphanCleanupScheduler } from "./lib/storageCleanup";
 import { runSplitAccountBackfillAtStartup } from "./lib/splitAccountBackfill";
 import { runBillLinkBackfillAtStartup } from "./lib/billLinkBackfill";
+import { consolidateHomedepotAccountAtStartup } from "./lib/consolidateHomedepotAccount";
+import { ensureAccountNumberUniquenessAtStartup } from "./lib/ensureAccountNumberUniqueness";
 import { ensureAllied2026 } from "./lib/ensureAllied2026";
 
 const rawPort = process.env["PORT"];
@@ -30,6 +32,15 @@ app.listen(port, (err) => {
   // Ensure the Allied 2026 customer exists for internal overhead coding.
   // Idempotent — no-ops if the customer was already created.
   void ensureAllied2026();
+
+  // One-time data migration: consolidate the duplicate Home Depot credit-card
+  // account (20500→21100). Idempotent; no-ops when 20500 is already absent.
+  void consolidateHomedepotAccountAtStartup();
+
+  // One-time data migration: deduplicate accounts.number and apply a unique
+  // DB index so concurrent creates can't produce duplicates. Skips safely when
+  // unresolvable duplicates remain, logs a warning, and retries on next start.
+  void ensureAccountNumberUniquenessAtStartup();
 
   // One-time data migration: link legacy free-text split account names to
   // real accounts. Idempotent; no-ops once nothing is left to link or the
