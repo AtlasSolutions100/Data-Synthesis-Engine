@@ -12,7 +12,21 @@
  * Clerk re-establishes a single clean set. The user may need to sign in once
  * more afterwards — far better than a permanently unauthorized session.
  */
+const CLEANUP_COMPLETE_KEY = "allied-clerk-cookie-cleanup-complete";
+
 export function cleanupDuplicateClerkCookies(basePath: string): void {
+  // The cleanup has to be one-time. Running it after every preview restart
+  // removes the fresh session that Clerk established after the previous
+  // cleanup, which turns a temporary recovery into a recurring 401 loop.
+  try {
+    if (window.localStorage.getItem(CLEANUP_COMPLETE_KEY) === "true") {
+      return;
+    }
+  } catch {
+    // Storage can be unavailable in restricted browser contexts. Continue with
+    // the best-effort cookie recovery rather than breaking app startup.
+  }
+
   const names = document.cookie
     .split(";")
     .map((c) => c.split("=")[0]?.trim())
@@ -34,6 +48,14 @@ export function cleanupDuplicateClerkCookies(basePath: string): void {
     .map(([name]) => name);
 
   if (duplicated.length === 0) return;
+
+  try {
+    // Record this before expiring cookies so a reload while Clerk is restoring
+    // its session cannot clear the newly-issued session cookie a second time.
+    window.localStorage.setItem(CLEANUP_COMPLETE_KEY, "true");
+  } catch {
+    // Cookie cleanup still helps when storage is unavailable.
+  }
 
   // Expire every Clerk cookie (not just the duplicated names) across all
   // plausible path/domain scopes, so the surviving set is consistent.
