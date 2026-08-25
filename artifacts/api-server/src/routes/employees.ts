@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { and, desc, eq, gte, lte } from "drizzle-orm";
+import { and, desc, eq, gte, isNull, lte, or, sql } from "drizzle-orm";
 import {
   db,
   employeesTable,
@@ -298,7 +298,7 @@ router.get("/employees/:id/timecards", async (req, res): Promise<void> => {
   }
 
   const [employee] = await db
-    .select({ id: employeesTable.id })
+    .select({ id: employeesTable.id, name: employeesTable.name })
     .from(employeesTable)
     .where(eq(employeesTable.id, params.data.id));
   if (!employee) {
@@ -306,7 +306,28 @@ router.get("/employees/:id/timecards", async (req, res): Promise<void> => {
     return;
   }
 
-  const conds = [eq(payrollLinesTable.employeeId, params.data.id)];
+  const sameNameRows = await db
+    .select({ id: employeesTable.id })
+    .from(employeesTable)
+    .where(
+      sql`lower(trim(${employeesTable.name})) = lower(trim(${employee.name}))`,
+    );
+  const legacyNameMatch =
+    sameNameRows.length === 1
+      ? and(
+          isNull(payrollLinesTable.employeeId),
+          sql`lower(trim(${payrollLinesTable.workerName})) = lower(trim(${employee.name}))`,
+        )
+      : undefined;
+  // Old time cards were saved before employeeId was captured. Include a
+  // name-only row only when this employee name is unique, so historical
+  // numbers remain visible without ever assigning an ambiguous row to two
+  // people.
+  const conds = [
+    legacyNameMatch
+      ? or(eq(payrollLinesTable.employeeId, params.data.id), legacyNameMatch)
+      : eq(payrollLinesTable.employeeId, params.data.id),
+  ];
   if (query.data.year != null) {
     conds.push(
       gte(payrollRunsTable.payPeriodStart, `${query.data.year}-01-01`),

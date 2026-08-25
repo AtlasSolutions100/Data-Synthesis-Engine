@@ -56,7 +56,7 @@ export default function EmployeeDetail() {
   const queryClient = useQueryClient();
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [ssnRevealed, setSsnRevealed] = useState(false);
-  const [year, setYear] = useState<string>(String(CURRENT_YEAR));
+  const [year, setYear] = useState<string>("all");
 
   // Default fetch: the server masks the SSN, so the raw value never travels
   // during normal browsing.

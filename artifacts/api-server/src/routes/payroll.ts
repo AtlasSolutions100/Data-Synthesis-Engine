@@ -394,6 +394,49 @@ function normalizeLines(
   }));
 }
 
+/**
+ * Older manually-entered time cards may only contain a worker name. When the
+ * name has one exact Employee Center match, attach it before saving so the
+ * employee's Time Card History can include the run. Ambiguous names remain
+ * unlinked rather than guessing which employee owns the hours.
+ */
+function employeeNameKey(name: string): string {
+  return name.trim().replace(/\s+/g, " ").toLowerCase();
+}
+
+async function linkKnownEmployees(lines: LineInput[]): Promise<LineInput[]> {
+  const missingNames = new Set(
+    lines
+      .filter(
+        (line) =>
+          line.lineType === "employee" &&
+          line.employeeId == null &&
+          employeeNameKey(line.workerName),
+      )
+      .map((line) => employeeNameKey(line.workerName)),
+  );
+  if (missingNames.size === 0) return lines;
+
+  const employees = await db
+    .select({ id: employeesTable.id, name: employeesTable.name })
+    .from(employeesTable);
+  const employeeIdsByName = new Map<string, number[]>();
+  for (const employee of employees) {
+    const key = employeeNameKey(employee.name);
+    if (!missingNames.has(key)) continue;
+    employeeIdsByName.set(key, [
+      ...(employeeIdsByName.get(key) ?? []),
+      employee.id,
+    ]);
+  }
+
+  return lines.map((line) => {
+    if (line.lineType !== "employee" || line.employeeId != null) return line;
+    const ids = employeeIdsByName.get(employeeNameKey(line.workerName));
+    return ids?.length === 1 ? { ...line, employeeId: ids[0] } : line;
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Hours-import drafts (P8-TC-01): one autosaved in-progress import per user,
 // so a partially matched time card survives closing the dialog or reloading.
@@ -591,7 +634,7 @@ router.post("/payroll-runs", async (req, res): Promise<void> => {
     coSurchargeRateBps:
       data.coSurchargeRateBps ?? DEFAULT_RATES.coSurchargeRateBps,
   };
-  const lines = normalizeLines(data.lines ?? []);
+  const lines = await linkKnownEmployees(normalizeLines(data.lines ?? []));
 
   const linesError = await validateLines(lines, rates);
   if (linesError) {
@@ -682,7 +725,8 @@ router.patch("/payroll-runs/:id", async (req, res): Promise<void> => {
     }
   }
 
-  const lines = data.lines != null ? normalizeLines(data.lines) : null;
+  const lines =
+    data.lines != null ? await linkKnownEmployees(normalizeLines(data.lines)) : null;
   if (lines != null) {
     const linesError = await validateLines(lines, rates);
     if (linesError) {

@@ -32,7 +32,7 @@ function TimecardHistoryDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
-  const [year, setYear] = useState<string>(String(CURRENT_YEAR));
+  const [year, setYear] = useState<string>("all");
   const params = year === "all" ? undefined : { year: Number(year) };
   const { data: rows, isLoading } = useListEmployeeTimecards(
     employeeId,
