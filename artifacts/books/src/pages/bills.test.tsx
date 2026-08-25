@@ -15,6 +15,8 @@ import Bills from "./bills";
 const deleteMutate = vi.fn();
 const extractMutateAsync = vi.fn();
 
+let vendorsData: unknown[] = [];
+
 // The Bills page calls useCreateBill TWICE per render: first for the review
 // queue (createBill) and second for the manual "New Bill" dialog (manualCreateBill).
 // We track odd-numbered calls (1st, 3rd, …) as the queue callback and ignore
@@ -55,6 +57,7 @@ vi.mock("@workspace/api-client-react", async (importOriginal) => {
       isPending: false,
       reset: vi.fn(),
     }),
+    useListVendors: () => ({ data: vendorsData }),
     useCreateBill: (config: {
       mutation?: { onSuccess?: () => void; onError?: (e: unknown) => void };
     }) => {
@@ -68,8 +71,15 @@ vi.mock("@workspace/api-client-react", async (importOriginal) => {
   });
 });
 
+// Capture the last defaultValues passed to BillForm so tests can assert
+// that the vendor pre-selection (vendor ID) is wired up correctly.
+let lastBillFormDefaultValues: Record<string, unknown> | undefined;
+
 vi.mock("@/components/forms/bill-form", () => ({
-  BillForm: () => null,
+  BillForm: (props: { defaultValues?: Record<string, unknown> }) => {
+    lastBillFormDefaultValues = props.defaultValues;
+    return null;
+  },
 }));
 
 vi.mock("@/components/import-data-dialog", () => ({
@@ -91,6 +101,8 @@ afterEach(() => {
   vi.unstubAllGlobals();
   vi.clearAllMocks();
   billsData = [];
+  vendorsData = [];
+  lastBillFormDefaultValues = undefined;
 });
 
 function renderBills() {
@@ -573,6 +585,103 @@ describe("Bills page vendor-name search", () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// Dotted-acronym vendor match end-to-end
+// ---------------------------------------------------------------------------
+
+describe("Bills page — dotted-acronym vendor auto-select note", () => {
+  beforeEach(() => {
+    vi.stubGlobal("fetch", makeDraftFetch(null));
+    // Provide a vendor whose initials spell CES so the matcher can recognise
+    // the dotted form "C.E.S." and produce the "recognized as" auto-select note.
+    vendorsData = [{ id: 5, name: "City Electric Supply" }];
+  });
+
+  it("shows the 'recognized as' note when the extracted vendor is a dotted acronym", async () => {
+    extractMutateAsync.mockResolvedValueOnce({
+      documentPath: "/objects/invoice-ces.pdf",
+      invoices: [
+        {
+          vendorName: "C.E.S.",
+          billNumber: "INV-999",
+          date: "2026-08-01",
+          dueDate: null,
+          memo: null,
+          jobName: null,
+          poNumber: null,
+          lines: [],
+        },
+      ],
+    });
+
+    renderBills();
+    const user = userEvent.setup();
+    await user.click(screen.getByTestId("button-upload-invoice"));
+
+    const input = document.querySelector(
+      'input[type="file"]',
+    ) as HTMLInputElement;
+    await user.upload(
+      input,
+      new File(["invoice"], "invoice-ces.pdf", { type: "application/pdf" }),
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText(/recognized as City Electric Supply/)).toBeTruthy();
+    });
+    // Also verify the note uses the original dotted form in quotes
+    expect(
+      screen.getByText(/recognized as City Electric Supply/).textContent,
+    ).toContain('"C.E.S."');
+    // BillForm must receive the matched vendor pre-selected (vendorId "5")
+    expect(lastBillFormDefaultValues?.vendorId).toBe("5");
+  });
+
+  it("does not pre-select a vendor and shows a 'pick' note when the dotted acronym is ambiguous", async () => {
+    // Add a second vendor whose initials also spell CES
+    vendorsData = [
+      { id: 5, name: "City Electric Supply" },
+      { id: 6, name: "Capital Electrical Services" },
+    ];
+
+    extractMutateAsync.mockResolvedValueOnce({
+      documentPath: "/objects/invoice-ces2.pdf",
+      invoices: [
+        {
+          vendorName: "C.E.S.",
+          billNumber: "INV-998",
+          date: "2026-08-01",
+          dueDate: null,
+          memo: null,
+          jobName: null,
+          poNumber: null,
+          lines: [],
+        },
+      ],
+    });
+
+    renderBills();
+    const user = userEvent.setup();
+    await user.click(screen.getByTestId("button-upload-invoice"));
+
+    const input = document.querySelector(
+      'input[type="file"]',
+    ) as HTMLInputElement;
+    await user.upload(
+      input,
+      new File(["invoice"], "invoice-ces2.pdf", { type: "application/pdf" }),
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText(/pick the right vendor below/)).toBeTruthy();
+    });
+    expect(
+      screen.getByText(/pick the right vendor below/).textContent,
+    ).toContain('"C.E.S." could be');
+    // BillForm must NOT have a vendor pre-selected when the match is ambiguous
+    expect(lastBillFormDefaultValues?.vendorId ?? "").toBeFalsy();
+  });
+});
 describe("Bills page invoice upload", () => {
   beforeEach(() => {
     vi.stubGlobal("fetch", makeDraftFetch(null));
