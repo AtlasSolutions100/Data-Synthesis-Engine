@@ -141,6 +141,24 @@ async function submit() {
   fireEvent.click(screen.getByRole("button", { name: /save bill/i }));
 }
 
+describe("BillForm save feedback", () => {
+  it("explains why an incomplete bill was not saved", async () => {
+    const onSubmit = vi.fn();
+    render(<BillForm onSubmit={onSubmit} />);
+
+    await submit();
+
+    await waitFor(() =>
+      expect(screen.getByTestId("bill-validation-summary").textContent).toMatch(
+        /can't save this bill yet/i,
+      ),
+    );
+    expect(screen.getByText("Vendor is required")).toBeTruthy();
+    expect(screen.getByText("Amount is required")).toBeTruthy();
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+});
+
 describe("BillForm line account selection", () => {
   it("saves the accountId of the account picked by name from the dropdown", async () => {
     const onSubmit = vi.fn();

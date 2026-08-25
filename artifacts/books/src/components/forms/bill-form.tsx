@@ -359,6 +359,9 @@ export function BillForm({
       typeof line?.description === "string" &&
       TAX_LINE_PATTERN.test(line.description),
   ).length;
+  const hasClientValidationErrors =
+    form.formState.submitCount > 0 &&
+    Object.keys(form.formState.errors).length > 0;
 
   const handleSubmit = (values: BillFormValues) => {
     let hasError = false;
@@ -678,6 +681,15 @@ export function BillForm({
             </FormItem>
           )}
         />
+        {hasClientValidationErrors ? (
+          <p
+            role="alert"
+            data-testid="bill-validation-summary"
+            className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-800"
+          >
+            Can&apos;t save this bill yet. Choose a vendor and enter an amount for every line item.
+          </p>
+        ) : null}
         {formLevelError ? (
           <p
             role="alert"
