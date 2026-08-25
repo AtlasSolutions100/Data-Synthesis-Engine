@@ -47,6 +47,8 @@ const lineSchema = z.object({
   amount: z.string().min(1, "Amount is required"),
 });
 
+const TAX_LINE_PATTERN = /\b(?:sales\s+)?tax\b/i;
+
 const billSchema = z.object({
   billNumber: z.string().optional(),
   vendorId: z.string().min(1, "Vendor is required"),
@@ -351,6 +353,12 @@ export function BillForm({
     (sum, l) => sum + parseDollars(l?.amount || "0"),
     0,
   );
+  const unassignedTaxLineCount = (watchedLines ?? []).filter(
+    (line) =>
+      !line?.accountId &&
+      typeof line?.description === "string" &&
+      TAX_LINE_PATTERN.test(line.description),
+  ).length;
 
   const handleSubmit = (values: BillFormValues) => {
     let hasError = false;
@@ -643,6 +651,18 @@ export function BillForm({
           <div className="flex justify-end pt-2 text-sm font-semibold text-slate-900">
             Total: {formatCents(totalCents)}
           </div>
+          {unassignedTaxLineCount > 0 ? (
+            <p
+              role="alert"
+              aria-live="polite"
+              data-testid="tax-account-warning"
+              className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800"
+            >
+              {unassignedTaxLineCount === 1
+                ? "This sales tax line has no account and won't appear in expense reports. Assign an account if you want it included in reporting."
+                : `${unassignedTaxLineCount} sales tax lines have no account and won't appear in expense reports. Assign an account if you want them included in reporting.`}
+            </p>
+          ) : null}
         </div>
 
         <FormField

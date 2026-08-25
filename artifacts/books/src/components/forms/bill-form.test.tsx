@@ -256,6 +256,54 @@ describe("BillForm line account selection", () => {
   });
 });
 
+describe("BillForm sales-tax account warning", () => {
+  it("warns before save when a sales-tax line has no account", async () => {
+    const onSubmit = vi.fn();
+    render(
+      <BillForm
+        onSubmit={onSubmit}
+        defaultValues={{
+          vendorId: "1",
+          date: "2026-08-25",
+          lines: [
+            { accountId: "501", description: "Materials", amount: "100" },
+            { accountId: "", description: "Sales Tax (8.5%)", amount: "8.50" },
+          ],
+        }}
+      />,
+    );
+
+    expect(screen.getByTestId("tax-account-warning").textContent).toMatch(
+      /won't appear in expense reports/i,
+    );
+
+    await submit();
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    // This is a warning, not a blocker; the tax-inclusive bill can still save.
+    expect(onSubmit.mock.calls[0][0].lines).toHaveLength(2);
+    expect(onSubmit.mock.calls[0][0].lines[1].amountCents).toBe(850);
+  });
+
+  it("does not warn when the sales-tax line has an account", () => {
+    const onSubmit = vi.fn();
+    render(
+      <BillForm
+        onSubmit={onSubmit}
+        defaultValues={{
+          vendorId: "1",
+          date: "2026-08-25",
+          lines: [
+            { accountId: "501", description: "Materials", amount: "100" },
+            { accountId: "503", description: "Sales Tax", amount: "8.50" },
+          ],
+        }}
+      />,
+    );
+
+    expect(screen.queryByTestId("tax-account-warning")).toBeNull();
+  });
+});
+
 describe("BillForm dangling id validation", () => {
   it("blocks submit with a clear error when the preloaded vendor no longer exists", async () => {
     const onSubmit = vi.fn();

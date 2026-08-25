@@ -912,6 +912,106 @@ describe("Tax-bearing invoice end-to-end: extract → save → verify persisted 
     // Sanity: stored total = subtotal + tax
     expect(storedSubtotalCents + storedTaxLine.amountCents).toBe(savedBill.totalCents);
   });
+
+  it("saves every invoice in a tax-bearing batch with each tax-inclusive total", async () => {
+    const fixturePath = join(__dirname, "fixtures", "ces-tax-invoice.pdf");
+    const pdfBytes = readFileSync(fixturePath);
+    const fileData = `data:application/pdf;base64,${pdfBytes.toString("base64")}`;
+
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response(null, { status: 200 }));
+
+    // Simulate a batch PDF with two distinct invoices. Each tax line must
+    // remain attached to its own bill when the review queue saves them.
+    mockCreate.mockResolvedValue(
+      completionWith(
+        JSON.stringify({
+          invoices: [
+            {
+              vendorName: "City Electric Supply",
+              billNumber: "BATCH-TAX-001",
+              date: "2026-08-01",
+              lines: [
+                { description: "Copper wire", amount: 200, accountNumber: null },
+                { description: "Sales Tax (8%)", amount: 16, accountNumber: null },
+              ],
+            },
+            {
+              vendorName: "City Electric Supply",
+              billNumber: "BATCH-TAX-002",
+              date: "2026-08-02",
+              lines: [
+                { description: "Conduit", amount: 150, accountNumber: null },
+                { description: "Sales Tax (8%)", amount: 12, accountNumber: null },
+              ],
+            },
+          ],
+        }),
+      ),
+    );
+
+    const extractRes = await request(e2eApp)
+      .post("/api/bills/extract")
+      .send({ fileData, fileName: "batch-tax-invoices.pdf" })
+      .expect(200);
+
+    fetchSpy.mockRestore();
+
+    expect(extractRes.body.invoices).toHaveLength(2);
+    const savedIds: number[] = [];
+
+    for (const extracted of extractRes.body.invoices) {
+      const saveRes = await request(e2eApp)
+        .post("/api/bills")
+        .send({
+          vendorId,
+          billNumber: extracted.billNumber,
+          date: extracted.date,
+          lines: extracted.lines.map(
+            (line: {
+              description: string | null;
+              amountCents: number;
+            }) => ({
+              description: line.description,
+              amountCents: line.amountCents,
+              accountId: null,
+            }),
+          ),
+        })
+        .expect(201);
+      savedIds.push(saveRes.body.id);
+      createdBillIds.push(saveRes.body.id);
+      expect(saveRes.body.totalCents).toBe(
+        extracted.lines.reduce(
+          (sum: number, line: { amountCents: number }) =>
+            sum + line.amountCents,
+          0,
+        ),
+      );
+    }
+
+    expect(savedIds).toHaveLength(2);
+    expect(new Set(savedIds).size).toBe(2);
+
+    const savedBills = await Promise.all(
+      savedIds.map(async (id) =>
+        (await request(e2eApp).get(`/api/bills/${id}`).expect(200)).body,
+      ),
+    );
+    expect(savedBills.map((saved) => saved.totalCents)).toEqual([
+      21600,
+      16200,
+    ]);
+    expect(
+      savedBills.map((saved) =>
+        saved.lines.find(
+          (line: { description: string | null }) =>
+            line.description != null && /sales tax/i.test(line.description),
+        )?.amountCents,
+      ),
+    ).toEqual([1600, 1200]);
+  });
 });
 
 // =============================================================================

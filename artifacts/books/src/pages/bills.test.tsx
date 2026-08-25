@@ -583,6 +583,64 @@ describe("Bills page vendor-name search", () => {
       expect(screen.getByText("BILL-500")).toBeTruthy();
     });
   });
+
+  it("safely ignores a bill with no vendor name during vendor search", async () => {
+    billsData = [
+      bill({ id: 1, billNumber: "INV-001", vendorName: null }),
+      bill({ id: 2, billNumber: "INV-002", vendorName: "City Electric" }),
+    ];
+    renderBills();
+    const user = userEvent.setup();
+
+    await user.type(screen.getByTestId("bill-number-search"), "city");
+
+    await waitFor(() => {
+      expect(screen.getByText("INV-002")).toBeTruthy();
+    });
+    expect(screen.queryByText("INV-001")).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Job-name search
+// ---------------------------------------------------------------------------
+
+describe("Bills page job-name search", () => {
+  beforeEach(() => {
+    vi.stubGlobal("fetch", makeDraftFetch(null));
+  });
+
+  it("shows bills whose job name matches the search term", async () => {
+    billsData = [
+      bill({ id: 1, billNumber: "INV-001", jobName: "Larkspur Gear" }),
+      bill({ id: 2, billNumber: "INV-002", jobName: "HR Stadium" }),
+      bill({ id: 3, billNumber: "INV-003", jobName: null }),
+    ];
+    renderBills();
+    const user = userEvent.setup();
+    await user.type(screen.getByTestId("bill-number-search"), "larkspur");
+
+    await waitFor(() => {
+      expect(screen.getByText("INV-001")).toBeTruthy();
+    });
+    expect(screen.queryByText("INV-002")).toBeNull();
+    expect(screen.queryByText("INV-003")).toBeNull();
+  });
+
+  it("matches job names case-insensitively and by partial text", async () => {
+    billsData = [
+      bill({ id: 1, billNumber: "INV-001", jobName: "North Warehouse Expansion" }),
+      bill({ id: 2, billNumber: "INV-002", jobName: "South Warehouse" }),
+    ];
+    renderBills();
+    const user = userEvent.setup();
+    await user.type(screen.getByTestId("bill-number-search"), "WAREHOUSE EXP");
+
+    await waitFor(() => {
+      expect(screen.getByText("INV-001")).toBeTruthy();
+    });
+    expect(screen.queryByText("INV-002")).toBeNull();
+  });
 });
 
 // ---------------------------------------------------------------------------
