@@ -228,3 +228,90 @@ describe("bill posting creates linked ledger transactions", () => {
     expect(manual).toBeDefined();
   });
 });
+
+describe("bill posting with tax lines", () => {
+  /**
+   * A real invoice (e.g. CES) may have a separate "Sales Tax" line.  These
+   * tests lock in the posting semantics for that line under two conditions:
+   *
+   *  1. Tax line with NO account — the line cannot be posted to any ledger
+   *     account, so it is intentionally skipped.  The sum of posted
+   *     transactions will be less than the bill grand total; the gap equals
+   *     the unaccounted tax amount.  This is the same behaviour as any other
+   *     line that has no account assignment.
+   *
+   *  2. Tax line WITH an account — the line IS posted like any other expense
+   *     line.  The sum of posted transactions must then equal the full invoice
+   *     grand total including tax.
+   */
+
+  it("a Sales Tax line with no account is skipped; ledger sum equals only the accounted lines", async () => {
+    // Bill: $1,400.00 supplies (accounted) + $82.36 Sales Tax (no account)
+    // Grand total: $1,482.36 — matching the CES fixture amounts from Task 372.
+    const res = await request(app).post("/api/bills").send({
+      vendorId,
+      date: "2098-04-01",
+      billNumber: "TEST-BP-TAX-1",
+      lines: [
+        { accountId: acctId, description: "Electrical supplies", amountCents: 140000 },
+        { accountId: null, description: "Sales Tax", amountCents: 8236 },
+      ],
+    });
+    expect(res.status).toBe(201);
+    const id: number = res.body.id;
+    billIds.push(id);
+
+    const rows = await db
+      .select()
+      .from(transactionsTable)
+      .where(eq(transactionsTable.billId, id));
+
+    // Only the accounted line is posted; the unaccounted tax line is skipped.
+    expect(rows).toHaveLength(1);
+    expect(rows[0].accountId).toBe(acctId);
+    expect(Number(rows[0].amountCents)).toBe(140000);
+
+    // Confirm the ledger sum is less than the bill grand total.
+    const ledgerSum = rows.reduce((s, r) => s + Number(r.amountCents), 0);
+    const billGrandTotal = 140000 + 8236; // $1,482.36 in cents
+    expect(ledgerSum).toBe(140000);
+    expect(ledgerSum).toBeLessThan(billGrandTotal);
+  });
+
+  it("a Sales Tax line with an account is posted; ledger sum equals the full grand total including tax", async () => {
+    // Same dollar amounts as above, but the tax line has a real account.
+    const res = await request(app).post("/api/bills").send({
+      vendorId,
+      date: "2098-04-02",
+      billNumber: "TEST-BP-TAX-2",
+      lines: [
+        { accountId: acctId, description: "Electrical supplies", amountCents: 140000 },
+        { accountId: acct2Id, description: "Sales Tax", amountCents: 8236 },
+      ],
+    });
+    expect(res.status).toBe(201);
+    const id: number = res.body.id;
+    billIds.push(id);
+
+    const rows = await db
+      .select()
+      .from(transactionsTable)
+      .where(eq(transactionsTable.billId, id));
+
+    // Both lines are posted because both have accounts.
+    expect(rows).toHaveLength(2);
+
+    const ledgerSum = rows.reduce((s, r) => s + Number(r.amountCents), 0);
+    const billGrandTotal = 140000 + 8236; // $1,482.36 in cents
+    expect(ledgerSum).toBe(billGrandTotal);
+
+    // Confirm each line posted to the correct account.
+    const byAccount = new Map(rows.map((r) => [r.accountId, Number(r.amountCents)]));
+    expect(byAccount.get(acctId)).toBe(140000);
+    expect(byAccount.get(acct2Id)).toBe(8236);
+
+    // Descriptions are carried through to the ledger rows.
+    const taxRow = rows.find((r) => r.accountId === acct2Id);
+    expect(taxRow?.description).toBe("Sales Tax");
+  });
+});
