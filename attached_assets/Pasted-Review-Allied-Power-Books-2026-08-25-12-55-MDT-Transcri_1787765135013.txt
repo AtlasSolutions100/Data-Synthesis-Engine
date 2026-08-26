@@ -1,0 +1,1104 @@
+Review: Allied Power Books - 2026/08/25 12:55 MDT - Transcript
+Attendees
+Griselda Mora, Name not available
+Transcript
+Name not available: Hello. Wonderful.
+Griselda Mora: Hello Can you hear me? Okay, Perfect. We're here. Let's get started.
+Name not available: All right, I'll let you drive the bus first…
+Griselda Mora: Okay, you got it.
+Name not available: because I'm assuming every time I click on my cheat sheet,…
+Name not available: it pulls up the latest and greatest for what I'm working on you working on or no? Okay,…
+Griselda Mora: I have the latest and…
+Griselda Mora: greatest. Correct.
+Name not available: that works for me.
+Griselda Mora: Yep. So,…
+Griselda Mora: here we are. Dashboard. Okay.
+Name not available: …
+Name not available: the first item I want to look at is let's Go to time cards.
+Griselda Mora: times. Okay.
+Name not available: Do me a favor. Could you under the pay period it goes 2683.
+Griselda Mora: Yes. …
+Name not available: Can we change that to be normal?
+Griselda Mora: okay. Yes.
+Griselda Mora: Month. Okay.
+Name not available: Yeah, this put the year at the end…
+Name not available: because my brain sees that then I struggle trying to find something quickly. You know what I mean?
+Griselda Mora: No, absolutely. would you like to see things by month, day, and then year?
+Name not available: Yeah. Yeah. Yeah. But you're Yeah.
+Griselda Mora: The year Okay. And that's with everything. Is that correct?
+Name not available: Yes. Yes. Please. It's just so weird seeing the year first.
+Griselda Mora: All across the entire system. And you know what any and it's interesting because all accounting is do write it this way.
+Name not available: I guess every time I see an invoice for somebody, it's always I want it. You know what I mean?
+Griselda Mora: …
+Griselda Mora: we'll do month year.
+Name not available: Yes. Yes, please. And…
+Griselda Mora: So, that's how you'll see the pay period. No problem. And that I'm going to Yeah.
+Name not available: then on here too, you notice I downloaded four of them there on 6, 820, 820. That's like for the time cards for that pay period. Is there a way because It's hard for me to tell who. Is the first one Jeff?
+Griselda Mora: So, Yep.
+Name not available: 
+Name not available: Is the for second one. Brendan, I know you can click on it and get further detail, but it'd be kind of nice to say if I just want to look at a specific person's, time card. Right now, if I look at I downloaded four time cards and…
+Name not available: I said, okay, as you can see, there's some zeros there. So, my question was, okay, what happened? Why didn't so and so's pull in? And so I can't quickly say who's at fault and…
+Griselda Mora: Okay. Absolutely.
+Name not available: who's Good. See what I'm saying?
+Griselda Mora: So then you would like in this view you want to see who's …
+Name not available: Yes. Exactly.
+Griselda Mora: which person that belongs to.
+Name not available: That'd be Yes.
+Griselda Mora: Okay. Okay. So at a glance
+Name not available: Because if you go ahead and click on the second one down because I see it, it recorded all zeros and I want to know why AI didn't catch it and…
+Name not available: why it's zeros. What happened there?
+Griselda Mora: Something should have.
+Name not available: Because obviously if I uploaded it, I shouldn't have done something too wrong. but right, as you can see, it pulls in nothing. But if you click on something that's good, it pulls in all the information.
+Griselda Mora: Okay. Let me look.
+Name not available: Now it's not pulling in nothing even for you.
+Griselda Mora: Now it's not pulling in anything because I wonder is it because I just Okay.
+Name not available: Yeah. Make no sense because you the ones with dollar numbers on there. I was able to pull them up and look at it says, "Oh yeah, that's all matches." Great.
+Griselda Mora: Okay.
+Name not available: And so I was able to do that on my end yesterday, but tell you today we can't. So that's weird.
+Griselda Mora: So, let me see. Time card. Yeah.
+Name not available: Yeah, that's kind of weird. You can't even pull up the information that has numbers to it and just not zeros.
+Griselda Mora: And you know what?
+Griselda Mora: I think we're coming to the phase that we need to start storing it on a cloud because as we're utilizing it more and more it's storing more information but we need to store it somewhere else and so that it doesn't give us these it doesn't crash with all of the
+00:05:00
+Griselda Mora: information. So y let me Yes.
+Name not available: Right. Yes.
+Name not available: Just freeze right there. As you can see, there's three lines that's populated with dollars. You should be able to, open that up to see what's there. You're able to do it that one. See that belongs to Jeff Harris. So, I know that that card's Jeff's. So, I'd like to see that on that previous screen that hey,…
+Griselda Mora: Yes. Okay.
+Name not available: that this $1,53 is Jeff's.
+Griselda Mora: Yes. Yes, you got it. and…
+Name not available: That worked. I don't know why it works.
+Griselda Mora: yeah, that worked. and I know because it's been lagging for me when I do certain things. And so I'm just wondering that
+Name not available: That's okay. If that's a me point that I'll let you figure Okay.
+Griselda Mora: And I'll let you know what those next steps look like. but yes, I know that that's happening on my end and on your end as well.
+Name not available: Okay. Good.
+Griselda Mora: So, everything's capturing and then you want to post to ledger temporary labor everything. How do you like view? Is this the view?
+Name not available: That. What does post ledger mean?
+Griselda Mora: So you post it and…
+Griselda Mora: then it goes posted into your checkbook.
+Name not available: Okay, good.
+Name not available: So, right now we should see that in the checkbook then since you just posted it then.
+Griselda Mora: Yeah. Yep. I just posted it. And then you can unpost.
+Name not available: Okay, that makes sense.
+Griselda Mora: You're the only one. Any admin? I'm okay.
+Name not available: Okay, let's go to the checkbook now and see if they pull in Jeff's. I'd go to the chart of accounts and…
+Name not available: hit checkbook and I go up and hit checking and it did not pull in.
+Griselda Mora: and then did not pull in.
+Griselda Mora: Yes,…
+Name not available: It did pull in. I made a deposit in there because I want to see deposit.
+Griselda Mora: I see that.
+Name not available: That brings up a whole another topic, but we'll get to that.
+Griselda Mora: Okay, we'll get to that. Okay, so what? Let me Yeah,…
+Name not available: I'll let you make your notes here on the time card stuff. Can you upload a time card from your end or…
+Griselda Mora: Okay, let me just give me a second. okay. So, that was when Let me just go back post.
+Name not available: or do I need to do it on my end?
+Griselda Mora: No, I can do it on my end. as long as it is Let me just …
+Name not available: I have to upload it to you first, Or should I drive the bus to do that so you can see…
+Griselda Mora: yeah. let me just check if I have it. I'm right.
+Griselda Mora: I'm in the actual yeah,…
+Name not available: what I see.
+Griselda Mora: I thought I had a time card here available to me, but it doesn't look like it's in the drive.
+Name not available: All right.
+Griselda Mora: So, go ahead and drive the bus.
+Name not available: So, I'm going to share not QuickBooks. I want to share what I have open now. Wait, I don't have it open. That's why I'm open up my version.
+Griselda Mora: I need to make myself a note before we move in. Okay, Jeff Harris.
+Name not available: Okay, perfect. Now I can share. Look at me thinking ahead here. Okay.
+Griselda Mora: I'm cards.
+Griselda Mora: Click. and Do post. Okay, I can see your screen perfectly.
+Name not available: Okay, give me a second here.
+Name not available: While you're making notes, I'm going to …
+Griselda Mora: Yep. …
+Griselda Mora: yeah. I just wanted to get that one. Ex. It was very explicit in terms of detail and…
+Name not available: no. No.
+Griselda Mora: so go ahead.
+Name not available: Yeah, take as many notes as you need to, kiddo. Okay,…
+Griselda Mora: I'm ready.
+Name not available: I am going to pull in time for Michael Burus.
+Griselda Mora: Okay.
+Name not available: I'm going to do what I do is I take his time card. I copy it from my AOL,…
+Griselda Mora: I don't Okay,…
+Name not available: right? And…
+Griselda Mora: go ahead.
+Name not available: then I'm going to go over here and now I'm driving the bus, so I'm going to go to time cards.
+00:10:00
+Griselda Mora: Okay. I don't see …
+Name not available: I'm on the wrong street.
+Griselda Mora: there you are. Yes.
+Name not available: Okay, I'm on time cards, right? And then I hit upload. perfect. Then what I do then as I go back to my cut and paste, I going copy. I come back over here to
+Griselda Mora: paste. Nope.
+Name not available: Did I lose you?
+Griselda Mora: I just don't see you have anything pasted yet. I see your cursor There we go.
+Name not available: Okay, perfect. I just had to get in the right one. I had to close a couple things on my end. I apologize.
+Griselda Mora: No problem.
+Name not available: And then I go to here and I go control P.
+Griselda Mora: Okay. Perfect.
+Name not available: So I basically put in Michael Bur's time. So what I just do, I just take off I just delete that stupid stuff like that. You know what I mean? And then I go down here. I kind of review it real quick.
+Name not available: Make sure there's nothing else dumb in there. Okay, that all looks good.
+Griselda Mora: No problem.
+Name not available: Everything has a date on it. I go down here. I hit enter. And then I go back to my AOL. Give me a second. Accidentally closed it.
+Griselda Mora: Yep. I see those hours. Okay.
+Name not available: 
+Name not available: There's a second here. Yeah. Okay,…
+Name not available: perfect. Now I got that loaded back up again. So, I'm going back into my folder where I store all the time cards in my AOL.
+Griselda Mora: And please do.
+Name not available: I'm just giving you a playbyplay. And then what I do is I find Michael's second time card because he sends it by the week and…
+Griselda Mora: Okay. Mhm.
+Name not available: I just go in there and I'll cut the date through the 14th. Copy. I go back to U and I hit controlV. So therefore, as you can see, I uploaded the 10th through the 14th. Every date is covered for Michael. as you can see,…
+Griselda Mora: Okay. Yes.
+Name not available: I can't scroll down to you. I mean, but I know what that is. So, I say upload because I know…
+Name not available: I think I know what it is. It should be uploading. we have unfinish import saved a day ago. So, I'm just go and…
+Griselda Mora: That was probably when you were working on it yesterday.
+Griselda Mora: So yeah,…
+Name not available: delete that, I guess.
+Griselda Mora: delete that. Okay. Okay.
+Name not available: Okay, so now I'm pulling all Michael stuff. And so this is the one that came up in zeros, which is weird. the part that confused me here is it's asking me questions. So I come over here first and…
+Griselda Mora: Okay. Okay.
+Name not available: is that job is that it's for Bruce Randolph. So I just go over here. Yeah, that makes sense to me. And I go down. Next one is Rachel. And I make I say Rachel because it is not pulling in which is no big deal…
+Name not available: but that's all looks like Mike has the two jobs but this is different now why up here in step one it says whose time is this? I just established whose time this is. it's Michael Burus's time…
+Griselda Mora: Okay.
+Griselda Mora: Mhm. Okay.
+Name not available: because I uploaded Michael Burus but for some reason it didn't recognize Michael Burus which is So, I'm answering the question, right? And so,…
+Griselda Mora: Okay.
+Name not available: I click on this here. No, he's not a new employee. He's not worker number one. He's Michael Burus.
+Griselda Mora: Okay. Okay. Mhm.
+Name not available: And so, then I clicked on that and went into here, the pay period, all that stuff. And then I scroll down to here and I mean, I don't know why you can't find Michael Bur because he is right there. I can find them here,…
+Name not available: So, then I click on that. then he puts employee and it workers name.
+Griselda Mora: Okay.
+Name not available: Okay, no big deal. Alb it's not flagging me for nothing else here at this point in time, And so I say,…
+00:15:00
+Griselda Mora: Zeroed it out.
+Name not available: "Okay, let's go ahead and run it." But as you can see, it zeroed it out. So something's happening on that link part…
+Griselda Mora: It's not pulling in.
+Name not available: where it's not pulling in.
+Griselda Mora: Something's happening between the time you e. Everything is capturing correctly. the process is capturing his information and then it's when Can you click on those pay period numbers the 83 to 816 and…
+Name not available: that one.
+Griselda Mora: then Yep. Okay.
+Griselda Mora: And then that okay none of his hours.
+Name not available: It pulled in Michael Burus right here, but it didn't seem anything.
+Griselda Mora: Okay.
+Name not available: So, what was kind of weird was them questions where it said in step one, you know what I mean? for some reason it's not syncing.
+Griselda Mora: And almost you don't need that step one and…
+Griselda Mora: the step two flags because you're already identifying Yeah.
+Name not available: It didn't recognize Michael's names,…
+Name not available: but I said, "Hey, this is Michael." And I clicked on it…
+Name not available: because he was in my employees, so allowed me to choose him. So, he did exist, but for some reason,…
+Griselda Mora: Yes, something's not connecting.
+Name not available: the dots ain't connecting.
+Griselda Mora: And I think there might be too. If you scroll down, does it give you anything else?
+Name not available: Nope. …
+Griselda Mora: And then you would post to the ledger let's say you it's all done. Then that. So, let me figure out Something is not connecting.
+Name not available: as you can see something when I uploaded four guys, two of them it worked and two of them it did not.
+Griselda Mora: And I wonder why that is.
+Name not available: Me too.
+Griselda Mora: So, I'll look at that bug.
+Griselda Mora: Would you be able to just copy and…
+Griselda Mora: paste that information into just a word document that you pulled in from your AOL and put it in his hours?
+Name not available: You want me to do it again and…
+Name not available: then screenshot it?
+Griselda Mora: No. in a word document if you were to place Michael Burus's hours for that pay period and just paste it there and then another employee so that I can then cross reference why is it doing it for Michael Burus and then why is it capturing for that $1,600 right here.
+Name not available: Yeah. …
+Griselda Mora: Yeah. Yeah.
+Name not available: so it's capturing in Brendan's now.
+Griselda Mora: And…
+Name not available: Brendan, hey,…
+Griselda Mora: I Yeah.
+Name not available: just to let you know, since I'm on here, it allowed me to change some of his time to overtime. not it says 75 hours here.
+Griselda Mora: Okay.
+Name not available: And out of that 75 hours, seven and…
+Name not available: a half of it should be overtime. yeah.
+Griselda Mora: Okay. See that right there?
+Griselda Mora: But it didn't.
+Name not available: Yeah, it did. Yeah. Yeah,…
+Griselda Mora: Mhm. Yeah.
+Name not available: it did. that's kind of weird. I got two workers in there.
+Griselda Mora: And they're both him.
+Name not available: I didn't notice that. Yeah, but as you can see,…
+Griselda Mora: Okay. Yeah.
+Name not available: it let me change it, but I'm going to look at his paycheck stub here real quick.
+Griselda Mora: Can you look at the to
+Name not available: I want to see if that matches that dollar amount matches. actually paying him.
+Name not available: That's correct. I paid him 75 hours of regular and seven and a half hours overtime. yeah. So, basically allowed me to play with it so I can fix the overtime. So, I was happy with that.
+Griselda Mora: Okay.
+Griselda Mora: Okay.
+Name not available: So a equal day. So, I was happy with that. So, I can post his ledger. So, his ledger is done. It's going to go through. So, I'm done with that one.
+Griselda Mora: Okay. Yeah.
+Name not available: So, now I go back to time cards. yes, it posted. Good. I know that this one matched because I verified that one. That was Jeff Harris's. Once again, why give me a Harris and a Jeff Harris there? I don't know.
+Griselda Mora: I don't know.
+Name not available: I think maybe that's…
+Griselda Mora: Can you I think so.
+Name not available: because of that step one thingy because I had to go in there and force it to tell him who it was and therefore it created another line and it didn't have to.
+Griselda Mora: That is correct.
+Name not available: So that's…
+Griselda Mora: I think that's exactly what's happening.
+Name not available: why that second line came in.
+Griselda Mora: And you post a ledger. Posted. And if you go back to time cards,…
+Griselda Mora: click Back to time. Yep. it posted that. So you have two posted. At least you know that those are done. Okay. Yeah.
+Name not available: Right. So now I could go back over here,…
+00:20:00
+Name not available: chart of accounts. It's still not pulling into my checkbook.
+Griselda Mora: And it's And I Yeah.
+Name not available: And you made notes of that already.
+Griselda Mora: Yes. Yes. Of course. Yes. And then for Jeff Harris and…
+Griselda Mora: Michael Burus just so that their overtime is straight across like it doesn't change for either employee. Is it just time and a half? Okay.
+Name not available: Yes. Time and…
+Name not available: a half. Yes. Yes.
+Griselda Mora: So their overtime is time and a half for both of them just and is when you just pulled up his pay stub did it match it did. So I just want to make sure that the arithmetic is correct at least now when okay and…
+Name not available: Yeah. Yeah, I did notice that yesterday and it did match. Yes. …
+Griselda Mora: then the job allocation that's correct as well. If you scroll down for Jeff Harris, I think he was The second one. Yeah. If you scroll down.
+Name not available: Jeff Harris was Brendan. Jeff would have been this one. Jeff Harris right there. Yeah, Jeff, we worked 45 and a half hours. That did match. Yes. Yes.
+Griselda Mora: And then if you scroll down and those job numbers are correct as well. Okay.
+Griselda Mora: And then I just want to make sure that the math is correct also in the gross and the burden. So before I go and make implement all those other changes if everything is working like this one Brendan for Okay.
+Name not available: Since I did change that to seven and a half hours, what job did that seven and a half hours get coded to would be my next question.
+Griselda Mora: Did it ask you when it did?
+Name not available: No, it did not ask me.
+Griselda Mora: It didn't ask you.
+Name not available: It allowed me to do it.
+Griselda Mora: Okay, I see the 7.5.
+Name not available: Yep. But…
+Griselda Mora: I see it. But I can Okay,…
+Name not available: how can we tell I guess…
+Griselda Mora: so I can categorize employ overtime.
+Name not available: if I click on I'm gonna click on richer just for giggles and…
+Griselda Mora: Yeah. No.
+Name not available: see what it did. that's just pulling in all the ritual detail.
+Griselda Mora: Overtime categories and
+Name not available: There's his payroll. So, if I go in here, the only thing it will really let me do is edit and just a dollar amount. And it doesn't really allow me to see if that. So, apparently it didn't go to that job.
+Griselda Mora: So the overtime would need to be labeled.
+Griselda Mora: It needs you to label the job.
+Name not available: I guess…
+Name not available: if I change that, you mean it should allow me to choose which project out of these four projects, which one got the overtime? You know what I mean?
+Griselda Mora: No, it should be simpler than that. for example, there should be an easier way that we could do it to categorize it that when overtime…
+Griselda Mora: what that overtime cost.
+Name not available: …
+Name not available: least you kind of see where I'm driving the bus on this one.
+Griselda Mora: Yeah, absolutely.
+Griselda Mora: And it's giving me a sense of okay, we're getting down to the details, which is great.
+Name not available: And now …
+Name not available: why the second Freriedman pulled in…
+Name not available: because I just typed in Freriedman's name thinking that it would pull into Brendan Freeman,…
+Griselda Mora: Got it. Okay.
+Name not available: but obviously it created another employee then at that point.
+Griselda Mora: Also I can similar to how we Yeah,…
+Name not available: 
+Name not available: I thought that was kind of weird. So correct.
+Griselda Mora: it should recognize similar names and then Ask.
+Griselda Mora: You is this the Brendan Freriedman so it doesn't duplicate?
+Name not available: in. Exactly.
+Name not available: Which I'm fine with answering the question. 100%. Yes.
+Griselda Mora: So I would rather it question you than make a different employee.
+Name not available: I'll let you play around with the time cards and you can let me know when I can upload the next week's payroll.
+Griselda Mora: Yeah. yes.
+Name not available: And we can run. all the stuff that I'm entering in. Do I have to entering this in again or was this kind of be permanent?
+Griselda Mora: Not permanent. No, I Yeah.
+Name not available: Okay, Which is fine. Okay, I'm okay with that. I was just curious. I was just N I'm totally that I didn't know…
+Griselda Mora: Right now we're kind of in a sandbox area where all Okay.
+Name not available: how much I put in was going to carry over, so I'm okay with it.
+Griselda Mora: Okay.
+Name not available: All right.
+Griselda Mora: Let's keep I'll pull polish this up.
+Name not available: I'll let you polish up on the time card piece before I move on.
+Griselda Mora: But okay.
+Griselda Mora: So is The gross is the burden, the total cost. That's Okay. One and…
+Name not available: I just need to make sure that seven and…
+00:25:00
+Name not available: a half got put on one of them four jobs. Which job did they get it put on is my question.
+Griselda Mora: which job to associate the overtime.
+Name not available: And it allowed me to change it, which I thought was great. And the numbers all matched. So, it's like,…
+Griselda Mora: Yeah, it's like yeah agree.
+Name not available: sweet. but it didn't give me that choice of, okay, what job you want to change this on?
+Griselda Mora: Okay, then I will take a look.
+Griselda Mora: So, what I'll do just to recap our conversation is in that time card on that home screen, we want to know…
+Griselda Mora: at a glance, that employee is, what's posted, what's went to the ledger, and where did that information go to the ledger. Okay. Okay. no.
+Name not available: The only thing I need to do for you is upload somebody's time card and…
+Name not available: screenshot that page that had all the step one questions.
+Griselda Mora: I have that. what I'm going to do with the step one questions is it's a duplication. And so I'm going to figure out logically what makes sense because I'm going to say step one Mike goes on and uploads that. He wants this screen to pop up and it figure out the time card.
+Griselda Mora: So I have it. I think those steps might be removed because if I see it on my end…
+Name not available: on your end.
+Name not available: Michael's time card that's all zeros now. Is that back information still visible on your end or do I or is it now zeros?
+Griselda Mora: because I'm Yes.
+Name not available: Okay, good. So, I don't need to upload that. you can simulate me cutting and…
+Griselda Mora: No. I No.
+Name not available: pasting and then uploading it and see if the pulls it.
+Griselda Mora: All I would need from you…
+Name not available: Got it.
+Griselda Mora: if you could do it is the time for example, right now you just looked at Jeff Harris's pay paycheck stub.
+Name not available: Y Okay.
+Griselda Mora: I would love to see the paycheck stub and then the time card so that I can make sure that it's matching correctly every time.
+Name not available: 
+Name not available: What I do cuz I'll up out all four of these right here.
+Name not available: The two posted ones and the two unposted ones, whatever names they are because I can't tell who they are. I will make sure that I upload them four pages out of my third parties print out that they sent me.
+Griselda Mora: Yeah. Yeah.
+Name not available: So, you can double check that.
+Griselda Mora: I would love to double check it.
+Name not available: Okay. Yes.
+Griselda Mora: And this Jeff Harris one that you posted for July, was that correct as well? this one doesn't have overtime. However, then you have all Okay.
+Name not available: Right. Jeff had no overtime, but Brennan did.
+Griselda Mora: So yes.
+Name not available: So that's why I can tell that Jeff only had 45 and a half hours. So I know that that one's Jeff and he had 75 and a half hours plus seven and a half overtimes. So that one I know is Brendan.
+Griselda Mora: Okay.
+Name not available: And one of these is Josh and one of them is Michael. and for whatever reason it didn't like something because of that step one process in my mind.
+Griselda Mora: No, and I think it was just the overtime something is going on.
+Name not available: No, that's not true because Josh didn't have overtime and it still came in the zeros.
+Griselda Mora: Okay.
+Name not available: Brendan had overtime. This one's Brendan's and…
+Name not available: Brendan's is fine.
+Griselda Mora: Okay.
+Name not available: You know what I mean? So overtime did not affect it pulling in. It was the other two time cards that Jeff had overtime and…
+Griselda Mora: Mhm. Okay.
+Name not available: it pulled in. That has nothing to do with overtime. For whatever reason, it didn't like something and it didn't pull it in. Even though it looked good to me when I said, "Yeah, save it." It looked good to me, but it didn't pull it in.
+Griselda Mora: All right. Got it.
+Name not available: And I will send you these four employees backups so you can verify that A equals A.
+Griselda Mora: Yes. Yes,…
+Name not available: The next thing I noticed was over here in transactions.
+Griselda Mora: Okay, sounds good.
+Name not available: If I click on transactions,…
+Griselda Mora: Let me stop sharing my screen or stop sharing. Okay, go ahead. Okay, I'm looking at your screen.
+Name not available: are where you at right now? Okay, we're on transactions.
+Griselda Mora: Yep.
+Name not available: And then if I hit here, review uplink bills, because there's 67 of them. Is that there's se 67 entries or do I need to do something with this?
+Griselda Mora: Yes. Click on this.
+Name not available: I was confused.
+Griselda Mora: So it'd be like categorizing them.
+Name not available: So, right now it's saying I got 67 entries in here, but they're unlin bills. So, I don't know what that means, unlink bills. So, if I click on that, it comes in here now.
+Name not available: It says unlink transactions. While that one was a fake bill, you know what I mean?
+00:30:00
+Griselda Mora: Mhm. Yes. No.
+Name not available: This one was an actual invoice or actual bill, no matching. So, I was kind of confused about, as you can see, there's 67 of them with no matching bills, which I kind of call b*******.
+Griselda Mora: So I think what's happening it's all the invoices that were uploading go back into transactions.
+Name not available: As you can see, I was kind of confused of why something's not linking.
+Griselda Mora: So we Yes.
+Name not available: It says unlink. Hey, it's great. It caught it. But does that mean I have to go through every single one and tell it what to do? this one I know was a 8888. That was either a fake invoice or a fake bill. what I mean? this one here I can I don't know what to click on. I mean it just tells me wants me to select something. It was I don't know. I found this weird. That's all.
+Griselda Mora: Okay.
+Name not available: I don't Yeah, if I click on onlink bills,…
+Name not available: it just Oops.
+Griselda Mora: Okay. Yeah,…
+Name not available: I just found it weird because it looks like it has the invoice number. So why can't you tie that to Why do we have to do another verification? Is There's a worker being here,…
+Griselda Mora: it wants to tie it with it's all those invoices that I've been testing from CES and it's the Okay.
+Name not available: too. You know what I mean? So, it seems like it's having me do extra work when I shouldn't have to…
+Griselda Mora: Okay. …
+Name not available: because if everybody knows the invoice number, it always should be linked to that project but it says no matching bill. So, I'm confused. But I said, maybe that's something on your end. I don't know.
+Griselda Mora: no way.
+Griselda Mora: So, every time I go to upload those the DNC 377157, the invoices that I've been testing for the Douglas school. I think it's uploading them there and then it wants you to associate them. So, it's like you just want to make sure that it would be extra work, but it's just like making sure that invoice that it is associated.
+Name not available: I'm fine with that.
+Griselda Mora: Let me just Yeah,…
+Name not available: But what's weird though, if I go to click on it?
+Griselda Mora: it doesn't. Mhm.
+Name not available: Right now, if I just want to click on this $12.30 one, right? You see? And it's just a…
+Name not available: what do you call that symbol? where like an hourglass.
+Griselda Mora: The arrow.
+Griselda Mora: I don't see the hourglass.
+Name not available: My cursor?
+Griselda Mora: Yeah, I see your cursor.
+Name not available: Go right underneath it. you see the hourglass.
+Griselda Mora: No, I don't see it,…
+Name not available: All right. The cursor turns into an hourglass…
+Griselda Mora: but it's interesting. Okay.
+Name not available: which doesn't allow me to click on matching bill.
+Griselda Mora: Do anything.
+Name not available: See what I'm saying?
+Griselda Mora: Interesting. Yep.
+Name not available: And I come down here to select link. If I click on that, that just s it's pulling up everything.
+Griselda Mora: Yes. Yeah.
+Name not available: So, now you want me to try to find I don't know. To me, I found it weird,…
+Griselda Mora: Every bill transaction is linked to its bill. Every bill transaction is so Yeah.
+Name not available: but it's having me, do it 67 times.
+Griselda Mora: Okay. Yeah.
+Name not available: But…
+Griselda Mora: I'll fix that.
+Name not available: but as you see,…
+Name not available: look, Rachel's already in here. So that this one should be tied to Ritual, but this is all transactions, but this is just on transactions. So I know I just thought it was weird. I mean,…
+Griselda Mora: Yes. Okay.
+Griselda Mora: So, you don't want to link them. It should already automatically do it.
+Name not available: I think so because if there's…
+Griselda Mora: Okay.
+Name not available: if enough information there tells you where it goes, the invoice number is already linked to the project. Why do I need to verify again?
+Griselda Mora: Okay. You got it. Okay, that makes sense.
+Name not available: I guess that that's kind of my point. Okay. I just thought that was weird.
+Griselda Mora: Let Yeah.
+Name not available: I was confused.
+Griselda Mora: And we're trying to give you less work. We just want them to be as accurate as possible, but that doesn't mean that you need to touch it 56 times before,…
+Name not available: Verifying it.
+Griselda Mora: …
+Name not available: Yeah. Before I start calling you Micros or…
+Griselda Mora: You can only verify it so much before you start pulling out your hair.
+Name not available: QuickBooks 2.0,…
+Griselda Mora: Don't you go there.
+Griselda Mora: Don't go there.
+Name not available: I said it very softly. All right. let's see. My next note was bills to expenses.
+00:35:00
+Griselda Mora: Okay.
+Name not available: Okay. I remember. what prompted that was I went to vendors and what I did is I clicked up I inputed every single bill that's associated with the reconciliation of my Home Depot account for that state.
+Griselda Mora: Mhm. Mhm.
+Name not available: So, I put every single one in there.
+Griselda Mora: Okay. Yes. Yes.
+Name not available: As you can see, the dates are all July and the beginning of August. You see that? All Great. So, I inputed a month is great. They all exist.
+Name not available: So, now I want to reconcile that Home Depot. So, I go back to Home Depot because this is where I can reconcile. You put all the wonderful things in. I hit reconcile, right? I go to reconcile.
+Griselda Mora: Mhm. Okay.
+Name not available: And as you see, I've already started it. So, I kind of like that. So, I can continue it.
+Griselda Mora: Okay.
+Name not available: I like that feature. But what's weird is look at the Not a single one of them dates that I just inputed are pulling in for me and…
+Griselda Mora: Are pulling in.
+Name not available: record style. So, why is that? Is it because I made it a bill or an expense? No, it can't be…
+Griselda Mora: No, it can't be. Okay.
+Name not available: because it pulled in everything. but didn't pull in any of when I'm in vendors.
+Griselda Mora: the dates.
+Name not available: I click at Home Depot. See this?
+Griselda Mora: I see the bills.
+Name not available: But none of them dates pulled in.
+Griselda Mora: That's so odd.
+Name not available: See that? there's August.
+Griselda Mora: Correct. Yeah.
+Name not available: It gave them bill numbers and everything. There's all the job names of where it's all going to go.
+Griselda Mora: Okay.
+Name not available: You know what I mean? So that's looking…
+Griselda Mora: You to go back into Home Depot of accounts. Yep.
+Name not available: if go back to if I click on Home Depot or I click on reconcile. So let's click in Home Depot. As you can see,…
+Griselda Mora: It's showing.
+Name not available: none of the dates, none of that new stuff I put in pull over.
+Griselda Mora: Yeah. Yeah.
+Name not available: It only pulls up the stuff that we did, when we first started batching.
+Griselda Mora: Okay. It does.
+Name not available: So, as you see, whatever I did to pull in, you can see with your own eyes, it does exist. There they are.
+Griselda Mora: I see it right there.
+Name not available: 
+Name not available: I put them in. But now…
+Griselda Mora: Okay. Mhm.
+Name not available: if I go to the chart of accounts to do reconcile Home Depot, I go to Home Depot.
+Name not available: I want to So, I started the reconciliation, but as you can see, I got nothing reconciled yet because none of the stuff I want to reconcile pulled in.
+Griselda Mora: Yeah. Because Okay.
+Name not available: So, it's not pulling all the way through to get to that page,…
+Griselda Mora: Okay. Yeah.
+Name not available: 
+Name not available: I guess. I'm going to shut up so you can make some notes.
+Griselda Mora: I'm going to just do date and bill also. So that's awesome that you were able to add it line by line so that you don't have to do that. I think you can export all of that information on the other one and then you can upload that information.
+Name not available: 
+Name not available: Yeah. Yeah.
+Griselda Mora: I'll show Yeah.
+Name not available: 
+Name not available: Yeah. Yep. I started to do that too, but I mean I was just playing with it and I got a groove so I just went in the groove,…
+Name not available: .
+Griselda Mora: I appreciate that…
+Griselda Mora: because this is Yeah,…
+Name not available: So I was just in the groove instead of uploading it and pulling it in. I tried that as you can see on the vendor side.
+Griselda Mora: this is really Comedy.
+Name not available: You mean,…
+Griselda Mora: Let's see.
+Name not available: but for whatever reason, when I did them myself,…
+Griselda Mora: Yeah. Mhm.
+Name not available: how come I don't see all the other ones from the other page? That's kind of weird. So, if I do manual entry, they show up here, but all the other stuff that was a upload entry did not pull into here. And it's backwards. Then I go to the chart of accounts. It's pulling in all the stuff that I uploaded that it scanned itself put in,…
+Griselda Mora: Mhm. …
+Name not available: but it didn't put anything that I personally put in.
+Griselda Mora: yeah. Yeah. Yeah. No,…
+Name not available: I think that's the two avenues coming in from two different directions to get to the same road,…
+Griselda Mora: no, no.
+Name not available: but for whatever reason, they're not getting on the same road.
+Griselda Mora: Okay, we'll make them on the same road.
+Name not available: Does that make sense? We're get it in.
+Griselda Mora: Yeah, that absolutely makes sense.
+Name not available: It's not syncing to this area,…
+Griselda Mora: Especially Yep.
+Name not available: but if I upload it, it's not syncing. It's not letting me see all the old ones in people.
+Griselda Mora: Yep. Okay.
+00:40:00
+Name not available: You're like, where's all the ones from December and January that we were testing? They're not in here,…
+Griselda Mora: They're not in there.
+Name not available: They're not because that's all sevens and eights. None of them was,…
+Name not available: 2025s or January of 2026.
+Griselda Mora: Did you and…
+Name not available: you saw in here.
+Griselda Mora: you said yeah those you and…
+Name not available: Look at these January of 26.
+Griselda Mora: all those you uploaded that information.
+Name not available: No, that I took pictures. I uploaded, what I mean? Through click and dragging. I didn't manually do it like I did the other ones that you just witnessed.
+Griselda Mora: So you just so that you and I are on the same page is when you did it manually,…
+Griselda Mora: it shows up on that screen. However, it doesn't merge into this. Okay. Yeah.
+Name not available: Yeah, manually it showed up in the vendors category.
+Name not available: There they are.
+Griselda Mora: Manually, there they are. But it did not come into your Home Depot to reconcile. Yeah.
+Name not available: They did not show up, Or it not even here to see them.
+Griselda Mora: Yeah. Yeah.
+Name not available: And then in my actions, I mean, that just allows me to, change it because s***, I got the wrong job. This allows me to change it.
+Griselda Mora: Yeah. Mhm.
+Name not available: Great. I see that's in January.
+Griselda Mora: We added that last time. Yeah. Click out of that and then Scroll up. check register. then we'll need them to talk. So, what will happen when it works, you'll see them merge together and then you can go in there and…
+Name not available: Yeah. Because…
+Griselda Mora: start. You want to see all of You want
+Name not available: because if you click on Home Depot, you want to see every transaction. You know what I mean? I want to see all the ones that we did in January and last December. just right…
+Griselda Mora: them to see all of them in one screen, especially since we Yeah.
+Name not available: because that's what I'm looking at right now. I'm looking at Home Depot. I want to see them all.
+Griselda Mora: You want to see them all and then you want to reconcile them. So, if you go back to chart of accounts, Home Depot.
+Name not available: And I went over here to hit reconcile and…
+Griselda Mora: Yeah. You just manually put in.
+Name not available: 
+Name not available: hit continue. As you can see, it's just pulling in the old ones that were uploaded a long time ago, but not the most recent ones that I manually put in yesterday.
+Griselda Mora: You scroll up again. I just want to see. Okay. Okay.
+Griselda Mora: Okay, I'll fix Okay.
+Griselda Mora: And then if you click back, I'm glad that it's keeping that draft for you like Yes.
+Name not available: Yeah. No,…
+Name not available: me too because it great. I got to finish what I started because I got sidetracked or I took a phone call or had to run out of the office.
+Griselda Mora: Yes. Yes, that's something I added. I'm glad that's working.
+Name not available: No, I like that. So, I can finish…
+Griselda Mora: Okay, perfect.
+Name not available: what I started and don't have to start fresh again. Nope. I like that.
+Griselda Mora: And then if back one more time and go to that where your cursor wait, that's my cursor. the gray arrow right on top 2110 Home Depot. Yeah, chart. And if you go back one more and then it takes you back to chart of accounts. yeah. Okay.
+Name not available: Mhm. Right.
+Griselda Mora: Okay. Yeah.
+Name not available: So, that was something that just needs some lipstick, some finetuning.
+Griselda Mora: Some merging and…
+Name not available: Perfect.
+Griselda Mora: I will let it know that draft is Captured. I have my notes for that.
+Name not available: All if we go back to my chart of accounts and checking, as you can see,…
+Griselda Mora: Mhm. …
+Name not available: I received a payment.
+Griselda Mora: yep. You put that in. Okay.
+Name not available: I received it on the 24th, a payment. I guess it was a payment, you know what I mean? and…
+Name not available: then I put in the dollar amount and it's going into my checking account.
+Griselda Mora: Okay.
+Name not available: I couldn't do a job name because the customer sent me two dollar amounts on two separate jobs on one check. That's really common,…
+Griselda Mora: Okay. Mhm. Yes.
+Name not available: you know what I mean? And then I was okay with that. Didn't make me put nothing in there. So, it's perfect. So, I saved And when I saved it, you can see my transactions. there it is. But my thing is it was one payment from another job.
+00:45:00
+Name not available: I don't know how to apply them payments to each project.
+Griselda Mora: We would almost have to just add another…
+Griselda Mora: if we have to separate if that and you say it happens frequently.
+Name not available: 
+Name not available: Yeah. Yeah. Because, let's say, you have to write a check to somebody and you didn't want to have to write that customer five different checks and you sent them just one check with all five items included in that check. and then they usually send you back up saying, "Hey, I paid invoice number 90 105 and…
+Name not available: I paid your invoice number 9104 and each one was this dollar amount." So, I have my backup from my customer of what he paid on that one check number,…
+Griselda Mora: Do you mind clicking that one again?
+Griselda Mora: The payment So you would like it to be against two customers. Okay.
+Name not available: because right now the dollar amount's correct. It's going to go into my checkbook. I like that. but right now they sent me maybe create a tab that says what invoices is this one being applied? what dollar amount?
+Name not available: What invoices make up this dollar amount? And I can click on invoice number, whatever invoices we created. You know what I mean?
+Griselda Mora: …
+Griselda Mora: you would rather it be against an invoice,…
+Name not available: Because they're going to pay me only via every time I send an invoice,…
+Griselda Mora: an invoice number.
+Name not available: I'm going to get paid. And so, yes, I would see,…
+Griselda Mora: …
+Name not available: a tab pull down that says,…
+Name not available: what invoices did that pay? You know what I mean? Or something.
+Griselda Mora: …
+Griselda Mora: the invoice one has to be registered and then you can go in and have it paid against invoice number two.
+Name not available: That's true.
+Name not available: You know what? I never did do that, did I?
+Griselda Mora: But no, no, but this is good because now that your thought process is have you've been paid this is the dollar amount and…
+Griselda Mora: you want to be able to select several invoices that it was paid against.
+Griselda Mora: Yeah.
+Name not available: Here's the two jobs right here. But as you can see, I did not enter an invoice. So, what I need to do is create an invoice and obviously mountain range. Zoom Invoice. We're going to back date that say that on the 11th. It was for electrical.
+Name not available: progress bill in and the amount so matches up is one two 370 and…
+Griselda Mora: Mhm. Mhm.
+Name not available: I'm going to say my invoice number was 9101 just so I have a reference or save could have it pulled And now I'm going to back to a new invoice. It's going to be for the Parker Student Center. Yep, that's it. Backdate that and say day later.
+Name not available: Total electrical progress Dylan and…
+Name not available: that dollar amount was for 9170 invoice.
+Griselda Mora: Mhm. Okay.
+Name not available: Okay, So now them invoices do exist in the customers.
+Griselda Mora: Scroll down. Okay. Mhm.
+Name not available: Yep, there's It pulled in and the other job that invoice pulled in. So, they do exist. That's But then when I went to checkbook to have them apply to the appropriate job.
+00:50:00
+Name not available: Always got to find the spot. Maybe if we highlight that sweet spot. See what I'm right.
+Griselda Mora: Yeah, you bet.
+Griselda Mora: You betcha. I'll highlight it.
+Name not available: I guess and this is highlighted. maybe I was going too fast.
+Griselda Mora: No, you could barely see it. No, you're getting so fast at it, which is awesome. you're already getting the rhythm of your own software.
+Name not available: And so therefore, if I go into here,…
+Name not available: so if I go into edit and here I want to be able to pick It gives me a lot of choices right here,…
+Griselda Mora: Got it.
+Griselda Mora: So Under transactions under the edit popup.
+Name not available: but it doesn't give me a chance to split that dollar amount,…
+Griselda Mora: Okay.
+Griselda Mora: So, you want to split the dollar amount.
+Name not available: I guess, would be a better way of saying, you know what I mean? h how do you want this $2,463 to be applied to which jobs?
+Griselda Mora: How do you want to be able to apply it?
+Name not available: Besides just sending it direct to the customer, I want to be able to apply it to some it's going to go to Parker.
+Griselda Mora: Can you go to split account?
+Name not available: How do I do another job? No, that's not good.
+Griselda Mora: A Select split. Okay. That would be the account. that's not what we're looking for.
+Name not available: But I think that screen is very close.
+Griselda Mora: Okay. I Yeah.
+Name not available: I just think down here allows me to pick one job,…
+Griselda Mora: I think Yeah.
+Name not available: but I like another line to create another job.
+Name not available: So therefore, two numbers will equal that number.
+Griselda Mora: Just so that I'm understanding you correctly,…
+Griselda Mora: you mean that you would rather have it against two invoice numbers. Okay, you got it.
+Name not available: Yes. …
+Name not available: I'm going to throw a curveball at you. Does that process make sense right there?
+Griselda Mora: Let me see. It does. I can add another line item or it can ask you, hey, this transaction, what do we need to bill it against or…
+Name not available: 
+Name not available: Yeah, that Yeah.
+Griselda Mora: what do we need to categorize it against?
+Name not available: Yeah, exactly.
+Griselda Mora: And it's going to be two, sometimes three, sometimes it doesn't matter as long as it allows you to based on an existing invoice. And so, if you don't see it on the dropdown that invoice doesn't exist. So, you need to go in and do all of that. Okay.
+Name not available: Correct. …
+Griselda Mora: Okay, that was a good curveball. Thank you.
+Name not available: no. I haven't even thrown you the curveball yet. that we'll call that one the knuckle ball.
+Griselda Mora: Okay, the knuckle ball. That's the one I' catch. Let's see. That's the one I won't be able to hit. Okay, I'm ready. Yes.
+Name not available: You know what the word retention means? Because every invoice with general contractors, they always hold back 5 to 10% retention. So, the dollar amount's not always going to match exactly. So sometimes I have to tell it, hey, I'm only receiving 87 8,711.50 against the invoice that's was $9,170…
+Name not available: because the rest of it is retention. So, I got to be able to tell the system that I'm going to only put $8,000 $8,700 against $11,700 against this job to equal the $20,400 that I'm trying to,…
+Griselda Mora: Mhm. Okay.
+Name not available: reconcile or put into my account.
+Griselda Mora: Yes. Okay.
+Name not available: The rest of it is going to be unclaimed funds, so to speak, until I get paid my reconciliation. And they're going to send me a reconciliation check that's going to have all the transactions for that job. It could be five line items then because I sent them five different bills.
+Name not available: But I guess we can cross that bridge when we cross that bridge. But I just want to let you know that, …
+Griselda Mora: I can add it as like you said unclaimed…
+Griselda Mora: where you would be able to go in because what would happen is when you try to reconcile then the numbers wouldn't match because there's that 5%. and so I wonder if you could just override that and then when you finally get paid Okay.
+Name not available: Exactly. that's…
+00:55:00
+Name not available: what the QuickBooks allows me to do.
+Griselda Mora: Okay. Yeah.
+Name not available: And then QuickBooks says, "Hey, you have on when you do like or you do, a report of, people that still owe you money, then that will pop up saying, yeah. The reason why I've been paid, that difference is because I haven't, been paid for retention yet because the job's not completed." If that…
+Griselda Mora: Okay. Absolutely.
+Name not available: if that makes sense.
+Griselda Mora: That is a great knuckle ball,…
+Griselda Mora: though. I'm your catcher and I'm just trying to figure out where do I catch it? Where do I Okay.
+Name not available: No, we got close,…
+Name not available: but nine times out of 10, it's going to match up without having retention. The only time we have retention is when we are larger projects and you're working with general contractors. If I'm working with end users like yourself,…
+Griselda Mora: Yeah.
+Name not available: 
+Name not available: you never hold back anybody. If I send you a bill for 1,800, you pay me 1,800.
+Griselda Mora: Yeah. Yep.
+Name not available: So there's no retention. When you got a n…
+Griselda Mora: That makes sense.
+Name not available: if you got a $90,000 job and you're doing progress billing, they're going to hold back 10% of that money to guarantee that you're going to finish the job.
+Griselda Mora: I see why they do it.
+Name not available: Me, too.
+Griselda Mora: Yeah, absolutely.
+Name not available: It's a pain in the butt, but we have to do it.
+Griselda Mora: It's a pain in the butt,…
+Griselda Mora: but we have to do it. That makes sense. Okay.
+Griselda Mora: So, let me figure out how to incorporate that. Can you show me what that looks like on QuickBooks? while we're on the phone, just so that I know we have Okay,…
+Name not available: Okay. Yes.
+Name not available: Again, I can and I will. Let me give me a second.
+Griselda Mora: perfect. I don't see your Okay.
+Name not available: I'll pull up that job real quick. N I am going to share that right now.
+Griselda Mora: I don't see your screen just yet. Okay.
+Name not available: I just got done pulling it up in QuickBooks. So, I got to go back to this is where I make mistakes.
+Name not available: So, getting rid of Here we Share screen. Going to do it here. So, right now you see edit transactions, correct? …
+Griselda Mora: No, I don't see anything.
+Griselda Mora: Yeah, I see the pop-up window for edit transactions in
+Name not available: 
+Name not available: what do you see? I want to make sure I'm on the Yeah, yeah, transactions. Okay, share something else. Yes, we're going to share what books. Maybe it's this one. No, obviously that wasn't it. Quick books.
+Name not available: Got All So on this screen here, basically this is the Parker student job and…
+Griselda Mora: Okay.
+Name not available: I sent them a invoice. There's that $9104 for $12,370. I applied that already into my checkbook and it says a partial payment and it says they still owe you $61,8.50. So then I know that that's retention,…
+Griselda Mora: Okay.
+Name not available: 
+Name not available: so to speak. So if I got to go to the other thing.
+Griselda Mora: I was going to say if you click on that, I see that? if you see view over on the right. And it flags you partially paid.
+Name not available: Oops. Sketching up.
+Name not available: So when I applied this payment, applied it and then it automatically took out the retention or figured it out but as you can see it still says partially paid.
+Griselda Mora: partially paid.
+Name not available: So that will eventually get to zero when the job's all done a couple months later after they get their money then I'll get my money just…
+Griselda Mora: It looks like they do it based on the invoice number.
+Name not available: because I mean I'm applying it to that job not all of it. So however you want to do it on your end as I don't know how they do it on their end. So as you can see I was able to only apply that dollar amount and that other doll amount from the other job to equal the check amount and the balance of it is still owed to me. So, I think I'm talking in circles,…
+01:00:00
+Name not available: but I think where I'm driving the bus.
+Griselda Mora: Yeah, balance.
+Griselda Mora: So, you like the balance do I don't do? You know why it says hidden?
+Name not available: I don't know why.
+Griselda Mora: I just want to make sure that that's not something that you liked or…
+Name not available: No, no, I don't really give a s***.
+Griselda Mora: we need to add.
+Name not available: I want to make sure that I have to still zero out this job eventually and…
+Griselda Mora: You just want to know balance. Yeah. Okay.
+Name not available: and when the check comes in, apply that check to that dollar amount to zero it out.
+Griselda Mora: And it looks like they just do it on the invoice.
+Griselda Mora: Okay. It's helping.
+Name not available: I don't know
+Name not available: if any of this helps at all, but as you can see,…
+Griselda Mora: Yeah. the
+Name not available: there was a check, there's my invoice, and there's a total invoice,…
+Name not available: and this is what I applied to the invoice. and that's the balance left over to zero out that 12,370 bucks.
+Griselda Mora: Okay. …
+Name not available: If that makes sense.
+Griselda Mora: yeah, absolutely. Okay, that helps very much.
+Name not available: Does that help a little bit?
+Griselda Mora: Very, very much.
+Name not available: Okay. …
+Griselda Mora: But it looks like they just do it on the invoice. So, you would go back into invoice 9104. You would go in there. It's not zeroed out yet. Is that the only time you see it? you see the partial payment.
+Name not available: if I run a report against that project, I'll see it when I run the report,…
+Griselda Mora: You go back to that project please. Right there. So, it's on park student support center. And that's where it Got it.
+Griselda Mora: So that was the park. And then you click on the invoice.
+Griselda Mora: Got it. Okay. Yeah.
+Name not available: Right. And…
+Name not available: then as you can see here, it shows that hey, you have a bill. It's still open. I haven't paid that bill yet. You know what I mean?
+Griselda Mora: Okay. Yes.
+Name not available: You have this bill to these guys. Have you paid it already? Great. As you see, this is the transactions that I would see from you. You know what I mean?
+Griselda Mora: So when you go on Yep.
+Name not available: When it's taking that job. so this is…
+Griselda Mora: when you go home.
+Name not available: what I see in QuickBooks. I'm seeing very similar to what you're doing. So that's why I can see, what's paid, what's not paid, what's open, what do I still owe people. I mean,…
+Griselda Mora: Okay, perfect.
+Name not available: 
+Name not available: I'm kind of seeing that on your end, too. So,…
+Griselda Mora: Okay, I just want to make sure. Okay. So,
+Griselda Mora: Park Student Support Center. That's the job. And then Whitney is the vendor. Okay. …
+Name not available: Yeah. Yeah.
+Name not available: Yeah. Wendy's my customer.
+Griselda Mora: That's all right. Customer this type. Mhm.
+Name not available: They happen to be my customer. That is the what you see down here is a bill I paid Denver Breaker and I paid CS. this here is open. Let's see what that says. If I click on that, it's pulling in from the cloud. It's telling me that job materials purchased not really telling me why or from who or so.
+Name not available: It's not giving me much information of why that line's there, but obviously open. So, I owe somebody something.
+Griselda Mora: Okay.
+Griselda Mora: This gives me great information.
+Name not available: And I screw and I scroll down. You kind of see.
+Griselda Mora: Yeah.
+Name not available: You know what? maybe Here's the Same dollar amount. It was open. Now, it's paid. know what I mean? So, It's just double entry.
+Griselda Mora: Okay. Yeah.
+Name not available: It looks like…
+Name not available: because these just happen to be side by side on the same date. This one up here might have been That's on the 14th. no. There it was right there. I was just missing it.
+Griselda Mora: Okay, there it is.
+Name not available: I set the bill in.
+Griselda Mora: Yeah, I see.
+Name not available: 
+Name not available: There's a bill and I paid the bill. I don't know why they do that,…
+Griselda Mora: Okay. Confuse you.
+Name not available: but as you can see, I mean mean, I already know what Yeah,…
+Griselda Mora: And then is that the invoice number?
+Griselda Mora: the random number to that one right there. What is that? Invoice number.
+Name not available: that's their invoice number.
+Griselda Mora: Okay. Let me see that.
+Name not available: That's the invoice number for that for Denver Breaker.
+Griselda Mora: Yeah. Okay. Yep.
+Name not available: That's their invoice number.
+01:05:00
+Griselda Mora: Got Okay.
+Name not available: And then this one here was CS's actual I don't know that's a dollar amount. So I guess when I put it in there I must have put it in wrong when I enter mean.
+Griselda Mora: I just wanted to make sure let's see what that was. Okay. Very.
+Name not available: So if I go to that bill I'm going to go to that bill real quick. It says why did I do that? I didn't put the right Bill number. I put in the dollar amount. So, I f***** up when I manually put that in.
+Griselda Mora: Fix it.
+Name not available: So, now if I really wanted to, I could go back in here and I could put the proper, …
+Griselda Mora: Yeah. Exactly.
+Name not available: number in there to fix it.
+Griselda Mora: Sometimes you just need a second pair of eyes while you look at it. But when you're doing this Yeah.
+Name not available: Yeah. So,…
+Griselda Mora: Okay.
+Name not available: yeah, that's the invoice number, but as you can see, I made a boo on 78 and…
+Name not available: accidentally put the dollar amount in two locations. She missed it. But I tell you what,…
+Griselda Mora: But you know what?
+Griselda Mora: It's the Exactly.
+Name not available: when I go to reconcile that statement, I'll catch it and I'll fix it then.
+Griselda Mora: And that's why we love reconciliation. Okay.
+Name not available: Exactly. As you see here,…
+Griselda Mora: That gives me a holy.
+Name not available: it even pulled in, I ran a test check in February because I was playing around with it and was, I mean, so all the information is there.
+Griselda Mora: Okay. …
+Name not available: All Looks like we're past our hour.
+Griselda Mora: thank I appreciate it. I'm gonna work on Yes.
+Name not available: I only had one more to do, but we will do the really want to you passer.
+Griselda Mora: Let's do let's We're here. There's no reason to do another one. Let's My notes are open.
+Name not available: …
+Griselda Mora: Your notes are open.
+Name not available: so now I don't need that no more.
+Griselda Mora: Back into
+Name not available: Exit out of that. I'm going back into here.
+Name not available: We already talked about All So, what I did in bills, I uploaded a bill. this one's really gonna give you a slider, I guess.
+Griselda Mora: Man,…
+Name not available: Then…
+Griselda Mora: keep it 95 and 95 miles an hour and under. Okay.
+Name not available: then you're a baller. All right. So, I uploaded invoice number 7546 from my vendor worker B.
+Griselda Mora: I don't see your screen.
+Name not available: S***. I'm sorry.
+Griselda Mora: No, no, it's okay.
+Name not available: What do you see now?
+Griselda Mora: Okay. I see this bills. Okay.
+Name not available: So, I went in the bills.
+Name not available: This is a little side note. There is there a way that I could sort this?
+Griselda Mora: Okay. Yes,…
+Griselda Mora: there can be.
+Name not available: I see I can search for something, but this should say I want…
+Griselda Mora: Yes, I added the search. Sort by bill or…
+Name not available: if I wanted to, search, or if I just wanted to and…
+Griselda Mora: by vendor.
+Name not available: then we'll sort everything on the left by,…
+Name not available: …
+Griselda Mora: Yeah, absolutely.
+Name not available: B's, C's, and D's type of thing.
+Griselda Mora: We can do that.
+Name not available: Then better yet, if I want to sort by, not by bill, I probably most likely sort by vendor.
+Griselda Mora: Yeah, exactly.
+Name not available: Right now, I said, what, I want to show you the worker be one. So, I can't,…
+Griselda Mora: Yep. …
+Name not available: I guess I could go in here and say worker and retrain myself. There it is. You know what I mean?
+Griselda Mora: it's a sore. I can add the sore. Don't you worry. Yeah.
+Name not available: No, no, no, no. I just need to retrain myself. I'm okay with it.
+Griselda Mora: But Okay.
+Name not available: It was there in the search because it would pull up every single worker one I inputed then I take it right.
+Griselda Mora: Yeah, It would if you had multiple.
+Name not available: Yeah. Perfect.
+Griselda Mora: Okay.
+Name not available: So, never mind. All right. So, now I go ahead and put that in there. And this is exactly how the vendor sent me his bill. Perfect. I love it sent me the job name, who the guy was, and how much he charged me for each temporary worker. Okay. So, what this company is is they are a temp agency…
+Name not available: where if I only have four guys on my staff, but I need 10 guys working out in the field to get the job done,…
+Griselda Mora: Mhm. Yep.
+Name not available: I have to rely on temporary agencies to help supplement my manpower. Does that make sense?
+Griselda Mora: Yep. Absolutely.
+Name not available: And so therefore, that's why it's a subcontractor expense. And I use this Ramirez guy at that school for that much dollar amount. But my problem is…
+01:10:00
+Name not available: if I upload it like this, how is it automatically pulling to the right project?
+Griselda Mora: If you scroll up.
+Griselda Mora: Okay, maybe we just make sure that
+Name not available: No, I never tried this yet.
+Name not available: So, now that it's uploaded, if I go to see that Kip Middle School isn't correct,…
+Name not available: that job is really called Ritual.
+Griselda Mora: Yeah.
+Griselda Mora: We don't.
+Name not available: And so therefore,…
+Griselda Mora: Okay.
+Name not available: it never allowed me to fix that. so…
+Griselda Mora: How about if you go to edit,…
+Name not available: therefore it doesn't tell me how to if I go into edit I could say tell it ritual I'm not sure right that's just really notes and…
+Griselda Mora: but it won't link it? No, I don't think so. So I think it's just Mhm. Yeah.
+Name not available: I love them notes because it tells me which temporary guy worked at that job know what I mean but I like to be able to make sure that this gets put into the ritual job when I run the report and…
+Name not available: this one gets put in the Bruce Randolph. This one gets put in the ritual.
+Griselda Mora: What…
+Name not available: This one gets put into the right Highlands Ranch project. This one gets the right stadium project. You know what I mean?
+Griselda Mora: if we added another line item so that you can choose the job name for every line item?
+Name not available: I think that'd be a mistake…
+Name not available: because what happens because got to remember this is just a machine and it's looking at this is a bill. let's say I put a bill from ECES that has 22 line items in would I in that scenario have to click on that 22 times in that other bill?
+Griselda Mora: Yeah. Yeah.
+Name not available: I don't want to do that.
+Griselda Mora: Yeah. You don't want to do that.
+Name not available: So that's why this is a weird curveball because it's only going to be for certain categories and…
+Name not available: it's only going to be for temporary labor that I'll ever have to do that. What's that?
+Griselda Mora: Click that bill.
+Griselda Mora: If you could you click that bill again, please. workerby.
+Name not available: Yep, it is. I just saw it.
+Griselda Mora: So you anytime only or…
+Name not available: So, I guess we could kind of fight that say anytime it's on a subcontractor, expense, I want to be able to itemize the lines. Then, yes,…
+Griselda Mora: is it only worker B?
+Name not available: it's only worker B.
+Griselda Mora: So only worker B and only when it's the account of subcontractors that you would like a line item the subcontract types.
+Name not available: to make sure that all these dollar amounts get coded to the right project. Now I can see the logic on that if we only do it on certain account types or…
+Griselda Mora: Yeah, subcontractor types.
+Name not available: maybe only that customer I mean but obviously somehow I would have to click a button on the customer say you want to do that no I don't want to do that I only want to do it when it's on up.
+Griselda Mora: On the subcontractor expenses. Yeah. Okay.
+Name not available: That's what I'm thinking because if I go back,…
+Name not available: let's say I click on any other bill. Let's click on this bill and it comes in as Yeah, see this one's under job materials purchased.
+Griselda Mora: Mhm. Yeah.
+Name not available: So, it's not a subcontract expense. So, I like that. So, we only want to flag some contractor expenses when I choose that category.
+Griselda Mora: If we itemize for the job itemize for the contract the right
+Name not available: It's going to allow me to itemize each line. I want to be able to itemize each one of these lines so it gets coded to the right project.
+Griselda Mora: project. Okay,…
+Name not available: Even though, for example, there's guy called it Kip High School. ironically, if you go to maps and you click on that address, it pulls up Kip High School is transaction to be now being called a different name. Why the school district is changing the school name, I don't know, but now they're calling it Ritual Middle School. You…
+Griselda Mora: got it.
+Name not available: what I mean?
+Griselda Mora: and…
+Name not available: Yes.
+Griselda Mora: virtual is what we have on your job names.
+Name not available: Yes, that's correct. Rachel. Yes.
+Griselda Mora: Yeah. No,…
+Name not available: Because that's all my contract is with my general contractor is ritual, not called kip.
+01:15:00
+Griselda Mora: this is the first time I've seen Kip. Yeah. No.
+Name not available: Me too. But I know what it means. But obviously AI doesn't. So AI then would flag that says, "Hey, I don't have a job called this. What do you want me to call it?" Then I can manually say, " this is ritual." Correct.
+Griselda Mora: This is ritual. Okay.
+Griselda Mora: So, let's do that. And for any subcontractor expenses, we want it to give you the option to break out the line items by project.
+Name not available: So each guy's dollar amounts gets coded to the correct project,…
+Griselda Mora: So, each guy's dollar amounts gets coded.
+Name not available: And I kind of like that because if it says look at the halfway down it says Ritual Josh Melton.
+Name not available: Okay, Josh Melton the temporary guy worked at that job site. Hey, he actually put in Ritual because I told him it was Rachel. He's the only guy that listened to me and…
+Griselda Mora: Yeah. Yeah.
+Griselda Mora: For Yeah.
+Name not available: but obviously he's only charging $33 $355.60 to that job.
+Griselda Mora: Yeah. Yeah.
+Name not available: I want to make sure that pulls into Ritual's job so it covers all the expenses because that is a true expense of that job.
+Griselda Mora: Absolutely. I think this was your knuckle ball.
+Griselda Mora: The other one was this one was Yeah.
+Name not available: Yes. Okay.
+Name not available: Okay, that's fair. Whichever one you knock out of the park, I like it.
+Griselda Mora: No. The knuckle ball is hard to catch. You can't even get that. So, I'm like,…
+Griselda Mora: that one's the hardest one.
+Name not available: But as you can see,…
+Name not available: I mean, this Josh I had at two different jobs that week,…
+Griselda Mora: Okay.
+Name not available: I mean, three different jobs at Richell,…
+Griselda Mora: Three. Yeah.
+Name not available: Highlands Ranch, and Rock Canton that week,…
+Griselda Mora: Yep. Yeah.
+Name not available: pull them around like a pinball, you know what I mean? But I got to do what I got to do when you got a lot of jobs.
+Griselda Mora: For sure. I'm glad he's working out for you then.
+Name not available: So, on that note, that that's only do that on subcontract expenses. I want to be able to itemize each line to get it coded to the right project.
+Griselda Mora: You got it. my job now is to break everything out by task. It's task on subtask, task, and task. So,…
+Name not available: right. sorry.
+Griselda Mora: I have a No.
+Name not available: Sorry. Sorry I ran you over an hour,…
+Griselda Mora: All always great to talk to you, Mike. We'll talk soon.
+Name not available: but as you can see,…
+Griselda Mora: I'm gonna
+Name not available: I'll let you do your fine magic here.
+Griselda Mora: Yeah, yeah,…
+Name not available: And my next goal is once you tell me that this is fixed,…
+Griselda Mora: yes. Yes.
+Name not available: I'm going to go in and I'm going to reconcile Home Depot. I want to,…
+Griselda Mora: Okay. Yep.
+Name not available: be able to see all the stuff I manually put in, pull into the reconcile page because it's not then I will do that and then I will continue to upload new time cards and…
+Griselda Mora: Okay.
+Name not available: see how that process flows.
+Griselda Mora: Okay. Yep.
+Name not available: And then I will then post it because then I want to go ahead and make a reconciliation against my Chase checking account to make sure that all that is when I reconcile it's going to be zero. so yeah so we'll keep playing.
+Griselda Mora: All righty. thank you so much. appreciate your time.
+Name not available: 
+Name not available: Question for were you ready for me to call you or…
+Name not available: not quite yet?
+Griselda Mora: Not quite yet,…
+Griselda Mora: but that's okay because this gives me.
+Name not available: The thing is, see what I'm saying? I don't want to overload you while you don't finish up another task.
+Griselda Mora: Yeah. No,…
+Name not available: That's Okay.
+Griselda Mora: it was one of I already have it here and that's okay. I already did the cleanup. It was a entry point. I No, it worked out pretty good. It worked out just fine.
+Name not available: Because yeah, obviously I don't want to, …
+Griselda Mora: No, you keep coming to me. email me when you need. but do …
+Name not available: my partner starting to get on my ass saying, "How much of the $1,800 charges are going to do until you're happy with this program?" I said, "re We're getting closer." I "Well,…
+Griselda Mora: we're getting close. It's close.
+Name not available: 
+Griselda Mora: I mean,…
+Name not available: maybe I can negotiate with them. they charge you 800.
+Griselda Mora: I think you can
+Name not available: They can take that 300 and take it down to 150 a month for whatever period.
+Griselda Mora: Yeah, you can always negoti tell them…
+Name not available: So FYI, my father-in-law, who's my bank roll, is starting to ask a couple questions. So I said, "No, we're not f**** around." I says said, "We're not." I said,…
+Griselda Mora: what this Thank you very much.
+Name not available: "We're doing a very good job." So Yeah.
+Griselda Mora: I appreciate it. Yeah, I think you and I are working really good. But there's so many details, so many little nuances that, if you just wanted this at a generic level, then sure, it'd be done. But it's the very new.
+Name not available: It's called when your job costing everything so you can make sure that you're accounting for everything so you can make sure that information when you bid another job is captured so you're not losing money. Yes, I could be very generic,…
+Griselda Mora: Yep. Yeah.
+Name not available: but I guess I like the detail.
+Griselda Mora: Yeah, I do too. All then we'll be in touch as always and I'm going to start my task.
+01:20:00
+Name not available: I'm going to leave you alone and I'll maybe plug you on tomorrow's already Wednesday. time flies.
+Griselda Mora: Yeah. T So,…
+Name not available: This up a time the beginning of the week again.
+Griselda Mora: Tuesday. Yep. Let's do that. All right.
+Name not available: So, every time I click on to…
+Name not available: what I call an AI or whatever we call it, we're calling it APS accounting, it's going to pull in your latest and greatest then. Correct. Okay,…
+Griselda Mora: Yes. Yep.
+Griselda Mora: Exactly. Publish.
+Name not available: perfect. That's doing it. So, I will not fart around in there for a little bit. I might over the weekend again play with it.
+Griselda Mora: Okay. Yeah.
+Name not available: As you can see, I was doing a lot of playing and Yeah.
+Griselda Mora: You were. And I can already see how you're working really efficiently within it.
+Griselda Mora: you know how to back you go from one to another you already started flying so it's already working to your benefit exactly…
+Name not available: No, I start flying around. That's why I kind of like several roads getting to one task because there's a lot of different areas where I can get to that task.
+Griselda Mora: but it looks like you're already kind of flying Yep.
+Name not available: 
+Name not available: Yeah. So, my notes were uploading time cards, and,…
+Griselda Mora: Got that.
+Griselda Mora: I got transactions.
+Name not available: I'm just looking on my notes here.
+Griselda Mora: I got two separate payment against potential.
+Name not available: 
+Name not available: Changing dates. We talked about flipping that data around about the only thing that I did not…
+Griselda Mora: Yep, you got it. huh.
+Name not available: which I can do later is if I upload my Chase credit card statement, would AI be able to know that all this is related to my encoded Chase credit card and…
+Griselda Mora: Yes, we'll get there.
+Name not available: then itemize, mean everything on that? We'll table that one.
+Griselda Mora: But it should Yeah,…
+Name not available: Can you still see me?
+Griselda Mora: the chase. Yes, it should. but yeah,…
+Name not available: I won't upload that yet only But this will be one of the things that…
+Griselda Mora: not yet. Let me work on this. and I'll get It showed.
+Name not available: if I upload this, will it throw it all in the right categories? Then I can pretty much…
+Griselda Mora: Isn't that what it did right here to the subcontracts or expense that you have right now that we're looking at? didn't it itemize it perfectly and accurately? Yeah. So, hopefully it does It should do the same logic. Yeah.
+Name not available: because a lot of this stuff I would manually input, you know what I mean? Because gas expenses, I mean,…
+Name not available: I'm not going to take that little receipt that off at the register and throw it that, what I mean? I'm just going to go in there and do what I normally do.
+Griselda Mora: Yeah. Yep.
+Name not available: Once again, that's me putting it in and I'm not confident that it's capturing it yet because we already talked about that. the whole people,…
+Griselda Mora: Exactly. But we already know that the logic is working if you did that in different places…
+Name not available: It's just in the different buckets within with the end result,…
+Griselda Mora: because what I'm looking at right now with the subcontra expense, it did it perfectly with the same amount.
+Griselda Mora: Okay. Yeah.
+Name not available: which is the reconciliation side.
+Griselda Mora: Okay. Yes.
+Name not available: It's close, but it's not quite to that page yet.
+Griselda Mora: Yeah. Yep.
+Name not available: So, it's just you mapping it a little bit.
+Griselda Mora: And Mike, just so that I understand correctly, the window that I'm looking at right now, you uploaded that, correct? Okay.
+Name not available: Yes. No,…
+Griselda Mora: You did not manually enter it. Perfect.
+Name not available: I upload that. I want to see…
+Name not available: what it did.
+Griselda Mora: Yeah, absolutely.
+Griselda Mora: And It did it correctly.
+Name not available: But now I need each one of these lines to go to the right job. But we already came up with a solution.
+Griselda Mora: Okay. Yep.
+Name not available: If we just tell it only do that on subcontractor expenses then and No. Yeah. We're ready to hit that ball out of the park.
+Griselda Mora: Okay.
+Name not available: Ready? Yeah.
+Griselda Mora: Sounds good.
+Griselda Mora: Hopefully it takes that same logic whenever you do go into upload your chase statement and it hopefully does it, but we'll see.
+Name not available: 
+Name not available: Then right.
+Griselda Mora: But all right,…
+Name not available: I'm gonna upload over the weekend or maybe on Monday the next invoice from worker B and see if all that logic flies.
+Griselda Mora: sounds good.
+Name not available: But if you're not ready for me to do that yet, then I won't. You know what I mean? Obviously, if I upload it and…
+Griselda Mora: Okay.
+Name not available: it doesn't change, she hasn't got to that task yet.
+Griselda Mora: Yeah, it's subtask it goes by bills then all the subtasks and…
+Griselda Mora: then transaction then all the subtasks and…
+Name not available: You might want to maybe talk to your boss and…
+Name not available: let him know my partner's concerns about not like we're** around.
+Griselda Mora: okay no no this is Yep.
+Name not available: So maybe he could create, yes, you did pay me s*** damn near, 1,800 times three already.
+Name not available: And the sales guy told me, no, it only take a couple months. We'll have this done in two months. the sales guy didn't understand everything that's involved with an accounting program.
+01:25:00
+Griselda Mora: Yeah. The scope they don't understand the scope.
+Name not available: I guess the sales guys,…
+Griselda Mora: I Okay.
+Name not available: but you just might want FYI your boss.
+Griselda Mora: Okay.
+Name not available: So,' that I might want to maybe renegotiate the $300 a month type of thing after we create this program and…
+Name not available: launch it, saying, "Okay, what's fair to you guys so you guys make your nut at the end of the world, but not running me out of business, so to speak?" Does that mean,…
+Griselda Mora: of course.
+Griselda Mora: Of course.
+Name not available: 
+Name not available: yeah, I agree. do 250 a month forever and then this will flush out or…
+Griselda Mora: Yes. Okay.
+Name not available: just do 150 a month forever and this will flush out. I don't think we need to cross that conversation now but you might want to I don't know…
+Griselda Mora: Okay. You got it.
+Name not available: because you guys are fairly new company you're still massaging it so Yeah,…
+Griselda Mora: Yeah. Yeah, you got it. M. Yep. But I'm going to ahead I'm going to go ahead and add it to as a line item to speak about and then that Okay.
+Name not available: you just say it's little concern. We're not screwing around, but there's a lot to it.
+Griselda Mora: Yeah. A law
+Name not available: And …
+Name not available: but the weeks go by fast.
+Griselda Mora: Yes, absolutely.
+Griselda Mora: That is a great my gosh,…
+Name not available: And I know that I'm probably not your only project. And if I was your only project, we'd be done already, Right.
+Griselda Mora: you are absolutely right. okay.
+Name not available: So, you might want to just mention that to the boss man saying,…
+Griselda Mora: Okay.
+Name not available: "Hey, have you thought about this before because this is brought up in one of my phone calls with one of my customers we're working with.
+Griselda Mora: Okay, you got it.
+Name not available: He's very happy,…
+Name not available: but he's concerned that the is right or…
+Griselda Mora: You got it.
+Griselda Mora: I'm gonna Okay, I'm writing down the note right now.
+Name not available: I think we're on the same page.
+Griselda Mora: Yeah, absolutely. You got it.
+Name not available: You got here. Thank you.
+Griselda Mora: Okay, thank you. We'll talk soon.
+Name not available: If you weren't just dedicated, then that's a different story. Then we'd be talking every day.
+Griselda Mora: That would be nice. That I would love.
+Griselda Mora: I would love because you're one of my favorite.
+Name not available: How many you got going right now? Five. No,…
+Griselda Mora: It's the task switching is what's hard. It's like I would love to just but it is what it is. It's …
+Name not available: 
+Name not available: I'm not judging. I'm actually giving you credit here. How many you got going right now? Five customers like this.
+Griselda Mora: I Yeah, And they're all different. That's the problem is none of them have a benchmark. So, you don't have something to work against. It's all from scratch, which is fine.
+Name not available: Right. Okay.
+Griselda Mora: But yeah, there's about four.
+Name not available: That's good.
+Griselda Mora: Yeah. Yeah.
+Name not available: Good. I'm glad I don't bug you every day,…
+Griselda Mora: And no, it's all great.
+Name not available: but thank you so much for replying quickly.
+Griselda Mora: Yeah, absolutely.
+Name not available: So, right.
+Griselda Mora: We'll be in touch as always.
+Name not available: So, if I see something for you, say Mike, take a peek. I'll take a peek. If you don't take a peek, I will take a peek just to see where it's at. and…
+Griselda Mora: Yeah. Yeah.
+Name not available: if I feel like, this is worth another phone call because my list is getting longer again.
+Griselda Mora: It sounds great. I think Yeah, that it's a Thank you so much.
+Name not available: All right. I'll let you get out of here, kiddo. Thank you for your time.
+Griselda Mora: Yeah. Thank you.
+Meeting ended after 01:28:30 👋
+This editable transcript was computer generated and might contain errors. People can also change the text after it was created.
+
