@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { PayrollLine } from './payrollLine';
+import type { PayrollWorkerSummary } from './payrollWorkerSummary';
 
 export interface PayrollRun {
   id: number;
@@ -32,5 +33,7 @@ export interface PayrollRun {
   totalCostCents: number;
   /** Sum of all allocations across lines */
   allocatedCents?: number;
+  /** One entry per worker on the run (name + total cost), so list views can show who's on a run without loading every line */
+  workerSummaries?: PayrollWorkerSummary[];
   lines: PayrollLine[];
 }

@@ -196,6 +196,15 @@ export default function Payroll() {
                         </Link>
                         <DemoBadge isDemo={run.isDemo} />
                       </div>
+                      {/* Who's on this run, at a glance — no need to open it
+                          to see whose time cards it contains (P11-TC-01). */}
+                      {run.workerSummaries && run.workerSummaries.length > 0 ? (
+                        <div className="mt-0.5 text-xs font-normal text-slate-500">
+                          {run.workerSummaries
+                            .map((w) => `${w.name} · ${formatCents(w.totalCostCents)}`)
+                            .join(", ")}
+                        </div>
+                      ) : null}
                     </TableCell>
                     <TableCell className="whitespace-nowrap">
                       {run.payDate}

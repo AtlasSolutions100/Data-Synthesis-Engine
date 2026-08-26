@@ -721,6 +721,41 @@ function bestFuzzyJobMatch(
   return best ? { job: best.job, pct: Math.round(best.score * 100) } : null;
 }
 
+/**
+ * Minimum similarity for auto-selecting an Employee Center match without
+ * asking (higher than the job-name threshold: misidentifying who gets paid
+ * is higher-stakes than misfiling a job, so a looser match still requires
+ * the ambiguous/unmatched picker in Step 1).
+ */
+const EMPLOYEE_FUZZY_THRESHOLD = 0.7;
+
+/**
+ * Best close (but not exact) Employee Center match for an extracted worker
+ * name, if any single employee stands out. Picking the single best score
+ * mirrors bestFuzzyJobMatch; a genuine tie between two employees is left
+ * unmatched so Step 1 asks rather than guessing between two people.
+ */
+function bestFuzzyEmployeeMatch(
+  raw: string,
+  candidates: Employee[],
+): { employee: Employee; pct: number } | null {
+  let best: { employee: Employee; score: number } | null = null;
+  let bestIsTie = false;
+  for (const employee of candidates) {
+    const score = nameSimilarity(raw, employee.name);
+    if (score < EMPLOYEE_FUZZY_THRESHOLD) continue;
+    if (!best || score > best.score) {
+      best = { employee, score };
+      bestIsTie = false;
+    } else if (score === best.score) {
+      bestIsTie = true;
+    }
+  }
+  return best && !bestIsTie
+    ? { employee: best.employee, pct: Math.round(best.score * 100) }
+    : null;
+}
+
 /** Customer that holds internal overhead time for a given year (P8-TC-05). */
 const alliedCustomerName = (year: number) => `Allied ${year}`;
 
@@ -802,6 +837,8 @@ interface ReviewRow {
   target: string; // "skip", "new" (add a worker line), or a line index string
   status: ImportStatus;
   employeeId: string; // matched Employee Center record id ("" if none)
+  matchedEmployeeName: string; // Employee Center name behind employeeId ("" if none)
+  employeeMatchPct: number; // fuzzy match confidence 0–100 (0 when exact/none)
   jobKeys: string[]; // associations this worker's hours touch, in order
   entries: EntryDetail[]; // day-by-day detail (may be empty for totals-only)
   flags: string[];
@@ -1586,9 +1623,22 @@ function ImportHoursDialog({
       const empMatches = employees.filter(
         (e) => normalizeName(e.name) === normalizeName(r.workerName),
       );
-      const employee = empMatches.length === 1 ? empMatches[0] : undefined;
-      // No existing worker line, but a unique Employee Center match: offer to
-      // add a new worker line so the import stays seamless.
+      let employee = empMatches.length === 1 ? empMatches[0] : undefined;
+      let employeeMatchPct = 0;
+      // No exact Employee Center match: try a close (typo/nickname/OCR)
+      // match instead of leaving a known worker "unknown" (P11-TC-02,
+      // P11-TC-04). Only a single standout candidate auto-selects — a tie
+      // or an ambiguous existing-line match still asks in Step 1.
+      if (!employee && empMatches.length === 0) {
+        const fuzzy = bestFuzzyEmployeeMatch(r.workerName, employees);
+        if (fuzzy) {
+          employee = fuzzy.employee;
+          employeeMatchPct = fuzzy.pct;
+        }
+      }
+      // No existing worker line, but a unique Employee Center match (exact
+      // or close): offer to add a new worker line so the import stays
+      // seamless instead of asking who this is.
       if (status === "unmatched" && employee) {
         target = "new";
       }
@@ -1639,6 +1689,8 @@ function ImportHoursDialog({
         target,
         status,
         employeeId: employee ? String(employee.id) : "",
+        matchedEmployeeName: employee ? employee.name : "",
+        employeeMatchPct,
         jobKeys,
         entries,
         flags,
@@ -2204,8 +2256,9 @@ function ImportHoursDialog({
                 Step 1 — Who is this time for?
               </p>
               <p className="mt-1 text-xs text-slate-600">
-                Confirm each worker once here — you won't be asked for their
-                name again when the hours are saved.
+                Workers already on file are matched automatically — including
+                close spelling variants — so you'll only need to pick a name
+                here when we can't confidently place it.
               </p>
               <div className="mt-2 space-y-3">
                 {rows.map((r, i) => (
@@ -2215,6 +2268,12 @@ function ImportHoursDialog({
                         {r.workerName}
                       </div>
                       <StatusBadge status={r.status} />
+                      {r.employeeMatchPct > 0 ? (
+                        <p className="mt-0.5 text-xs text-slate-500">
+                          Matched to {r.matchedEmployeeName} (~
+                          {r.employeeMatchPct}%)
+                        </p>
+                      ) : null}
                     </div>
                     <div className="w-56">
                       <Select

@@ -170,6 +170,7 @@ export * from './payrollLineLineType';
 export * from './payrollRun';
 export * from './payrollRunInput';
 export * from './payrollRunUpdate';
+export * from './payrollWorkerSummary';
 export * from './pnlReport';
 export * from './pnlSection';
 export * from './pnlSectionType';

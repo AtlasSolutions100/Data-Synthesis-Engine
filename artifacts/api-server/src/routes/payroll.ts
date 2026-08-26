@@ -177,8 +177,32 @@ async function getFullRun(id: number) {
     burdenCents,
     totalCostCents,
     allocatedCents,
+    workerSummaries: workerSummariesFromLines(lines),
     lines: linePayloads,
   };
+}
+
+/**
+ * One entry per worker on a run (name + total cost), in line order. Used so
+ * list/detail views can show who's on a run at a glance (P11-TC-01) without
+ * every consumer re-deriving it. A blank workerName never reaches here in
+ * practice (PayrollLineInput requires a non-empty name), but falls back to a
+ * placeholder rather than rendering an anonymous row.
+ */
+function workerSummariesFromLines(
+  lines: Array<{ workerName: string; totalCostCents: number | string }>,
+): Array<{ name: string; totalCostCents: number }> {
+  const byName = new Map<string, number>();
+  const order: string[] = [];
+  for (const l of lines) {
+    const name = l.workerName.trim() || "Unnamed worker";
+    if (!byName.has(name)) {
+      byName.set(name, 0);
+      order.push(name);
+    }
+    byName.set(name, byName.get(name)! + Number(l.totalCostCents));
+  }
+  return order.map((name) => ({ name, totalCostCents: byName.get(name)! }));
 }
 
 /** Validate that a labor account exists and is a cost-type account. */
@@ -570,6 +594,35 @@ router.get("/payroll-runs", async (req, res): Promise<void> => {
     });
   }
 
+  // Per-worker totals for each run, so the list can show "who's on this run"
+  // (e.g. "Jeff Harris · $1,053") without fetching every line (P11-TC-01).
+  const workerRows = runIds.length
+    ? await db
+        .select({
+          runId: payrollLinesTable.runId,
+          workerName: payrollLinesTable.workerName,
+          total: sql<
+            string | number
+          >`coalesce(sum(${payrollLinesTable.totalCostCents}), 0)::bigint`,
+        })
+        .from(payrollLinesTable)
+        .where(inArray(payrollLinesTable.runId, runIds))
+        .groupBy(payrollLinesTable.runId, payrollLinesTable.workerName)
+        .orderBy(payrollLinesTable.runId, sql`min(${payrollLinesTable.id})`)
+    : [];
+  const workerSummariesByRun = new Map<
+    number,
+    Array<{ name: string; totalCostCents: number }>
+  >();
+  for (const w of workerRows) {
+    const arr = workerSummariesByRun.get(w.runId) ?? [];
+    arr.push({
+      name: w.workerName.trim() || "Unnamed worker",
+      totalCostCents: Number(w.total),
+    });
+    workerSummariesByRun.set(w.runId, arr);
+  }
+
   const items = runs.map((r) => {
     const t = totalsByRun.get(r.run.id) ?? { gross: 0, burden: 0, total: 0 };
     return {
@@ -591,6 +644,7 @@ router.get("/payroll-runs", async (req, res): Promise<void> => {
       grossWagesCents: t.gross,
       burdenCents: t.burden,
       totalCostCents: t.total,
+      workerSummaries: workerSummariesByRun.get(r.run.id) ?? [],
       lines: [],
     };
   });
@@ -1129,11 +1183,29 @@ router.post("/payroll/extract-hours", async (req, res): Promise<void> => {
                 })
                 .filter((e) => e.hours > 0)
             : [];
+          // When per-day entries are present, they are the ground truth for
+          // the review screen — derive the row totals by summing them rather
+          // than trusting a second, independently-computed number from the
+          // model. The two can disagree (the model does the day-by-day
+          // extraction correctly but miscalculates its own rollup), which
+          // previously let hours that displayed correctly in the daily
+          // breakdown save as all zeros (P11-TC-03).
+          const sumEntriesByType = (type: "regular" | "overtime" | "holiday") =>
+            entries
+              .filter((e) => e.costType === type)
+              .reduce((sum, e) => sum + e.hours, 0);
+          const hasEntries = entries.length > 0;
           return {
             workerName,
-            regularHours: normalizeHours(row.regularHours),
-            overtimeHours: normalizeHours(row.overtimeHours),
-            holidayHours: normalizeHours(row.holidayHours),
+            regularHours: hasEntries
+              ? normalizeHours(sumEntriesByType("regular"))
+              : normalizeHours(row.regularHours),
+            overtimeHours: hasEntries
+              ? normalizeHours(sumEntriesByType("overtime"))
+              : normalizeHours(row.overtimeHours),
+            holidayHours: hasEntries
+              ? normalizeHours(sumEntriesByType("holiday"))
+              : normalizeHours(row.holidayHours),
             entries,
           };
         })

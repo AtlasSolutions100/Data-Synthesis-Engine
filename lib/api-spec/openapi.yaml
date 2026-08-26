@@ -4042,10 +4042,23 @@ components:
         allocatedCents:
           type: integer
           description: Sum of all allocations across lines
+        workerSummaries:
+          type: array
+          description: One entry per worker on the run (name + total cost), so list views can show who's on a run without loading every line
+          items:
+            $ref: "#/components/schemas/PayrollWorkerSummary"
         lines:
           type: array
           items:
             $ref: "#/components/schemas/PayrollLine"
+    PayrollWorkerSummary:
+      type: object
+      required: [name, totalCostCents]
+      properties:
+        name:
+          type: string
+        totalCostCents:
+          type: integer
     PayrollRunInput:
       type: object
       required: [payPeriodStart, payPeriodEnd, payDate]

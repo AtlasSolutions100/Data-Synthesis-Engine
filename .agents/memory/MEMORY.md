@@ -35,3 +35,4 @@
 - [Serializer isDemo required field](serializer-isDemo-required.md) — every entity serializer (getFullBill, serializeJob, etc.) must return isDemo or Response.parse() throws ZodError (500).
 - [ES module import/const interleaving](es-module-import-interleaving.md) — never place a const between two imports; esbuild silently breaks the route module, causing all routes to return 500.
 - [Reconciliation engine](reconciliation-engine.md) — schema, API, frontend, opening-balance formula, Reconcile button gating, and isDemo partial-select pattern.
+- [Payroll hours-import lessons](payroll-hours-import-lessons.md) — derive aggregates from entries not the model's own totals; employee fuzzy-match threshold 0.7; auto-match ≠ hide the picker.

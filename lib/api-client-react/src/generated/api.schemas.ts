@@ -1550,6 +1550,11 @@ export interface DemoStatus {
   counts: DemoStatusCounts;
 }
 
+export interface PayrollWorkerSummary {
+  name: string;
+  totalCostCents: number;
+}
+
 export interface PayrollRun {
   id: number;
   /** True when this record was created by the Practice / Demo Data loader */
@@ -1575,6 +1580,8 @@ export interface PayrollRun {
   totalCostCents: number;
   /** Sum of all allocations across lines */
   allocatedCents?: number;
+  /** One entry per worker on the run (name + total cost), so list views can show who's on a run without loading every line */
+  workerSummaries?: PayrollWorkerSummary[];
   lines: PayrollLine[];
 }
 

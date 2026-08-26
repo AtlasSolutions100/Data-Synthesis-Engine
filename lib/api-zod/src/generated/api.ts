@@ -2422,6 +2422,10 @@ export const ListPayrollRunsResponseItem = zod.object({
   "burdenCents": zod.number(),
   "totalCostCents": zod.number(),
   "allocatedCents": zod.number().optional().describe('Sum of all allocations across lines'),
+  "workerSummaries": zod.array(zod.object({
+  "name": zod.string(),
+  "totalCostCents": zod.number()
+})).optional().describe('One entry per worker on the run (name + total cost), so list views can show who\'s on a run without loading every line'),
   "lines": zod.array(zod.object({
   "id": zod.number(),
   "runId": zod.number(),
@@ -2535,6 +2539,10 @@ export const CreatePayrollRunResponse = zod.object({
   "burdenCents": zod.number(),
   "totalCostCents": zod.number(),
   "allocatedCents": zod.number().optional().describe('Sum of all allocations across lines'),
+  "workerSummaries": zod.array(zod.object({
+  "name": zod.string(),
+  "totalCostCents": zod.number()
+})).optional().describe('One entry per worker on the run (name + total cost), so list views can show who\'s on a run without loading every line'),
   "lines": zod.array(zod.object({
   "id": zod.number(),
   "runId": zod.number(),
@@ -2598,6 +2606,10 @@ export const GetPayrollRunResponse = zod.object({
   "burdenCents": zod.number(),
   "totalCostCents": zod.number(),
   "allocatedCents": zod.number().optional().describe('Sum of all allocations across lines'),
+  "workerSummaries": zod.array(zod.object({
+  "name": zod.string(),
+  "totalCostCents": zod.number()
+})).optional().describe('One entry per worker on the run (name + total cost), so list views can show who\'s on a run without loading every line'),
   "lines": zod.array(zod.object({
   "id": zod.number(),
   "runId": zod.number(),
@@ -2714,6 +2726,10 @@ export const UpdatePayrollRunResponse = zod.object({
   "burdenCents": zod.number(),
   "totalCostCents": zod.number(),
   "allocatedCents": zod.number().optional().describe('Sum of all allocations across lines'),
+  "workerSummaries": zod.array(zod.object({
+  "name": zod.string(),
+  "totalCostCents": zod.number()
+})).optional().describe('One entry per worker on the run (name + total cost), so list views can show who\'s on a run without loading every line'),
   "lines": zod.array(zod.object({
   "id": zod.number(),
   "runId": zod.number(),
@@ -2788,6 +2804,10 @@ export const PostPayrollRunResponse = zod.object({
   "burdenCents": zod.number(),
   "totalCostCents": zod.number(),
   "allocatedCents": zod.number().optional().describe('Sum of all allocations across lines'),
+  "workerSummaries": zod.array(zod.object({
+  "name": zod.string(),
+  "totalCostCents": zod.number()
+})).optional().describe('One entry per worker on the run (name + total cost), so list views can show who\'s on a run without loading every line'),
   "lines": zod.array(zod.object({
   "id": zod.number(),
   "runId": zod.number(),
@@ -2852,6 +2872,10 @@ export const UnpostPayrollRunResponse = zod.object({
   "burdenCents": zod.number(),
   "totalCostCents": zod.number(),
   "allocatedCents": zod.number().optional().describe('Sum of all allocations across lines'),
+  "workerSummaries": zod.array(zod.object({
+  "name": zod.string(),
+  "totalCostCents": zod.number()
+})).optional().describe('One entry per worker on the run (name + total cost), so list views can show who\'s on a run without loading every line'),
   "lines": zod.array(zod.object({
   "id": zod.number(),
   "runId": zod.number(),

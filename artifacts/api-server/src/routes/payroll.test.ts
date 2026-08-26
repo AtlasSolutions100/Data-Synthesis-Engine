@@ -239,6 +239,67 @@ describe("GET /api/payroll-runs total aggregation with date filtering", () => {
 });
 
 /**
+ * P11-TC-01: the list endpoint returns a per-worker name + cost summary for
+ * each run, so the Time Cards list can show "who's on this run" without
+ * opening it — including a worker whose hours (and therefore cost) are zero.
+ */
+describe("GET /api/payroll-runs worker summaries (P11-TC-01)", () => {
+  let runId: number;
+
+  beforeAll(async () => {
+    const [run] = await db
+      .insert(payrollRunsTable)
+      .values({
+        payPeriodStart: "2098-03-01",
+        payPeriodEnd: "2098-03-07",
+        payDate: "2098-03-10",
+        laborAccountId: laborAcctId,
+      })
+      .returning();
+    runId = run.id;
+    runIds.push(runId);
+    await db.insert(payrollLinesTable).values([
+      {
+        runId,
+        workerName: "TEST-PR Zero Hours",
+        grossWagesCents: 0,
+        burdenCents: 0,
+        totalCostCents: 0,
+      },
+      {
+        runId,
+        workerName: "TEST-PR Full Timer",
+        grossWagesCents: 80_000,
+        burdenCents: 20_000,
+        totalCostCents: 100_000,
+      },
+    ]);
+  });
+
+  it("includes a named entry per worker, including a zero-cost worker", async () => {
+    const res = await request(payrollApp)
+      .get("/api/payroll-runs")
+      .query({ startDate: MARCH.start, endDate: MARCH.end });
+
+    expect(res.status).toBe(200);
+    const run = (
+      res.body as Array<{
+        id: number;
+        workerSummaries: Array<{ name: string; totalCostCents: number }>;
+      }>
+    ).find((r) => r.id === runId);
+    expect(run).toBeDefined();
+    expect(run!.workerSummaries).toEqual(
+      expect.arrayContaining([
+        { name: "TEST-PR Zero Hours", totalCostCents: 0 },
+        { name: "TEST-PR Full Timer", totalCostCents: 100_000 },
+      ]),
+    );
+    expect(run!.workerSummaries).toHaveLength(2);
+  });
+});
+
+/**
  * Scale regression: the list endpoint aggregates per-run totals with SQL SUM
  * (grouped, ::bigint-cast). Seed a run with 200+ lines whose cent values are
  * deliberately awkward (odd cents, large values) and prove the list totals
@@ -662,6 +723,88 @@ describe("POST /api/payroll/extract-hours error handling", () => {
       },
     ]);
     expect(mockCreate).toHaveBeenCalledTimes(1);
+  });
+
+  /**
+   * P11-TC-03 regression: when the model returns per-day entries alongside a
+   * disagreeing aggregate, the entries (what the review screen actually
+   * displays) must win. Previously the separately-extracted aggregate was
+   * trusted as-is, so hours that looked right on screen could save as all
+   * zeros whenever the model's own rollup drifted from its day-by-day work.
+   */
+  it("derives regular/overtime/holiday totals from entries, ignoring a disagreeing aggregate", async () => {
+    mockCreate.mockResolvedValueOnce(
+      completionWith(
+        JSON.stringify({
+          rows: [
+            {
+              workerName: "Michael Burrus",
+              // The model's own rollup drifted to zero...
+              regularHours: 0,
+              overtimeHours: 0,
+              holidayHours: 0,
+              // ...but its day-by-day entries are correct and non-zero.
+              entries: [
+                { date: "2098-08-10", hours: 8, costType: "regular" },
+                { date: "2098-08-11", hours: 8, costType: "regular" },
+                { date: "2098-08-12", hours: 10, costType: "regular" },
+                { date: "2098-08-12", hours: 2, costType: "overtime" },
+                { date: "2098-08-13", hours: 8, costType: "holiday" },
+              ],
+            },
+          ],
+        }),
+      ),
+    );
+
+    const res = await request(payrollApp)
+      .post("/api/payroll/extract-hours")
+      .send({ text: "Michael Burrus 8/10-8/14 timesheet" });
+
+    expect(res.status).toBe(200);
+    expect(res.body.rows).toHaveLength(1);
+    const row = res.body.rows[0];
+    expect(row.workerName).toBe("Michael Burrus");
+    // Sum of "regular" entries: 8 + 8 + 10 = 26.
+    expect(row.regularHours).toBe(26);
+    // Sum of "overtime" entries: 2.
+    expect(row.overtimeHours).toBe(2);
+    // Sum of "holiday" entries: 8.
+    expect(row.holidayHours).toBe(8);
+    expect(row.entries).toHaveLength(5);
+  });
+
+  it("falls back to the model's aggregate when there are no per-day entries", async () => {
+    // Totals-only source (e.g. a summary line with no daily breakdown) — the
+    // aggregate is the only information available, so it must pass through.
+    mockCreate.mockResolvedValueOnce(
+      completionWith(
+        JSON.stringify({
+          rows: [
+            {
+              workerName: "Brendan",
+              regularHours: 40,
+              overtimeHours: 3,
+              holidayHours: 0,
+              entries: [],
+            },
+          ],
+        }),
+      ),
+    );
+
+    const res = await request(payrollApp)
+      .post("/api/payroll/extract-hours")
+      .send({ text: "Brendan: 40 reg, 3 OT" });
+
+    expect(res.status).toBe(200);
+    expect(res.body.rows[0]).toEqual({
+      workerName: "Brendan",
+      regularHours: 40,
+      overtimeHours: 3,
+      holidayHours: 0,
+      entries: [],
+    });
   });
 
   it("returns 503 with a 'not configured' message when the OpenAI integration fails to load", async () => {
