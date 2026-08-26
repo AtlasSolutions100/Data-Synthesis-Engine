@@ -88,6 +88,27 @@ describe("computeLine", () => {
     expect(result.grossWagesCents).toBe(40 * 5000 + 10 * 7500);
   });
 
+  it("Jeff Harris / Michael Burris rate: $28.50/hr straight, null OT → 1.5x = $42.75/hr OT (P11-TC-02)", () => {
+    // Employee records for these field techs have straight_time_rate_cents=2850,
+    // overtime_rate_cents=NULL. The 1.5x fallback must produce exactly 4275 cents.
+    const result = computeLine({
+      lineType: "employee",
+      regularHours: 40,
+      overtimeHours: 8,
+      holidayHours: 0,
+      straightRateCents: 2850, // $28.50/hr
+      overtimeRateCents: null, // blank → 1.5x fallback
+      taxExempt: false,
+      subcontractorAmountCents: null,
+      rates: RATES,
+    });
+    expect(result.regularWagesCents).toBe(40 * 2850); // $1,140.00
+    // 1.5 × 2850 = 4275 — no rounding required (exact integer)
+    expect(result.overtimeWagesCents).toBe(8 * 4275); // $342.00
+    expect(result.grossWagesCents).toBe(40 * 2850 + 8 * 4275); // $1,482.00
+    expect(result.totalCostCents).toBe(result.grossWagesCents + result.burdenCents);
+  });
+
   it("an explicit overtime rate still wins over the 1.5x fallback", () => {
     const result = computeLine({
       lineType: "employee",

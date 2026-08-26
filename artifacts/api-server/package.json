@@ -10,6 +10,7 @@
     "backfill-documents": "tsx ./scripts/backfill-documents.ts",
     "backfill-split-account-ids": "tsx ./scripts/backfill-split-account-ids.ts",
     "backfill-split-accounts": "tsx ./scripts/backfill-split-accounts.ts",
+    "set-field-tech-rates": "tsx ./scripts/set-field-tech-rates.ts",
     "cleanup-orphaned-uploads": "tsx ./scripts/cleanup-orphaned-uploads.ts",
     "test": "vitest run",
     "typecheck": "tsc -b ../../lib/db ../../lib/api-zod ../../lib/integrations-openai-ai-server && tsc -p tsconfig.json --noEmit"

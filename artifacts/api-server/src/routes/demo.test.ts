@@ -167,15 +167,17 @@ describe("DELETE /api/demo/remove", () => {
   });
 
   it("does not delete real (non-demo) records", async () => {
-    const realBefore = await realCounts();
-
     await request(app).post("/api/demo/load");
-    await request(app).delete("/api/demo/remove");
 
+    // Take the "before" snapshot immediately before DELETE so the measurement
+    // window is just the remove operation, minimising the chance that a
+    // parallel test fixture is created/cleaned up between the two reads.
+    const realBefore = await realCounts();
+    await request(app).delete("/api/demo/remove");
     const realAfter = await realCounts();
-    // Concurrent test files may create records between the two snapshots, so
-    // the counts can only grow — assert >= rather than strict equality so a
-    // parallel test adding a customer/job doesn't cause a spurious failure.
+
+    // The remove endpoint must not touch non-demo rows.  Concurrent test files
+    // may still create records in the narrow window, so assert >= not strict =.
     expect(realAfter.customers).toBeGreaterThanOrEqual(realBefore.customers);
     expect(realAfter.vendors).toBeGreaterThanOrEqual(realBefore.vendors);
     expect(realAfter.employees).toBeGreaterThanOrEqual(realBefore.employees);

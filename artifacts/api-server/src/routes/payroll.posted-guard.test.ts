@@ -7,7 +7,7 @@ import express, {
   type IRouter,
 } from "express";
 import request from "supertest";
-import { eq, inArray } from "drizzle-orm";
+import { eq, inArray, or } from "drizzle-orm";
 import {
   db,
   accountsTable,
@@ -118,10 +118,18 @@ async function purgeTestFixtures() {
       inArray(accountsTable.number, ["TEST-PG-6100", "TEST-PG-1010"]),
     );
   for (const a of staleAccts) {
+    // Find runs referencing this account as either the labor account or the
+    // payment (bank) account — added in the Checking-register feature — so the
+    // FK constraint on paymentAccountId doesn't block the account delete.
     const staleRuns = await db
       .select({ id: payrollRunsTable.id })
       .from(payrollRunsTable)
-      .where(eq(payrollRunsTable.laborAccountId, a.id));
+      .where(
+        or(
+          eq(payrollRunsTable.laborAccountId, a.id),
+          eq(payrollRunsTable.paymentAccountId, a.id),
+        ),
+      );
     for (const r of staleRuns) {
       await db
         .delete(transactionsTable)
