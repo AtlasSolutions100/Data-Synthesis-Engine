@@ -62,6 +62,7 @@ function buildApp(router: IRouter): Express {
 
 let payrollApp: Express;
 let laborAcctId: number;
+let bankAcctId: number;
 let job1Id: number;
 let job2Id: number;
 let runId: number;
@@ -88,6 +89,16 @@ beforeAll(async () => {
     .returning();
   laborAcctId = acct.id;
 
+  const [bankAcct] = await db
+    .insert(accountsTable)
+    .values({
+      number: "TEST-CP-1010",
+      name: "Test Compute-Post Checking",
+      type: "bank",
+    })
+    .returning();
+  bankAcctId = bankAcct.id;
+
   const jobs = await db
     .insert(jobsTable)
     .values([
@@ -113,6 +124,9 @@ afterAll(async () => {
   if (laborAcctId != null) {
     await db.delete(accountsTable).where(eq(accountsTable.id, laborAcctId));
   }
+  if (bankAcctId != null) {
+    await db.delete(accountsTable).where(eq(accountsTable.id, bankAcctId));
+  }
 });
 
 describe("POST /api/payroll-runs create → post ledger reconciliation", () => {
@@ -126,6 +140,7 @@ describe("POST /api/payroll-runs create → post ledger reconciliation", () => {
         payPeriodEnd: PERIOD.end,
         payDate: PAY_DATE,
         laborAccountId: laborAcctId,
+        paymentAccountId: bankAcctId,
         lines: [
           {
             lineType: "employee",

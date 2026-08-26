@@ -63,6 +63,7 @@ function buildApp(router: IRouter): Express {
 
 let payrollApp: Express;
 let laborAcctId: number;
+let bankAcctId: number;
 let job1Id: number;
 let job2Id: number;
 let runId: number;
@@ -94,6 +95,16 @@ beforeAll(async () => {
     .returning();
   laborAcctId = acct.id;
 
+  const [bankAcct] = await db
+    .insert(accountsTable)
+    .values({
+      number: "TEST-POST-1010",
+      name: "Test Post Checking",
+      type: "bank",
+    })
+    .returning();
+  bankAcctId = bankAcct.id;
+
   const jobs = await db
     .insert(jobsTable)
     .values([
@@ -111,6 +122,7 @@ beforeAll(async () => {
       payPeriodEnd: PERIOD.end,
       payDate: PAY_DATE,
       laborAccountId: laborAcctId,
+      paymentAccountId: bankAcctId,
     })
     .returning();
   runId = run.id;
@@ -168,6 +180,9 @@ afterAll(async () => {
   if (laborAcctId != null) {
     await db.delete(accountsTable).where(eq(accountsTable.id, laborAcctId));
   }
+  if (bankAcctId != null) {
+    await db.delete(accountsTable).where(eq(accountsTable.id, bankAcctId));
+  }
 });
 
 describe("POST /api/payroll-runs/:id/post ledger amounts", () => {
@@ -183,11 +198,13 @@ describe("POST /api/payroll-runs/:id/post ledger amounts", () => {
     // 3 allocation rows (60k, 30k, 80k) + 2 remainder rows (line1 10k, line2 50k).
     expect(rows).toHaveLength(5);
 
-    // Every row is tagged to this run, posts to the labor account, and carries
-    // the payroll type + PR-<id> reference number.
+    // Every row is tagged to this run, posts to the labor account, carries
+    // the payroll type + PR-<id> reference number, and has the payment
+    // (bank/Checking) account as the split side so it shows in the register.
     for (const r of rows) {
       expect(r.payrollRunId).toBe(runId);
       expect(r.accountId).toBe(laborAcctId);
+      expect(r.splitAccountId).toBe(bankAcctId);
       expect(r.type).toBe("payroll");
       expect(r.num).toBe(`PR-${runId}`);
       expect(r.date).toBe(PAY_DATE);

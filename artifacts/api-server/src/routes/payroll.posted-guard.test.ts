@@ -7,7 +7,7 @@ import express, {
   type IRouter,
 } from "express";
 import request from "supertest";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import {
   db,
   accountsTable,
@@ -79,6 +79,7 @@ function buildApp(router: IRouter): Express {
 
 let payrollApp: Express;
 let laborAcctId: number;
+let bankAcctId: number;
 let runId: number;
 
 async function ledgerRowsForRun() {
@@ -111,7 +112,9 @@ async function purgeTestFixtures() {
   const staleAccts = await db
     .select({ id: accountsTable.id })
     .from(accountsTable)
-    .where(eq(accountsTable.number, "TEST-PG-6100"));
+    .where(
+      inArray(accountsTable.number, ["TEST-PG-6100", "TEST-PG-1010"]),
+    );
   for (const a of staleAccts) {
     const staleRuns = await db
       .select({ id: payrollRunsTable.id })
@@ -141,6 +144,16 @@ beforeAll(async () => {
     })
     .returning();
   laborAcctId = acct.id;
+
+  const [bankAcct] = await db
+    .insert(accountsTable)
+    .values({
+      number: "TEST-PG-1010",
+      name: "Test Posted-Guard Checking",
+      type: "bank",
+    })
+    .returning();
+  bankAcctId = bankAcct.id;
 });
 
 afterAll(async () => {
@@ -159,6 +172,7 @@ describe("posted payroll run edit guard and re-post reconciliation", () => {
         payPeriodEnd: PERIOD.end,
         payDate: PAY_DATE,
         laborAccountId: laborAcctId,
+        paymentAccountId: bankAcctId,
         lines: LINE_INPUTS.map((l) => lineBody(l)),
       });
     expect(createRes.status).toBe(201);

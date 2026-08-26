@@ -28,6 +28,14 @@ export const payrollRunsTable = pgTable("payroll_runs", {
   laborAccountId: integer("labor_account_id")
     .notNull()
     .references(() => accountsTable.id, { onDelete: "restrict" }),
+  // Bank account that payroll is paid from. Required before posting — every
+  // job-cost ledger row carries this account as its split side so the
+  // Checking register shows the payroll outflow. Nullable only for backwards
+  // compatibility with runs created before this field existed.
+  paymentAccountId: integer("payment_account_id").references(
+    () => accountsTable.id,
+    { onDelete: "restrict" },
+  ),
   // Employer burden rates in basis points (1% = 100 bps), captured per run so
   // historical runs stay reproducible even when rates change.
   ssRateBps: integer("ss_rate_bps").notNull().default(620),

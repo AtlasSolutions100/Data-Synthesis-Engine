@@ -69,6 +69,8 @@ import {
   getListJobsQueryKey,
   useListCustomers,
   getListCustomersQueryKey,
+  useListAccounts,
+  getListAccountsQueryKey,
   useCreateJob,
   useCreateCustomer,
   useCreateEmployee,
@@ -130,6 +132,9 @@ const runSchema = z.object({
   // Resolved automatically by the server when blank (P5-TC-06); kept in the
   // form state so editing an existing run preserves its account.
   laborAccountId: z.string().optional(),
+  // Bank account payroll is paid from; required before posting so the
+  // Checking register shows the cash outflow (P11-TC-05).
+  paymentAccountId: z.string().optional(),
   memo: z.string().optional(),
   ssRate: z.string().optional(),
   medicareRate: z.string().optional(),
@@ -2575,8 +2580,15 @@ export function PayrollRunForm({
   const { data: jobs } = useListJobs(undefined, {
     query: { queryKey: getListJobsQueryKey() },
   });
+  const { data: accounts } = useListAccounts({
+    query: { queryKey: getListAccountsQueryKey() },
+  });
   const employeeList = useMemo(() => employees ?? [], [employees]);
   const jobList = useMemo(() => jobs ?? [], [jobs]);
+  const bankAccounts = useMemo(
+    () => (accounts ?? []).filter((a) => a.type === "bank"),
+    [accounts],
+  );
 
   const form = useForm<RunFormValues>({
     resolver: zodResolver(runSchema),
@@ -2586,6 +2598,7 @@ export function PayrollRunForm({
       payDate:
         defaultValues?.payDate || new Date().toISOString().split("T")[0],
       laborAccountId: defaultValues?.laborAccountId || "",
+      paymentAccountId: defaultValues?.paymentAccountId || "",
       memo: defaultValues?.memo || "",
       ssRate: defaultValues?.ssRate ?? "6.2",
       medicareRate: defaultValues?.medicareRate ?? "1.45",
@@ -2680,6 +2693,9 @@ export function PayrollRunForm({
       memo: values.memo || null,
       laborAccountId: values.laborAccountId
         ? parseInt(values.laborAccountId, 10)
+        : undefined,
+      paymentAccountId: values.paymentAccountId
+        ? parseInt(values.paymentAccountId, 10)
         : undefined,
       ssRateBps: pctToBps(values.ssRate),
       medicareRateBps: pctToBps(values.medicareRate),
@@ -2807,6 +2823,39 @@ export function PayrollRunForm({
             )}
           />
         </div>
+
+        <FormField
+          control={form.control}
+          name="paymentAccountId"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Payment Account (Checking)</FormLabel>
+              <Select
+                value={field.value || "none"}
+                onValueChange={(v) => field.onChange(v === "none" ? "" : v)}
+              >
+                <FormControl>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select bank account" />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  <SelectItem value="none">— None (required before posting) —</SelectItem>
+                  {bankAccounts.map((a) => (
+                    <SelectItem key={a.id} value={String(a.id)}>
+                      {a.number} · {a.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-slate-500">
+                Bank account payroll is paid from. Required before posting to
+                ledger so the Checking register shows the cash outflow.
+              </p>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
 
         <FormField
           control={form.control}

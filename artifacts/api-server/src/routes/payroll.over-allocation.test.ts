@@ -59,6 +59,7 @@ function buildApp(router: IRouter): Express {
 
 let payrollApp: Express;
 let laborAcctId: number;
+let bankAcctId: number;
 let jobId: number;
 // Runs created during tests, cleaned up afterwards.
 const runIds: number[] = [];
@@ -85,6 +86,16 @@ beforeAll(async () => {
     .returning();
   laborAcctId = acct.id;
 
+  const [bankAcct] = await db
+    .insert(accountsTable)
+    .values({
+      number: "TEST-OA-1010",
+      name: "Test Over-Alloc Checking",
+      type: "bank",
+    })
+    .returning();
+  bankAcctId = bankAcct.id;
+
   const [job] = await db
     .insert(jobsTable)
     .values({ jobNumber: "TEST-OA-J1", name: "Over-Alloc Job One" })
@@ -106,6 +117,9 @@ afterAll(async () => {
   }
   if (laborAcctId != null) {
     await db.delete(accountsTable).where(eq(accountsTable.id, laborAcctId));
+  }
+  if (bankAcctId != null) {
+    await db.delete(accountsTable).where(eq(accountsTable.id, bankAcctId));
   }
 });
 
@@ -163,6 +177,7 @@ describe("POST /api/payroll-runs/:id/post over-allocation rejection (post handle
         payPeriodEnd: PERIOD.end,
         payDate: PAY_DATE,
         laborAccountId: laborAcctId,
+        paymentAccountId: bankAcctId,
       })
       .returning();
     runIds.push(run.id);

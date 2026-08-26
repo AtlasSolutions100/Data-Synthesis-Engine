@@ -1,4 +1,5 @@
 import { Router, type IRouter } from "express";
+import { alias } from "drizzle-orm/pg-core";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import {
   db,
@@ -69,15 +70,21 @@ const DEFAULT_RATES: BurdenRates = {
 
 /** Build the full PayrollRun payload (lines, allocations, computed totals). */
 async function getFullRun(id: number) {
+  const paymentAccountsAlias = alias(accountsTable, "payment_accounts");
   const [row] = await db
     .select({
       run: payrollRunsTable,
       laborAccountName: accountsTable.name,
+      paymentAccountName: paymentAccountsAlias.name,
     })
     .from(payrollRunsTable)
     .leftJoin(
       accountsTable,
       eq(accountsTable.id, payrollRunsTable.laborAccountId),
+    )
+    .leftJoin(
+      paymentAccountsAlias,
+      eq(paymentAccountsAlias.id, payrollRunsTable.paymentAccountId),
     )
     .where(eq(payrollRunsTable.id, id));
   if (!row) return null;
@@ -166,6 +173,8 @@ async function getFullRun(id: number) {
     memo: row.run.memo,
     laborAccountId: row.run.laborAccountId,
     laborAccountName: row.laborAccountName,
+    paymentAccountId: row.run.paymentAccountId ?? null,
+    paymentAccountName: row.paymentAccountName ?? null,
     ssRateBps: row.run.ssRateBps,
     medicareRateBps: row.run.medicareRateBps,
     futaRateBps: row.run.futaRateBps,
@@ -203,6 +212,42 @@ function workerSummariesFromLines(
     byName.set(name, byName.get(name)! + Number(l.totalCostCents));
   }
   return order.map((name) => ({ name, totalCostCents: byName.get(name)! }));
+}
+
+/** Validate that a payment account exists and is a bank-type account. */
+async function validatePaymentAccount(
+  accountId: number,
+): Promise<string | null> {
+  const [account] = await db
+    .select({ id: accountsTable.id, type: accountsTable.type })
+    .from(accountsTable)
+    .where(eq(accountsTable.id, accountId));
+  if (!account) return `Payment account ${accountId} does not exist`;
+  if (account.type !== "bank") {
+    return "Payment account must be a bank account (e.g. Checking) so the cash outflow shows in the register";
+  }
+  return null;
+}
+
+/**
+ * Default payment account when a run doesn't specify one: the account used by
+ * the most recent payroll run that has one, else the sole bank account.
+ */
+async function resolveDefaultPaymentAccountId(): Promise<number | null> {
+  const [latest] = await db
+    .select({ paymentAccountId: payrollRunsTable.paymentAccountId })
+    .from(payrollRunsTable)
+    .where(sql`${payrollRunsTable.paymentAccountId} is not null`)
+    .orderBy(desc(payrollRunsTable.id))
+    .limit(1);
+  if (latest?.paymentAccountId) return latest.paymentAccountId;
+  const bankAccounts = await db
+    .select({ id: accountsTable.id })
+    .from(accountsTable)
+    .where(eq(accountsTable.type, "bank"))
+    .orderBy(accountsTable.id);
+  // Only auto-pick when unambiguous.
+  return bankAccounts.length === 1 ? bankAccounts[0].id : null;
 }
 
 /** Validate that a labor account exists and is a cost-type account. */
@@ -680,6 +725,22 @@ router.post("/payroll-runs", async (req, res): Promise<void> => {
     return;
   }
 
+  // Payment account (Checking) is resolved automatically when omitted:
+  // reuse the most recent run's account, else the sole bank account.
+  let paymentAccountId = data.paymentAccountId ?? null;
+  if (paymentAccountId == null) {
+    paymentAccountId = await resolveDefaultPaymentAccountId();
+    // Allowed to be null — the run can be created without one; it will be
+    // required when the user clicks "Post to ledger".
+  }
+  if (paymentAccountId != null) {
+    const paymentError = await validatePaymentAccount(paymentAccountId);
+    if (paymentError) {
+      res.status(400).json({ error: paymentError });
+      return;
+    }
+  }
+
   const rates: BurdenRates = {
     ssRateBps: data.ssRateBps ?? DEFAULT_RATES.ssRateBps,
     medicareRateBps: data.medicareRateBps ?? DEFAULT_RATES.medicareRateBps,
@@ -705,6 +766,7 @@ router.post("/payroll-runs", async (req, res): Promise<void> => {
         payDate: data.payDate,
         memo: data.memo ?? null,
         laborAccountId,
+        paymentAccountId: paymentAccountId ?? undefined,
         ssRateBps: rates.ssRateBps,
         medicareRateBps: rates.medicareRateBps,
         futaRateBps: rates.futaRateBps,
@@ -779,6 +841,14 @@ router.patch("/payroll-runs/:id", async (req, res): Promise<void> => {
     }
   }
 
+  if (data.paymentAccountId != null) {
+    const paymentError = await validatePaymentAccount(data.paymentAccountId);
+    if (paymentError) {
+      res.status(400).json({ error: paymentError });
+      return;
+    }
+  }
+
   const lines =
     data.lines != null ? await linkKnownEmployees(normalizeLines(data.lines)) : null;
   if (lines != null) {
@@ -798,6 +868,8 @@ router.patch("/payroll-runs/:id", async (req, res): Promise<void> => {
     if (data.memo !== undefined) set.memo = data.memo;
     if (data.laborAccountId !== undefined)
       set.laborAccountId = data.laborAccountId;
+    if (data.paymentAccountId !== undefined)
+      set.paymentAccountId = data.paymentAccountId;
     if (data.ssRateBps !== undefined) set.ssRateBps = data.ssRateBps;
     if (data.medicareRateBps !== undefined)
       set.medicareRateBps = data.medicareRateBps;
@@ -866,6 +938,21 @@ router.post("/payroll-runs/:id/post", async (req, res): Promise<void> => {
     return;
   }
 
+  // A payment account (bank) is required before posting so the payroll cash
+  // outflow shows in the Checking register.
+  if (!run.paymentAccountId) {
+    res.status(400).json({
+      error:
+        "A payment account (bank) must be set on this payroll run before posting. Edit the run and select a Checking or bank account.",
+    });
+    return;
+  }
+  const paymentError = await validatePaymentAccount(run.paymentAccountId);
+  if (paymentError) {
+    res.status(400).json({ error: paymentError });
+    return;
+  }
+
   const lines = await db
     .select()
     .from(payrollLinesTable)
@@ -909,6 +996,12 @@ router.post("/payroll-runs/:id/post", async (req, res): Promise<void> => {
         partyName: l.workerName,
         description: `Payroll ${run.payPeriodStart} – ${run.payPeriodEnd}`,
         accountId: run.laborAccountId,
+        // Split side: the payment account (Checking). Both the labor/COGS
+        // account (primary) and the bank account (split) are debit-natured, so
+        // getAccountLedger returns effectCents = +amount for the labor account
+        // and effectCents = -amount for the bank account — exactly right for
+        // an expense posting and a cash outflow respectively.
+        splitAccountId: run.paymentAccountId,
         jobId: a.jobId,
         payrollRunId: run.id,
         amountCents: amount,
@@ -929,6 +1022,7 @@ router.post("/payroll-runs/:id/post", async (req, res): Promise<void> => {
         partyName: l.workerName,
         description: `Payroll ${run.payPeriodStart} – ${run.payPeriodEnd} (unallocated)`,
         accountId: run.laborAccountId,
+        splitAccountId: run.paymentAccountId,
         jobId: null,
         payrollRunId: run.id,
         amountCents: remainder,

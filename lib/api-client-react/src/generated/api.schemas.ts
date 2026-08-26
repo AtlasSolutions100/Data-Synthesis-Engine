@@ -1567,6 +1567,13 @@ export interface PayrollRun {
   laborAccountId: number;
   /** @nullable */
   laborAccountName?: string | null;
+  /**
+     * Bank account payroll is paid from; required before posting so the Checking register shows the outflow
+     * @nullable
+     */
+  paymentAccountId?: number | null;
+  /** @nullable */
+  paymentAccountName?: string | null;
   ssRateBps: number;
   medicareRateBps: number;
   futaRateBps: number;
@@ -1592,6 +1599,8 @@ export interface PayrollRunInput {
   /** @nullable */
   memo?: string | null;
   laborAccountId?: number;
+  /** Bank account payroll is paid from; resolved automatically when omitted */
+  paymentAccountId?: number;
   /** @minimum 0 */
   ssRateBps?: number;
   /** @minimum 0 */
@@ -1612,6 +1621,7 @@ export interface PayrollRunUpdate {
   /** @nullable */
   memo?: string | null;
   laborAccountId?: number;
+  paymentAccountId?: number;
   /** @minimum 0 */
   ssRateBps?: number;
   /** @minimum 0 */

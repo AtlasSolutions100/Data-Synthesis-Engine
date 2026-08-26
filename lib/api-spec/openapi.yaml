@@ -4019,6 +4019,11 @@ components:
           type: integer
         laborAccountName:
           type: ["string", "null"]
+        paymentAccountId:
+          type: ["integer", "null"]
+          description: Bank account payroll is paid from; required before posting so the Checking register shows the outflow
+        paymentAccountName:
+          type: ["string", "null"]
         ssRateBps:
           type: integer
         medicareRateBps:
@@ -4073,6 +4078,9 @@ components:
           type: ["string", "null"]
         laborAccountId:
           type: integer
+        paymentAccountId:
+          type: integer
+          description: Bank account payroll is paid from; resolved automatically when omitted
         ssRateBps:
           type: integer
           minimum: 0
@@ -4104,6 +4112,8 @@ components:
         memo:
           type: ["string", "null"]
         laborAccountId:
+          type: integer
+        paymentAccountId:
           type: integer
         ssRateBps:
           type: integer

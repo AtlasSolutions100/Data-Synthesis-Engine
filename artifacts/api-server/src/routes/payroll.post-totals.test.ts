@@ -109,6 +109,7 @@ function buildApp(router: IRouter): Express {
 
 let payrollApp: Express;
 let laborAcctId: number;
+let bankAcctId: number;
 let runId: number;
 
 async function ledgerRowsForRun() {
@@ -132,6 +133,16 @@ beforeAll(async () => {
     })
     .returning();
   laborAcctId = acct.id;
+
+  const [bankAcct] = await db
+    .insert(accountsTable)
+    .values({
+      number: "TEST-PT-1010",
+      name: "Test Post-Totals Checking",
+      type: "bank",
+    })
+    .returning();
+  bankAcctId = bankAcct.id;
 });
 
 afterAll(async () => {
@@ -143,6 +154,9 @@ afterAll(async () => {
   }
   if (laborAcctId != null) {
     await db.delete(accountsTable).where(eq(accountsTable.id, laborAcctId));
+  }
+  if (bankAcctId != null) {
+    await db.delete(accountsTable).where(eq(accountsTable.id, bankAcctId));
   }
 });
 
@@ -157,6 +171,7 @@ describe("posting a fractional-hour run puts the exact run totals into the ledge
         payPeriodEnd: PERIOD.end,
         payDate: PAY_DATE,
         laborAccountId: laborAcctId,
+        paymentAccountId: bankAcctId,
         lines: LINE_INPUTS.map((l) => ({
           lineType: "employee",
           workerName: l.workerName,

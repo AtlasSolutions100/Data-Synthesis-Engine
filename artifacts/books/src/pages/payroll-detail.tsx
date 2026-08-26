@@ -58,6 +58,7 @@ function runToFormValues(run: PayrollRun) {
     payPeriodEnd: run.payPeriodEnd,
     payDate: run.payDate,
     laborAccountId: String(run.laborAccountId),
+    paymentAccountId: run.paymentAccountId ? String(run.paymentAccountId) : "",
     memo: run.memo ?? "",
     ssRate: bpsToPct(run.ssRateBps),
     medicareRate: bpsToPct(run.medicareRateBps),

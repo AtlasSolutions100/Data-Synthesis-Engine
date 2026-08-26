@@ -20,6 +20,13 @@ export interface PayrollRun {
   laborAccountId: number;
   /** @nullable */
   laborAccountName?: string | null;
+  /**
+     * Bank account payroll is paid from; required before posting so the Checking register shows the outflow
+     * @nullable
+     */
+  paymentAccountId?: number | null;
+  /** @nullable */
+  paymentAccountName?: string | null;
   ssRateBps: number;
   medicareRateBps: number;
   futaRateBps: number;
