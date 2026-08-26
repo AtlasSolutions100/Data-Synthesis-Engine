@@ -25,11 +25,14 @@ import {
  * real database with uniquely named fixtures torn down afterwards.
  */
 
+let currentRole: "owner" | "bookkeeper" = "owner";
+
 function buildApp(router: IRouter): Express {
   const app = express();
   app.use(express.json());
   app.use((req: Request, _res: Response, next: NextFunction) => {
     req.log = { error: vi.fn(), warn: vi.fn(), info: vi.fn() } as never;
+    req.currentUser = { role: currentRole } as never;
     next();
   });
   app.use("/api", router);
@@ -227,5 +230,92 @@ describe("PATCH /api/transactions/:id referential validation", () => {
     expect(res.status).toBe(200);
     expect(res.body.customerId).toBe(customerId);
     expect(res.body.amountCents).toBe(2500);
+  });
+});
+
+describe("admin-only no-job/no-customer transactions (P10-TXN-02)", () => {
+  afterAll(() => {
+    currentRole = "owner";
+  });
+
+  it("rejects a bookkeeper saving a transaction with neither job nor customer", async () => {
+    currentRole = "bookkeeper";
+    const res = await request(app).post("/api/transactions").send(baseTx());
+    expect(res.status).toBe(403);
+    expect(res.body.field).toBe("customerId");
+    expect(res.body.error).toMatch(/only an admin/i);
+  });
+
+  it("allows an owner to save a transaction with neither job nor customer", async () => {
+    currentRole = "owner";
+    const res = await request(app).post("/api/transactions").send(baseTx());
+    expect(res.status).toBe(201);
+    txIds.push(res.body.id);
+    expect(res.body.jobId).toBeNull();
+    expect(res.body.customerId).toBeNull();
+  });
+
+  it("allows a bookkeeper to save a transaction that has a vendor but no job/customer", async () => {
+    currentRole = "bookkeeper";
+    const res = await request(app)
+      .post("/api/transactions")
+      .send(baseTx({ vendorId }));
+    // vendorId alone does not satisfy the rule — job or customer is required.
+    expect(res.status).toBe(403);
+  });
+
+  it("allows a bookkeeper to save when a job is set (no customer)", async () => {
+    currentRole = "bookkeeper";
+    const res = await request(app).post("/api/transactions").send(baseTx({ jobId }));
+    expect(res.status).toBe(201);
+    txIds.push(res.body.id);
+  });
+
+  it("rejects a bookkeeper editing an existing transaction down to no job/customer", async () => {
+    currentRole = "owner";
+    const created = await request(app)
+      .post("/api/transactions")
+      .send(baseTx({ jobId }));
+    expect(created.status).toBe(201);
+    txIds.push(created.body.id);
+
+    currentRole = "bookkeeper";
+    const res = await request(app)
+      .patch(`/api/transactions/${created.body.id}`)
+      .send({ jobId: null });
+    expect(res.status).toBe(403);
+    expect(res.body.field).toBe("customerId");
+  });
+
+  it("allows an owner to edit an existing transaction down to no job/customer", async () => {
+    currentRole = "owner";
+    const created = await request(app)
+      .post("/api/transactions")
+      .send(baseTx({ jobId }));
+    expect(created.status).toBe(201);
+    txIds.push(created.body.id);
+
+    const res = await request(app)
+      .patch(`/api/transactions/${created.body.id}`)
+      .send({ jobId: null });
+    expect(res.status).toBe(200);
+    expect(res.body.jobId).toBeNull();
+    expect(res.body.customerId).toBeNull();
+  });
+
+  it("does not block a bookkeeper editing unrelated fields on a job-only transaction", async () => {
+    currentRole = "owner";
+    const created = await request(app)
+      .post("/api/transactions")
+      .send(baseTx({ jobId }));
+    expect(created.status).toBe(201);
+    txIds.push(created.body.id);
+
+    currentRole = "bookkeeper";
+    const res = await request(app)
+      .patch(`/api/transactions/${created.body.id}`)
+      .send({ description: "updated by bookkeeper" });
+    expect(res.status).toBe(200);
+    expect(res.body.jobId).toBe(jobId);
   });
 });

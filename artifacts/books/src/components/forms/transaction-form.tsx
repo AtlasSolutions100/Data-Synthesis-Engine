@@ -29,6 +29,8 @@ import {
   getListAccountsQueryKey,
   useGetVendorDefaultAccount,
   getGetVendorDefaultAccountQueryKey,
+  useGetCurrentUser,
+  getGetCurrentUserQueryKey,
 } from "@workspace/api-client-react";
 import { EntityCombobox } from "@/components/forms/entity-combobox";
 import type { ServerFieldError } from "@/lib/server-field-error";
@@ -95,6 +97,10 @@ export function TransactionForm({
   const { data: accounts } = useListAccounts({
     query: { queryKey: getListAccountsQueryKey() },
   });
+  const { data: me } = useGetCurrentUser({
+    query: { queryKey: getGetCurrentUserQueryKey() },
+  });
+  const isOwner = me?.role === "owner";
 
   const accountOptions = (accounts ?? []).map((a) => ({
     id: a.id,
@@ -218,6 +224,16 @@ export function TransactionForm({
         type: "manual",
         message:
           "This vendor no longer exists. Please select a different vendor.",
+      });
+      hasError = true;
+    }
+    // Vendor-only entries (no job, no customer) are allowed but restricted to
+    // admins, so job-cost and customer reporting can't quietly lose entries.
+    if (!values.jobId && !values.customerId && !isOwner) {
+      form.setError("customerId", {
+        type: "manual",
+        message:
+          "Only an admin can save a transaction with no job and no customer. Select a job or customer, or ask an admin to save this one.",
       });
       hasError = true;
     }

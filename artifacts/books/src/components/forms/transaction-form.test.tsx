@@ -9,6 +9,10 @@ import {
 } from "@testing-library/react";
 import { TransactionForm } from "./transaction-form";
 
+// Mutable so tests can flip the current user's role between owner and
+// bookkeeper without re-declaring the whole mock.
+let mockRole: "owner" | "bookkeeper" = "owner";
+
 // The form pulls list data via generated react-query hooks; mock them so the
 // dropdowns are populated without a live API.
 vi.mock("@workspace/api-client-react", async (importOriginal) => {
@@ -40,6 +44,7 @@ vi.mock("@workspace/api-client-react", async (importOriginal) => {
       ],
     }),
     useGetVendorDefaultAccount: () => ({ data: undefined }),
+    useGetCurrentUser: () => ({ data: { role: mockRole } }),
   });
 });
 
@@ -453,5 +458,64 @@ describe("TransactionForm job-to-customer auto-fill", () => {
     await submit();
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
     expect(onSubmit.mock.calls[0][0].customerId).toBeNull();
+  });
+});
+
+describe("TransactionForm admin-only no-job/no-customer save (P10-TXN-02)", () => {
+  afterEach(() => {
+    mockRole = "owner";
+  });
+
+  it("blocks a bookkeeper from saving with neither job nor customer", async () => {
+    mockRole = "bookkeeper";
+    const onSubmit = vi.fn();
+    render(<TransactionForm onSubmit={onSubmit} defaultValues={baseDefaults} />);
+
+    await submit();
+    await waitFor(() =>
+      expect(screen.getByText(/only an admin/i)).toBeTruthy(),
+    );
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it("allows an owner to save with neither job nor customer", async () => {
+    mockRole = "owner";
+    const onSubmit = vi.fn();
+    render(<TransactionForm onSubmit={onSubmit} defaultValues={baseDefaults} />);
+
+    await submit();
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    const payload = onSubmit.mock.calls[0][0];
+    expect(payload.jobId).toBeNull();
+    expect(payload.customerId).toBeNull();
+  });
+
+  it("allows a bookkeeper to save once a job is picked, even with no customer", async () => {
+    mockRole = "bookkeeper";
+    const onSubmit = vi.fn();
+    render(<TransactionForm onSubmit={onSubmit} defaultValues={baseDefaults} />);
+
+    // "Office Reno" has no linked customer, so customer stays blank.
+    await pickOption("Select job name", /Office Reno/);
+
+    await submit();
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    const payload = onSubmit.mock.calls[0][0];
+    expect(payload.jobId).toBe(11);
+    expect(payload.customerId).toBeNull();
+  });
+
+  it("allows a bookkeeper to save once a customer is picked, even with no job", async () => {
+    mockRole = "bookkeeper";
+    const onSubmit = vi.fn();
+    render(<TransactionForm onSubmit={onSubmit} defaultValues={baseDefaults} />);
+
+    await pickOption("Select customer", /Northside Mall/);
+
+    await submit();
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    const payload = onSubmit.mock.calls[0][0];
+    expect(payload.jobId).toBeNull();
+    expect(payload.customerId).toBe(20);
   });
 });

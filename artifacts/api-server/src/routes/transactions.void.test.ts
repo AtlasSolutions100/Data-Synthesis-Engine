@@ -28,6 +28,7 @@ function buildApp(...routers: IRouter[]): Express {
   app.use(express.json());
   app.use((req: Request, _res: Response, next: NextFunction) => {
     req.log = { error: vi.fn(), warn: vi.fn(), info: vi.fn() } as never;
+    req.currentUser = { role: "owner" } as never;
     next();
   });
   for (const r of routers) app.use("/api", r);

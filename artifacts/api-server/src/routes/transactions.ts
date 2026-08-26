@@ -256,6 +256,24 @@ router.post("/transactions", async (req, res): Promise<void> => {
     res.status(400).json(refError);
     return;
   }
+  // A transaction normally ties to a job or a customer so job-cost and
+  // customer reports stay complete. Vendor-only entries (e.g. paying a
+  // vendor for something with no job/customer, like professional
+  // development on a credit card) are legitimate but easy to misuse to
+  // quietly drop costs off of job/customer reporting, so only an admin
+  // (owner) may save one with neither set.
+  if (
+    parsed.data.jobId == null &&
+    parsed.data.customerId == null &&
+    req.currentUser?.role !== "owner"
+  ) {
+    res.status(403).json({
+      field: "customerId",
+      error:
+        "Only an admin can save a transaction with no job and no customer. Select a job or customer, or ask an admin to save this one.",
+    });
+    return;
+  }
   const [tx] = await db
     .insert(transactionsTable)
     .values(parsed.data)
@@ -597,6 +615,16 @@ router.patch("/transactions/:id", async (req, res): Promise<void> => {
     return;
   }
 
+  const [existing] = await db
+    .select({
+      type: transactionsTable.type,
+      jobId: transactionsTable.jobId,
+      customerId: transactionsTable.customerId,
+    })
+    .from(transactionsTable)
+    .where(eq(transactionsTable.id, params.data.id))
+    .limit(1);
+
   // Guard existing transfer transactions: their accounting fields (the signed
   // amount and both account links) must only be changed via a dedicated flow,
   // not through the generic patch which cannot recompute the correct sign.
@@ -604,24 +632,36 @@ router.patch("/transactions/:id", async (req, res): Promise<void> => {
   const touchedProtectedField = Object.keys(parsed.data).some((k) =>
     TRANSFER_PROTECTED_FIELDS.has(k),
   );
-  if (touchedProtectedField) {
-    const [existing] = await db
-      .select({ type: transactionsTable.type })
-      .from(transactionsTable)
-      .where(eq(transactionsTable.id, params.data.id))
-      .limit(1);
-    if (existing?.type === "transfer") {
-      res.status(400).json({
-        error:
-          "Accounting fields (amount, accounts) on a transfer cannot be changed via the generic update route. Use the Transfer form to adjust the amounts, or void and re-enter.",
-      });
-      return;
-    }
+  if (touchedProtectedField && existing?.type === "transfer") {
+    res.status(400).json({
+      error:
+        "Accounting fields (amount, accounts) on a transfer cannot be changed via the generic update route. Use the Transfer form to adjust the amounts, or void and re-enter.",
+    });
+    return;
   }
 
   const refError = await validateReferences(parsed.data);
   if (refError) {
     res.status(400).json(refError);
+    return;
+  }
+  // Same admin-only rule as creation: compute the jobId/customerId that would
+  // result from this patch (falling back to the existing row's value for any
+  // field the patch does not touch) and block a non-admin from landing on
+  // "neither set".
+  const resultingJobId = "jobId" in parsed.data ? parsed.data.jobId : existing?.jobId;
+  const resultingCustomerId =
+    "customerId" in parsed.data ? parsed.data.customerId : existing?.customerId;
+  if (
+    resultingJobId == null &&
+    resultingCustomerId == null &&
+    req.currentUser?.role !== "owner"
+  ) {
+    res.status(403).json({
+      field: "customerId",
+      error:
+        "Only an admin can save a transaction with no job and no customer. Select a job or customer, or ask an admin to save this one.",
+    });
     return;
   }
   const [tx] = await db
