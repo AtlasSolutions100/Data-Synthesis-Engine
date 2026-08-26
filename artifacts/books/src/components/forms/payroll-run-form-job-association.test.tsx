@@ -635,3 +635,112 @@ describe("Import hours — weekly timesheets", () => {
     ).toBe("264.41");
   });
 });
+
+// ── P11-TC-06: Overtime hours require job coding ──────────────────────────────
+
+describe("OT job coding validation — rendered PayrollRunForm (P11-TC-06)", () => {
+  it("shows an inline OT error and blocks the submit handler when an employee has OT hours but zero allocations", async () => {
+    const onSubmit = vi.fn();
+    renderForm(
+      <PayrollRunForm
+        onSubmit={onSubmit}
+        defaultValues={{
+          ...defaults,
+          lines: [
+            {
+              lineType: "employee" as const,
+              employeeId: "11",
+              workerName: "Brendan Friedman",
+              hourEntries: [
+                { costType: "regular" as const, hours: "40" },
+                { costType: "overtime" as const, hours: "5" },
+              ],
+              taxExempt: false,
+              allocations: [],
+            },
+          ],
+        }}
+      />,
+    );
+
+    // Attempt to submit — the form's superRefine should block it.
+    fireEvent.click(screen.getByRole("button", { name: /save time card run/i }));
+
+    // The OT error renders inline in the LineAllocations section.
+    await waitFor(() =>
+      expect(
+        screen.getByText(/overtime hours require a job allocation/i),
+      ).toBeTruthy(),
+    );
+    // The submit handler must NOT have been invoked.
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it("does not raise the OT error for a regular-only employee line with zero allocations, and submits", async () => {
+    const onSubmit = vi.fn();
+    renderForm(
+      <PayrollRunForm
+        onSubmit={onSubmit}
+        defaultValues={{
+          ...defaults,
+          lines: [
+            {
+              lineType: "employee" as const,
+              employeeId: "11",
+              workerName: "Brendan Friedman",
+              hourEntries: [{ costType: "regular" as const, hours: "40" }],
+              taxExempt: false,
+              allocations: [],
+            },
+          ],
+        }}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /save time card run/i }));
+
+    // The OT rule must not fire for regular-only lines.
+    await waitFor(() =>
+      expect(screen.queryByText(/overtime hours require a job allocation/i)).toBeNull(),
+    );
+    // And since all other fields are valid, the submit handler is invoked.
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledOnce());
+  });
+
+  it("does not raise the OT error when an employee has OT hours and at least one allocation, and submits", async () => {
+    const onSubmit = vi.fn();
+    renderForm(
+      <PayrollRunForm
+        onSubmit={onSubmit}
+        defaultValues={{
+          ...defaults,
+          lines: [
+            {
+              lineType: "employee" as const,
+              employeeId: "11",
+              workerName: "Brendan Friedman",
+              hourEntries: [
+                { costType: "regular" as const, hours: "40" },
+                { costType: "overtime" as const, hours: "5" },
+              ],
+              taxExempt: false,
+              // Allocation uses the schema shape: { jobId, amount }.
+              // A valid jobId + non-empty amount satisfies both allocationSchema
+              // and the OT-requires-allocation superRefine.
+              allocations: [{ jobId: "518", amount: "1569.93" }],
+            },
+          ],
+        }}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /save time card run/i }));
+
+    // The OT rule must not fire when at least one allocation is present.
+    await waitFor(() =>
+      expect(screen.queryByText(/overtime hours require a job allocation/i)).toBeNull(),
+    );
+    // The submit handler is invoked because validation passes.
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledOnce());
+  });
+});

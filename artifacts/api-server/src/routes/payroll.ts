@@ -343,6 +343,16 @@ async function validateLines(
     }
   }
 
+  // Overtime hours on employee lines require at least one job allocation so
+  // the OT cost shows up in job cost reporting and the P&L (P11-TC-06).
+  // Subcontractor lines are exempt: they carry a flat contract amount and
+  // their "overtimeHours" field is not a cost driver.
+  for (const l of lines) {
+    if (l.lineType === "employee" && l.overtimeHours > 0 && l.allocations.length === 0) {
+      return `"${l.workerName}" has overtime hours but no job allocation. Add at least one job allocation so overtime cost is reflected in job cost reporting, or remove the overtime hours.`;
+    }
+  }
+
   for (const l of lines) {
     const computed = computeLine({
       lineType: l.lineType,

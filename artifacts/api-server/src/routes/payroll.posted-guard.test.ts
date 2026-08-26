@@ -41,7 +41,9 @@ const LINE_INPUTS = [
   {
     workerName: "TEST-PG Guard Alpha",
     regularHours: 40,
-    overtimeHours: 2,
+    // OT removed (P11-TC-06: OT requires a job allocation; this test focuses
+    // on the edit/post guard, not OT coding).
+    overtimeHours: 0,
     straightRateCents: 2500,
     overtimeRateCents: 3750,
     taxExempt: false,
@@ -49,7 +51,7 @@ const LINE_INPUTS = [
   {
     workerName: "TEST-PG Guard Beta",
     regularHours: 33.33,
-    overtimeHours: 1.5,
+    overtimeHours: 0,
     straightRateCents: 3333,
     overtimeRateCents: 4999,
     taxExempt: false,

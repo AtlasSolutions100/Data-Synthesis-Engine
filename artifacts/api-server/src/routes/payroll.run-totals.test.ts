@@ -41,13 +41,14 @@ const PAY_DATE = "2096-05-20";
 const LINE_INPUTS = [
   {
     workerName: "TEST-RT Half-Cent Wages",
-    // 37.75 * 4750 = 179_312.5 and 5.25 * 7126 = 37_411.5 — both wage legs
-    // land exactly on a half cent.
+    // 37.75 * 4750 = 179_312.5 — half-cent regular wage tests per-line
+    // rounding vs naive sum rounding. OT removed (P11-TC-06: OT requires a
+    // job allocation; this test focuses on totals precision, not OT coding).
     regularHours: 37.75,
-    overtimeHours: 5.25,
+    overtimeHours: 0,
     holidayHours: 0,
     straightRateCents: 4750,
-    overtimeRateCents: 7126,
+    overtimeRateCents: 0,
     taxExempt: false,
   },
   {
@@ -63,28 +64,28 @@ const LINE_INPUTS = [
   {
     workerName: "TEST-RT Odd Rate A",
     regularHours: 33.33,
-    overtimeHours: 2.5,
+    overtimeHours: 0,
     holidayHours: 0,
     straightRateCents: 3333,
-    overtimeRateCents: 4999,
+    overtimeRateCents: 0,
     taxExempt: false,
   },
   {
     workerName: "TEST-RT Odd Rate B",
     regularHours: 19.9,
-    overtimeHours: 1.1,
+    overtimeHours: 0,
     holidayHours: 0,
     straightRateCents: 2777,
-    overtimeRateCents: 4165,
+    overtimeRateCents: 0,
     taxExempt: false,
   },
   {
     workerName: "TEST-RT Exempt Fractional",
     regularHours: 7.25,
-    overtimeHours: 0.75,
+    overtimeHours: 0,
     holidayHours: 0,
     straightRateCents: 2050,
-    overtimeRateCents: 3075,
+    overtimeRateCents: 0,
     taxExempt: true,
   },
 ] as const;

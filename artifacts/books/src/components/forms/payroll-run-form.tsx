@@ -4,6 +4,7 @@ import {
   useFieldArray,
   Control,
   useWatch,
+  useFormContext,
   type UseFormReturn,
 } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -114,16 +115,34 @@ const hourEntrySchema = z.object({
   hours: z.string(),
 });
 
-const lineSchema = z.object({
-  lineType: z.enum(["employee", "subcontractor"]),
-  employeeId: z.string().optional(),
-  vendorId: z.string().optional(),
-  workerName: z.string().min(1, "Worker name is required"),
-  hourEntries: z.array(hourEntrySchema),
-  taxExempt: z.boolean().default(false),
-  subcontractorAmount: z.string().optional(),
-  allocations: z.array(allocationSchema),
-});
+const lineSchema = z
+  .object({
+    lineType: z.enum(["employee", "subcontractor"]),
+    employeeId: z.string().optional(),
+    vendorId: z.string().optional(),
+    workerName: z.string().min(1, "Worker name is required"),
+    hourEntries: z.array(hourEntrySchema),
+    taxExempt: z.boolean().default(false),
+    subcontractorAmount: z.string().optional(),
+    allocations: z.array(allocationSchema),
+  })
+  .superRefine((val, ctx) => {
+    // Overtime hours require at least one job allocation so the OT cost
+    // shows up in job cost reporting (P11-TC-06). A single existing
+    // allocation is sufficient — it is treated as covering the OT line.
+    if (val.lineType !== "employee") return;
+    const otHours = (val.hourEntries ?? [])
+      .filter((e) => e.costType === "overtime")
+      .reduce((s, e) => s + (parseFloat(e.hours || "0") || 0), 0);
+    if (otHours > 0 && val.allocations.length === 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message:
+          "Overtime hours require a job allocation — add at least one job so overtime cost shows up in job cost reporting.",
+        path: ["allocations"],
+      });
+    }
+  });
 
 const runSchema = z.object({
   payPeriodStart: z.string().min(1, "Required"),
@@ -240,6 +259,14 @@ function LineAllocations({
     control,
     name: `lines.${lineIndex}.allocations`,
   });
+  const {
+    formState: { errors },
+  } = useFormContext<RunFormValues>();
+  // Overtime-requires-job validation error (P11-TC-06). The superRefine on
+  // lineSchema attaches the message to the `allocations` key of the line.
+  const allocError = (
+    errors.lines?.[lineIndex]?.allocations as { message?: string } | undefined
+  )?.message;
 
   return (
     <div className="space-y-2 rounded-md bg-slate-50 p-3">
@@ -256,6 +283,12 @@ function LineAllocations({
           <Plus className="mr-1 h-3 w-3" /> Add Job
         </Button>
       </div>
+      {allocError && (
+        <p className="flex items-center gap-1 text-xs font-medium text-red-600">
+          <AlertTriangle className="h-3 w-3 flex-shrink-0" />
+          {allocError}
+        </p>
+      )}
       {fields.length === 0 ? (
         <p className="text-xs text-slate-400">
           No allocations — full cost stays unallocated in the ledger.
