@@ -315,3 +315,78 @@ describe("PATCH /api/payroll-runs/:id — OT job-coding rule", () => {
     expect(res.status).toBe(200);
   });
 });
+
+// ---------------------------------------------------------------------------
+// End-to-end: OT cost visible in job cost-summary after posting
+// ---------------------------------------------------------------------------
+
+describe("POST /payroll-runs/:id/post → GET /jobs/:id/cost-summary — OT cost chain", () => {
+  // $1,000 of the burdened cost is allocated to the test job
+  const OT_ALLOC_CENTS = 100_000;
+  let otCostRunId: number;
+  let combinedApp: Express;
+
+  beforeAll(async () => {
+    const { default: payrollRouter } = await import("./payroll");
+    const { default: jobsRouter } = await import("./jobs");
+    combinedApp = express();
+    combinedApp.use(express.json());
+    combinedApp.use((req: Request, _res: Response, next: NextFunction) => {
+      (req as unknown as { auth: unknown }).auth = { userId: "test-user-ot" };
+      next();
+    });
+    combinedApp.use("/api", payrollRouter);
+    combinedApp.use("/api", jobsRouter);
+  });
+
+  it("creates a run with OT hours and a job allocation", async () => {
+    const res = await request(combinedApp)
+      .post("/api/payroll-runs")
+      .send({
+        payPeriodStart: PERIOD.start,
+        payPeriodEnd: PERIOD.end,
+        payDate: PAY_DATE,
+        laborAccountId: laborAcctId,
+        paymentAccountId: bankAcctId,
+        lines: [
+          {
+            lineType: "employee",
+            workerName: "Jordan K.",
+            // OT hours drive burdened cost well above OT_ALLOC_CENTS
+            regularHours: 40,
+            overtimeHours: 10,
+            straightRateCents: 5000,
+            taxExempt: false,
+            allocations: [{ jobId, amountCents: OT_ALLOC_CENTS }],
+          },
+        ],
+      });
+    expect(res.status).toBe(201);
+    otCostRunId = (res.body as { id: number }).id;
+    runIds.push(otCostRunId);
+  });
+
+  it("posts the run to the ledger", async () => {
+    const res = await request(combinedApp)
+      .post(`/api/payroll-runs/${otCostRunId}/post`);
+    expect(res.status).toBe(200);
+    expect((res.body as { posted: boolean }).posted).toBe(true);
+  });
+
+  it("cost-summary shows the allocated OT cost in costCents", async () => {
+    const res = await request(combinedApp)
+      .get(`/api/jobs/${jobId}/cost-summary`);
+    expect(res.status).toBe(200);
+    const body = res.body as {
+      costCents: number;
+      incomeCents: number;
+      profitCents: number;
+    };
+    // The exact allocation amount must appear as job cost
+    expect(body.costCents).toBe(OT_ALLOC_CENTS);
+    // No revenue posted to this job → income is zero
+    expect(body.incomeCents).toBe(0);
+    // profitCents = incomeCents - costCents
+    expect(body.profitCents).toBe(-OT_ALLOC_CENTS);
+  });
+});
