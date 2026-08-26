@@ -544,64 +544,49 @@ function WorkerLine({
         </>
       ) : (
         <>
-          <div className="grid grid-cols-2 gap-3">
-            <FormField
-              control={control}
-              name={`lines.${index}.employeeId`}
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Employee</FormLabel>
-                  <Select
-                    value={field.value || "none"}
-                    onValueChange={(v) => {
-                      const next = v === "none" ? "" : v;
-                      field.onChange(next);
-                      const emp = employees.find((e) => String(e.id) === next);
-                      if (emp) {
-                        form.setValue(`lines.${index}.workerName`, emp.name, {
-                          shouldDirty: true,
-                          shouldValidate: true,
-                        });
-                        form.setValue(
-                          `lines.${index}.taxExempt`,
-                          emp.taxExempt ?? false,
-                          { shouldDirty: true },
-                        );
-                      }
-                    }}
-                  >
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select employee" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      <SelectItem value="none">— Not linked —</SelectItem>
-                      {employees.map((e) => (
-                        <SelectItem key={e.id} value={String(e.id)}>
-                          {e.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={control}
-              name={`lines.${index}.workerName`}
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Worker Name</FormLabel>
+          <FormField
+            control={control}
+            name={`lines.${index}.employeeId`}
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Employee</FormLabel>
+                <Select
+                  value={field.value || "none"}
+                  onValueChange={(v) => {
+                    const next = v === "none" ? "" : v;
+                    field.onChange(next);
+                    const emp = employees.find((e) => String(e.id) === next);
+                    if (emp) {
+                      form.setValue(`lines.${index}.workerName`, emp.name, {
+                        shouldDirty: true,
+                        shouldValidate: true,
+                      });
+                      form.setValue(
+                        `lines.${index}.taxExempt`,
+                        emp.taxExempt ?? false,
+                        { shouldDirty: true },
+                      );
+                    }
+                  }}
+                >
                   <FormControl>
-                    <Input {...field} />
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select employee" />
+                    </SelectTrigger>
                   </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </div>
+                  <SelectContent>
+                    <SelectItem value="none">— Not linked —</SelectItem>
+                    {employees.map((e) => (
+                      <SelectItem key={e.id} value={String(e.id)}>
+                        {e.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
 
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-md bg-slate-50 px-3 py-2 text-xs text-slate-600">
             <span>
