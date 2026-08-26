@@ -36,7 +36,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ArrowLeft, PenLine, Loader2 } from "lucide-react";
+import { ArrowLeft, PenLine, Loader2, CheckCircle2 } from "lucide-react";
+import { findReconcilableAccountIds } from "@/lib/vendor-reconcile-match";
 
 const todayStr = new Date().toISOString().slice(0, 10);
 
@@ -481,8 +482,16 @@ export default function VendorDetail() {
   const vendorId = parseInt(id || "0", 10);
   const [, navigate] = useLocation();
 
+  const { toast } = useToast();
+
   const { data: vendor, isLoading: vendorLoading } = useGetVendor(vendorId, {
     query: { enabled: !!vendorId, queryKey: getGetVendorQueryKey(vendorId) },
+  });
+
+  // Same matching rules as the Vendors list (vendor-reconcile-match.ts) so
+  // the two Reconcile entry points always agree on which account to open.
+  const { data: reconcileAccounts } = useListAccounts({
+    query: { queryKey: getListAccountsQueryKey() },
   });
 
   const { data: bills, isLoading: billsLoading, refetch } = useListBills(
@@ -516,6 +525,28 @@ export default function VendorDetail() {
     [bills],
   );
 
+  function handleReconcile() {
+    if (!vendor) return;
+    const ids = findReconcilableAccountIds(vendor.name, reconcileAccounts);
+    if (ids.length === 1) {
+      navigate(`/accounts/${ids[0]}/reconcile`);
+      return;
+    }
+    // Multiple matches or none — send the user to Accounts so they can pick
+    // the right one themselves rather than guessing.
+    toast({
+      title:
+        ids.length > 1
+          ? "Multiple matching accounts"
+          : "No matching account found",
+      description:
+        ids.length > 1
+          ? `"${vendor.name}" matches more than one account. Choose the right one on the Accounts page.`
+          : `No reconcilable account is named exactly "${vendor.name}". Choose the right one on the Accounts page.`,
+    });
+    navigate("/accounts");
+  }
+
   if (vendorLoading) {
     return <div className="p-8">Loading vendor...</div>;
   }
@@ -543,8 +574,18 @@ export default function VendorDetail() {
           {vendor.notes && <p className="text-slate-500 mt-1 text-sm">{vendor.notes}</p>}
         </div>
 
-        {/* Write Check button — disabled when no open bills */}
-        <div className="flex-shrink-0 pt-6">
+        {/* Reconcile handoff (10D) + Write Check — disabled when no open bills */}
+        <div className="flex-shrink-0 pt-6 flex items-center gap-2">
+          <Button
+            variant="outline"
+            className="gap-2 text-emerald-700 border-emerald-200 hover:bg-emerald-50"
+            onClick={handleReconcile}
+            data-testid="button-vendor-detail-reconcile"
+            title="Reconcile the account linked to this vendor"
+          >
+            <CheckCircle2 className="h-4 w-4" />
+            Reconcile
+          </Button>
           {!billsLoading && (
             <WriteCheckDialog
               vendorId={vendorId}

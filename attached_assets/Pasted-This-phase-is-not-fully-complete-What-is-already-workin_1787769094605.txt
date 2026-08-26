@@ -1,0 +1,36 @@
+This phase is **not fully complete**.
+
+### What is already working
+- The Vendors list has a **Reconcile** button.
+- It attempts to match the vendor name to a reconcilable account.
+- A unique match navigates to the existing reconciliation flow at:
+  `/accounts/:accountId/reconcile`
+- The reconciliation engine and account reconciliation routes already exist.
+
+### What is missing
+- The **vendor detail screen** (`/vendors/:id`) does not show a Reconcile action.
+- Its header currently only provides the **Write Check** action.
+- There are no vendor-detail tests confirming the action or handoff.
+
+Use this Replit prompt to finish the phase:
+
+```text
+Complete PHASE 10D — Vendor Reconcile Entry Point, scoped only to the vendor-detail doorway.
+
+Acceptance criteria:
+1. On the vendor detail page at /vendors/:id, add a clearly visible “Reconcile” action near the existing “Write Check” action.
+2. Clicking Reconcile must launch the existing reconciliation flow for that vendor by navigating to the appropriate account reconciliation route:
+   /accounts/:accountId/reconcile
+3. Resolve the vendor’s linked/reconcilable account using the existing account-matching behavior already used from the Vendors list. Prefer a unique exact normalized-name match.
+4. If there is no unique matching reconcilable account, provide a clear fallback that lets the user choose the correct account rather than silently failing.
+5. Preserve the existing Write Check behavior and do not implement or refactor the reconciliation engine, payment matching, check-number assignment, or print-later logic. Those belong to the separate reconciliation scope.
+6. Reuse shared matching/navigation logic where practical so the Vendors list and vendor-detail actions behave consistently.
+7. Add or update frontend tests covering:
+   - Reconcile is visible on vendor detail.
+   - Clicking it navigates to the reconciliation flow for a uniquely matched account.
+   - The no-match or multiple-match fallback is handled clearly.
+8. Run the relevant frontend tests and typecheck, then verify the vendor detail route in the running app.
+
+Do not add a separate reconciliation engine. This task is only the entry point and handoff.
+```
+

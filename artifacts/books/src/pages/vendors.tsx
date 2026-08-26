@@ -12,14 +12,11 @@ import { Input } from "@/components/ui/input";
 import { ImportDataDialog } from "@/components/import-data-dialog";
 import { buildCsv, csvFilename, downloadCsv } from "@/lib/csv-export";
 import { DemoBadge } from "@/components/demo-badge";
-
-const NON_RECONCILABLE_TYPES = new Set([
-  "income",
-  "expense",
-  "cogs",
-  "other_expense",
-  "other_income",
-]);
+import { useToast } from "@/hooks/use-toast";
+import {
+  NON_RECONCILABLE_ACCOUNT_TYPES,
+  findReconcilableAccountIds,
+} from "@/lib/vendor-reconcile-match";
 
 /** Download the visible vendors list as CSV (same columns as the table). */
 function exportVendorsCsv(vendors: Vendor[]) {
@@ -35,6 +32,7 @@ function exportVendorsCsv(vendors: Vendor[]) {
 
 export default function Vendors() {
   const queryClient = useQueryClient();
+  const { toast } = useToast();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [search, setSearch] = useState("");
@@ -50,10 +48,12 @@ export default function Vendors() {
 
   // Build a map of normalized vendor name → reconcilable account IDs so each
   // row can show a direct "Reconcile" link without an extra round-trip.
+  // Matching rules live in vendor-reconcile-match.ts and are shared with the
+  // Vendor detail page so both entry points behave identically.
   const reconcilableAccountByVendorName = useMemo(() => {
     const map = new Map<string, number[]>();
     for (const acct of accounts ?? []) {
-      if (NON_RECONCILABLE_TYPES.has(acct.type)) continue;
+      if (NON_RECONCILABLE_ACCOUNT_TYPES.has(acct.type)) continue;
       const key = acct.name.trim().toLowerCase();
       map.set(key, [...(map.get(key) ?? []), acct.id]);
     }
@@ -62,14 +62,24 @@ export default function Vendors() {
 
   function handleReconcile(vendorName: string) {
     const key = vendorName.trim().toLowerCase();
-    const ids = reconcilableAccountByVendorName.get(key);
-    if (ids?.length === 1) {
+    const ids = reconcilableAccountByVendorName.get(key) ?? [];
+    if (ids.length === 1) {
       navigate(`/accounts/${ids[0]}/reconcile`);
-    } else {
-      // Multiple matches or none — drop the user at the Accounts page so they
-      // can pick the right account themselves.
-      navigate("/accounts");
+      return;
     }
+    // Multiple matches or none — drop the user at the Accounts page so they
+    // can pick the right account themselves.
+    toast({
+      title:
+        ids.length > 1
+          ? "Multiple matching accounts"
+          : "No matching account found",
+      description:
+        ids.length > 1
+          ? `"${vendorName}" matches more than one account. Choose the right one on the Accounts page.`
+          : `No reconcilable account is named exactly "${vendorName}". Choose the right one on the Accounts page.`,
+    });
+    navigate("/accounts");
   }
 
   const normalizedSearch = search.trim().toLowerCase();
