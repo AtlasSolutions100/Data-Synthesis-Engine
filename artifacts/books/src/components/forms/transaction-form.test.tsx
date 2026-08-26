@@ -15,7 +15,10 @@ vi.mock("@workspace/api-client-react", async (importOriginal) => {
   const { createApiClientReactMock } = await import("@/test/mock-api-client");
   return createApiClientReactMock(importOriginal, {
     useListCustomers: () => ({
-      data: [{ id: 20, name: "Northside Mall" }],
+      data: [
+        { id: 20, name: "Northside Mall" },
+        { id: 21, name: "Lakewood Homes" },
+      ],
     }),
     useListVendors: () => ({
       data: [
@@ -24,7 +27,10 @@ vi.mock("@workspace/api-client-react", async (importOriginal) => {
       ],
     }),
     useListJobs: () => ({
-      data: [{ id: 10, jobNumber: "J-100", name: "Warehouse" }],
+      data: [
+        { id: 10, jobNumber: "J-100", name: "Warehouse", customerId: 21 },
+        { id: 11, jobNumber: "J-101", name: "Office Reno", customerId: null },
+      ],
     }),
     useListAccounts: () => ({
       data: [
@@ -366,5 +372,86 @@ describe("TransactionForm split account", () => {
       expect(screen.getByText(/account no longer exists/i)).toBeTruthy(),
     );
     expect(onSubmit).not.toHaveBeenCalled();
+  });
+});
+
+describe("TransactionForm job-to-customer auto-fill", () => {
+  it("selecting a job with a linked customer auto-fills the customer field", async () => {
+    const onSubmit = vi.fn();
+    render(<TransactionForm onSubmit={onSubmit} defaultValues={baseDefaults} />);
+
+    // Customer field starts empty.
+    await triggerShowing("Select customer");
+
+    // Pick the "Warehouse" job — it has customerId: 21 (Lakewood Homes).
+    await pickOption("Select job name", /Warehouse/);
+
+    // Customer should now be auto-filled with "Lakewood Homes".
+    await triggerShowing(/Lakewood Homes/);
+
+    await submit();
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    expect(onSubmit.mock.calls[0][0].customerId).toBe(21);
+  });
+
+  it("selecting a job with no linked customer leaves the customer field blank", async () => {
+    const onSubmit = vi.fn();
+    render(<TransactionForm onSubmit={onSubmit} defaultValues={baseDefaults} />);
+
+    // Customer field starts empty.
+    await triggerShowing("Select customer");
+
+    // Pick "Office Reno" — it has customerId: null.
+    await pickOption("Select job name", /Office Reno/);
+
+    // Customer field should remain showing the placeholder.
+    await waitFor(() => {
+      const triggers = screen.getAllByRole("combobox");
+      const customerTrigger = triggers.find((el) =>
+        within(el).queryByText("Select customer"),
+      );
+      expect(customerTrigger).toBeTruthy();
+    });
+
+    await submit();
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    expect(onSubmit.mock.calls[0][0].customerId).toBeNull();
+  });
+
+  it("selecting a job does not override a customer the user already picked", async () => {
+    const onSubmit = vi.fn();
+    render(<TransactionForm onSubmit={onSubmit} defaultValues={baseDefaults} />);
+
+    // User manually picks "Northside Mall" (id: 20) first.
+    await pickOption("Select customer", /Northside Mall/);
+    await triggerShowing(/Northside Mall/);
+
+    // Now pick "Warehouse" job which links to "Lakewood Homes" (id: 21).
+    await pickOption("Select job name", /Warehouse/);
+
+    // Customer must still show "Northside Mall" — the manual pick is preserved.
+    await waitFor(() => {
+      const triggers = screen.getAllByRole("combobox");
+      const customerTrigger = triggers.find((el) =>
+        within(el).queryByText(/Northside Mall/),
+      );
+      expect(customerTrigger).toBeTruthy();
+    });
+
+    await submit();
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    expect(onSubmit.mock.calls[0][0].customerId).toBe(20);
+  });
+
+  it("form saves successfully when the customer field is left blank", async () => {
+    const onSubmit = vi.fn();
+    render(<TransactionForm onSubmit={onSubmit} defaultValues={baseDefaults} />);
+
+    // Do not touch the customer field at all.
+    await triggerShowing("Select customer");
+
+    await submit();
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    expect(onSubmit.mock.calls[0][0].customerId).toBeNull();
   });
 });
