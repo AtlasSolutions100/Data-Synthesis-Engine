@@ -277,7 +277,6 @@ export default function PayrollDetail() {
             <TableHeader>
               <TableRow>
                 <TableHead>Worker</TableHead>
-                <TableHead>Type</TableHead>
                 <TableHead className="text-right">Reg Hrs</TableHead>
                 <TableHead className="text-right">OT Hrs</TableHead>
                 <TableHead className="text-right">Hol/Vac Hrs</TableHead>
@@ -292,7 +291,6 @@ export default function PayrollDetail() {
                   <TableCell className="font-medium">
                     {line.workerName}
                   </TableCell>
-                  <TableCell className="capitalize">{line.lineType}</TableCell>
                   <TableCell className="text-right">
                     {line.lineType === "employee" ? line.regularHours : "-"}
                   </TableCell>
@@ -315,7 +313,7 @@ export default function PayrollDetail() {
               ))}
               <TableRow className="bg-slate-50 hover:bg-slate-50">
                 <TableCell
-                  colSpan={5}
+                  colSpan={4}
                   className="text-right font-semibold text-slate-700"
                 >
                   Totals

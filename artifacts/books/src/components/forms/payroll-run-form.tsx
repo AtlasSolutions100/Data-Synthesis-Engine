@@ -587,6 +587,15 @@ function WorkerLine({
               </FormItem>
             )}
           />
+          {/* Worker Name has no visible input (Employee selection above sets it
+              automatically), but it's still a required field — surface its
+              validation error here so an unselected employee isn't a silent
+              submit failure. */}
+          <FormField
+            control={control}
+            name={`lines.${index}.workerName`}
+            render={() => <FormMessage />}
+          />
 
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-md bg-slate-50 px-3 py-2 text-xs text-slate-600">
             <span>
