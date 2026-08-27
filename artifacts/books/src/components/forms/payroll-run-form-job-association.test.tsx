@@ -693,6 +693,64 @@ describe("Import hours — same-date splits and row additions", () => {
     expect(amounts).toContain("66.10");
   });
 
+  it("removing a row recalculates totals and the remaining job receives the full burdened cost", async () => {
+    mutateAsync.mockResolvedValueOnce({
+      rows: [
+        {
+          workerName: "Brendan Friedman",
+          regularHours: 8,
+          overtimeHours: 0,
+          holidayHours: 0,
+          entries: [
+            {
+              date: "2026-07-07",
+              jobName: "HR Stadium",
+              hours: 6,
+              costType: "regular",
+            },
+            {
+              date: "2026-07-07",
+              jobName: "Larkspur Gear",
+              hours: 2,
+              costType: "regular",
+            },
+          ],
+        },
+      ],
+    });
+    renderForm(<PayrollRunForm onSubmit={vi.fn()} defaultValues={defaults} />);
+    await importText("weekly sheet");
+
+    // Both jobs auto-matched — two rows for the same date.
+    expect(screen.getAllByText("Tue 7/7").length).toBe(2);
+    expect(applyButton().disabled).toBe(false);
+
+    // Remove the second row (Larkspur Gear) via its "Remove row" button.
+    const removeButtons = screen.getAllByRole("button", { name: /remove row/i });
+    expect(removeButtons.length).toBe(2);
+    fireEvent.click(removeButtons[1]);
+
+    // Only one date row remains after removal.
+    await waitFor(() =>
+      expect(screen.getAllByText("Tue 7/7").length).toBe(1),
+    );
+
+    // Apply now produces a single allocation for HR Stadium.
+    // 6h × $30 = $180 gross; × 1.1017 burden = $198.31.
+    fireEvent.click(applyButton());
+    await waitFor(() =>
+      expect(screen.queryByText(/will be applied/i)).toBeNull(),
+    );
+
+    const amounts = (
+      screen.getAllByPlaceholderText("Amount") as HTMLInputElement[]
+    ).map((el) => el.value);
+    // Exactly one allocation, for the full 6h burdened cost.
+    expect(amounts).toHaveLength(1);
+    expect(amounts[0]).toBe("198.31");
+    expect(screen.getAllByText("HR Stadium").length).toBeGreaterThan(0);
+  });
+
   it("clicking Add row adds a blank row for the same date; editing its job and hours are reflected in Apply", async () => {
     mutateAsync.mockResolvedValueOnce({
       rows: [
