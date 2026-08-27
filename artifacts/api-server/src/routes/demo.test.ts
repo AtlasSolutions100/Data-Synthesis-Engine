@@ -167,21 +167,31 @@ describe("DELETE /api/demo/remove", () => {
   });
 
   it("does not delete real (non-demo) records", async () => {
-    await request(app).post("/api/demo/load");
+    // Use a dedicated sentinel rather than comparing global counts. Other
+    // integration suites run against the same database and may create/delete
+    // their own real fixtures while this test is running.
+    const [sentinel] = await db
+      .insert(jobsTable)
+      .values({
+        jobNumber: "TEST-DEMO-REAL",
+        name: "TEST-DEMO-Real Job",
+        isDemo: false,
+      })
+      .returning({ id: jobsTable.id });
 
-    // Take the "before" snapshot immediately before DELETE so the measurement
-    // window is just the remove operation, minimising the chance that a
-    // parallel test fixture is created/cleaned up between the two reads.
-    const realBefore = await realCounts();
-    await request(app).delete("/api/demo/remove");
-    const realAfter = await realCounts();
+    try {
+      await request(app).post("/api/demo/load");
+      await request(app).delete("/api/demo/remove");
 
-    // The remove endpoint must not touch non-demo rows.  Concurrent test files
-    // may still create records in the narrow window, so assert >= not strict =.
-    expect(realAfter.customers).toBeGreaterThanOrEqual(realBefore.customers);
-    expect(realAfter.vendors).toBeGreaterThanOrEqual(realBefore.vendors);
-    expect(realAfter.employees).toBeGreaterThanOrEqual(realBefore.employees);
-    expect(realAfter.jobs).toBeGreaterThanOrEqual(realBefore.jobs);
+      const [survivor] = await db
+        .select({ id: jobsTable.id, isDemo: jobsTable.isDemo })
+        .from(jobsTable)
+        .where(eq(jobsTable.id, sentinel.id));
+
+      expect(survivor).toEqual({ id: sentinel.id, isDemo: false });
+    } finally {
+      await db.delete(jobsTable).where(eq(jobsTable.id, sentinel.id));
+    }
   });
 
   it("is safe to call when no demo data exists", async () => {

@@ -84,6 +84,8 @@ async function ledgerRowsForRun(): Promise<LedgerRow[]> {
 beforeAll(async () => {
   const { default: payrollRouter } = await import("./payroll");
   payrollApp = buildApp(payrollRouter);
+  const { default: reportsRouter } = await import("./reports");
+  payrollApp.use("/api", reportsRouter);
 
   const [acct] = await db
     .insert(accountsTable)
@@ -238,6 +240,44 @@ describe("POST /api/payroll-runs/:id/post ledger amounts", () => {
     const totalPosted = rows.reduce((s, r) => s + r.amountCents, 0);
     expect(totalPosted).toBe(
       LINE_1.totalCostCents + LINE_2.totalCostCents + LINE_3.totalCostCents,
+    );
+  });
+
+  it("returns the posted payroll rows from the Checking register endpoint", async () => {
+    const res = await request(payrollApp).get(
+      `/api/reports/account-balances/${bankAcctId}/transactions`,
+    );
+    expect(res.status).toBe(200);
+
+    const body = res.body as {
+      lines: Array<{
+        transactionId: number;
+        type: string;
+        num: string | null;
+        role: string;
+        effectCents: number;
+      }>;
+      balanceCents: number;
+    };
+    const postedRows = await ledgerRowsForRun();
+
+    // The register endpoint reads the bank account's split side, so it must
+    // return every payroll row written by this run as a withdrawal.
+    expect(body.lines).toHaveLength(postedRows.length);
+    expect(body.lines.map((line) => line.transactionId)).toEqual(
+      expect.arrayContaining(postedRows.map((row) => row.id)),
+    );
+    expect(
+      body.lines.every(
+        (line) =>
+          line.type === "payroll" &&
+          line.num === `PR-${runId}` &&
+          line.role === "split" &&
+          line.effectCents < 0,
+      ),
+    ).toBe(true);
+    expect(body.balanceCents).toBe(
+      -postedRows.reduce((sum, row) => sum + row.amountCents, 0),
     );
   });
 

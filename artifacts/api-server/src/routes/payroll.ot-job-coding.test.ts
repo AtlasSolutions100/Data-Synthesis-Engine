@@ -329,6 +329,7 @@ describe("POST /payroll-runs/:id/post → GET /jobs/:id/cost-summary — OT cost
   beforeAll(async () => {
     const { default: payrollRouter } = await import("./payroll");
     const { default: jobsRouter } = await import("./jobs");
+    const { default: reportsRouter } = await import("./reports");
     combinedApp = express();
     combinedApp.use(express.json());
     combinedApp.use((req: Request, _res: Response, next: NextFunction) => {
@@ -337,6 +338,7 @@ describe("POST /payroll-runs/:id/post → GET /jobs/:id/cost-summary — OT cost
     });
     combinedApp.use("/api", payrollRouter);
     combinedApp.use("/api", jobsRouter);
+    combinedApp.use("/api", reportsRouter);
   });
 
   it("creates a run with OT hours and a job allocation", async () => {
@@ -388,5 +390,30 @@ describe("POST /payroll-runs/:id/post → GET /jobs/:id/cost-summary — OT cost
     expect(body.incomeCents).toBe(0);
     // profitCents = incomeCents - costCents
     expect(body.profitCents).toBe(-OT_ALLOC_CENTS);
+  });
+
+  it("job-filtered P&L includes the posted OT allocation", async () => {
+    const res = await request(combinedApp)
+      .get("/api/reports/pnl")
+      .query({
+        startDate: PERIOD.start,
+        endDate: PAY_DATE,
+        jobId,
+      });
+    expect(res.status).toBe(200);
+
+    const body = res.body as {
+      sections: Array<{ type: string; totalCents: number }>;
+      netIncomeCents: number;
+    };
+    const expenseTotal =
+      body.sections.find((section) => section.type === "expense")
+        ?.totalCents ?? 0;
+
+    // The fixture labor account is an expense account. Because the posted
+    // payroll row carries this jobId, the P&L must include the exact
+    // burdened OT allocation and reduce net income by the same amount.
+    expect(expenseTotal).toBe(OT_ALLOC_CENTS);
+    expect(body.netIncomeCents).toBe(-OT_ALLOC_CENTS);
   });
 });

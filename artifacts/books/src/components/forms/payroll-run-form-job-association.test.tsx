@@ -466,11 +466,12 @@ describe("Import hours — Job Name association", () => {
     await waitFor(() =>
       expect(screen.queryByText(/will be applied/i)).toBeNull(),
     );
-    // A second worker line now exists, linked to the Employee Center record.
-    expect(screen.getAllByText(/worker name/i).length).toBe(2);
-    expect(
-      (screen.getAllByLabelText(/worker name/i)[1] as HTMLInputElement).value,
-    ).toBe("Michael Grenz");
+    // A second employee line now exists, linked to the Employee Center record.
+    // Employee selection is the source of truth; the redundant Worker Name
+    // input was intentionally removed from employee lines.
+    expect(screen.queryByText(/worker name/i)).toBeNull();
+    expect(screen.queryByLabelText(/worker name/i)).toBeNull();
+    expect(screen.getAllByText("Michael Grenz").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Bruce Randolph").length).toBeGreaterThan(0);
     // Michael Grenz has no rate on file, so the burdened amount can't be
     // computed yet — allocation is created with the job but an empty amount.
