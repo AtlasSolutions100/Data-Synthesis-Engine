@@ -10,10 +10,9 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { PayrollRunForm } from "./payroll-run-form";
 
 /**
- * P11-TC-02 / P11-TC-04: the Import Hours review must not ask "Whose time is
- * this?" for a worker who already fuzzy-matches an Employee Center record,
- * and must reuse that employee rather than creating a duplicate. Step 1
- * should only interrupt the user for names it genuinely can't place.
+ * P11-TC-02 / P11-TC-04: recognized employees go directly to one concise
+ * review. Close matches require an explicit use/create/skip decision, shared
+ * by every imported row for the same extracted worker name.
  */
 const mutateAsync = vi.fn();
 const createEmployeeMutateAsync = vi.fn();
@@ -92,6 +91,8 @@ afterEach(() => {
   cleanup();
   mutateAsync.mockReset();
   createEmployeeMutateAsync.mockReset();
+  createJobMutateAsync.mockReset();
+  createCustomerMutateAsync.mockReset();
 });
 
 const defaults = {
@@ -111,7 +112,77 @@ async function importText(text: string) {
 }
 
 describe("Import hours — fuzzy employee matching (P11-TC-02, P11-TC-04)", () => {
-  it("auto-selects a close Employee Center match without requiring a manual pick, and applies against that employee", async () => {
+  it("does not show redundant employee identification for an exact recognized employee", async () => {
+    createCustomerMutateAsync.mockResolvedValueOnce({
+      id: 77,
+      name: "Allied 2026",
+    });
+    createJobMutateAsync.mockResolvedValueOnce({
+      id: 900,
+      name: "Overhead / Office 2026",
+      customerName: "Allied 2026",
+    });
+    mutateAsync.mockResolvedValueOnce({
+      rows: [
+        {
+          workerName: "Michael Burrus",
+          regularHours: 32,
+          overtimeHours: 4,
+          holidayHours: 8,
+          entries: [
+            { date: null, jobName: "Office", hours: 32, costType: "regular" },
+            { date: null, jobName: "Office", hours: 4, costType: "overtime" },
+            { date: null, jobName: "Office", hours: 8, costType: "holiday" },
+          ],
+        },
+      ],
+    });
+    renderForm(<PayrollRunForm onSubmit={vi.fn()} defaultValues={defaults} />);
+    await importText("Michael Burrus 32 regular 4 overtime 8 holiday office");
+
+    expect(screen.getByText(/review imported hours/i)).toBeTruthy();
+    expect(screen.queryByText(/is this the same person/i)).toBeNull();
+    expect(screen.queryByText(/create new employee/i)).toBeNull();
+    expect(screen.queryByText(/step 1/i)).toBeNull();
+    expect(screen.queryByText(/step 2/i)).toBeNull();
+    expect(screen.getByText("Job Name")).toBeTruthy();
+    expect(
+      (screen.getByRole("button", { name: /apply hours/i }) as HTMLButtonElement)
+        .disabled,
+    ).toBe(false);
+
+    fireEvent.click(screen.getByRole("button", { name: /apply hours/i }));
+    await waitFor(() =>
+      expect(screen.queryByText(/will be applied/i)).toBeNull(),
+    );
+
+    // Extraction has already derived these totals from the daily entries.
+    // Applying the review must preserve each non-zero cost-type value in the
+    // actual payroll form rather than converting it back to blank/zero.
+    expect(
+      (
+        document.querySelector(
+          'input[name="lines.0.hourEntries.0.hours"]',
+        ) as HTMLInputElement
+      ).value,
+    ).toBe("32");
+    expect(
+      (
+        document.querySelector(
+          'input[name="lines.0.hourEntries.1.hours"]',
+        ) as HTMLInputElement
+      ).value,
+    ).toBe("4");
+    expect(
+      (
+        document.querySelector(
+          'input[name="lines.0.hourEntries.2.hours"]',
+        ) as HTMLInputElement
+      ).value,
+    ).toBe("8");
+  });
+
+  it("requires an explicit fuzzy-match choice and uses the existing employee without creating one", async () => {
     createCustomerMutateAsync.mockResolvedValueOnce({
       id: 77,
       name: "Allied 2026",
@@ -141,12 +212,22 @@ describe("Import hours — fuzzy employee matching (P11-TC-02, P11-TC-04)", () =
     renderForm(<PayrollRunForm onSubmit={vi.fn()} defaultValues={defaults} />);
     await importText("Micheal Burrus 8/10-8/14 40 hours office work");
 
-    // Step 1 shows the confidence match instead of leaving the row unknown.
-    expect(screen.getByText(/Matched to Michael Burrus/)).toBeTruthy();
-    // The target defaults to adding a new worker line under the real
-    // employee, not the "create new employee" (duplicate-creating) path.
-    expect(screen.getByText(/add new worker line/i)).toBeTruthy();
-    expect(screen.queryByText(/create new employee/i)).toBeNull();
+    expect(screen.getByText(/is this the same person/i)).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: /use michael burrus/i }),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: /create new employee/i }),
+    ).toBeTruthy();
+    expect(
+      (screen.getByRole("button", { name: /apply hours/i }) as HTMLButtonElement)
+        .disabled,
+    ).toBe(true);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /use michael burrus/i }),
+    );
+    expect(screen.getByText(/using michael burrus/i)).toBeTruthy();
     expect(
       (screen.getByRole("button", { name: /apply hours/i }) as HTMLButtonElement)
         .disabled,
@@ -161,6 +242,66 @@ describe("Import hours — fuzzy employee matching (P11-TC-02, P11-TC-04)", () =
     expect(createEmployeeMutateAsync).not.toHaveBeenCalled();
     // The new worker line was added under the real Employee Center name.
     expect(screen.getAllByText("Michael Burrus").length).toBeGreaterThan(0);
+  });
+
+  it("creates one employee only after an explicit click and reuses the decision for repeated rows", async () => {
+    createCustomerMutateAsync.mockResolvedValueOnce({
+      id: 77,
+      name: "Allied 2026",
+    });
+    createJobMutateAsync.mockResolvedValueOnce({
+      id: 900,
+      name: "Overhead / Office 2026",
+      customerName: "Allied 2026",
+    });
+    createEmployeeMutateAsync.mockResolvedValueOnce({
+      id: 91,
+      name: "Micheal Burrus",
+    });
+    mutateAsync.mockResolvedValueOnce({
+      rows: [
+        {
+          workerName: "Micheal Burrus",
+          regularHours: 20,
+          overtimeHours: 0,
+          holidayHours: 0,
+          entries: [
+            { date: null, jobName: "Office", hours: 20, costType: "regular" },
+          ],
+        },
+        {
+          workerName: "Micheal Burrus",
+          regularHours: 18,
+          overtimeHours: 2,
+          holidayHours: 0,
+          entries: [
+            { date: null, jobName: "Office", hours: 18, costType: "regular" },
+            { date: null, jobName: "Office", hours: 2, costType: "overtime" },
+          ],
+        },
+      ],
+    });
+    renderForm(<PayrollRunForm onSubmit={vi.fn()} defaultValues={defaults} />);
+    await importText("Micheal Burrus repeated on two imported rows");
+
+    expect(createEmployeeMutateAsync).not.toHaveBeenCalled();
+    const createButtons = screen.getAllByRole("button", {
+      name: /create new employee/i,
+    });
+    fireEvent.click(createButtons[0]);
+    expect(screen.getAllByText(/creating new employee/i)).toHaveLength(2);
+
+    const applyButton = screen.getByRole("button", { name: /apply hours/i });
+    await waitFor(() =>
+      expect((applyButton as HTMLButtonElement).disabled).toBe(false),
+    );
+    fireEvent.click(applyButton);
+    await waitFor(() =>
+      expect(createEmployeeMutateAsync).toHaveBeenCalledTimes(1),
+    );
+    expect(createEmployeeMutateAsync).toHaveBeenCalledWith({
+      data: { name: "Micheal Burrus" },
+    });
   });
 
   it("still asks for a name with no close Employee Center match", async () => {
@@ -178,10 +319,11 @@ describe("Import hours — fuzzy employee matching (P11-TC-02, P11-TC-04)", () =
     renderForm(<PayrollRunForm onSubmit={vi.fn()} defaultValues={defaults} />);
     await importText("Someone Unknown 20 hours");
 
-    // No confident match — flagged as unknown and defaults to "Create new
-    // employee" rather than silently attaching to the wrong person.
-    expect(screen.queryByText(/Matched to/)).toBeNull();
+    // No confident match — safely offers create or skip rather than silently
+    // attaching to the wrong person or creating a record.
     expect(screen.getByText(/not in the Employee Center/i)).toBeTruthy();
     expect(screen.getByText(/create new employee/i)).toBeTruthy();
+    expect(screen.getByText(/^skip$/i)).toBeTruthy();
+    expect(createEmployeeMutateAsync).not.toHaveBeenCalled();
   });
 });

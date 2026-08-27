@@ -1,0 +1,70 @@
+Remaining work:
+1. Simplify the upload review flow
+Files:
+- artifacts/books/src/components/forms/payroll-run-form.tsx
+- related payroll form tests
+Remove or substantially simplify the redundant “Step 1 / Step 2” identification presentation.
+Desired behavior:
+- If the extracted worker exactly matches one Employee Center employee and the job information is already resolved, do not force a separate employee-identification confirmation step.
+- Show one focused “Review imported hours” stage containing:
+  - employee name
+  - regular, overtime, and holiday hours
+  - daily detail when available
+  - Job Name allocation/review
+- Only show employee-resolution controls when the employee is unknown, ambiguous, or a fuzzy match needs confirmation.
+- Do not reintroduce the removed customer-first step.
+- Do not create duplicate or orphaned employee records during upload.
+2. Add explicit fuzzy employee confirmation
+Current behavior auto-selects a unique fuzzy match. Change it to an explicit choice.
+Example:
+- Extracted name: “Freriedman”
+- Existing employee: “Brendan Freeman”
+Display a clear prompt such as:
+“Possible match: Brendan Freeman. Is this the same person?”
+Provide explicit choices:
+- “Use Brendan Freeman”
+- “Create new employee”
+- “Skip”
+Rules:
+- Never create a new employee automatically when a fuzzy match exists.
+- “Use existing employee” must attach the imported row to the existing employee ID and use the existing employee’s rates.
+- “Create new employee” must require an explicit user click.
+- “Skip” must exclude the row from Apply.
+- If there are multiple similarly close employees, require the user to choose one, create a new employee, or skip.
+- Repeated rows with the same extracted worker name should share the same decision and must not create multiple employees.
+- Retrying Apply after a partial failure must remain idempotent and must not create duplicates.
+3. Strengthen zero-hours regression coverage
+Files:
+- artifacts/api-server/src/routes/payroll.test.ts
+- relevant frontend payroll form tests
+Keep the existing extraction fix. Add or update tests to cover:
+- daily entries with correct nonzero hours and aggregate totals of zero
+- regular, overtime, and holiday totals derived correctly
+- totals-only input still uses aggregate totals
+- applying the review result creates form lines with the correct hours
+- no path converts correct extracted hours back to blank or zero values
+If the four reference time-card files are available in the project, upload all four through the actual extraction flow:
+- two cards that previously saved as zero
+- two cards that previously worked
+Verify all four consistently produce the correct hours, regardless of employee or overtime status. Do not weaken validation or hardcode fixture-specific results.
+4. Add UI regression tests
+Cover:
+- exact recognized employee does not show a redundant identification prompt
+- fuzzy employee match shows explicit confirm-or-create choices
+- choosing the existing employee does not call createEmployee
+- choosing create requires the explicit action and creates only one employee
+- repeated matching rows reuse the same decision
+- unsupported/unknown employees still have a safe create-or-skip path
+- Job Name review remains visible and functional
+Acceptance criteria:
+- A recognized employee upload goes directly to a concise review without redundant Step 1 identification.
+- A fuzzy employee name prompts “Is this the same person?” and never silently creates a duplicate.
+- Correct extracted hours remain correct through extraction, review, Apply, saved payroll lines, and the detail page.
+- OT hours still show the job receiving the OT cost.
+- Existing draft, pay-period, job allocation, cost-summary, and P&L tests remain green.
+Verification:
+- pnpm run typecheck
+- pnpm --filter @workspace/api-server run test
+- frontend payroll form tests
+- bash scripts/codegen-check.sh
+- git diff --check

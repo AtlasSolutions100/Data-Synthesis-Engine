@@ -758,38 +758,66 @@ function bestFuzzyJobMatch(
 }
 
 /**
- * Minimum similarity for auto-selecting an Employee Center match without
- * asking (higher than the job-name threshold: misidentifying who gets paid
- * is higher-stakes than misfiling a job, so a looser match still requires
- * the ambiguous/unmatched picker in Step 1).
+ * Minimum similarity for surfacing an Employee Center match as a candidate
+ * to confirm (higher than the job-name threshold: misidentifying who gets
+ * paid is higher-stakes than misfiling a job). A close match is never
+ * auto-selected — it's always offered as an explicit "is this the same
+ * person?" choice so a typo/OCR variant can't silently attach hours (and
+ * pay rates) to the wrong worker.
  */
 const EMPLOYEE_FUZZY_THRESHOLD = 0.7;
 
+/** Maximum number of close-match candidates offered for one extracted name. */
+const MAX_EMPLOYEE_CANDIDATES = 5;
+
+/** One Employee Center record offered as a possible match for a raw name. */
+interface EmployeeCandidate {
+  employeeId: string;
+  name: string;
+  pct: number; // fuzzy match confidence 0–100 (100 for an exact-name tie)
+}
+
 /**
- * Best close (but not exact) Employee Center match for an extracted worker
- * name, if any single employee stands out. Picking the single best score
- * mirrors bestFuzzyJobMatch; a genuine tie between two employees is left
- * unmatched so Step 1 asks rather than guessing between two people.
+ * Close (but not exact) Employee Center matches for an extracted worker
+ * name, best first. Every employee scoring at or above the threshold is
+ * returned — a single standout is a "fuzzy" suggestion, several are
+ * "ambiguous" candidates — so the review stage can always ask explicitly
+ * rather than guessing between people.
  */
-function bestFuzzyEmployeeMatch(
+function fuzzyEmployeeCandidates(
   raw: string,
   candidates: Employee[],
-): { employee: Employee; pct: number } | null {
-  let best: { employee: Employee; score: number } | null = null;
-  let bestIsTie = false;
-  for (const employee of candidates) {
-    const score = nameSimilarity(raw, employee.name);
-    if (score < EMPLOYEE_FUZZY_THRESHOLD) continue;
-    if (!best || score > best.score) {
-      best = { employee, score };
-      bestIsTie = false;
-    } else if (score === best.score) {
-      bestIsTie = true;
-    }
-  }
-  return best && !bestIsTie
-    ? { employee: best.employee, pct: Math.round(best.score * 100) }
-    : null;
+): EmployeeCandidate[] {
+  return candidates
+    .map((employee) => ({ employee, score: nameSimilarity(raw, employee.name) }))
+    .filter((x) => x.score >= EMPLOYEE_FUZZY_THRESHOLD)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, MAX_EMPLOYEE_CANDIDATES)
+    .map((x) => ({
+      employeeId: String(x.employee.id),
+      name: x.employee.name,
+      pct: Math.round(x.score * 100),
+    }));
+}
+
+/** How an extracted worker name relates to the Employee Center. */
+type EmployeeResolutionKind = "exact" | "fuzzy" | "ambiguous" | "unknown";
+
+/**
+ * One extracted worker name and how it resolves to an Employee Center
+ * record. Shared across every review row that has the same extracted name
+ * (mirrors JobAssociation), so a fuzzy/ambiguous match only needs an
+ * explicit decision once and every matching row reuses it — never creating
+ * more than one new employee for the same name.
+ */
+interface EmployeeAssociation {
+  raw: string; // as extracted ("" when the name itself was blank)
+  resolution: EmployeeResolutionKind;
+  candidates: EmployeeCandidate[]; // possible matches for "fuzzy"/"ambiguous"
+  employeeId: string; // resolved id ("" until a fuzzy/ambiguous/unknown case is decided)
+  matchedEmployeeName: string; // resolved Employee Center name ("" if none)
+  decided: boolean; // true once resolved — "exact" starts true, others start false
+  decision: "" | "use" | "create" | "skip"; // explicit action once decided
 }
 
 /** Customer that holds internal overhead time for a given year (P8-TC-05). */
@@ -870,11 +898,11 @@ interface ReviewRow {
   regularHours: string;
   overtimeHours: string;
   holidayHours: string;
-  target: string; // "skip", "new" (add a worker line), or a line index string
+  target: string; // "skip", "new" (add a worker line), "create", or a line index string
   status: ImportStatus;
   employeeId: string; // matched Employee Center record id ("" if none)
   matchedEmployeeName: string; // Employee Center name behind employeeId ("" if none)
-  employeeMatchPct: number; // fuzzy match confidence 0–100 (0 when exact/none)
+  employeeKey: string; // key into the shared employeeAssoc map for this worker name
   jobKeys: string[]; // associations this worker's hours touch, in order
   entries: EntryDetail[]; // day-by-day detail (may be empty for totals-only)
   flags: string[];
@@ -983,6 +1011,7 @@ const BACKOFF_DELAYS_MS = [5_000, 15_000, 30_000];
 interface ImportDraftState {
   rows: ReviewRow[];
   assoc: Record<string, JobAssociation>;
+  employeeAssoc: Record<string, EmployeeAssociation>;
   cardYear: number;
   periodNote: string;
   payPeriodStart: string;
@@ -1071,9 +1100,49 @@ function parseDraftState(raw: unknown): ImportDraftState | null {
     if (!Array.isArray(r.entries) || !Array.isArray(r.flags)) return null;
   }
   if (!s.assoc || typeof s.assoc !== "object") return null;
+  const rows = s.rows.map((row, index) => {
+    const key =
+      row.employeeKey ||
+      (row.workerName ? normalizeName(row.workerName) : `__none__:${index}`);
+    return { ...row, employeeKey: key };
+  });
+  const employeeAssoc: Record<string, EmployeeAssociation> =
+    s.employeeAssoc && typeof s.employeeAssoc === "object"
+      ? (s.employeeAssoc as Record<string, EmployeeAssociation>)
+      : Object.fromEntries(
+          rows.map(
+            (row): [string, EmployeeAssociation] => [
+              row.employeeKey,
+              row.employeeId
+                ? {
+                    raw: row.workerName,
+                    resolution: "exact",
+                    candidates: [],
+                    employeeId: row.employeeId,
+                    matchedEmployeeName:
+                      row.matchedEmployeeName || row.workerName,
+                    decided: true,
+                    decision: "use",
+                  }
+                : {
+                    raw: row.workerName,
+                    resolution: "unknown",
+                    candidates: [],
+                    employeeId: "",
+                    matchedEmployeeName: "",
+                    decided: row.target === "skip",
+                    decision: row.target === "skip" ? "skip" : "",
+                  },
+            ],
+          ),
+        );
   return {
-    rows: s.rows,
+    rows,
     assoc: s.assoc as Record<string, JobAssociation>,
+    // Older drafts (saved before explicit fuzzy-employee confirmation
+    // shipped) won't have this field. Rebuild exact/unknown associations
+    // from their saved rows so those short-lived drafts remain resumable.
+    employeeAssoc,
     cardYear:
       typeof s.cardYear === "number" ? s.cardYear : new Date().getFullYear(),
     periodNote: typeof s.periodNote === "string" ? s.periodNote : "",
@@ -1133,6 +1202,9 @@ function ImportHoursDialog({
   const [inputDraft, setInputDraft] = useState<ImportInputDraft | null>(null);
   const [rows, setRows] = useState<ReviewRow[]>([]);
   const [assoc, setAssoc] = useState<Record<string, JobAssociation>>({});
+  const [employeeAssoc, setEmployeeAssoc] = useState<
+    Record<string, EmployeeAssociation>
+  >({});
   const [cardYear, setCardYear] = useState(() => new Date().getFullYear());
   const [dragOver, setDragOver] = useState(false);
   const [periodNote, setPeriodNote] = useState("");
@@ -1286,6 +1358,7 @@ function ImportHoursDialog({
     suppressAutosave.current = false;
     setRows(draft.rows);
     setAssoc(draft.assoc);
+    setEmployeeAssoc(draft.employeeAssoc);
     setCardYear(draft.cardYear);
     setPeriodNote(draft.periodNote);
     setFileName(draft.fileName);
@@ -1314,6 +1387,7 @@ function ImportHoursDialog({
     const state: ImportDraftState = {
       rows,
       assoc,
+      employeeAssoc,
       cardYear,
       periodNote,
       payPeriodStart: form.getValues("payPeriodStart") || "",
@@ -1363,7 +1437,7 @@ function ImportHoursDialog({
     }, DRAFT_AUTOSAVE_DELAY_MS);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, stage, rows, assoc, cardYear, periodNote, fileName]);
+  }, [open, stage, rows, assoc, employeeAssoc, cardYear, periodNote, fileName]);
 
   // When connectivity is restored after a retryable autosave failure, attempt
   // the save again immediately — no edit needed to trigger the retry.
@@ -1476,6 +1550,7 @@ function ImportHoursDialog({
     setError("");
     setRows([]);
     setAssoc({});
+    setEmployeeAssoc({});
     setDragOver(false);
     setPeriodNote("");
     setSaveStatus(null);
@@ -1542,7 +1617,11 @@ function ImportHoursDialog({
   const buildReview = (
     extracted: ExtractedHourRow[],
     cardYear: number,
-  ): { rows: ReviewRow[]; associations: Record<string, JobAssociation> } => {
+  ): {
+    rows: ReviewRow[];
+    associations: Record<string, JobAssociation>;
+    employeeAssociations: Record<string, EmployeeAssociation>;
+  } => {
     const opts = (form.getValues("lines") ?? [])
       .map((l, index) => ({ index, name: l.workerName, type: l.lineType }))
       .filter((o) => o.type === "employee");
@@ -1643,6 +1722,72 @@ function ImportHoursDialog({
       return key;
     };
 
+    // Build one shared employee resolution per distinct extracted worker
+    // name, so a fuzzy/ambiguous match only needs an explicit decision once
+    // — every row for that name reuses it (never creating more than one new
+    // employee for the same extracted name).
+    const employeeAssociations: Record<string, EmployeeAssociation> = {};
+    const ensureEmployeeAssociation = (
+      raw: string,
+      rowIndex: number,
+    ): string => {
+      const key = raw ? normalizeName(raw) : `__none__:${rowIndex}`;
+      if (employeeAssociations[key]) return key;
+      const exactMatches = employees.filter(
+        (e) => normalizeName(e.name) === normalizeName(raw),
+      );
+      if (exactMatches.length === 1) {
+        employeeAssociations[key] = {
+          raw,
+          resolution: "exact",
+          candidates: [],
+          employeeId: String(exactMatches[0].id),
+          matchedEmployeeName: exactMatches[0].name,
+          decided: true,
+          decision: "use",
+        };
+        return key;
+      }
+      if (exactMatches.length > 1) {
+        // Two Employee Center records share this exact name — still needs
+        // an explicit pick, not a silent "unknown".
+        employeeAssociations[key] = {
+          raw,
+          resolution: "ambiguous",
+          candidates: exactMatches.map((e) => ({
+            employeeId: String(e.id),
+            name: e.name,
+            pct: 100,
+          })),
+          employeeId: "",
+          matchedEmployeeName: "",
+          decided: false,
+          decision: "",
+        };
+        return key;
+      }
+      // No exact match: offer close (typo/nickname/OCR) matches instead of
+      // leaving a known worker "unknown" (P11-TC-02, P11-TC-04) — but always
+      // as an explicit choice, never auto-selected, since misidentifying who
+      // gets paid is higher-stakes than misfiling a job.
+      const candidates = fuzzyEmployeeCandidates(raw, employees);
+      employeeAssociations[key] = {
+        raw,
+        resolution:
+          candidates.length === 0
+            ? "unknown"
+            : candidates.length === 1
+              ? "fuzzy"
+              : "ambiguous",
+        candidates,
+        employeeId: "",
+        matchedEmployeeName: "",
+        decided: false,
+        decision: "",
+      };
+      return key;
+    };
+
     const rows = extracted.map((r, rowIndex) => {
       const matches = opts.filter(
         (o) => normalizeName(o.name) === normalizeName(r.workerName),
@@ -1656,37 +1801,34 @@ function ImportHoursDialog({
         status = "ambiguous";
       }
 
-      const empMatches = employees.filter(
-        (e) => normalizeName(e.name) === normalizeName(r.workerName),
-      );
-      let employee = empMatches.length === 1 ? empMatches[0] : undefined;
-      let employeeMatchPct = 0;
-      // No exact Employee Center match: try a close (typo/nickname/OCR)
-      // match instead of leaving a known worker "unknown" (P11-TC-02,
-      // P11-TC-04). Only a single standout candidate auto-selects — a tie
-      // or an ambiguous existing-line match still asks in Step 1.
-      if (!employee && empMatches.length === 0) {
-        const fuzzy = bestFuzzyEmployeeMatch(r.workerName, employees);
-        if (fuzzy) {
-          employee = fuzzy.employee;
-          employeeMatchPct = fuzzy.pct;
-        }
-      }
-      // No existing worker line, but a unique Employee Center match (exact
-      // or close): offer to add a new worker line so the import stays
-      // seamless instead of asking who this is.
+      const employeeKey = ensureEmployeeAssociation(r.workerName, rowIndex);
+      const empAssoc = employeeAssociations[employeeKey];
+      // Only an exact Employee Center match resolves without asking — a
+      // fuzzy or ambiguous match always waits for an explicit decision made
+      // through the review stage's confirm-or-create prompt.
+      const employee =
+        empAssoc.resolution === "exact"
+          ? employees.find((e) => String(e.id) === empAssoc.employeeId)
+          : undefined;
+      // No existing worker line, but a confirmed Employee Center match:
+      // offer to add a new worker line so the import stays seamless instead
+      // of asking who this is.
       if (status === "unmatched" && employee) {
         target = "new";
       }
 
       const flags: string[] = [];
-      if (!employee) {
+      if (empAssoc.resolution === "unknown") {
         flags.push(
           `Unknown employee "${r.workerName}" — not in the Employee Center. Choose "Create new employee" to add them (set their pay rate in the Employee Center afterwards), or Skip.`,
         );
-      } else if (employee.straightTimeRateCents == null) {
+      } else if (employee && employee.straightTimeRateCents == null) {
         flags.push(`${employee.name} has no pay rate set in the Employee Center.`);
-      } else if (r.overtimeHours > 0 && employee.overtimeRateCents == null) {
+      } else if (
+        employee &&
+        r.overtimeHours > 0 &&
+        employee.overtimeRateCents == null
+      ) {
         flags.push(`${employee.name} has no overtime rate set in the Employee Center.`);
       }
 
@@ -1726,14 +1868,14 @@ function ImportHoursDialog({
         status,
         employeeId: employee ? String(employee.id) : "",
         matchedEmployeeName: employee ? employee.name : "",
-        employeeMatchPct,
+        employeeKey,
         jobKeys,
         entries,
         flags,
       };
     });
 
-    return { rows, associations };
+    return { rows, associations, employeeAssociations };
   };
 
   /**
@@ -1808,6 +1950,7 @@ function ImportHoursDialog({
       const initialDraftState: ImportDraftState = {
         rows: built.rows,
         assoc: built.associations,
+        employeeAssoc: built.employeeAssociations,
         cardYear: year,
         periodNote: note,
         payPeriodStart: form.getValues("payPeriodStart") || "",
@@ -1831,6 +1974,7 @@ function ImportHoursDialog({
         });
       setRows(built.rows);
       setAssoc(built.associations);
+      setEmployeeAssoc(built.employeeAssociations);
       setStage("review");
     } catch (err) {
       if (seq !== extractSeq.current) return;
@@ -1849,11 +1993,73 @@ function ImportHoursDialog({
   };
 
   /**
+   * Record an explicit decision for a shared fuzzy/ambiguous employee match
+   * ("Is this the same person?"). The decision is applied to every row that
+   * shares this worker name — never just the row the user clicked — so a
+   * name that repeats across the card is only decided once and never
+   * produces more than one new employee.
+   */
+  const decideEmployee = (
+    key: string,
+    decision: "use" | "create" | "skip",
+    candidate?: EmployeeCandidate,
+  ) => {
+    setEmployeeAssoc((prev) => ({
+      ...prev,
+      [key]: {
+        ...prev[key],
+        decided: true,
+        decision,
+        employeeId: decision === "use" ? candidate?.employeeId ?? "" : "",
+        matchedEmployeeName: decision === "use" ? candidate?.name ?? "" : "",
+      },
+    }));
+    setRows((prev) =>
+      prev.map((r) => {
+        if (r.employeeKey !== key) return r;
+        // A row already merged into an existing worker line keeps that
+        // line-merge target; otherwise a resolved employee can be added as
+        // a new worker line, and skip/pending goes back to "skip".
+        const keepsLineTarget = r.status === "matched";
+        if (decision === "use") {
+          return {
+            ...r,
+            employeeId: candidate?.employeeId ?? "",
+            matchedEmployeeName: candidate?.name ?? "",
+            target: keepsLineTarget ? r.target : "new",
+          };
+        }
+        if (decision === "create") {
+          return {
+            ...r,
+            employeeId: "",
+            matchedEmployeeName: "",
+            target: keepsLineTarget ? r.target : "create",
+          };
+        }
+        return {
+          ...r,
+          employeeId: "",
+          matchedEmployeeName: "",
+          target: keepsLineTarget ? r.target : "skip",
+        };
+      }),
+    );
+  };
+
+  /**
    * An association is settled when a job is picked (and any close-match
    * suggestion has been confirmed), or it is internal overhead.
    */
   const assocConfirmed = (a: JobAssociation | undefined) =>
     !!a && ((!!a.jobId && !a.needsConfirm) || a.overhead);
+
+  /**
+   * An employee resolution is settled once it auto-resolved exactly, or the
+   * user made an explicit use/create/skip decision.
+   */
+  const employeeAssocConfirmed = (a: EmployeeAssociation | undefined) =>
+    !!a && (a.resolution === "exact" || a.decided);
 
   const appliedCount = rows.filter((r) => r.target !== "skip").length;
   // Distinct job names (used by applied rows) still needing confirmation.
@@ -1862,6 +2068,14 @@ function ImportHoursDialog({
       .filter((r) => r.target !== "skip")
       .flatMap((r) => r.jobKeys)
       .filter((k) => !assocConfirmed(assoc[k])),
+  ).size;
+  // Distinct worker names (used by applied rows) still needing an explicit
+  // fuzzy/ambiguous-match decision.
+  const unconfirmedEmployeeCount = new Set(
+    rows
+      .filter((r) => r.target !== "skip")
+      .map((r) => r.employeeKey)
+      .filter((k) => !employeeAssocConfirmed(employeeAssoc[k])),
   ).size;
 
   const handleApply = async () => {
@@ -1935,14 +2149,24 @@ function ImportHoursDialog({
     // add the record first so the worker line links to it (rates are set
     // in the Employee Center afterwards).
     const createdIds = new Map<number, string>();
+    // Rows sharing the same extracted worker name share one "create new
+    // employee" decision (via employeeKey) — only create the record once,
+    // even though several rows in the loop below target "create".
+    const createdByKey = new Map<string, string>();
     for (const [rowIdx, r] of rows.entries()) {
       if (r.target !== "create") continue;
       const name = r.workerName.trim();
       if (!name) continue;
+      const already = createdByKey.get(r.employeeKey);
+      if (already) {
+        createdIds.set(rowIdx, already);
+        continue;
+      }
       try {
         const created = await createEmployee.mutateAsync({
           data: { name },
         });
+        createdByKey.set(r.employeeKey, String(created.id));
         createdIds.set(rowIdx, String(created.id));
       } catch (err) {
         queryClient.invalidateQueries({ queryKey: getListEmployeesQueryKey() });
@@ -2287,81 +2511,18 @@ function ImportHoursDialog({
                 {periodNote}
               </p>
             ) : null}
-            <div className="rounded-lg border border-blue-200 bg-blue-50/60 p-4">
-              <p className="text-sm font-semibold text-slate-900">
-                Step 1 — Who is this time for?
-              </p>
-              <p className="mt-1 text-xs text-slate-600">
-                Workers already on file are matched automatically — including
-                close spelling variants — so you'll only need to pick a name
-                here when we can't confidently place it.
-              </p>
-              <div className="mt-2 space-y-3">
-                {rows.map((r, i) => (
-                  <div key={i} className="flex flex-wrap items-start gap-3">
-                    <div className="min-w-44">
-                      <div className="text-sm font-medium text-slate-900">
-                        {r.workerName}
-                      </div>
-                      <StatusBadge status={r.status} />
-                      {r.employeeMatchPct > 0 ? (
-                        <p className="mt-0.5 text-xs text-slate-500">
-                          Matched to {r.matchedEmployeeName} (~
-                          {r.employeeMatchPct}%)
-                        </p>
-                      ) : null}
-                    </div>
-                    <div className="w-56">
-                      <Select
-                        value={r.target}
-                        onValueChange={(v) => updateRow(i, { target: v })}
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="skip">Skip</SelectItem>
-                          {r.employeeId ? (
-                            <SelectItem value="new">
-                              + Add new worker line
-                            </SelectItem>
-                          ) : (
-                            <SelectItem value="create">
-                              + Create new employee
-                            </SelectItem>
-                          )}
-                          {employeeOptions.map((o) => (
-                            <SelectItem key={o.index} value={String(o.index)}>
-                              {o.name || `Worker ${o.index + 1}`}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="w-full">
-                      {r.flags.map((flag, fi) => (
-                        <p
-                          key={fi}
-                          className="mt-0.5 flex items-start gap-1 text-xs text-amber-600"
-                        >
-                          <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
-                          {flag}
-                        </p>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
             <p className="text-sm text-slate-600">
               <span className="font-semibold text-slate-900">
-                Step 2 — Confirm the hours and Job Names.
+                Review imported hours
               </span>{" "}
               {appliedCount} of {rows.length} row
-              {rows.length === 1 ? "" : "s"} will be applied. Review the hours
-              and confirm the Job Name each row belongs to. The burdened labor
-              cost (rates from the Employee Center plus employer burden) is
-              allocated to the confirmed job automatically.
+              {rows.length === 1 ? "" : "s"} will be applied. Workers already
+              on file are matched automatically — including close spelling
+              variants — so you'll only need to confirm who's who when we
+              can't tell for sure. Review the hours and confirm the Job Name
+              each row belongs to; the burdened labor cost (rates from the
+              Employee Center plus employer burden) is allocated to the
+              confirmed job automatically.
             </p>
             {unconfirmedJobCount > 0 ? (
               <p className="flex items-center gap-1 text-sm text-amber-600">
@@ -2370,6 +2531,15 @@ function ImportHoursDialog({
                 {unconfirmedJobCount === 1 ? " needs" : "s need"} confirming
                 before you can apply. Each name only needs confirming once —
                 or set the row to Skip.
+              </p>
+            ) : null}
+            {unconfirmedEmployeeCount > 0 ? (
+              <p className="flex items-center gap-1 text-sm text-amber-600">
+                <AlertTriangle className="h-4 w-4 shrink-0" />
+                {unconfirmedEmployeeCount} worker name
+                {unconfirmedEmployeeCount === 1 ? " needs" : "s need"}{" "}
+                confirming before you can apply. Each name only needs
+                confirming once — or set the row to Skip.
               </p>
             ) : null}
             {error ? <p className="text-sm text-red-600">{error}</p> : null}
@@ -2385,10 +2555,236 @@ function ImportHoursDialog({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {rows.map((r, i) => (
+                  {rows.map((r, i) => {
+                    const employeeAssociation = employeeAssoc[r.employeeKey];
+                    const showLinePicker =
+                      r.status === "ambiguous" ||
+                      employeeAssociation?.resolution === "unknown";
+                    return (
                     <TableRow key={i}>
                       <TableCell className="align-top">
                         <div className="font-medium">{r.workerName}</div>
+                        {employeeAssociation &&
+                        employeeAssociation.resolution !== "exact" ? (
+                          <div className="mt-1.5 space-y-1.5">
+                            {employeeAssociation.decided ? (
+                              <p className="text-xs text-slate-600">
+                                {employeeAssociation.decision === "use"
+                                  ? `Using ${employeeAssociation.matchedEmployeeName}`
+                                  : employeeAssociation.decision === "create"
+                                    ? "Creating new employee"
+                                    : "Skipped"}
+                                {" · "}
+                                <button
+                                  type="button"
+                                  className="font-medium text-blue-700 underline underline-offset-2"
+                                  onClick={() => {
+                                    setEmployeeAssoc((prev) => ({
+                                      ...prev,
+                                      [r.employeeKey]: {
+                                        ...prev[r.employeeKey],
+                                        decided: false,
+                                        decision: "",
+                                        employeeId: "",
+                                        matchedEmployeeName: "",
+                                      },
+                                    }));
+                                    setRows((prev) =>
+                                      prev.map((row) =>
+                                        row.employeeKey === r.employeeKey
+                                          ? {
+                                              ...row,
+                                              employeeId: "",
+                                              matchedEmployeeName: "",
+                                              target:
+                                                row.status === "matched"
+                                                  ? row.target
+                                                  : "skip",
+                                            }
+                                          : row,
+                                      ),
+                                    );
+                                  }}
+                                >
+                                  Change
+                                </button>
+                              </p>
+                            ) : employeeAssociation.resolution === "fuzzy" ? (
+                              <>
+                                <p className="text-xs text-amber-700">
+                                  Possible match:{" "}
+                                  <span className="font-medium">
+                                    {employeeAssociation.candidates[0]?.name}
+                                  </span>{" "}
+                                  (~{employeeAssociation.candidates[0]?.pct}%).
+                                  Is this the same person?
+                                </p>
+                                <div className="flex flex-wrap gap-1.5">
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-7 text-xs"
+                                    onClick={() =>
+                                      decideEmployee(
+                                        r.employeeKey,
+                                        "use",
+                                        employeeAssociation.candidates[0],
+                                      )
+                                    }
+                                  >
+                                    Use {employeeAssociation.candidates[0]?.name}
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-7 text-xs"
+                                    onClick={() =>
+                                      decideEmployee(r.employeeKey, "create")
+                                    }
+                                  >
+                                    Create new employee
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-7 text-xs"
+                                    onClick={() =>
+                                      decideEmployee(r.employeeKey, "skip")
+                                    }
+                                  >
+                                    Skip
+                                  </Button>
+                                </div>
+                              </>
+                            ) : employeeAssociation.resolution ===
+                              "ambiguous" ? (
+                              <>
+                                <p className="text-xs text-amber-700">
+                                  Several employees may match. Choose the same
+                                  person, create a new employee, or skip.
+                                </p>
+                                <div className="flex flex-wrap gap-1.5">
+                                  {employeeAssociation.candidates.map(
+                                    (candidate) => (
+                                      <Button
+                                        key={candidate.employeeId}
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        className="h-7 text-xs"
+                                        onClick={() =>
+                                          decideEmployee(
+                                            r.employeeKey,
+                                            "use",
+                                            candidate,
+                                          )
+                                        }
+                                      >
+                                        Use {candidate.name} (~{candidate.pct}%)
+                                      </Button>
+                                    ),
+                                  )}
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-7 text-xs"
+                                    onClick={() =>
+                                      decideEmployee(r.employeeKey, "create")
+                                    }
+                                  >
+                                    Create new employee
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-7 text-xs"
+                                    onClick={() =>
+                                      decideEmployee(r.employeeKey, "skip")
+                                    }
+                                  >
+                                    Skip
+                                  </Button>
+                                </div>
+                              </>
+                            ) : null}
+                          </div>
+                        ) : null}
+                        {showLinePicker &&
+                        !(
+                          employeeAssociation?.decided &&
+                          employeeAssociation.resolution !== "exact"
+                        ) ? (
+                          <div className="mt-2 w-56">
+                            <Select
+                              value={r.target}
+                              onValueChange={(value) => {
+                                if (
+                                  employeeAssociation?.resolution === "unknown"
+                                ) {
+                                  if (value === "create" || value === "skip") {
+                                    decideEmployee(
+                                      r.employeeKey,
+                                      value === "create" ? "create" : "skip",
+                                    );
+                                    return;
+                                  }
+                                  const line = employeeOptions.find(
+                                    (option) =>
+                                      String(option.index) === value,
+                                  );
+                                  setEmployeeAssoc((prev) => ({
+                                    ...prev,
+                                    [r.employeeKey]: {
+                                      ...prev[r.employeeKey],
+                                      decided: true,
+                                      decision: "use",
+                                      employeeId: "",
+                                      matchedEmployeeName:
+                                        line?.name || r.workerName,
+                                    },
+                                  }));
+                                }
+                                updateRow(i, { target: value });
+                              }}
+                            >
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="skip">Skip</SelectItem>
+                                {employeeAssociation?.resolution ===
+                                "unknown" ? (
+                                  <SelectItem value="create">
+                                    + Create new employee
+                                  </SelectItem>
+                                ) : null}
+                                {employeeOptions.map((option) => (
+                                  <SelectItem
+                                    key={option.index}
+                                    value={String(option.index)}
+                                  >
+                                    {option.name ||
+                                      `Worker ${option.index + 1}`}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        ) : null}
+                        {r.flags.map((flag, flagIndex) => (
+                          <p
+                            key={flagIndex}
+                            className="mt-1 flex items-start gap-1 text-xs text-amber-600"
+                          >
+                            <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
+                            {flag}
+                          </p>
+                        ))}
                         {r.entries.length > 0 ? (
                           <div className="mt-2 space-y-1.5">
                             {groupEntriesByWeek(r.entries).map((week) => (
@@ -2530,7 +2926,8 @@ function ImportHoursDialog({
                         </div>
                       </TableCell>
                     </TableRow>
-                  ))}
+                    );
+                  })}
                 </TableBody>
               </Table>
             </div>
@@ -2570,7 +2967,11 @@ function ImportHoursDialog({
                     type="button"
                     variant="outline"
                     onClick={handleApply}
-                    disabled={createJob.isPending || createEmployee.isPending}
+                    disabled={
+                      unconfirmedEmployeeCount > 0 ||
+                      createJob.isPending ||
+                      createEmployee.isPending
+                    }
                     data-testid="button-apply-override"
                   >
                     Apply anyway (leave flagged jobs unallocated)
@@ -2582,6 +2983,7 @@ function ImportHoursDialog({
                   disabled={
                     appliedCount === 0 ||
                     unconfirmedJobCount > 0 ||
+                    unconfirmedEmployeeCount > 0 ||
                     createJob.isPending ||
                     createEmployee.isPending
                   }

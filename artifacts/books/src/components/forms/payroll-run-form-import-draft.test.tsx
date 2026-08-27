@@ -243,7 +243,9 @@ describe("Import hours — draft save & resume", () => {
     await waitFor(() =>
       expect(screen.getByText(/will be applied/i)).toBeTruthy(),
     );
-    expect(screen.getByText(/Step 1 — Who is this time for\?/)).toBeTruthy();
+    expect(screen.getByText(/review imported hours/i)).toBeTruthy();
+    expect(screen.queryByText(/step 1/i)).toBeNull();
+    expect(screen.queryByText(/step 2/i)).toBeNull();
     expect(screen.getAllByText(/HR Stadium/).length).toBeGreaterThan(0);
     // The confirmed match survived — Apply is available immediately.
     expect(

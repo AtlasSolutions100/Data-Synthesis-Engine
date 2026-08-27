@@ -5,7 +5,6 @@ import {
   cleanup,
   fireEvent,
   waitFor,
-  within,
 } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { PayrollRunForm } from "./payroll-run-form";
@@ -151,8 +150,11 @@ describe("Import hours — Job Name association", () => {
     renderForm(<PayrollRunForm onSubmit={vi.fn()} defaultValues={defaults} />);
     await importText("Brendan Friedman — 40 reg, 5 OT at HR Stadium");
 
-    // Step 1 asks about the worker first — no customer-narrowing step.
-    expect(screen.getByText(/Step 1 — Who is this time for\?/)).toBeTruthy();
+    // One focused review replaces the old employee-identification step —
+    // and the removed customer-narrowing step must stay gone.
+    expect(screen.getByText(/review imported hours/i)).toBeTruthy();
+    expect(screen.queryByText(/step 1/i)).toBeNull();
+    expect(screen.queryByText(/step 2/i)).toBeNull();
     expect(
       screen.queryByText(/Which Client \/ Customer is this time associated with\?/),
     ).toBeNull();
@@ -450,9 +452,10 @@ describe("Import hours — Job Name association", () => {
         /"Bruce Randolph" looks like a person's name, but a job with this name exists\. What job is this associated with\?/,
       ),
     ).toBeTruthy();
-    // Index 0 is the row's Step 1 worker select.
-    const targetSelect = screen.getAllByRole("combobox")[0];
-    expect(within(targetSelect).getByText(/add new worker line/i)).toBeTruthy();
+    // The employee matches exactly, so there is no redundant worker picker;
+    // the row is already queued as a new worker line behind the scenes.
+    expect(screen.queryByText(/is this the same person/i)).toBeNull();
+    expect(screen.queryByText(/create new employee/i)).toBeNull();
     expect(applyButton().disabled).toBe(true);
 
     // Confirm it really is the "Bruce Randolph" job.
