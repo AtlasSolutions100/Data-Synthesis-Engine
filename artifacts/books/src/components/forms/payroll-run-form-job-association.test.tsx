@@ -753,6 +753,105 @@ describe("Import hours — same-date splits and row additions", () => {
   });
 });
 
+// ── Cost-type change recalculates totals ─────────────────────────────────────
+
+describe("Cost-type change in day grid — recalculation", () => {
+  it("switching a regular entry to OT applies the OT rate in the allocation amount", async () => {
+    mutateAsync.mockResolvedValueOnce({
+      rows: [
+        {
+          workerName: "Brendan Friedman",
+          regularHours: 8,
+          overtimeHours: 0,
+          holidayHours: 0,
+          entries: [
+            {
+              date: "2026-07-07",
+              jobName: "HR Stadium",
+              hours: 8,
+              costType: "regular",
+            },
+          ],
+        },
+      ],
+    });
+    renderForm(<PayrollRunForm onSubmit={vi.fn()} defaultValues={defaults} />);
+    await importText("Brendan Friedman — 8 hours at HR Stadium");
+
+    // Job is auto-matched and Apply is enabled.
+    expect(screen.getByTestId("job-auto-matched-hr stadium")).toBeTruthy();
+    expect(applyButton().disabled).toBe(false);
+
+    // Change cost type from "Reg" → "OT" via the day-grid Select.
+    // The SelectTrigger has role="combobox" and its text content is "Reg".
+    const costTypeSelect = (
+      screen.getAllByRole("combobox") as HTMLElement[]
+    ).find((el) => el.textContent?.trim() === "Reg");
+    expect(costTypeSelect).toBeTruthy();
+    fireEvent.click(costTypeSelect!);
+    // After the listbox opens, the option has role="option".
+    const otOption = await screen.findByRole("option", { name: "OT" });
+    fireEvent.click(otOption);
+
+    // Apply — syncAggregates must have moved 8h into overtimeHours.
+    fireEvent.click(applyButton());
+    await waitFor(() =>
+      expect(screen.queryByText(/will be applied/i)).toBeNull(),
+    );
+
+    // 8h × $45 OT = $360 gross; burden (SS 6.2 + Medicare 1.45 + FUTA 0.6 +
+    // CoSUI 1.7 + CoSurcharge 0.22 %) = $36.61; total burdened = $396.61.
+    expect(
+      (screen.getByPlaceholderText("Amount") as HTMLInputElement).value,
+    ).toBe("396.61");
+  });
+
+  it("switching from OT back to regular reverts to the straight-time rate", async () => {
+    mutateAsync.mockResolvedValueOnce({
+      rows: [
+        {
+          workerName: "Brendan Friedman",
+          regularHours: 0,
+          overtimeHours: 8,
+          holidayHours: 0,
+          entries: [
+            {
+              date: "2026-07-07",
+              jobName: "HR Stadium",
+              hours: 8,
+              costType: "overtime",
+            },
+          ],
+        },
+      ],
+    });
+    renderForm(<PayrollRunForm onSubmit={vi.fn()} defaultValues={defaults} />);
+    await importText("Brendan Friedman — 8 OT at HR Stadium");
+
+    expect(screen.getByTestId("job-auto-matched-hr stadium")).toBeTruthy();
+    expect(applyButton().disabled).toBe(false);
+
+    // The Select currently shows "OT". Change it back to "Reg".
+    const costTypeSelect = (
+      screen.getAllByRole("combobox") as HTMLElement[]
+    ).find((el) => el.textContent?.trim() === "OT");
+    expect(costTypeSelect).toBeTruthy();
+    fireEvent.click(costTypeSelect!);
+    const regOption = await screen.findByRole("option", { name: "Reg" });
+    fireEvent.click(regOption);
+
+    fireEvent.click(applyButton());
+    await waitFor(() =>
+      expect(screen.queryByText(/will be applied/i)).toBeNull(),
+    );
+
+    // 8h × $30 straight = $240 gross; burden = $24.41; total = $264.41.
+    expect(
+      (screen.getByPlaceholderText("Amount") as HTMLInputElement).value,
+    ).toBe("264.41");
+  });
+});
+
 // ── P11-TC-06: Overtime hours require job coding ──────────────────────────────
 
 describe("OT job coding validation — rendered PayrollRunForm (P11-TC-06)", () => {
