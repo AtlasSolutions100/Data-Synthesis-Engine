@@ -133,6 +133,60 @@ const applyButton = () =>
   screen.getByRole("button", { name: /apply hours/i }) as HTMLButtonElement;
 
 describe("Import hours — Job Name association", () => {
+  it("carries imported hours into the saved payload on a brand-new time card run", async () => {
+    const onSubmit = vi.fn();
+    mutateAsync.mockResolvedValueOnce({
+      rows: [
+        {
+          workerName: "Brendan Friedman",
+          regularHours: 8,
+          overtimeHours: 0,
+          holidayHours: 0,
+          entries: [
+            {
+              date: "2026-07-07",
+              jobName: "HR Stadium",
+              hours: 8,
+              costType: "regular",
+            },
+          ],
+        },
+      ],
+    });
+    renderForm(
+      <PayrollRunForm
+        onSubmit={onSubmit}
+        defaultValues={{
+          payPeriodStart: "2026-07-06",
+          payPeriodEnd: "2026-07-12",
+          payDate: "2026-07-17",
+        }}
+      />,
+    );
+
+    await importText("Brendan Friedman — 8 hours at HR Stadium");
+    fireEvent.click(applyButton());
+    await waitFor(() =>
+      expect(screen.queryByText(/will be applied/i)).toBeNull(),
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /save time card run/i }),
+    );
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledOnce());
+
+    expect(onSubmit.mock.calls[0][0].lines).toEqual([
+      expect.objectContaining({
+        employeeId: 11,
+        workerName: "Brendan Friedman",
+        regularHours: 8,
+        overtimeHours: 0,
+        holidayHours: 0,
+        allocations: [{ jobId: 518, amountCents: 26441 }],
+      }),
+    ]);
+  });
+
   it("auto-matches an extracted job name to an existing job and applies a burdened allocation", async () => {
     mutateAsync.mockResolvedValueOnce({
       rows: [

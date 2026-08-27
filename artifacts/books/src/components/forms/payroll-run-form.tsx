@@ -1200,6 +1200,7 @@ function ImportHoursDialog({
   employees,
   jobs,
   appendLine,
+  updateLine,
   applyPeriod,
   autoOpen = false,
 }: {
@@ -1207,6 +1208,10 @@ function ImportHoursDialog({
   employees: Employee[];
   jobs: Job[];
   appendLine: (line: RunFormValues["lines"][number]) => void;
+  updateLine: (
+    index: number,
+    line: RunFormValues["lines"][number],
+  ) => void;
   applyPeriod: (p: PayPeriod) => void;
   autoOpen?: boolean;
 }) {
@@ -2187,6 +2192,24 @@ function ImportHoursDialog({
 
   const handleApply = async () => {
     const formValues = form.getValues();
+    // A brand-new run starts with one empty employee row. Reuse that row for
+    // the first imported employee instead of appending behind it; otherwise
+    // the blank row remains invalid and silently blocks Save Time Card Run.
+    const reusableBlankLineIndexes = formValues.lines.flatMap((line, index) => {
+      const hasHours = (line.hourEntries ?? []).some(
+        (entry) => (parseFloat(entry.hours || "0") || 0) > 0,
+      );
+      const hasAllocations = (line.allocations ?? []).some(
+        (allocation) => allocation.jobId || allocation.amount,
+      );
+      const isBlankEmployeeLine =
+        line.lineType === "employee" &&
+        !line.employeeId &&
+        !line.workerName.trim() &&
+        !hasHours &&
+        !hasAllocations;
+      return isBlankEmployeeLine ? [index] : [];
+    });
     const burdenRates = {
       ss: pctToBps(formValues.ssRate),
       medicare: pctToBps(formValues.medicareRate),
@@ -2400,7 +2423,7 @@ function ImportHoursDialog({
 
       if (r.target === "new" || r.target === "create") {
         const taxExempt = employee?.taxExempt ?? false;
-        appendLine({
+        const importedLine: RunFormValues["lines"][number] = {
           lineType: "employee",
           employeeId: r.employeeId || createdIds.get(rowIdx) || "",
           vendorId: "",
@@ -2409,7 +2432,10 @@ function ImportHoursDialog({
           taxExempt,
           subcontractorAmount: "",
           allocations: buildAllocations(taxExempt),
-        });
+        };
+        const reusableIndex = reusableBlankLineIndexes.shift();
+        if (reusableIndex === undefined) appendLine(importedLine);
+        else updateLine(reusableIndex, importedLine);
         return;
       }
 
@@ -3309,7 +3335,7 @@ export function PayrollRunForm({
     },
   });
 
-  const { fields, append, remove } = useFieldArray({
+  const { fields, append, remove, update } = useFieldArray({
     control: form.control,
     name: "lines",
   });
@@ -3656,6 +3682,7 @@ export function PayrollRunForm({
                 employees={employeeList}
                 jobs={jobList}
                 appendLine={append}
+                updateLine={update}
                 applyPeriod={applyPeriod}
                 autoOpen={autoOpenImport}
               />
