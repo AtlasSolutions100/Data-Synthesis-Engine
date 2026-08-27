@@ -1,0 +1,50 @@
+You are editing the EXISTING Allied Power Books / APS Accounting app in this Replit project.
+
+Do NOT rebuild Time Cards.
+Do NOT change architecture, routing, or unrelated tabs.
+Only change how imported / entered hours are broken out, associated to jobs, and totaled.
+
+PHASE 11F — Time Cards: hours by day + job
+IDs: P11-TC-09, P11-TC-10, P11-TC-11
+
+CONTEXT (from Mike / how the guys send hours)
+- Bruce Randolph is a JOB NAME, not a person and not a customer.
+- Field techs send hours like this (example — Brendan Friedman, pay period covering 6/23–6/26):
+
+  Hours for Brendan Friedman from: 6/23-6/26
+  Tuesday 6/23
+  Bruce Randolph 9hr
+  Wednesday 6/24
+  Bruce Randolph 9hr
+  Thursday 6/25
+  Bruce Randolph 9hr
+  Friday 6/26
+  Test Job 8hr
+
+- One day can be one job. A day can also be split (e.g. 5 hours to one job + 3 hours to another).
+- The sum of all day/job lines MUST equal the hours for that employee in that pay period (here 9+9+9+8 = 35).
+- After extract, Mike must be able to pick the Job Name from a dropdown of EXISTING jobs (Single Source of Truth). Do not invent jobs. If the text says “Bruce Randolph” and that job exists, select it.
+
+IMPLEMENT ONLY
+
+P11-TC-09 — Break hours into day rows
+On New Time Card / Import Hours, after paste or upload, show one editable row per date extracted (Tue 6/23, Wed 6/24, etc.).
+Each row has: Date, Hours, Job Name (dropdown of existing jobs).
+If the source has two jobs on the same date (5 hrs + 3 hrs), create two rows for that date.
+
+P11-TC-10 — Job dropdown per row (or per day)
+Mike selects which hours go to which job.
+Pre-select when extract text matches an existing Job Name (Bruce Randolph, Test Job, Ritual, etc.).
+If no match, leave Job blank and flag that row — do not guess a customer name.
+Remember: names that look like people (Bruce Randolph) can be jobs.
+
+P11-TC-11 — Pay-period total must equal the lines
+Show a running total: sum of row hours vs expected hours for the card / pay period.
+Block or hard-flag Post to ledger if line hours ≠ card hours (example: 35 must stay 35).
+Do not zero out hours on save (existing zeros bug must not return).
+
+Employee name and rates still come from Employee Center. Nothing posts automatically — review first.
+
+WHEN DONE, reply with:
+1. Files changed
+2. Confirmation per ID

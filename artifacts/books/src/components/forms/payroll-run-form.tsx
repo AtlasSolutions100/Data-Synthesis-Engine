@@ -2548,7 +2548,7 @@ function ImportHoursDialog({
                 <TableHeader>
                   <TableRow>
                     <TableHead>Worker</TableHead>
-                    <TableHead className="w-16 text-right">Reg</TableHead>
+                    <TableHead className="w-24 min-w-24 text-right">Reg</TableHead>
                     <TableHead className="w-16 text-right">OT</TableHead>
                     <TableHead className="w-16 text-right">Hol/Vac</TableHead>
                     <TableHead className="w-56">Job Name</TableHead>
@@ -2816,11 +2816,11 @@ function ImportHoursDialog({
                           </div>
                         ) : null}
                       </TableCell>
-                      <TableCell className="align-top">
+                      <TableCell className="w-24 min-w-24 align-top">
                         <Input
                           type="number"
                           step="0.01"
-                          className="text-right"
+                          className="w-24 min-w-24 text-right"
                           value={r.regularHours}
                           onChange={(e) =>
                             updateRow(i, { regularHours: e.target.value })
