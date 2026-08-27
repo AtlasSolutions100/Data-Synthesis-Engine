@@ -870,11 +870,19 @@ type ImportStatus = "matched" | "ambiguous" | "unmatched";
 
 /** A per-day, per-job line extracted from the timesheet. */
 interface EntryDetail {
+  /** Stable React key — generated on extract or add-row; never shown to users. */
+  id: string;
   date: string | null; // YYYY-MM-DD
   hours: number;
   jobKey: string; // normalized key into the associations map ("" = no job)
   jobRaw: string; // job text exactly as written in the source
   costType: LaborCostType;
+  /**
+   * Per-entry job override: when the user picks a job in the day grid,
+   * this field stores the jobId directly, bypassing the shared assoc lookup.
+   * Apply uses `resolvedJobId || jobIdForKey(jobKey)` for each entry.
+   */
+  resolvedJobId?: string;
 }
 
 /**
@@ -1104,7 +1112,16 @@ function parseDraftState(raw: unknown): ImportDraftState | null {
     const key =
       row.employeeKey ||
       (row.workerName ? normalizeName(row.workerName) : `__none__:${index}`);
-    return { ...row, employeeKey: key };
+    // Ensure each entry has stable id + resolvedJobId fields so older drafts
+    // (saved before the day-grid feature) remain resumable without crashing.
+    const entries = (Array.isArray(row.entries) ? row.entries : []).map(
+      (e: Partial<EntryDetail>, ei: number) => ({
+        ...e,
+        id: (e as EntryDetail).id || `restored-${index}-${ei}`,
+        resolvedJobId: (e as EntryDetail).resolvedJobId ?? "",
+      } as EntryDetail),
+    );
+    return { ...row, employeeKey: key, entries };
   });
   const employeeAssoc: Record<string, EmployeeAssociation> =
     s.employeeAssoc && typeof s.employeeAssoc === "object"
@@ -1834,9 +1851,11 @@ function ImportHoursDialog({
 
       // Job Name association: every hour entry maps to a shared association
       // (one per distinct extracted job/customer name).
+      let _entrySeq = 0;
       const entries: EntryDetail[] = (r.entries ?? []).map((e) => {
         const jobRaw = (e.jobName ?? "").trim();
         return {
+          id: `r${rowIndex}-e${_entrySeq++}`,
           date: e.date ?? null,
           hours: e.hours,
           jobKey: ensureAssociation(jobRaw, rowIndex),
@@ -1845,6 +1864,7 @@ function ImportHoursDialog({
             e.costType === "overtime" || e.costType === "holiday"
               ? e.costType
               : ("regular" as LaborCostType),
+          resolvedJobId: "",
         };
       });
       const jobKeys = [...new Set(entries.map((e) => e.jobKey))];
@@ -1993,6 +2013,77 @@ function ImportHoursDialog({
   };
 
   /**
+   * Re-derive the aggregate Reg/OT/Hol totals from a worker's day-grid
+   * entries so the Apply function always sees up-to-date values.  Called
+   * after every entry edit, add, or remove.
+   */
+  const syncAggregates = (
+    entries: EntryDetail[],
+  ): Pick<ReviewRow, "regularHours" | "overtimeHours" | "holidayHours"> => {
+    const byType = { regular: 0, overtime: 0, holiday: 0 };
+    for (const e of entries) byType[e.costType] += e.hours;
+    return {
+      regularHours: byType.regular > 0 ? String(byType.regular) : "0",
+      overtimeHours: byType.overtime > 0 ? String(byType.overtime) : "0",
+      holidayHours: byType.holiday > 0 ? String(byType.holiday) : "0",
+    };
+  };
+
+  /** Update a single field on one day-grid entry row. */
+  const updateEntry = (
+    rowIndex: number,
+    entryIndex: number,
+    patch: Partial<EntryDetail>,
+  ) => {
+    setRows((prev) =>
+      prev.map((r, ri) => {
+        if (ri !== rowIndex) return r;
+        const newEntries = r.entries.map((e, ei) =>
+          ei !== entryIndex ? e : { ...e, ...patch },
+        );
+        return { ...r, entries: newEntries, ...syncAggregates(newEntries) };
+      }),
+    );
+  };
+
+  /**
+   * Append a blank entry row to the worker's day grid, defaulting to the same
+   * date as the last existing entry so same-day splits are easy to add.
+   */
+  const addEntryRow = (
+    rowIndex: number,
+    afterDate: string | null = null,
+  ) => {
+    setRows((prev) =>
+      prev.map((r, ri) => {
+        if (ri !== rowIndex) return r;
+        const newEntry: EntryDetail = {
+          id: `add-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+          date: afterDate,
+          hours: 0,
+          jobKey: "",
+          jobRaw: "",
+          costType: "regular",
+          resolvedJobId: "",
+        };
+        const newEntries = [...r.entries, newEntry];
+        return { ...r, entries: newEntries, ...syncAggregates(newEntries) };
+      }),
+    );
+  };
+
+  /** Remove one entry row from the worker's day grid. */
+  const removeEntry = (rowIndex: number, entryIndex: number) => {
+    setRows((prev) =>
+      prev.map((r, ri) => {
+        if (ri !== rowIndex) return r;
+        const newEntries = r.entries.filter((_, ei) => ei !== entryIndex);
+        return { ...r, entries: newEntries, ...syncAggregates(newEntries) };
+      }),
+    );
+  };
+
+  /**
    * Record an explicit decision for a shared fuzzy/ambiguous employee match
    * ("Is this the same person?"). The decision is applied to every row that
    * shares this worker name — never just the row the user clicked — so a
@@ -2062,13 +2153,29 @@ function ImportHoursDialog({
     !!a && (a.resolution === "exact" || a.decided);
 
   const appliedCount = rows.filter((r) => r.target !== "skip").length;
-  // Distinct job names (used by applied rows) still needing confirmation.
-  const unconfirmedJobCount = new Set(
-    rows
-      .filter((r) => r.target !== "skip")
-      .flatMap((r) => r.jobKeys)
-      .filter((k) => !assocConfirmed(assoc[k])),
-  ).size;
+  // Distinct job keys (used by applied rows) still needing confirmation.
+  // A key is considered confirmed when either:
+  //   (a) its assoc is settled (job picked + confirmed), or
+  //   (b) every entry that uses it already has a per-entry resolvedJobId
+  //       set via the day-grid picker — so the assoc-level pick is
+  //       superseded by the row-level choices.
+  const unconfirmedJobCount = (() => {
+    const unconfirmedKeys = new Set<string>();
+    for (const r of rows) {
+      if (r.target === "skip") continue;
+      for (const k of r.jobKeys) {
+        if (assocConfirmed(assoc[k])) continue;
+        if (r.entries.length > 0) {
+          const forKey = r.entries.filter((e) => e.jobKey === k);
+          if (forKey.length > 0 && forKey.every((e) => !!e.resolvedJobId)) {
+            continue; // all entries for this key resolved at row level
+          }
+        }
+        unconfirmedKeys.add(k);
+      }
+    }
+    return unconfirmedKeys.size;
+  })();
   // Distinct worker names (used by applied rows) still needing an explicit
   // fuzzy/ambiguous-match decision.
   const unconfirmedEmployeeCount = new Set(
@@ -2199,26 +2306,42 @@ function ImportHoursDialog({
 
     rows.forEach((r, rowIdx) => {
       if (r.target === "skip") return;
-      const entries: { costType: LaborCostType; hours: string }[] = [];
+
+      // Resolve the job id for an entry, preferring the per-row override set
+      // via the day-grid picker over the shared assoc-level resolution.
+      const jobIdForEntry = (e: EntryDetail): string =>
+        e.resolvedJobId || jobIdForKey(e.jobKey);
+
+      // Aggregate Reg/OT/Hol totals remain the source of truth for hourEntries
+      // computation.  When the user edits the day grid, the entry mutators
+      // (updateEntry / addEntryRow / removeEntry) re-derive and sync these
+      // aggregate fields, so the values here already reflect any day-grid edits.
+      const agg: { costType: LaborCostType; hours: string }[] = [];
       if (parseFloat(r.regularHours || "0") > 0)
-        entries.push({ costType: "regular", hours: r.regularHours });
+        agg.push({ costType: "regular", hours: r.regularHours });
       if (parseFloat(r.overtimeHours || "0") > 0)
-        entries.push({ costType: "overtime", hours: r.overtimeHours });
+        agg.push({ costType: "overtime", hours: r.overtimeHours });
       if (parseFloat(r.holidayHours || "0") > 0)
-        entries.push({ costType: "holiday", hours: r.holidayHours });
-      const hourEntries =
-        entries.length > 0
-          ? entries
-          : [{ costType: "regular" as LaborCostType, hours: "" }];
+        agg.push({ costType: "holiday", hours: r.holidayHours });
+      const hourEntries: { costType: LaborCostType; hours: string }[] =
+        agg.length > 0 ? agg : [{ costType: "regular" as LaborCostType, hours: "" }];
 
       const employee = r.employeeId
         ? employees.find((e) => String(e.id) === r.employeeId)
         : undefined;
 
       // Distinct confirmed jobs this worker's time touches, in order.
-      const rowJobIds = [
-        ...new Set(r.jobKeys.map(jobIdForKey).filter(Boolean)),
-      ];
+      // When per-day entries are present, gather job ids from each entry
+      // (using resolvedJobId first, then the assoc lookup) so same-date splits
+      // across multiple jobs are preserved correctly.
+      const rowJobIds =
+        r.entries.length > 0
+          ? [
+              ...new Set(
+                r.entries.map(jobIdForEntry).filter(Boolean),
+              ),
+            ]
+          : [...new Set(r.jobKeys.map(jobIdForKey).filter(Boolean))];
 
       // Burdened labor cost rolls up from the Employee Center rates and the
       // run's burden percentages — no manual re-entry. When the timesheet
@@ -2249,9 +2372,13 @@ function ImportHoursDialog({
             },
           ];
         }
+        // Split burdened cost across jobs in proportion to hours worked on
+        // each. Per-entry resolvedJobId overrides the assoc lookup so that
+        // day-grid edits (e.g. reassigning Monday to a different job) are
+        // reflected accurately in the allocation split.
         const hoursByJob = new Map<string, number>();
         for (const e of r.entries) {
-          const jobId = jobIdForKey(e.jobKey);
+          const jobId = jobIdForEntry(e);
           if (!jobId) continue;
           hoursByJob.set(jobId, (hoursByJob.get(jobId) ?? 0) + e.hours);
         }
@@ -2786,74 +2913,201 @@ function ImportHoursDialog({
                           </p>
                         ))}
                         {r.entries.length > 0 ? (
-                          <div className="mt-2 space-y-1.5">
-                            {groupEntriesByWeek(r.entries).map((week) => (
-                              <div key={week.weekStart || "undated"}>
-                                <p className="text-xs font-medium text-slate-700">
-                                  {week.weekStart
-                                    ? `Week of ${formatShortDate(week.weekStart)}`
-                                    : "No date"}
-                                </p>
-                                {week.entries.map((e, ei) => (
-                                  <p
-                                    key={ei}
-                                    className="text-xs text-slate-500"
-                                  >
+                          // Editable day grid — one row per date + job entry.
+                          // Multiple rows can share the same date for same-day
+                          // splits; hours and job are changed directly here.
+                          <div className="mt-2 space-y-0.5">
+                            <div className="mb-1 grid grid-cols-[72px_52px_44px_1fr_24px] gap-1 text-xs font-medium text-slate-500">
+                              <span>Date</span>
+                              <span>Hours</span>
+                              <span>Type</span>
+                              <span>Job</span>
+                              <span />
+                            </div>
+                            {r.entries.map((e, ei) => {
+                              const entryJobId =
+                                e.resolvedJobId ||
+                                assoc[e.jobKey]?.jobId ||
+                                "";
+                              return (
+                                <div
+                                  key={e.id || ei}
+                                  className="grid grid-cols-[72px_52px_44px_1fr_24px] items-center gap-1"
+                                >
+                                  <span className="truncate text-xs text-slate-600">
                                     {e.date
                                       ? `${WEEKDAY_SHORT[parseUtcDate(e.date)?.getUTCDay() ?? 0]} ${formatShortDate(e.date)}`
                                       : "—"}
-                                    {" · "}
-                                    {e.hours}h
-                                    {e.costType !== "regular"
-                                      ? ` ${e.costType === "overtime" ? "OT" : "Hol"}`
-                                      : ""}
-                                    {" · "}
-                                    {e.jobRaw || "No job"}
-                                  </p>
-                                ))}
-                              </div>
-                            ))}
+                                  </span>
+                                  <Input
+                                    type="number"
+                                    step="0.01"
+                                    min="0"
+                                    className="h-6 w-full px-1.5 text-right text-xs"
+                                    value={
+                                      e.hours === 0 ? "" : String(e.hours)
+                                    }
+                                    placeholder="0"
+                                    onChange={(ev) =>
+                                      updateEntry(i, ei, {
+                                        hours:
+                                          parseFloat(ev.target.value) || 0,
+                                      })
+                                    }
+                                  />
+                                  <Select
+                                    value={e.costType}
+                                    onValueChange={(v) =>
+                                      updateEntry(i, ei, {
+                                        costType: v as LaborCostType,
+                                      })
+                                    }
+                                  >
+                                    <SelectTrigger className="h-6 px-1.5 text-xs">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="regular">
+                                        Reg
+                                      </SelectItem>
+                                      <SelectItem value="overtime">
+                                        OT
+                                      </SelectItem>
+                                      <SelectItem value="holiday">
+                                        Hol
+                                      </SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                  <JobCombobox
+                                    jobs={jobs}
+                                    value={entryJobId}
+                                    onChange={(jobId) =>
+                                      updateEntry(i, ei, {
+                                        resolvedJobId: jobId,
+                                      })
+                                    }
+                                    placeholder="Pick job…"
+                                  />
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-6 w-6 shrink-0 text-slate-400 hover:text-red-500"
+                                    onClick={() => removeEntry(i, ei)}
+                                    disabled={r.entries.length <= 1}
+                                    aria-label="Remove row"
+                                  >
+                                    <Trash2 className="h-3 w-3" />
+                                  </Button>
+                                </div>
+                              );
+                            })}
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="mt-0.5 h-6 px-1 text-xs text-slate-500 hover:text-slate-700"
+                              onClick={() =>
+                                addEntryRow(
+                                  i,
+                                  r.entries[r.entries.length - 1]?.date ??
+                                    null,
+                                )
+                              }
+                            >
+                              <Plus className="mr-1 h-3 w-3" /> Add row
+                            </Button>
                           </div>
                         ) : null}
                       </TableCell>
                       <TableCell className="w-24 min-w-24 align-top">
-                        <Input
-                          type="number"
-                          step="0.01"
-                          className="w-24 min-w-24 text-right"
-                          value={r.regularHours}
-                          onChange={(e) =>
-                            updateRow(i, { regularHours: e.target.value })
-                          }
-                        />
+                        {r.entries.length > 0 ? (
+                          // Derived from day grid — shown read-only so the
+                          // user sees the running totals without editing here.
+                          <span className="text-sm text-slate-600">
+                            {(() => {
+                              const tot = r.entries
+                                .filter((e) => e.costType === "regular")
+                                .reduce((s, e) => s + e.hours, 0);
+                              return tot > 0 ? String(tot) : "—";
+                            })()}
+                          </span>
+                        ) : (
+                          <Input
+                            type="number"
+                            step="0.01"
+                            className="w-24 min-w-24 text-right"
+                            value={r.regularHours}
+                            onChange={(e) =>
+                              updateRow(i, { regularHours: e.target.value })
+                            }
+                          />
+                        )}
                       </TableCell>
                       <TableCell className="align-top">
-                        <Input
-                          type="number"
-                          step="0.01"
-                          className="text-right"
-                          value={r.overtimeHours}
-                          onChange={(e) =>
-                            updateRow(i, { overtimeHours: e.target.value })
-                          }
-                        />
+                        {r.entries.length > 0 ? (
+                          <span className="text-sm text-slate-600">
+                            {(() => {
+                              const tot = r.entries
+                                .filter((e) => e.costType === "overtime")
+                                .reduce((s, e) => s + e.hours, 0);
+                              return tot > 0 ? String(tot) : "—";
+                            })()}
+                          </span>
+                        ) : (
+                          <Input
+                            type="number"
+                            step="0.01"
+                            className="text-right"
+                            value={r.overtimeHours}
+                            onChange={(e) =>
+                              updateRow(i, { overtimeHours: e.target.value })
+                            }
+                          />
+                        )}
                       </TableCell>
                       <TableCell className="align-top">
-                        <Input
-                          type="number"
-                          step="0.01"
-                          className="text-right"
-                          value={r.holidayHours}
-                          onChange={(e) =>
-                            updateRow(i, { holidayHours: e.target.value })
-                          }
-                        />
+                        {r.entries.length > 0 ? (
+                          <span className="text-sm text-slate-600">
+                            {(() => {
+                              const tot = r.entries
+                                .filter((e) => e.costType === "holiday")
+                                .reduce((s, e) => s + e.hours, 0);
+                              return tot > 0 ? String(tot) : "—";
+                            })()}
+                          </span>
+                        ) : (
+                          <Input
+                            type="number"
+                            step="0.01"
+                            className="text-right"
+                            value={r.holidayHours}
+                            onChange={(e) =>
+                              updateRow(i, { holidayHours: e.target.value })
+                            }
+                          />
+                        )}
                       </TableCell>
                       <TableCell className="align-top">
+                        {/* Assoc-level job picker — handles per-key confirmation
+                            warnings (unknown name, person-like, customer hint,
+                            fuzzy match). For rows using the day grid, the Job
+                            Name column shows the assoc status while the actual
+                            per-day jobs are chosen inline in the grid above. */}
                         <div className="space-y-2">
                           {r.jobKeys.map((key) => {
                             const a = assoc[key];
                             if (!a) return null;
+                            // If every entry using this key has a per-row
+                            // resolvedJobId, the assoc picker is superseded —
+                            // hide the redundant control but keep any flag.
+                            const forKey = r.entries.filter(
+                              (e) => e.jobKey === key,
+                            );
+                            const allEntriesResolved =
+                              r.entries.length > 0 &&
+                              forKey.length > 0 &&
+                              forKey.every((e) => !!e.resolvedJobId);
                             return (
                               <div key={key}>
                                 {r.jobKeys.length > 1 ? (
@@ -2873,6 +3127,16 @@ function ImportHoursDialog({
                                     </span>{" "}
                                     (created automatically).
                                   </p>
+                                ) : allEntriesResolved ? (
+                                  // Per-row picks satisfy the confirmation
+                                  // requirement — show the flag (if any) but
+                                  // not the duplicate picker.
+                                  !assocConfirmed(a) && a.flag ? (
+                                    <p className="mt-1 flex items-start gap-1 text-xs text-amber-600">
+                                      <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
+                                      {a.flag}
+                                    </p>
+                                  ) : null
                                 ) : (
                                   <>
                                     <JobCombobox
@@ -2892,8 +3156,11 @@ function ImportHoursDialog({
                                       }
                                     />
                                     {a.jobId && a.auto && !a.needsConfirm ? (
-                                      <p className="mt-1 text-xs text-emerald-600">
-                                        Matched from “{a.raw}”
+                                      <p
+                                        className="mt-1 text-xs text-emerald-600"
+                                        data-testid={`job-auto-matched-${key}`}
+                                      >
+                                        {`Matched from "${a.raw}"`}
                                       </p>
                                     ) : null}
                                     {a.needsConfirm ? (

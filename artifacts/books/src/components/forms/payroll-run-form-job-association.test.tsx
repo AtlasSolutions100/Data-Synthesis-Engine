@@ -160,7 +160,7 @@ describe("Import hours — Job Name association", () => {
     ).toBeNull();
 
     // Auto-matched: green confirmation, no amber prompt, Apply enabled.
-    expect(screen.getByText(/Matched from “HR Stadium”/)).toBeTruthy();
+    expect(screen.getByTestId("job-auto-matched-hr stadium")).toBeTruthy();
     expect(screen.queryByText(/what job is this associated with/i)).toBeNull();
     expect(applyButton().disabled).toBe(false);
 
@@ -513,8 +513,7 @@ describe("Import hours — weekly timesheets", () => {
     renderForm(<PayrollRunForm onSubmit={vi.fn()} defaultValues={defaults} />);
     await importText("weekly sheet");
 
-    expect(screen.getByText(/Week of 6\/22/)).toBeTruthy();
-    expect(screen.getByText(/Week of 6\/29/)).toBeTruthy();
+    // The new editable day grid shows individual date rows, not week headings.
     expect(screen.getByText(/Tue 6\/23/)).toBeTruthy();
     expect(screen.getByText(/Tue 6\/30/)).toBeTruthy();
   });

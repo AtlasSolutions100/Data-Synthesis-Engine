@@ -246,7 +246,8 @@ describe("Import hours — draft save & resume", () => {
     expect(screen.getByText(/review imported hours/i)).toBeTruthy();
     expect(screen.queryByText(/step 1/i)).toBeNull();
     expect(screen.queryByText(/step 2/i)).toBeNull();
-    expect(screen.getAllByText(/HR Stadium/).length).toBeGreaterThan(0);
+    // The auto-matched label for HR Stadium survives draft restore.
+    expect(screen.getByTestId("job-auto-matched-hr stadium")).toBeTruthy();
     // The confirmed match survived — Apply is available immediately.
     expect(
       (screen.getByRole("button", { name: /apply hours/i }) as HTMLButtonElement)
