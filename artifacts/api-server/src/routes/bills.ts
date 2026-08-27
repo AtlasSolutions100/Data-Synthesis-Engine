@@ -50,7 +50,7 @@ const router: IRouter = Router();
 const EXTRACT_BILL_SYSTEM_PROMPT = `You extract vendor bill details from invoices: uploaded scans/photos (images or PDFs) or pasted text. Formats vary widely. A single file may contain multiple invoices.
 
 Return ONLY a JSON object of this exact shape:
-{"invoices": [{"vendorName": string|null, "billNumber": string|null, "date": string|null, "dueDate": string|null, "memo": string|null, "jobName": string|null, "poNumber": string|null, "lines": [{"description": string|null, "amount": number, "accountNumber": string|null}]}]}
+{"invoices": [{"vendorName": string|null, "billNumber": string|null, "date": string|null, "dueDate": string|null, "memo": string|null, "jobName": string|null, "poNumber": string|null, "lines": [{"description": string|null, "amount": number, "accountNumber": string|null, "jobName": string|null}]}]}
 
 Rules:
 - Return one element in the invoices array per distinct invoice in the file. If the file contains 4 separate invoices (different invoice numbers, amounts, or jobs), return 4 elements. Never merge separate invoices into one.
@@ -63,7 +63,7 @@ Rules:
 - memo: a short one-line summary of what the invoice is for (e.g. "Electrical supplies for HR Stadium"). null if nothing useful.
 - jobName: the job, project, or site name the invoice is billed to, when the invoice names one (e.g. "Job: HR Stadium", "Project", "Ship To" site name, or a job referenced in the line descriptions). Exactly as written. null if no job/project reference is visible.
 - poNumber: the customer purchase order number when shown (e.g. "PO #4482"). Just the number/reference as written, without the "PO" label. null if not present. Do not confuse it with the invoice number.
-- lines: one entry per billed line item with description and amount in DOLLARS (e.g. 125.50). If only a grand total is visible, return a single line with the total. Always include sales tax — never exclude it. If the invoice shows a separate "Sales Tax" or "Tax" line, include it as its own line (e.g. description "Sales Tax", amount 12.50) so the lines sum to the invoice grand total including tax.
+- lines: one entry per billed line item with description and amount in DOLLARS (e.g. 125.50). If a line names a job, project, site, or school, put that exact text in line jobName; otherwise use null. Use line jobName for worker/subcontractor invoices where different lines belong to different jobs. If only a grand total is visible, return a single line with the total. Always include sales tax — never exclude it. If the invoice shows a separate "Sales Tax" or "Tax" line, include it as its own line (e.g. description "Sales Tax", amount 12.50) so the lines sum to the invoice grand total including tax.
 - amount must be a plain number in dollars (no currency symbols, no strings).
 - accountNumber: for each line, the account number from the CHART OF ACCOUNTS list appended below that best categorizes the expense based on the line description (e.g. fuel -> a gas/oil account). Use ONLY numbers that appear in the list, copied exactly. If no account in the list is a clear fit, or no list is provided, use null. Never invent an account number.
 - Ignore remittance addresses, logos, and marketing text.`;
@@ -236,9 +236,11 @@ router.post("/bills/extract", async (req, res): Promise<void> => {
             : null;
         if (amount == null) return null;
         const accountNumber = str(line.accountNumber);
+        const jobName = str(line.jobName);
         return {
           description: str(line.description),
           amountCents: Math.round(amount * 100),
+          ...(jobName != null ? { jobName } : {}),
           accountId:
             accountNumber != null
               ? (accountIdByNumber.get(accountNumber) ?? null)
@@ -248,9 +250,10 @@ router.post("/bills/extract", async (req, res): Promise<void> => {
       .filter(
         (
           l,
-        ): l is {
+          ): l is {
           description: string | null;
           amountCents: number;
+           jobName?: string;
           accountId: number | null;
         } => Boolean(l),
       );
@@ -422,6 +425,63 @@ async function findMissingAccount(
   return { index, accountId: lines[index].accountId as number };
 }
 
+const SUBCONTRACTOR_ACCOUNT_NUMBERS = new Set(["53600", "53650"]);
+
+async function findInvalidLineJob(
+  lines: Array<{ accountId?: number | null; jobId?: number | null }>,
+): Promise<{ index: number; message: string } | null> {
+  const referenced = lines
+    .map((line, index) => ({ line, index }))
+    .filter(({ line }) => line.jobId != null);
+  if (referenced.length === 0) return null;
+
+  const accountIds = [
+    ...new Set(
+      referenced
+        .map(({ line }) => line.accountId)
+        .filter((id): id is number => id != null),
+    ),
+  ];
+  const jobIds = [
+    ...new Set(
+      referenced
+        .map(({ line }) => line.jobId)
+        .filter((id): id is number => id != null),
+    ),
+  ];
+  const [accounts, jobs] = await Promise.all([
+    accountIds.length > 0
+      ? db
+          .select({ id: accountsTable.id, number: accountsTable.number })
+          .from(accountsTable)
+          .where(inArray(accountsTable.id, accountIds))
+      : Promise.resolve([]),
+    db
+      .select({ id: jobsTable.id })
+      .from(jobsTable)
+      .where(inArray(jobsTable.id, jobIds)),
+  ]);
+  const accountById = new Map(accounts.map((account) => [account.id, account.number]));
+  const validJobs = new Set(jobs.map((job) => job.id));
+
+  for (const { line, index } of referenced) {
+    if (!validJobs.has(line.jobId!)) {
+      return { index, message: `Job ${line.jobId} does not exist` };
+    }
+    if (
+      line.accountId == null ||
+      !SUBCONTRACTOR_ACCOUNT_NUMBERS.has(accountById.get(line.accountId) ?? "")
+    ) {
+      return {
+        index,
+        message:
+          "A line Job Name is only allowed for Subcontractors (53600) or Temporary Labor (53650).",
+      };
+    }
+  }
+  return null;
+}
+
 type BillStatus = "open" | "partial" | "paid";
 
 class BillValidationError extends Error {
@@ -536,7 +596,7 @@ export async function syncBillTransactionsBatch(
         partyName: row.vendorName,
         description: l.description,
         accountId: l.accountId,
-        jobId: row.bill.jobId,
+        jobId: l.jobId ?? row.bill.jobId,
         vendorId: row.bill.vendorId,
         amountCents: Number(l.amountCents),
         billId: l.billId,
@@ -575,6 +635,7 @@ async function getFullBill(id: number) {
     .select({
       id: billLinesTable.id,
       accountId: billLinesTable.accountId,
+      jobId: billLinesTable.jobId,
       accountName: accountsTable.name,
       description: billLinesTable.description,
       amountCents: billLinesTable.amountCents,
@@ -583,6 +644,15 @@ async function getFullBill(id: number) {
     .leftJoin(accountsTable, eq(accountsTable.id, billLinesTable.accountId))
     .where(eq(billLinesTable.billId, id))
     .orderBy(billLinesTable.id);
+  const lineJobIds = [...new Set(lines.map((l) => l.jobId).filter((id): id is number => id != null))];
+  const lineJobs =
+    lineJobIds.length > 0
+      ? await db
+          .select({ id: jobsTable.id, name: jobsTable.name })
+          .from(jobsTable)
+          .where(inArray(jobsTable.id, lineJobIds))
+      : [];
+  const lineJobNameById = new Map(lineJobs.map((j) => [j.id, j.name]));
   const payments = await db
     .select()
     .from(billPaymentsTable)
@@ -626,6 +696,8 @@ async function getFullBill(id: number) {
     lines: lines.map((l) => ({
       id: l.id,
       accountId: l.accountId,
+      jobId: l.jobId,
+      jobName: l.jobId != null ? (lineJobNameById.get(l.jobId) ?? null) : null,
       accountName: l.accountName,
       description: l.description,
       amountCents: Number(l.amountCents),
@@ -783,6 +855,14 @@ router.post("/bills", async (req, res): Promise<void> => {
     });
     return;
   }
+  const invalidLineJob = await findInvalidLineJob(data.lines);
+  if (invalidLineJob != null) {
+    res.status(400).json({
+      error: invalidLineJob.message,
+      field: `lines.${invalidLineJob.index}.jobId`,
+    });
+    return;
+  }
 
   const newId = await db.transaction(async (tx) => {
     const [bill] = await tx
@@ -804,6 +884,7 @@ router.post("/bills", async (req, res): Promise<void> => {
       data.lines.map((l) => ({
         billId: bill.id,
         accountId: l.accountId ?? null,
+        jobId: l.jobId ?? null,
         description: l.description ?? null,
         amountCents: l.amountCents,
       })),
@@ -897,6 +978,14 @@ router.patch("/bills/:id", async (req, res): Promise<void> => {
       });
       return;
     }
+    const invalidLineJob = await findInvalidLineJob(data.lines);
+    if (invalidLineJob != null) {
+      res.status(400).json({
+        error: invalidLineJob.message,
+        field: `lines.${invalidLineJob.index}.jobId`,
+      });
+      return;
+    }
   }
 
   try {
@@ -936,6 +1025,7 @@ router.patch("/bills/:id", async (req, res): Promise<void> => {
           data.lines.map((l) => ({
             billId: params.data.id,
             accountId: l.accountId ?? null,
+            jobId: l.jobId ?? null,
             description: l.description ?? null,
             amountCents: l.amountCents,
           })),

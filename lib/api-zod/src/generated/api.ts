@@ -146,6 +146,8 @@ export const importDataBodyPlanTokenMax = 128;
 
 export const importDataBodyAccountOverridesMax = 20000;
 
+export const importDataBodyJobOverridesMax = 20000;
+
 
 
 export const ImportDataBody = zod.object({
@@ -158,7 +160,12 @@ export const ImportDataBody = zod.object({
   "row": zod.number().describe('Row number of the preview row (same id used by excludeRows)'),
   "line": zod.number().describe('Zero-based line index within that row\'s lines'),
   "accountId": zod.number().nullable().describe('Account to post the line to, or null to clear the account')
-})).max(importDataBodyAccountOverridesMax).optional().describe('Per-line account overrides chosen during the bill-import review. Each entry targets a preview row and line index and replaces (or clears, when accountId is null) the account the plan chose.\n')
+})).max(importDataBodyAccountOverridesMax).optional().describe('Per-line account overrides chosen during the bill-import review. Each entry targets a preview row and line index and replaces (or clears, when accountId is null) the account the plan chose.\n'),
+  "jobOverrides": zod.array(zod.object({
+  "row": zod.number(),
+  "line": zod.number(),
+  "jobId": zod.number().nullable().describe('Job to assign the line to, or null to clear the mapping')
+})).max(importDataBodyJobOverridesMax).optional().describe('Per-line job mappings chosen during the bill-import review. These map source job text to an existing job for subcontractor and temporary-labor lines.\n')
 })
 
 export const ImportDataResponse = zod.object({
@@ -179,6 +186,8 @@ export const ImportDataResponse = zod.object({
   "amountCents": zod.number(),
   "accountId": zod.number().nullable(),
   "accountName": zod.string().nullable(),
+  "jobId": zod.number().nullish(),
+  "jobName": zod.string().nullish(),
   "autoFilled": zod.boolean().describe('True when the account came from the vendor\'s default rather than the file')
 })).optional().describe('For bill imports, the individual lines of this document with the account each will post to, so the user can review and override auto-filled accounts before applying.\n')
 })),
@@ -1885,6 +1894,8 @@ export const ListBillsResponseItem = zod.object({
   "lines": zod.array(zod.object({
   "id": zod.number(),
   "accountId": zod.number().nullish(),
+  "jobId": zod.number().nullish(),
+  "jobName": zod.string().nullish(),
   "accountName": zod.string().nullish(),
   "description": zod.string().nullish(),
   "amountCents": zod.number()
@@ -1927,6 +1938,7 @@ export const CreateBillBody = zod.object({
   "documentPath": zod.string().nullish().describe('Object-storage path of the source invoice scan; saved on the bill and creates a job-document record so the file can be previewed'),
   "lines": zod.array(zod.object({
   "accountId": zod.number().nullish(),
+  "jobId": zod.number().nullish(),
   "description": zod.string().nullish(),
   "amountCents": zod.number()
 })).min(1)
@@ -1953,6 +1965,8 @@ export const CreateBillResponse = zod.object({
   "lines": zod.array(zod.object({
   "id": zod.number(),
   "accountId": zod.number().nullish(),
+  "jobId": zod.number().nullish(),
+  "jobName": zod.string().nullish(),
   "accountName": zod.string().nullish(),
   "description": zod.string().nullish(),
   "amountCents": zod.number()
@@ -2008,7 +2022,8 @@ export const ExtractBillResponse = zod.object({
   "lines": zod.array(zod.object({
   "description": zod.string().nullish(),
   "amountCents": zod.number().describe('Line amount in integer cents'),
-  "accountId": zod.number().nullish().describe('Suggested chart-of-accounts id for this line, when the AI could match one')
+  "accountId": zod.number().nullish().describe('Suggested chart-of-accounts id for this line, when the AI could match one'),
+  "jobName": zod.string().nullish().describe('Job name as written beside this line, when the invoice assigns different lines to different jobs')
 }))
 }).describe('One invoice extracted from the uploaded file. A batched PDF produces multiple entries.')).describe('One entry per invoice found in the uploaded file — batched PDFs produce multiple entries')
 }).describe('Batch extraction result. A single-page invoice yields one entry; a batched PDF yields one entry per detected invoice.')
@@ -2073,6 +2088,8 @@ export const GetBillResponse = zod.object({
   "lines": zod.array(zod.object({
   "id": zod.number(),
   "accountId": zod.number().nullish(),
+  "jobId": zod.number().nullish(),
+  "jobName": zod.string().nullish(),
   "accountName": zod.string().nullish(),
   "description": zod.string().nullish(),
   "amountCents": zod.number()
@@ -2117,6 +2134,7 @@ export const UpdateBillBody = zod.object({
   "memo": zod.string().nullish(),
   "lines": zod.array(zod.object({
   "accountId": zod.number().nullish(),
+  "jobId": zod.number().nullish(),
   "description": zod.string().nullish(),
   "amountCents": zod.number()
 })).min(1).optional()
@@ -2143,6 +2161,8 @@ export const UpdateBillResponse = zod.object({
   "lines": zod.array(zod.object({
   "id": zod.number(),
   "accountId": zod.number().nullish(),
+  "jobId": zod.number().nullish(),
+  "jobName": zod.string().nullish(),
   "accountName": zod.string().nullish(),
   "description": zod.string().nullish(),
   "amountCents": zod.number()
@@ -2217,6 +2237,8 @@ export const CreateBillPaymentResponse = zod.object({
   "lines": zod.array(zod.object({
   "id": zod.number(),
   "accountId": zod.number().nullish(),
+  "jobId": zod.number().nullish(),
+  "jobName": zod.string().nullish(),
   "accountName": zod.string().nullish(),
   "description": zod.string().nullish(),
   "amountCents": zod.number()
@@ -2270,6 +2292,8 @@ export const DeleteBillPaymentResponse = zod.object({
   "lines": zod.array(zod.object({
   "id": zod.number(),
   "accountId": zod.number().nullish(),
+  "jobId": zod.number().nullish(),
+  "jobName": zod.string().nullish(),
   "accountName": zod.string().nullish(),
   "description": zod.string().nullish(),
   "amountCents": zod.number()
@@ -2332,6 +2356,8 @@ export const CreateVendorCreditResponse = zod.object({
   "lines": zod.array(zod.object({
   "id": zod.number(),
   "accountId": zod.number().nullish(),
+  "jobId": zod.number().nullish(),
+  "jobName": zod.string().nullish(),
   "accountName": zod.string().nullish(),
   "description": zod.string().nullish(),
   "amountCents": zod.number()

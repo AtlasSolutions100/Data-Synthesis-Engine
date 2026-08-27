@@ -168,6 +168,8 @@ type PreviewLine = {
   amountCents: number;
   accountId: number | null;
   accountName: string | null;
+  jobId: number | null;
+  jobName: string | null;
   autoFilled: boolean;
 };
 type PlanRow = {
@@ -535,7 +537,15 @@ async function planJobs(buffer: Buffer): Promise<PlanRow[]> {
 /* Bills & invoices (multi-line: rows grouped by document number)      */
 /* ------------------------------------------------------------------ */
 
-type DocLine = { description: string | null; amountCents: number; accountId?: number | null };
+type DocLine = {
+  description: string | null;
+  amountCents: number;
+  accountId?: number | null;
+  jobId?: number | null;
+  jobText?: string | null;
+};
+
+const SUBCONTRACTOR_ACCOUNT_NUMBERS = new Set(["53600", "53650"]);
 
 async function planBills(buffer: Buffer): Promise<PlanRow[]> {
   const records = await readRecords(
@@ -632,8 +642,7 @@ async function planBills(buffer: Buffer): Promise<PlanRow[]> {
       // QuickBooks exports job columns as "Customer:Job" paths; match the leaf.
       const leaf = jobName.split(":").pop()!.trim();
       const job = jobByName.get(normName(leaf)) ?? jobByName.get(normName(jobName));
-      if (!job) return { ...base, status: "error", message: `Job "${jobName}" not found` };
-      jobId = job.id;
+      if (job) jobId = job.id;
     }
 
     const lines: DocLine[] = [];
@@ -674,15 +683,40 @@ async function planBills(buffer: Buffer): Promise<PlanRow[]> {
         accountId = account.id;
       }
       const description = cellText(rec.get("description")) || null;
-      lines.push({ description, amountCents: amount, accountId });
+      const lineJobName = cellText(rec.get("job"));
+      const lineJob = lineJobName
+        ? jobByName.get(normName(lineJobName.split(":").pop()!.trim())) ??
+          jobByName.get(normName(lineJobName))
+        : undefined;
+      const accountNumber =
+        accountId != null ? accounts.find((a) => a.id === accountId)?.number : null;
+      const isLaborLine =
+        accountNumber != null && SUBCONTRACTOR_ACCOUNT_NUMBERS.has(accountNumber);
+      const lineJobId = isLaborLine ? (lineJob?.id ?? null) : null;
+      const lineJobText = isLaborLine && lineJobName ? lineJobName : null;
+      lines.push({
+        description,
+        amountCents: amount,
+        accountId,
+        jobId: lineJobId,
+        jobText: lineJobText,
+      });
       previewLines.push({
         line: previewLines.length,
         description,
         amountCents: amount,
         accountId,
         accountName: accountId != null ? (accountNameById.get(accountId) ?? null) : null,
+        jobId: lineJobId,
+        jobName: lineJobText,
         autoFilled,
       });
+    }
+    const hasUnknownLaborJob = lines.some(
+      (line) => line.jobText != null && line.jobId == null,
+    );
+    if (jobName && jobId == null && !hasUnknownLaborJob) {
+      return { ...base, status: "error", message: `Job "${jobName}" not found` };
     }
     const totalCents = lines.reduce((s, l) => s + l.amountCents, 0);
 
@@ -1072,6 +1106,46 @@ router.post("/import/:entity", async (req, res): Promise<void> => {
       line.accountId = o.accountId;
     }
   }
+  const jobOverrides = body.data.jobOverrides ?? [];
+  if (jobOverrides.length > 0) {
+    const planByRow = new Map(plan.map((r) => [r.row, r]));
+    const overrideJobIds = [
+      ...new Set(jobOverrides.flatMap((o) => (o.jobId != null ? [o.jobId] : []))),
+    ];
+    const validJobIds = new Set(
+      overrideJobIds.length > 0
+        ? (await db.select({ id: jobsTable.id }).from(jobsTable)).map((j) => j.id)
+        : [],
+    );
+    for (const o of jobOverrides) {
+      if (o.jobId != null && !validJobIds.has(o.jobId)) {
+        res.status(400).json({ error: `Job ${o.jobId} not found` });
+        return;
+      }
+      const target = planByRow.get(o.row);
+      const line =
+        target?.docPlan && target.docPlan.doc === "bill"
+          ? target.docPlan.lines[o.line]
+          : undefined;
+      if (!line) {
+        res.status(400).json({
+          error:
+            "A job mapping no longer matches the preview — please re-preview before importing.",
+        });
+        return;
+      }
+      line.jobId = o.jobId;
+      line.jobText = null;
+    }
+  }
+  for (const row of plan) {
+    if (row.docPlan?.doc === "bill" && row.docPlan.lines.some((line) => line.jobText && line.jobId == null)) {
+      res.status(400).json({
+        error: "Map every unknown job on subcontractor or temporary-labor lines before importing.",
+      });
+      return;
+    }
+  }
 
   // Apply: everything in one transaction so a failure halfway leaves the
   // books untouched. Excluded and error rows are skipped.
@@ -1177,6 +1251,7 @@ async function applyDocPlans(
         ? {
             billId: parentId,
             accountId: l.accountId ?? null,
+            jobId: l.jobId ?? null,
             description: l.description,
             amountCents: l.amountCents,
           }

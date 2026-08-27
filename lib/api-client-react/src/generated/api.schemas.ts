@@ -1171,6 +1171,10 @@ export interface BillLine {
   /** @nullable */
   accountId?: number | null;
   /** @nullable */
+  jobId?: number | null;
+  /** @nullable */
+  jobName?: string | null;
+  /** @nullable */
   accountName?: string | null;
   /** @nullable */
   description?: string | null;
@@ -1180,6 +1184,8 @@ export interface BillLine {
 export interface BillLineInput {
   /** @nullable */
   accountId?: number | null;
+  /** @nullable */
+  jobId?: number | null;
   /** @nullable */
   description?: string | null;
   amountCents: number;
@@ -1663,6 +1669,11 @@ export interface ExtractedBillLine {
      * @nullable
      */
   accountId?: number | null;
+  /**
+     * Job name as written beside this line, when the invoice assigns different lines to different jobs
+     * @nullable
+     */
+  jobName?: string | null;
 }
 
 /**
@@ -1754,6 +1765,16 @@ export interface ImportAccountOverride {
   accountId: number | null;
 }
 
+export interface ImportJobOverride {
+  row: number;
+  line: number;
+  /**
+     * Job to assign the line to, or null to clear the mapping
+     * @nullable
+     */
+  jobId: number | null;
+}
+
 export interface ImportDataInput {
   /**
      * Base64 data URL of the uploaded .xlsx workbook
@@ -1778,6 +1799,11 @@ export interface ImportDataInput {
      * @maxItems 20000
      */
   accountOverrides?: ImportAccountOverride[];
+  /**
+     * Per-line job mappings chosen during the bill-import review. These map source job text to an existing job for subcontractor and temporary-labor lines.
+     * @maxItems 20000
+     */
+  jobOverrides?: ImportJobOverride[];
 }
 
 export interface ImportRowChange {
@@ -1807,6 +1833,10 @@ export interface ImportPreviewLine {
   accountId: number | null;
   /** @nullable */
   accountName: string | null;
+  /** @nullable */
+  jobId?: number | null;
+  /** @nullable */
+  jobName?: string | null;
   /** True when the account came from the vendor's default rather than the file */
   autoFilled: boolean;
 }

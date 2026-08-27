@@ -16,6 +16,10 @@ export interface ImportPreviewLine {
   accountId: number | null;
   /** @nullable */
   accountName: string | null;
+  /** @nullable */
+  jobId?: number | null;
+  /** @nullable */
+  jobName?: string | null;
   /** True when the account came from the vendor's default rather than the file */
   autoFilled: boolean;
 }

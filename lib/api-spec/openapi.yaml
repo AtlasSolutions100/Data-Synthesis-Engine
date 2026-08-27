@@ -3501,6 +3501,10 @@ components:
           type: integer
         accountId:
           type: ["integer", "null"]
+        jobId:
+          type: ["integer", "null"]
+        jobName:
+          type: ["string", "null"]
         accountName:
           type: ["string", "null"]
         description:
@@ -3512,6 +3516,8 @@ components:
       required: [amountCents]
       properties:
         accountId:
+          type: ["integer", "null"]
+        jobId:
           type: ["integer", "null"]
         description:
           type: ["string", "null"]
@@ -4161,6 +4167,9 @@ components:
         accountId:
           type: ["integer", "null"]
           description: Suggested chart-of-accounts id for this line, when the AI could match one
+        jobName:
+          type: ["string", "null"]
+          description: Job name as written beside this line, when the invoice assigns different lines to different jobs
     ExtractedBillInvoice:
       type: object
       required: [lines]
@@ -4267,6 +4276,15 @@ components:
             Per-line account overrides chosen during the bill-import review.
             Each entry targets a preview row and line index and replaces (or
             clears, when accountId is null) the account the plan chose.
+        jobOverrides:
+          type: array
+          maxItems: 20000
+          items:
+            $ref: "#/components/schemas/ImportJobOverride"
+          description: >
+            Per-line job mappings chosen during the bill-import review. These
+            map source job text to an existing job for subcontractor and
+            temporary-labor lines.
     ImportAccountOverride:
       type: object
       required: [row, line, accountId]
@@ -4280,6 +4298,17 @@ components:
         accountId:
           type: ["integer", "null"]
           description: Account to post the line to, or null to clear the account
+    ImportJobOverride:
+      type: object
+      required: [row, line, jobId]
+      properties:
+        row:
+          type: integer
+        line:
+          type: integer
+        jobId:
+          type: ["integer", "null"]
+          description: Job to assign the line to, or null to clear the mapping
     ImportRowChange:
       type: object
       required: [field, from, to]
@@ -4333,6 +4362,10 @@ components:
         accountId:
           type: ["integer", "null"]
         accountName:
+          type: ["string", "null"]
+        jobId:
+          type: ["integer", "null"]
+        jobName:
           type: ["string", "null"]
         autoFilled:
           type: boolean

@@ -223,6 +223,7 @@ export default function BillDetail() {
                     lines: bill.lines.map((l) => ({
                       accountId:
                         l.accountId != null ? String(l.accountId) : "",
+                      jobId: l.jobId != null ? String(l.jobId) : "",
                       description: l.description ?? "",
                       amount: (l.amountCents / 100).toFixed(2),
                     })),
@@ -310,6 +311,7 @@ export default function BillDetail() {
             <TableHeader>
               <TableRow>
                 <TableHead>Account</TableHead>
+                    <TableHead>Job Name</TableHead>
                 <TableHead>Description</TableHead>
                 <TableHead className="text-right">Amount</TableHead>
               </TableRow>
@@ -318,6 +320,18 @@ export default function BillDetail() {
               {bill.lines.map((line) => (
                 <TableRow key={line.id}>
                   <TableCell>{line.accountName || "-"}</TableCell>
+                    <TableCell>
+                      {line.jobId != null && line.jobName ? (
+                        <Link
+                          href={`/jobs/${line.jobId}`}
+                          className="text-blue-600 hover:underline"
+                        >
+                          {line.jobName}
+                        </Link>
+                      ) : (
+                        "-"
+                      )}
+                    </TableCell>
                   <TableCell>{line.description || "-"}</TableCell>
                   <TableCell className="text-right">
                     {formatCents(line.amountCents)}

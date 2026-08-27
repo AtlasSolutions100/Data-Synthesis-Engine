@@ -37,3 +37,4 @@
 - [Reconciliation engine](reconciliation-engine.md) — schema, API, frontend, opening-balance formula, Reconcile button gating, and isDemo partial-select pattern.
 - [Payroll hours-import lessons](payroll-hours-import-lessons.md) — derive aggregates from entries not the model's own totals; employee fuzzy-match threshold 0.7; auto-match ≠ hide the picker.
 - [Shared DB test fixtures](shared-db-test-fixtures.md) — assert exact sentinel rows, not global count deltas, when integration suites share the development database.
+- [Bill line job routing](bill-line-job-routing.md) — only 53600/53650 lines may override the bill job; other bill lines retain header-job fallback.

@@ -55,7 +55,13 @@ type BillPrefill = {
   date?: string;
   dueDate?: string;
   memo?: string;
-  lines?: { accountId: string; description: string; amount: string }[];
+  lines?: {
+    accountId: string;
+    jobId?: string;
+    jobText?: string;
+    description: string;
+    amount: string;
+  }[];
   /** Source document for this invoice when the upload contained multiple files. */
   documentPath?: string | null;
   /** Extracted vendor name that didn't match any vendor on file. */
@@ -164,8 +170,19 @@ function UploadInvoiceDialog({
         memo: inv.memo ?? "",
         documentPath,
         lines: inv.lines.length
-          ? inv.lines.map((l: { accountId?: number | null; description?: string | null; amountCents: number }) => ({
+          ? inv.lines.map((l) => ({
               accountId: l.accountId != null ? String(l.accountId) : "",
+              jobId: (() => {
+                const lineJobMatch = matchExtractedJob(
+                  jobs ?? [],
+                  l.jobName ?? null,
+                  null,
+                );
+                return lineJobMatch.job && lineJobMatch.confident
+                  ? String(lineJobMatch.job.id)
+                  : "";
+              })(),
+              jobText: l.jobName ?? "",
               description: l.description ?? "",
               amount: (l.amountCents / 100).toFixed(2),
             }))

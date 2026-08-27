@@ -40,6 +40,9 @@ let vendorId: number;
 let jobId: number;
 let acctId: number;
 let acct2Id: number;
+let laborAcctId: number;
+let laborAcctCreated = false;
+let lineJobId: number;
 let manualTxId: number;
 const billIds: number[] = [];
 
@@ -68,6 +71,25 @@ beforeAll(async () => {
     .values({ number: "TEST-BP-5001", name: "Test BP Expense 2", type: "expense" })
     .returning();
   acct2Id = acct2.id;
+  const [existingLaborAccount] = await db
+    .select({ id: accountsTable.id })
+    .from(accountsTable)
+    .where(eq(accountsTable.number, "53600"));
+  if (existingLaborAccount) {
+    laborAcctId = existingLaborAccount.id;
+  } else {
+    const [laborAccount] = await db
+      .insert(accountsTable)
+      .values({ number: "53600", name: "TEST-BP Subcontractors", type: "expense" })
+      .returning();
+    laborAcctId = laborAccount.id;
+    laborAcctCreated = true;
+  }
+  const [lineJob] = await db
+    .insert(jobsTable)
+    .values({ jobNumber: "TEST-BP-J2", name: "Test BP Line Job" })
+    .returning();
+  lineJobId = lineJob.id;
 
   // A manually created transaction (no bill) must stay unaffected.
   const [manual] = await db
@@ -91,6 +113,10 @@ afterAll(async () => {
   await db.delete(accountsTable).where(eq(accountsTable.id, acctId));
   await db.delete(accountsTable).where(eq(accountsTable.id, acct2Id));
   await db.delete(jobsTable).where(eq(jobsTable.id, jobId));
+  await db.delete(jobsTable).where(eq(jobsTable.id, lineJobId));
+  if (laborAcctCreated) {
+    await db.delete(accountsTable).where(eq(accountsTable.id, laborAcctId));
+  }
   await db.delete(vendorsTable).where(eq(vendorsTable.id, vendorId));
 });
 
@@ -226,6 +252,58 @@ describe("bill posting creates linked ledger transactions", () => {
       .from(transactionsTable)
       .where(eq(transactionsTable.id, manualTxId));
     expect(manual).toBeDefined();
+  });
+});
+
+describe("bill posting uses line jobs for labor accounts", () => {
+  it("routes labor lines to their line job while other lines keep the header job", async () => {
+    const res = await request(app).post("/api/bills").send({
+      vendorId,
+      jobId,
+      billNumber: "TEST-BP-LINE-JOBS",
+      date: "2098-04-01",
+      lines: [
+        {
+          accountId: laborAcctId,
+          jobId: lineJobId,
+          description: "Worker Bee at line job",
+          amountCents: 6000,
+        },
+        {
+          accountId: acctId,
+          description: "Materials",
+          amountCents: 1000,
+        },
+      ],
+    });
+    expect(res.status).toBe(201);
+    billIds.push(res.body.id);
+    expect(res.body.lines[0].jobId).toBe(lineJobId);
+    expect(res.body.lines[0].jobName).toBe("Test BP Line Job");
+
+    const rows = await db
+      .select()
+      .from(transactionsTable)
+      .where(eq(transactionsTable.billId, res.body.id));
+    const actualAssignments = rows
+      .map((row) => ({ accountId: row.accountId, jobId: row.jobId }))
+      .sort((a, b) => a.accountId - b.accountId);
+    const expectedAssignments = [
+      { accountId: acctId, jobId },
+      { accountId: laborAcctId, jobId: lineJobId },
+    ].sort((a, b) => a.accountId - b.accountId);
+    expect(actualAssignments).toEqual(expectedAssignments);
+  });
+
+  it("rejects a line job on a non-labor account", async () => {
+    const res = await request(app).post("/api/bills").send({
+      vendorId,
+      billNumber: "TEST-BP-BAD-LINE-JOB",
+      date: "2098-04-02",
+      lines: [{ accountId: acctId, jobId: lineJobId, amountCents: 1000 }],
+    });
+    expect(res.status).toBe(400);
+    expect(res.body.field).toBe("lines.0.jobId");
   });
 });
 

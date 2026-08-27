@@ -7,6 +7,7 @@
  */
 import type { ImportAccountOverride } from './importAccountOverride';
 import type { ImportDataInputMode } from './importDataInputMode';
+import type { ImportJobOverride } from './importJobOverride';
 
 export interface ImportDataInput {
   /**
@@ -32,4 +33,9 @@ export interface ImportDataInput {
      * @maxItems 20000
      */
   accountOverrides?: ImportAccountOverride[];
+  /**
+     * Per-line job mappings chosen during the bill-import review. These map source job text to an existing job for subcontractor and temporary-labor lines.
+     * @maxItems 20000
+     */
+  jobOverrides?: ImportJobOverride[];
 }

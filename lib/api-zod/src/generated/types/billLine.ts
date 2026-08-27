@@ -11,6 +11,10 @@ export interface BillLine {
   /** @nullable */
   accountId?: number | null;
   /** @nullable */
+  jobId?: number | null;
+  /** @nullable */
+  jobName?: string | null;
+  /** @nullable */
   accountName?: string | null;
   /** @nullable */
   description?: string | null;

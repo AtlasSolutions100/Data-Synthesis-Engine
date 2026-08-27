@@ -54,6 +54,9 @@ export const billLinesTable = pgTable("bill_lines", {
   accountId: integer("account_id").references(() => accountsTable.id, {
     onDelete: "restrict",
   }),
+  jobId: integer("job_id").references(() => jobsTable.id, {
+    onDelete: "set null",
+  }),
   description: text("description"),
   amountCents: bigint("amount_cents", { mode: "number" }).notNull(),
 });

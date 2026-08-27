@@ -108,6 +108,7 @@ export * from './importDataInputMode';
 export * from './importDataResult';
 export * from './importDataResultMode';
 export * from './importDataSummary';
+export * from './importJobOverride';
 export * from './importPreviewLine';
 export * from './importPreviewRow';
 export * from './importPreviewRowStatus';

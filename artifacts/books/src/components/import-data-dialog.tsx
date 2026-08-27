@@ -2,7 +2,9 @@ import { useRef, useState } from "react";
 import {
   useImportData,
   useListAccounts,
+  useListJobs,
   getListAccountsQueryKey,
+  getListJobsQueryKey,
 } from "@workspace/api-client-react";
 import type {
   ImportDataResult,
@@ -81,6 +83,10 @@ export function ImportDataDialog({
   const [accountOverrides, setAccountOverrides] = useState<Map<string, number | null>>(
     new Map(),
   );
+  // Per-line job mappings for imported labor lines, keyed "row:line".
+  const [jobOverrides, setJobOverrides] = useState<Map<string, number | null>>(
+    new Map(),
+  );
   // Set when apply was rejected because the data changed since the preview
   // (server 409). The user refreshes explicitly instead of the dialog
   // silently re-uploading a possibly huge file in a loop.
@@ -92,6 +98,7 @@ export function ImportDataDialog({
   const carryOverRef = useRef<{
     excluded: Set<number>;
     accountOverrides: Map<string, number | null>;
+    jobOverrides: Map<string, number | null>;
     rows: ImportPreviewRow[];
   } | null>(null);
 
@@ -100,6 +107,9 @@ export function ImportDataDialog({
   // the review dialog is actually open).
   const { data: accounts } = useListAccounts({
     query: { queryKey: getListAccountsQueryKey(), enabled: entity === "bills" && open },
+  });
+  const { data: jobs } = useListJobs(undefined, {
+    query: { queryKey: getListJobsQueryKey(), enabled: entity === "bills" && open },
   });
 
   const importMutation = useImportData({
@@ -110,7 +120,13 @@ export function ImportDataDialog({
           carryOverRef.current = null;
           let nextExcluded = new Set<number>();
           const nextOverrides = new Map<string, number | null>();
-          if (carry && (carry.excluded.size > 0 || carry.accountOverrides.size > 0)) {
+          const nextJobOverrides = new Map<string, number | null>();
+          if (
+            carry &&
+            (carry.excluded.size > 0 ||
+              carry.accountOverrides.size > 0 ||
+              carry.jobOverrides.size > 0)
+          ) {
             const prevRowByNumber = new Map(carry.rows.map((r) => [r.row, r]));
             for (const r of result.rows ?? []) {
               const prev = prevRowByNumber.get(r.row);
@@ -139,10 +155,34 @@ export function ImportDataDialog({
                   }
                 }
               }
+              if (rowMatches && carry.jobOverrides.size > 0) {
+                const prevLineByNumber = new Map(
+                  (prev.lines ?? []).map((l) => [l.line, l]),
+                );
+                for (const l of r.lines ?? []) {
+                  const key = `${r.row}:${l.line}`;
+                  if (!carry.jobOverrides.has(key)) continue;
+                  const prevLine = prevLineByNumber.get(l.line);
+                  if (
+                    prevLine &&
+                    prevLine.description === l.description &&
+                    prevLine.amountCents === l.amountCents &&
+                    prevLine.jobName === l.jobName
+                  ) {
+                    nextJobOverrides.set(key, carry.jobOverrides.get(key)!);
+                  }
+                }
+              }
             }
             const droppedExclusions = carry.excluded.size - nextExcluded.size;
             const droppedOverrides = carry.accountOverrides.size - nextOverrides.size;
-            if (droppedExclusions > 0 || droppedOverrides > 0) {
+            const droppedJobOverrides =
+              carry.jobOverrides.size - nextJobOverrides.size;
+            if (
+              droppedExclusions > 0 ||
+              droppedOverrides > 0 ||
+              droppedJobOverrides > 0
+            ) {
               const parts: string[] = [];
               if (droppedExclusions > 0) {
                 parts.push(
@@ -154,6 +194,11 @@ export function ImportDataDialog({
                   `${droppedOverrides} of your account change${droppedOverrides === 1 ? "" : "s"}`,
                 );
               }
+              if (droppedJobOverrides > 0) {
+                parts.push(
+                  `${droppedJobOverrides} of your job mapping${droppedJobOverrides === 1 ? "" : "s"}`,
+                );
+              }
               toast({
                 title: "Some unchecked rows no longer apply",
                 description: `${parts.join(" and ")} changed or disappeared in the refreshed preview. Please review the list again.`,
@@ -163,6 +208,7 @@ export function ImportDataDialog({
           setPreview(result);
           setExcluded(nextExcluded);
           setAccountOverrides(nextOverrides);
+          setJobOverrides(nextJobOverrides);
           setStale(false);
           setOpen(true);
           return;
@@ -226,7 +272,12 @@ export function ImportDataDialog({
 
   const refreshPreview = () => {
     if (!fileData) return;
-    carryOverRef.current = { excluded, accountOverrides, rows: preview?.rows ?? [] };
+    carryOverRef.current = {
+      excluded,
+      accountOverrides,
+      jobOverrides,
+      rows: preview?.rows ?? [],
+    };
     importMutation.mutate({
       entity,
       data: { fileData, fileName, mode: "preview" },
@@ -238,6 +289,30 @@ export function ImportDataDialog({
       const next = new Map(prev);
       if (value === "keep") next.delete(`${row}:${line}`);
       else next.set(`${row}:${line}`, value === "none" ? null : Number(value));
+      return next;
+    });
+  };
+
+  const setLineJob = (row: number, line: number, value: string) => {
+    const selectedJobId = value === "keep" ? null : Number(value);
+    const source = preview?.rows
+      ?.find((candidate) => candidate.row === row)
+      ?.lines?.find((candidate) => candidate.line === line)?.jobName;
+    setJobOverrides((prev) => {
+      const next = new Map(prev);
+      if (value === "keep") next.delete(`${row}:${line}`);
+      else next.set(`${row}:${line}`, selectedJobId);
+      if (source) {
+        for (const candidate of preview?.rows ?? []) {
+          for (const candidateLine of candidate.lines ?? []) {
+            if (candidateLine.jobName === source) {
+              const candidateKey = `${candidate.row}:${candidateLine.line}`;
+              if (value === "keep") next.delete(candidateKey);
+              else next.set(candidateKey, selectedJobId);
+            }
+          }
+        }
+      }
       return next;
     });
   };
@@ -257,6 +332,14 @@ export function ImportDataDialog({
               accountOverrides: Array.from(accountOverrides, ([key, accountId]) => {
                 const [row, line] = key.split(":").map(Number);
                 return { row, line, accountId };
+              }),
+            }
+          : {}),
+        ...(jobOverrides.size > 0
+          ? {
+              jobOverrides: Array.from(jobOverrides, ([key, jobId]) => {
+                const [row, line] = key.split(":").map(Number);
+                return { row, line, jobId };
               }),
             }
           : {}),
@@ -392,8 +475,12 @@ export function ImportDataDialog({
                           {r.lines.map((l: ImportPreviewLine) => {
                             const key = `${r.row}:${l.line}`;
                             const overridden = accountOverrides.has(key);
+                            const jobOverridden = jobOverrides.has(key);
                             const value = overridden
                               ? (accountOverrides.get(key) ?? "none")
+                              : "keep";
+                            const jobValue = jobOverridden
+                              ? String(jobOverrides.get(key) ?? "")
                               : "keep";
                             return (
                               <div key={l.line} className="flex flex-wrap items-center gap-2">
@@ -401,6 +488,41 @@ export function ImportDataDialog({
                                   {l.description || "(no description)"} — $
                                   {(l.amountCents / 100).toFixed(2)}
                                 </span>
+                                {l.jobName && (
+                                  <>
+                                    <Badge
+                                      className={
+                                        l.jobId != null
+                                          ? "bg-blue-100 text-blue-800 hover:bg-blue-100"
+                                          : "bg-amber-100 text-amber-800 hover:bg-amber-100"
+                                      }
+                                      data-testid={`badge-import-job-${r.row}-${l.line}`}
+                                    >
+                                      {l.jobId != null
+                                        ? `Job: ${l.jobName}`
+                                        : `Unknown job: ${l.jobName}`}
+                                    </Badge>
+                                    <select
+                                      className="h-8 rounded-md border border-amber-300 bg-white px-2 text-xs"
+                                      value={jobValue}
+                                      onChange={(e) =>
+                                        setLineJob(r.row, l.line, e.target.value)
+                                      }
+                                      data-testid={`select-import-job-${r.row}-${l.line}`}
+                                    >
+                                      <option value="keep">
+                                        {l.jobId != null
+                                          ? l.jobName
+                                          : "Map to Job Name"}
+                                      </option>
+                                      {(jobs ?? []).map((job) => (
+                                        <option key={job.id} value={String(job.id)}>
+                                          {job.name}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </>
+                                )}
                                 {l.autoFilled && !overridden && (
                                   <Badge
                                     className="bg-blue-100 text-blue-800 hover:bg-blue-100"

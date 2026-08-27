@@ -43,6 +43,9 @@ import type { ServerFieldError } from "@/lib/server-field-error";
 
 const lineSchema = z.object({
   accountId: z.string().optional(),
+  jobId: z.string().optional(),
+  /** Source job text from an import; it is never sent to the API. */
+  jobText: z.string().optional(),
   description: z.string().optional(),
   amount: z.string().min(1, "Amount is required"),
 });
@@ -64,7 +67,9 @@ type BillFormValues = z.infer<typeof billSchema>;
 
 export type { ServerFieldError };
 
-const SERVER_FIELD_PATTERN = /^(vendorId|jobId|lines\.\d+\.accountId)$/;
+const SERVER_FIELD_PATTERN =
+  /^(vendorId|jobId|lines\.\d+\.(accountId|jobId))$/;
+const SUBCONTRACTOR_ACCOUNT_NUMBERS = new Set(["53600", "53650"]);
 
 interface BillFormProps {
   defaultValues?: Partial<BillFormValues>;
@@ -123,7 +128,7 @@ export function BillForm({
       dueDate: initialDueDate,
       memo: defaultValues?.memo || "",
       lines: defaultValues?.lines || [
-        { accountId: "", description: "", amount: "" },
+        { accountId: "", jobId: "", jobText: "", description: "", amount: "" },
       ],
     },
   });
@@ -349,6 +354,27 @@ export function BillForm({
   );
 
   const watchedLines = form.watch("lines");
+  const isSubcontractorLine = (accountId: string | undefined) => {
+    const account = accounts?.find((candidate) => String(candidate.id) === accountId);
+    return Boolean(account && SUBCONTRACTOR_ACCOUNT_NUMBERS.has(account.number));
+  };
+  const mapLineJob = (index: number, nextJobId: string) => {
+    const line = form.getValues(`lines.${index}`);
+    const sourceText = line.jobText?.trim().toLowerCase();
+    const lines = form.getValues("lines");
+    lines.forEach((candidate, candidateIndex) => {
+      if (
+        sourceText &&
+        candidate.jobText?.trim().toLowerCase() === sourceText &&
+        isSubcontractorLine(candidate.accountId)
+      ) {
+        form.setValue(`lines.${candidateIndex}.jobId`, nextJobId, {
+          shouldDirty: true,
+        });
+      }
+    });
+    form.setValue(`lines.${index}.jobId`, nextJobId, { shouldDirty: true });
+  };
   const totalCents = (watchedLines ?? []).reduce(
     (sum, l) => sum + parseDollars(l?.amount || "0"),
     0,
@@ -400,6 +426,14 @@ export function BillForm({
         });
         hasError = true;
       }
+      if (line.jobId && !isSubcontractorLine(line.accountId)) {
+        form.setError(`lines.${index}.jobId`, {
+          type: "manual",
+          message:
+            "Choose a Subcontractors (53600) or Temporary Labor (53650) account before assigning a line job.",
+        });
+        hasError = true;
+      }
     });
     if (hasError) return;
 
@@ -412,6 +446,7 @@ export function BillForm({
       memo: values.memo || null,
       lines: values.lines.map((l) => ({
         accountId: l.accountId ? parseInt(l.accountId, 10) : null,
+        jobId: l.jobId ? parseInt(l.jobId, 10) : null,
         description: l.description || null,
         amountCents: parseDollars(l.amount),
       })),
@@ -587,7 +622,7 @@ export function BillForm({
             </Button>
           </div>
           {fields.map((fieldItem, index) => (
-            <div key={fieldItem.id} className="flex gap-2 items-start">
+            <div key={fieldItem.id} className="flex gap-2 items-start flex-wrap">
               <FormField
                 control={form.control}
                 name={`lines.${index}.accountId`}
@@ -600,7 +635,12 @@ export function BillForm({
                           label: `${a.number} — ${a.name}`,
                         }))}
                         value={field.value ?? ""}
-                        onChange={field.onChange}
+                         onChange={(next) => {
+                           field.onChange(next);
+                           if (!isSubcontractorLine(next)) {
+                             form.setValue(`lines.${index}.jobId`, "");
+                           }
+                         }}
                         placeholder="Account (optional)"
                         searchPlaceholder="Search accounts..."
                         emptyText="No accounts found."
@@ -610,6 +650,42 @@ export function BillForm({
                   </FormItem>
                 )}
               />
+              {isSubcontractorLine(watchedLines?.[index]?.accountId) ? (
+                <FormField
+                  control={form.control}
+                  name={`lines.${index}.jobId`}
+                  render={({ field }) => (
+                    <FormItem className="w-56">
+                      <FormLabel>Job Name</FormLabel>
+                      <FormControl>
+                        <EntityCombobox
+                          options={(jobs ?? []).map((j) => ({
+                            id: j.id,
+                            label: j.name,
+                          }))}
+                          value={field.value ?? ""}
+                          onChange={(next) => mapLineJob(index, next)}
+                          placeholder="Assign line to job"
+                          searchPlaceholder="Search jobs..."
+                          emptyText="No jobs found."
+                        />
+                      </FormControl>
+                      {watchedLines?.[index]?.jobText &&
+                      !watchedLines[index]?.jobId ? (
+                        <p
+                          className="text-xs text-amber-700"
+                          data-testid={`line-job-warning-${index}`}
+                        >
+                          I don&apos;t have a job called &quot;
+                          {watchedLines[index]?.jobText}&quot;. Choose the Job
+                          Name to map this invoice text.
+                        </p>
+                      ) : null}
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              ) : null}
               <FormField
                 control={form.control}
                 name={`lines.${index}.description`}

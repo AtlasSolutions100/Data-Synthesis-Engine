@@ -10,6 +10,8 @@ export interface BillLineInput {
   /** @nullable */
   accountId?: number | null;
   /** @nullable */
+  jobId?: number | null;
+  /** @nullable */
   description?: string | null;
   amountCents: number;
 }

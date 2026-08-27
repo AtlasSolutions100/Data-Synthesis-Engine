@@ -16,4 +16,9 @@ export interface ExtractedBillLine {
      * @nullable
      */
   accountId?: number | null;
+  /**
+     * Job name as written beside this line, when the invoice assigns different lines to different jobs
+     * @nullable
+     */
+  jobName?: string | null;
 }
