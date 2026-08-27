@@ -13,7 +13,7 @@ import {
   getListBillsQueryKey,
   getGetApAgingQueryKey,
 } from "@workspace/api-client-react";
-import { formatCents } from "@/lib/format";
+import { formatCents, formatDate } from "@/lib/format";
 import {
   Card,
   CardContent,
@@ -253,8 +253,8 @@ export default function BillDetail() {
           ) : (
             ""
           )}{" "}
-          · {bill.date}
-          {bill.dueDate ? ` · Due ${bill.dueDate}` : ""}
+          · {formatDate(bill.date)}
+          {bill.dueDate ? ` · Due ${formatDate(bill.dueDate)}` : ""}
         </p>
       </div>
 
@@ -401,7 +401,7 @@ export default function BillDetail() {
               ) : (
                 bill.payments.map((p) => (
                   <TableRow key={p.id}>
-                    <TableCell className="whitespace-nowrap">{p.date}</TableCell>
+                    <TableCell className="whitespace-nowrap">{formatDate(p.date)}</TableCell>
                     <TableCell className="capitalize">
                       {p.method.replace(/_/g, " ")}
                     </TableCell>
@@ -485,7 +485,7 @@ export default function BillDetail() {
               ) : (
                 bill.credits.map((c) => (
                   <TableRow key={c.id}>
-                    <TableCell className="whitespace-nowrap">{c.date}</TableCell>
+                    <TableCell className="whitespace-nowrap">{formatDate(c.date)}</TableCell>
                     <TableCell>{c.referenceNum || "-"}</TableCell>
                     <TableCell>{c.memo || "-"}</TableCell>
                     <TableCell className="text-right font-medium">

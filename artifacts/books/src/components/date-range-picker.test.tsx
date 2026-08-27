@@ -55,7 +55,7 @@ describe("DateRangePicker open-ended ranges", () => {
     expect(screen.getByTestId("raw").textContent).toBe(
       JSON.stringify({ startDate: "2026-07-01" }),
     );
-    expect(screen.getByTestId("label").textContent).toBe("From Jul 1, 2026");
+    expect(screen.getByTestId("label").textContent).toBe("From 07/01/2026");
   });
 
   it("end-only via the To input yields an Until label", async () => {
@@ -70,7 +70,7 @@ describe("DateRangePicker open-ended ranges", () => {
     expect(screen.getByTestId("raw").textContent).toBe(
       JSON.stringify({ endDate: "2026-06-30" }),
     );
-    expect(screen.getByTestId("label").textContent).toBe("Until Jun 30, 2026");
+    expect(screen.getByTestId("label").textContent).toBe("Until 06/30/2026");
   });
 
   it("clearing the To input of a full range leaves a start-only range", async () => {
@@ -89,7 +89,7 @@ describe("DateRangePicker open-ended ranges", () => {
     expect(screen.getByTestId("raw").textContent).toBe(
       JSON.stringify({ startDate: "2026-06-01" }),
     );
-    expect(screen.getByTestId("label").textContent).toBe("From Jun 1, 2026");
+    expect(screen.getByTestId("label").textContent).toBe("From 06/01/2026");
   });
 
   it("inputs stay in sync when a preset sets a full range", async () => {

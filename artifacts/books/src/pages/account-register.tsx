@@ -38,6 +38,7 @@ import {
   toServerFieldError,
   type ServerFieldError,
 } from "@/lib/server-field-error";
+import { formatDate } from "@/lib/format";
 import {
   ArrowLeft,
   BookOpen,
@@ -697,7 +698,7 @@ export default function AccountRegister() {
                             href={`/transactions?highlight=${row.transactionId}&from=register`}
                             className="hover:text-blue-600 hover:underline transition-colors"
                           >
-                            {row.date}
+                            {formatDate(row.date)}
                           </Link>
                         </td>
 

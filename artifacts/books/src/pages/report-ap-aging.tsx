@@ -6,6 +6,7 @@ import {
   getGetApAgingQueryKey,
 } from "@workspace/api-client-react";
 import { downloadApAgingPdf } from "@/lib/aging-pdf";
+import { formatDate } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { FeedbackButton } from "@/components/feedback-button";
@@ -61,7 +62,7 @@ export default function ReportApAging() {
             />
           </div>
           {apAging?.asOf && (
-            <p className="text-slate-500 mt-1">As of {apAging.asOf}</p>
+            <p className="text-slate-500 mt-1">As of {formatDate(apAging.asOf)}</p>
           )}
         </div>
         <div className="flex items-end gap-3">

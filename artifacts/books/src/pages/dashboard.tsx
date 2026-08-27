@@ -7,7 +7,7 @@ import {
   useListJobs,
   getListJobsQueryKey,
 } from "@workspace/api-client-react";
-import { formatCents } from "@/lib/format";
+import { formatCents, formatDate } from "@/lib/format";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { DollarSign, Activity, CreditCard, Users, ChevronRight, ChevronDown } from "lucide-react";
@@ -184,7 +184,7 @@ export default function Dashboard() {
             {summary.recentTransactions?.map((txn) => (
               <div key={txn.id} className="flex items-center justify-between">
                 <div>
-                  <div className="font-medium text-slate-900">{txn.date} - {txn.type}</div>
+                  <div className="font-medium text-slate-900">{formatDate(txn.date)} - {txn.type}</div>
                   <div className="text-sm text-slate-500">{txn.description || txn.partyName || "No description"}</div>
                 </div>
                 <div className="font-bold text-slate-900">

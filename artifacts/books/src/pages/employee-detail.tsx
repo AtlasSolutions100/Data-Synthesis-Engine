@@ -8,7 +8,7 @@ import {
   useListEmployeeTimecards,
   getListEmployeeTimecardsQueryKey,
 } from "@workspace/api-client-react";
-import { formatCents } from "@/lib/format";
+import { formatCents, formatDate } from "@/lib/format";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
@@ -236,8 +236,8 @@ export default function EmployeeDetail() {
             <ProfileField label="Address" value={employee.address} />
             <ProfileField label="Email" value={employee.email} />
             <ProfileField label="Phone" value={employee.phone} />
-            <ProfileField label="Date of Hire" value={employee.hireDate} />
-            <ProfileField label="Termination Date" value={employee.terminationDate} />
+            <ProfileField label="Date of Hire" value={formatDate(employee.hireDate)} />
+            <ProfileField label="Termination Date" value={formatDate(employee.terminationDate)} />
             <div>
               <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
                 SSN
@@ -363,10 +363,10 @@ export default function EmployeeDetail() {
                           href={`/payroll/${r.runId}`}
                           className="text-blue-600 hover:underline"
                         >
-                          {r.payPeriodStart} – {r.payPeriodEnd}
+                          {formatDate(r.payPeriodStart)} – {formatDate(r.payPeriodEnd)}
                         </Link>
                       </TableCell>
-                      <TableCell className="whitespace-nowrap">{r.payDate}</TableCell>
+                      <TableCell className="whitespace-nowrap">{formatDate(r.payDate)}</TableCell>
                       <TableCell className="text-right">{r.regularHours}</TableCell>
                       <TableCell className="text-right">{r.overtimeHours}</TableCell>
                       <TableCell className="text-right">{r.holidayHours}</TableCell>

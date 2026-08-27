@@ -12,7 +12,7 @@ function knownTxType(t: string): KnownTxType | undefined {
   return KNOWN_TX_TYPES.has(t as KnownTxType) ? (t as KnownTxType) : undefined;
 }
 import { useListTransactions, useCreateTransaction, useUpdateTransaction, useDeleteTransaction, getListTransactionsQueryKey } from "@workspace/api-client-react";
-import { formatCents } from "@/lib/format";
+import { formatCents, formatDate } from "@/lib/format";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -234,7 +234,7 @@ export default function Transactions() {
                     }
                     data-testid={`row-transaction-${txn.id}`}
                   >
-                    <TableCell className="whitespace-nowrap">{txn.date}</TableCell>
+                    <TableCell className="whitespace-nowrap">{formatDate(txn.date)}</TableCell>
                     <TableCell>
                       <Badge variant="outline" className="capitalize">{txn.type}</Badge>
                     </TableCell>

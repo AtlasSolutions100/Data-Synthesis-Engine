@@ -16,6 +16,21 @@ export function parseDollars(dollars: string | number): number {
 }
 
 /**
+ * Format an ISO date (YYYY-MM-DD, or an ISO timestamp with that prefix) as
+ * MM/DD/YYYY for display. Every date shown in the UI should go through this
+ * (or formatRelativeTimestamp) so the app never shows a year-first date.
+ * Falls back to the raw input if it doesn't start with an ISO date, so
+ * already-formatted or empty values pass through unchanged.
+ */
+export function formatDate(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
+  if (!match) return iso;
+  const [, year, month, day] = match;
+  return `${month}/${day}/${year}`;
+}
+
+/**
  * Friendly "saved X ago" style timestamp: relative for recent times, falls
  * back to an absolute date for anything older than a week or unparseable.
  */

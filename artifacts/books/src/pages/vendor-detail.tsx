@@ -13,7 +13,7 @@ import {
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
-import { formatCents } from "@/lib/format";
+import { formatCents, formatDate } from "@/lib/format";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -292,7 +292,7 @@ function WriteCheckDialog({ vendorId, vendorName, openBills, onDone }: WriteChec
                         )}
                       </div>
                       <div className="text-xs text-slate-400">
-                        {bill.date} · Balance {formatCents(bill.balanceCents)}
+                        {formatDate(bill.date)} · Balance {formatCents(bill.balanceCents)}
                       </div>
                     </button>
 
@@ -691,8 +691,8 @@ export default function VendorDetail() {
                           {bill.billNumber || `Bill #${bill.id}`}
                         </Link>
                       </TableCell>
-                      <TableCell className="whitespace-nowrap">{bill.date}</TableCell>
-                      <TableCell className="whitespace-nowrap">{bill.dueDate || "-"}</TableCell>
+                      <TableCell className="whitespace-nowrap">{formatDate(bill.date)}</TableCell>
+                      <TableCell className="whitespace-nowrap">{bill.dueDate ? formatDate(bill.dueDate) : "-"}</TableCell>
                       <TableCell>
                         <Badge
                           variant={statusVariant[bill.status] ?? "default"}

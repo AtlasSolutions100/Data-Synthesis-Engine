@@ -6,6 +6,7 @@ import {
   getGetArAgingQueryKey,
 } from "@workspace/api-client-react";
 import { downloadArAgingPdf } from "@/lib/aging-pdf";
+import { formatDate } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { FeedbackButton } from "@/components/feedback-button";
@@ -61,7 +62,7 @@ export default function ReportArAging() {
             />
           </div>
           {arAging?.asOf && (
-            <p className="text-slate-500 mt-1">As of {arAging.asOf}</p>
+            <p className="text-slate-500 mt-1">As of {formatDate(arAging.asOf)}</p>
           )}
         </div>
         <div className="flex items-end gap-3">

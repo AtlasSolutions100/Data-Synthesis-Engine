@@ -12,7 +12,7 @@ import {
   getGetApAgingQueryKey,
 } from "@workspace/api-client-react";
 import type { ExtractBillResult } from "@workspace/api-client-react";
-import { formatCents } from "@/lib/format";
+import { formatCents, formatDate } from "@/lib/format";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   Table,
@@ -751,10 +751,10 @@ export default function Bills() {
                     <TableCell>{bill.vendorName || "-"}</TableCell>
                     <TableCell>{bill.jobName || "-"}</TableCell>
                     <TableCell className="whitespace-nowrap">
-                      {bill.date}
+                      {formatDate(bill.date)}
                     </TableCell>
                     <TableCell className="whitespace-nowrap">
-                      {bill.dueDate || "-"}
+                      {bill.dueDate ? formatDate(bill.dueDate) : "-"}
                     </TableCell>
                     <TableCell className="text-right">
                       {formatCents(bill.totalCents)}

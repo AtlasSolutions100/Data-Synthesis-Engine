@@ -34,6 +34,7 @@ import {
   Link2Off,
 } from "lucide-react";
 import { useState, useCallback } from "react";
+import { formatDate } from "@/lib/format";
 
 const fmt = (cents: number) => {
   const abs = Math.abs(cents) / 100;
@@ -397,7 +398,7 @@ export default function AccountReconcile() {
                       </td>
 
                       <td className="px-3 py-2 text-slate-600 text-xs tabular-nums whitespace-nowrap">
-                        {line.date}
+                        {formatDate(line.date)}
                       </td>
                       <td className="px-3 py-2 text-slate-500 text-xs capitalize whitespace-nowrap">
                         {fmtType(line.type)}
@@ -414,7 +415,7 @@ export default function AccountReconcile() {
                           <div className="flex items-center gap-1 mt-0.5 group/match">
                             <Link2 className="h-3 w-3 text-emerald-500 shrink-0" />
                             <span className="text-[10px] text-emerald-700 truncate max-w-[180px]" title={stmtLine.description || undefined}>
-                              {stmtLine.date} · {stmtLine.amountCents < 0
+                              {formatDate(stmtLine.date)} · {stmtLine.amountCents < 0
                                 ? `-$${(Math.abs(stmtLine.amountCents) / 100).toFixed(2)}`
                                 : `$${(stmtLine.amountCents / 100).toFixed(2)}`}
                               {stmtLine.description ? ` · ${stmtLine.description}` : ""}
@@ -492,7 +493,7 @@ export default function AccountReconcile() {
                         className="border-b border-amber-50 last:border-0 bg-white hover:bg-amber-50/40"
                       >
                         <td className="px-3 py-2 text-slate-600 text-xs tabular-nums whitespace-nowrap">
-                          {line.date}
+                          {formatDate(line.date)}
                         </td>
                         <td className="px-3 py-2 text-right tabular-nums text-xs whitespace-nowrap">
                           {line.amountCents < 0 ? (

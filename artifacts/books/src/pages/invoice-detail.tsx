@@ -24,7 +24,7 @@ import {
 import { InvoicePrintView } from "@/components/invoice-print-view";
 import { downloadInvoicePdf } from "@/lib/invoice-pdf";
 import type { InvoicePrintData } from "@/lib/invoice-print";
-import { formatCents } from "@/lib/format";
+import { formatCents, formatDate } from "@/lib/format";
 import {
   Card,
   CardContent,
@@ -424,8 +424,8 @@ export default function InvoiceDetail() {
             "No job"
           )}
           {invoice.customerName ? ` · ${invoice.customerName}` : ""} ·{" "}
-          {invoice.date}
-          {invoice.dueDate ? ` · Due ${invoice.dueDate}` : ""}
+          {formatDate(invoice.date)}
+          {invoice.dueDate ? ` · Due ${formatDate(invoice.dueDate)}` : ""}
         </p>
       </div>
 
@@ -591,7 +591,7 @@ export default function InvoiceDetail() {
               ) : (
                 invoice.payments.map((p) => (
                   <TableRow key={p.id} className="group">
-                    <TableCell className="whitespace-nowrap">{p.date}</TableCell>
+                    <TableCell className="whitespace-nowrap">{formatDate(p.date)}</TableCell>
                     <TableCell className="capitalize">
                       {p.method.replace(/_/g, " ")}
                     </TableCell>

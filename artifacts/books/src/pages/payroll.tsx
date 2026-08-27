@@ -7,7 +7,7 @@ import {
   getGetCostByAccountQueryKey,
   getGetPayrollByJobQueryKey,
 } from "@workspace/api-client-react";
-import { formatCents } from "@/lib/format";
+import { formatCents, formatDate } from "@/lib/format";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   Table,
@@ -192,7 +192,7 @@ export default function Payroll() {
                           href={`/payroll/${run.id}`}
                           className="text-blue-600 hover:underline"
                         >
-                          {run.payPeriodStart} – {run.payPeriodEnd}
+                          {formatDate(run.payPeriodStart)} – {formatDate(run.payPeriodEnd)}
                         </Link>
                         <DemoBadge isDemo={run.isDemo} />
                       </div>
@@ -207,7 +207,7 @@ export default function Payroll() {
                       ) : null}
                     </TableCell>
                     <TableCell className="whitespace-nowrap">
-                      {run.payDate}
+                      {formatDate(run.payDate)}
                     </TableCell>
                     <TableCell className="text-right">
                       {formatCents(run.grossWagesCents)}

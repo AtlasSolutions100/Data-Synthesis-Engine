@@ -62,8 +62,8 @@ describe("pay-periods", () => {
     }
   });
 
-  it("labels read like 'Period 13 (Jun 8 – Jun 21, 2026)'", () => {
+  it("labels read like 'Period 13 (06/08/2026 – 06/21/2026)', never year-first", () => {
     const p = payPeriodForStart("2026-06-08")!;
-    expect(payPeriodLabel(p)).toBe("Period 13 (Jun 8 – Jun 21, 2026)");
+    expect(payPeriodLabel(p)).toBe("Period 13 (06/08/2026 – 06/21/2026)");
   });
 });

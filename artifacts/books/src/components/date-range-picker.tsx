@@ -33,7 +33,7 @@ function fromIso(s: string | undefined): Date | undefined {
 export function describeRange(value: DateRangeValue): string {
   const { startDate, endDate } = value;
   if (!startDate && !endDate) return "All time";
-  const fmt = (s: string) => format(parseISO(s), "MMM d, yyyy");
+  const fmt = (s: string) => format(parseISO(s), "MM/dd/yyyy");
   if (startDate && endDate) return `${fmt(startDate)} – ${fmt(endDate)}`;
   if (startDate) return `From ${fmt(startDate)}`;
   return `Until ${fmt(endDate!)}`;

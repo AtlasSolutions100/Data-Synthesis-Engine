@@ -6,7 +6,7 @@ import {
   getGetAccountBalanceTransactionsQueryKey,
 } from "@workspace/api-client-react";
 import type { AgingBuckets, AgingInvoice, AgingBill } from "@workspace/api-client-react";
-import { formatCents } from "@/lib/format";
+import { formatCents, formatDate } from "@/lib/format";
 import {
   Table,
   TableBody,
@@ -94,7 +94,7 @@ export function CostAccountDetailRow({
                         className="text-blue-600 hover:underline"
                         data-testid={`link-cost-tx-${accountId}-${tx.id}`}
                       >
-                        {tx.date}
+                        {formatDate(tx.date)}
                       </Link>
                     </TableCell>
                     <TableCell className="py-2 capitalize">
@@ -198,8 +198,8 @@ export function AgingDetailRow({
                   <TableCell className="py-2">
                     {item.jobName || "—"}
                   </TableCell>
-                  <TableCell className="py-2">{item.date}</TableCell>
-                  <TableCell className="py-2">{item.dueDate || "—"}</TableCell>
+                  <TableCell className="py-2">{formatDate(item.date)}</TableCell>
+                  <TableCell className="py-2">{item.dueDate ? formatDate(item.dueDate) : "—"}</TableCell>
                   <TableCell className="py-2 text-right">
                     {item.daysOverdue > 0 ? item.daysOverdue : "—"}
                   </TableCell>
@@ -277,7 +277,7 @@ export function AccountBalanceDetailRow({
                         className="text-blue-600 hover:underline"
                         data-testid={`link-account-tx-${accountId}-${line.transactionId}-${line.role}`}
                       >
-                        {line.date}
+                        {formatDate(line.date)}
                       </Link>
                     </TableCell>
                     <TableCell className="py-2 capitalize">

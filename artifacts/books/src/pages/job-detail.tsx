@@ -37,7 +37,7 @@ import { Label } from "@/components/ui/label";
 import { InvoiceForm } from "@/components/forms/invoice-form";
 import { toSuggestedNumber } from "@/lib/server-field-error";
 import { FileText } from "lucide-react";
-import { formatCents } from "@/lib/format";
+import { formatCents, formatDate } from "@/lib/format";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -577,7 +577,7 @@ export default function JobDetail() {
                       </TableRow>
                       {invoices.map((inv) => (
                         <TableRow key={`inv-${inv.id}`}>
-                          <TableCell className="whitespace-nowrap text-slate-900">{inv.date}</TableCell>
+                          <TableCell className="whitespace-nowrap text-slate-900">{formatDate(inv.date)}</TableCell>
                           <TableCell>
                             <Badge variant="outline" className="capitalize text-xs">Invoice</Badge>
                           </TableCell>
@@ -627,7 +627,7 @@ export default function JobDetail() {
                       </TableRow>
                       {group.txns.map((txn) => (
                         <TableRow key={txn.id}>
-                          <TableCell className="whitespace-nowrap text-slate-900">{txn.date}</TableCell>
+                          <TableCell className="whitespace-nowrap text-slate-900">{formatDate(txn.date)}</TableCell>
                           <TableCell>
                             <Badge variant="outline" className="capitalize text-xs">{formatType(txn.type)}</Badge>
                           </TableCell>

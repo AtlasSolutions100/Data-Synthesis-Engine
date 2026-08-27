@@ -6,6 +6,8 @@
  * Pay date is 4 days after the period ends (the following Thursday).
  */
 
+import { formatDate } from "./format";
+
 export interface PayPeriod {
   /** 1-based period number within its year (1..26, occasionally 27). */
   number: number;
@@ -118,16 +120,7 @@ export function payPeriodForStart(start: string): PayPeriod | null {
   return buildPeriod(ms);
 }
 
-/** Label like "Period 14 (Jun 22 – Jul 5, 2026)". */
+/** Label like "Period 14 (06/22/2026 – 07/05/2026)". Always MM/DD/YYYY, never year-first. */
 export function payPeriodLabel(p: PayPeriod): string {
-  const fmt = (iso: string) => {
-    const [y, m, d] = iso.split("-").map(Number);
-    const dt = new Date(Date.UTC(y, m - 1, d));
-    return dt.toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      timeZone: "UTC",
-    });
-  };
-  return `Period ${p.number} (${fmt(p.start)} – ${fmt(p.end)}, ${p.year})`;
+  return `Period ${p.number} (${formatDate(p.start)} – ${formatDate(p.end)})`;
 }

@@ -5,7 +5,7 @@ import {
   useGetAccountBalances,
   getGetAccountBalancesQueryKey,
 } from "@workspace/api-client-react";
-import { formatCents } from "@/lib/format";
+import { formatCents, formatDate } from "@/lib/format";
 import { buildAccountBalancesCsv } from "@/lib/reports-csv";
 import { downloadCsv } from "@/lib/aging-csv";
 import { Button } from "@/components/ui/button";
@@ -65,7 +65,7 @@ export default function ReportBalanceSheet() {
             />
           </div>
           <p className="text-slate-500 mt-1" data-testid="text-balances-as-of">
-            {range.endDate ? `As of ${range.endDate}` : "All time"}
+            {range.endDate ? `As of ${formatDate(range.endDate)}` : "All time"}
           </p>
         </div>
         <div className="flex items-end gap-3">

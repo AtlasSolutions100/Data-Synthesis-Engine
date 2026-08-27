@@ -8,7 +8,7 @@ import {
   getListBillsQueryKey,
   getListTransactionsQueryKey,
 } from "@workspace/api-client-react";
-import { formatCents } from "@/lib/format";
+import { formatCents, formatDate } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -98,7 +98,7 @@ export function BillLinkReview() {
   }) =>
     `${b.billNumber ? `#${b.billNumber}` : "(no number)"} · ${
       b.vendorName ?? "Unknown vendor"
-    } · ${b.date} · ${formatCents(b.totalCents)}`;
+    } · ${formatDate(b.date)} · ${formatCents(b.totalCents)}`;
 
   return (
     <Dialog
@@ -172,7 +172,7 @@ export function BillLinkReview() {
                         {row.num ? ` — #${row.num}` : ""}
                       </div>
                       <div className="text-xs text-slate-500">
-                        {row.date} · {formatCents(row.amountCents)}
+                        {formatDate(row.date)} · {formatCents(row.amountCents)}
                       </div>
                     </div>
                     <Badge

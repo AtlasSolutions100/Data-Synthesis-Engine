@@ -7,7 +7,7 @@ import {
   getListJobsQueryKey,
   getGetArAgingQueryKey,
 } from "@workspace/api-client-react";
-import { formatCents } from "@/lib/format";
+import { formatCents, formatDate } from "@/lib/format";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   Table,
@@ -195,10 +195,10 @@ export default function Invoices() {
                     <TableCell>{inv.jobName || "-"}</TableCell>
                     <TableCell>{inv.customerName || "-"}</TableCell>
                     <TableCell className="whitespace-nowrap">
-                      {inv.date}
+                      {formatDate(inv.date)}
                     </TableCell>
                     <TableCell className="whitespace-nowrap">
-                      {inv.dueDate || "-"}
+                      {inv.dueDate ? formatDate(inv.dueDate) : "-"}
                     </TableCell>
                     <TableCell className="text-right">
                       {formatCents(inv.totalCents)}

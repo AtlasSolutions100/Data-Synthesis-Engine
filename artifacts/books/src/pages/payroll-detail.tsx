@@ -12,7 +12,7 @@ import {
   getListTransactionsQueryKey,
   type PayrollRun,
 } from "@workspace/api-client-react";
-import { formatCents } from "@/lib/format";
+import { formatCents, formatDate } from "@/lib/format";
 import { payPeriodForStart, payPeriodLabel } from "@/lib/pay-periods";
 import {
   Card,
@@ -163,7 +163,7 @@ export default function PayrollDetail() {
                   const p = payPeriodForStart(run.payPeriodStart);
                   return p
                     ? payPeriodLabel(p)
-                    : `${run.payPeriodStart} – ${run.payPeriodEnd}`;
+                    : `${formatDate(run.payPeriodStart)} – ${formatDate(run.payPeriodEnd)}`;
                 })()}
               </h1>
               <Badge variant={run.posted ? "secondary" : "default"}>
@@ -171,7 +171,7 @@ export default function PayrollDetail() {
               </Badge>
             </div>
             <p className="mt-1 text-slate-500">
-              Pay date {run.payDate}
+              Pay date {formatDate(run.payDate)}
               {run.laborAccountName ? ` · ${run.laborAccountName}` : ""}
               {run.memo ? ` · ${run.memo}` : ""}
             </p>

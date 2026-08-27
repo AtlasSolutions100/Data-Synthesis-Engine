@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useListEmployees, useCreateEmployee, useUpdateEmployee, useDeleteEmployee, getListEmployeesQueryKey, useListEmployeeTimecards, getListEmployeeTimecardsQueryKey } from "@workspace/api-client-react";
-import { formatCents } from "@/lib/format";
+import { formatCents, formatDate } from "@/lib/format";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -114,10 +114,10 @@ function TimecardHistoryDialog({
                           href={`/payroll/${r.runId}`}
                           className="text-blue-600 hover:underline"
                         >
-                          {r.payPeriodStart} – {r.payPeriodEnd}
+                          {formatDate(r.payPeriodStart)} – {formatDate(r.payPeriodEnd)}
                         </Link>
                       </TableCell>
-                      <TableCell className="whitespace-nowrap">{r.payDate}</TableCell>
+                      <TableCell className="whitespace-nowrap">{formatDate(r.payDate)}</TableCell>
                       <TableCell className="text-right">{r.regularHours}</TableCell>
                       <TableCell className="text-right">{r.overtimeHours}</TableCell>
                       <TableCell className="text-right">{r.holidayHours}</TableCell>
@@ -372,9 +372,9 @@ export default function Employees() {
                       {employee.address || <span className="text-slate-400">—</span>}
                     </TableCell>
                     <TableCell className="whitespace-nowrap text-sm text-slate-600" data-testid={`text-hired-${employee.id}`}>
-                      {employee.hireDate || <span className="text-slate-400">—</span>}
+                      {employee.hireDate ? formatDate(employee.hireDate) : <span className="text-slate-400">—</span>}
                       {employee.terminationDate ? (
-                        <div className="text-xs text-red-500">Term. {employee.terminationDate}</div>
+                        <div className="text-xs text-red-500">Term. {formatDate(employee.terminationDate)}</div>
                       ) : null}
                     </TableCell>
                     <TableCell>
