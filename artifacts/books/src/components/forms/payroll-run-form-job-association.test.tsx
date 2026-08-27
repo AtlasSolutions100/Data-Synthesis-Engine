@@ -639,6 +639,120 @@ describe("Import hours — weekly timesheets", () => {
   });
 });
 
+// ── Same-date splits and "+ Add row" ─────────────────────────────────────────
+
+describe("Import hours — same-date splits and row additions", () => {
+  it("renders two entries on the same date as separate grid rows and applies each to its own job", async () => {
+    mutateAsync.mockResolvedValueOnce({
+      rows: [
+        {
+          workerName: "Brendan Friedman",
+          regularHours: 8,
+          overtimeHours: 0,
+          holidayHours: 0,
+          entries: [
+            {
+              date: "2026-07-07",
+              jobName: "HR Stadium",
+              hours: 6,
+              costType: "regular",
+            },
+            {
+              date: "2026-07-07",
+              jobName: "Larkspur Gear",
+              hours: 2,
+              costType: "regular",
+            },
+          ],
+        },
+      ],
+    });
+    renderForm(<PayrollRunForm onSubmit={vi.fn()} defaultValues={defaults} />);
+    await importText("weekly sheet");
+
+    // Both jobs auto-matched (exact names on file) — no confirmation needed.
+    expect(screen.getByTestId("job-auto-matched-hr stadium")).toBeTruthy();
+    expect(screen.getByTestId("job-auto-matched-larkspur gear")).toBeTruthy();
+    expect(applyButton().disabled).toBe(false);
+
+    // Two separate date rows are shown for the same date (Tue 7/7).
+    const dateCells = screen.getAllByText("Tue 7/7");
+    expect(dateCells.length).toBe(2);
+
+    fireEvent.click(applyButton());
+    await waitFor(() =>
+      expect(screen.queryByText(/will be applied/i)).toBeNull(),
+    );
+
+    // Burdened cost: 8h × $30 = $240 gross, × 1.1017 = $264.41 total.
+    // Split proportionally: 6h → $198.31 (HR Stadium), 2h → $66.10 (Larkspur Gear).
+    const amounts = (
+      screen.getAllByPlaceholderText("Amount") as HTMLInputElement[]
+    ).map((el) => el.value);
+    expect(amounts).toContain("198.31");
+    expect(amounts).toContain("66.10");
+  });
+
+  it("clicking Add row adds a blank row for the same date; editing its job and hours are reflected in Apply", async () => {
+    mutateAsync.mockResolvedValueOnce({
+      rows: [
+        {
+          workerName: "Brendan Friedman",
+          regularHours: 6,
+          overtimeHours: 0,
+          holidayHours: 0,
+          entries: [
+            {
+              date: "2026-07-07",
+              jobName: "HR Stadium",
+              hours: 6,
+              costType: "regular",
+            },
+          ],
+        },
+      ],
+    });
+    renderForm(<PayrollRunForm onSubmit={vi.fn()} defaultValues={defaults} />);
+    await importText("weekly sheet");
+
+    // Single auto-matched row, Apply is enabled.
+    expect(screen.getByTestId("job-auto-matched-hr stadium")).toBeTruthy();
+    expect(applyButton().disabled).toBe(false);
+
+    // Click "+ Add row" — defaults to the same date as the last entry.
+    fireEvent.click(screen.getByRole("button", { name: /add row/i }));
+
+    // Now two date cells exist for "Tue 7/7".
+    const dateCells = screen.getAllByText("Tue 7/7");
+    expect(dateCells.length).toBe(2);
+
+    // Set hours on the new (last) row to 2.
+    const hourInputs = screen.getAllByPlaceholderText("0") as HTMLInputElement[];
+    const newHoursInput = hourInputs[hourInputs.length - 1];
+    fireEvent.change(newHoursInput, { target: { value: "2" } });
+
+    // Assign a job to the new row via its combobox (shown as "Pick job…").
+    fireEvent.click(screen.getByText(/pick job/i));
+    const search = await screen.findByPlaceholderText(/search job names/i);
+    fireEvent.change(search, { target: { value: "Larkspur" } });
+    fireEvent.click(await screen.findByText("Larkspur Gear"));
+
+    // Apply the updated totals.
+    fireEvent.click(applyButton());
+    await waitFor(() =>
+      expect(screen.queryByText(/will be applied/i)).toBeNull(),
+    );
+
+    // Burdened cost now uses the combined 8h (6 + 2): $264.41 total.
+    // Split 6h/2h → $198.31 HR Stadium, $66.10 Larkspur Gear.
+    const amounts = (
+      screen.getAllByPlaceholderText("Amount") as HTMLInputElement[]
+    ).map((el) => el.value);
+    expect(amounts).toContain("198.31");
+    expect(amounts).toContain("66.10");
+  });
+});
+
 // ── P11-TC-06: Overtime hours require job coding ──────────────────────────────
 
 describe("OT job coding validation — rendered PayrollRunForm (P11-TC-06)", () => {
