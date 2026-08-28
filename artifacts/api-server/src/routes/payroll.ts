@@ -115,6 +115,7 @@ async function getFullRun(id: number) {
     arr.push(a);
     allocByLine.set(a.alloc.lineId, arr);
   }
+  const ledgerEntries = await loadLedgerEntrySummaries([id]);
 
   let grossWagesCents = 0;
   let burdenCents = 0;
@@ -187,8 +188,53 @@ async function getFullRun(id: number) {
     totalCostCents,
     allocatedCents,
     workerSummaries: workerSummariesFromLines(lines),
+    ledgerEntries: ledgerEntries.get(id) ?? [],
     lines: linePayloads,
   };
+}
+
+type PayrollLedgerEntrySummary = {
+  id: number;
+  date: string;
+  reference: string;
+  description: string;
+  amountCents: number;
+  jobName: string | null;
+};
+
+async function loadLedgerEntrySummaries(runIds: number[]) {
+  const entriesByRun = new Map<number, PayrollLedgerEntrySummary[]>();
+  if (runIds.length === 0) return entriesByRun;
+
+  const entries = await db
+    .select({
+      id: transactionsTable.id,
+      payrollRunId: transactionsTable.payrollRunId,
+      date: transactionsTable.date,
+      num: transactionsTable.num,
+      description: transactionsTable.description,
+      amountCents: transactionsTable.amountCents,
+      jobName: jobsTable.name,
+    })
+    .from(transactionsTable)
+    .leftJoin(jobsTable, eq(jobsTable.id, transactionsTable.jobId))
+    .where(inArray(transactionsTable.payrollRunId, runIds))
+    .orderBy(transactionsTable.id);
+
+  for (const entry of entries) {
+    if (entry.payrollRunId == null) continue;
+    const list = entriesByRun.get(entry.payrollRunId) ?? [];
+    list.push({
+      id: entry.id,
+      date: entry.date,
+      reference: entry.num ?? `PR-${entry.payrollRunId}`,
+      description: entry.description ?? "Payroll ledger entry",
+      amountCents: Number(entry.amountCents),
+      jobName: entry.jobName,
+    });
+    entriesByRun.set(entry.payrollRunId, list);
+  }
+  return entriesByRun;
 }
 
 /**
@@ -677,6 +723,7 @@ router.get("/payroll-runs", async (req, res): Promise<void> => {
     });
     workerSummariesByRun.set(w.runId, arr);
   }
+  const ledgerEntriesByRun = await loadLedgerEntrySummaries(runIds);
 
   const items = runs.map((r) => {
     const t = totalsByRun.get(r.run.id) ?? { gross: 0, burden: 0, total: 0 };
@@ -700,6 +747,7 @@ router.get("/payroll-runs", async (req, res): Promise<void> => {
       burdenCents: t.burden,
       totalCostCents: t.total,
       workerSummaries: workerSummariesByRun.get(r.run.id) ?? [],
+      ledgerEntries: ledgerEntriesByRun.get(r.run.id) ?? [],
       lines: [],
     };
   });

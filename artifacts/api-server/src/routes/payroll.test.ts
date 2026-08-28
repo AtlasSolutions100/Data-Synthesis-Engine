@@ -22,6 +22,7 @@ import {
   payrollRunsTable,
   payrollLinesTable,
   jobsTable,
+  transactionsTable,
 } from "@workspace/db";
 
 // The extract-hours route dynamically imports the OpenAI integration. Mock it so
@@ -274,6 +275,19 @@ describe("GET /api/payroll-runs worker summaries (P11-TC-01)", () => {
         totalCostCents: 100_000,
       },
     ]);
+    await db
+      .update(payrollRunsTable)
+      .set({ posted: true })
+      .where(eq(payrollRunsTable.id, runId));
+    await db.insert(transactionsTable).values({
+      date: "2098-03-10",
+      type: "payroll",
+      num: `PR-${runId}`,
+      description: "Payroll ledger entry for TEST-PR Full Timer",
+      accountId: laborAcctId,
+      payrollRunId: runId,
+      amountCents: 100_000,
+    });
   });
 
   it("includes a named entry per worker, including a zero-cost worker", async () => {
@@ -286,6 +300,13 @@ describe("GET /api/payroll-runs worker summaries (P11-TC-01)", () => {
       res.body as Array<{
         id: number;
         workerSummaries: Array<{ name: string; totalCostCents: number }>;
+        ledgerEntries: Array<{
+          id: number;
+          reference: string;
+          description: string;
+          amountCents: number;
+          jobName: string | null;
+        }>;
       }>
     ).find((r) => r.id === runId);
     expect(run).toBeDefined();
@@ -296,6 +317,14 @@ describe("GET /api/payroll-runs worker summaries (P11-TC-01)", () => {
       ]),
     );
     expect(run!.workerSummaries).toHaveLength(2);
+    expect(run!.ledgerEntries).toEqual([
+      expect.objectContaining({
+        reference: `PR-${runId}`,
+        description: "Payroll ledger entry for TEST-PR Full Timer",
+        amountCents: 100_000,
+        jobName: null,
+      }),
+    ]);
   });
 });
 

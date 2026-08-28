@@ -164,6 +164,7 @@ export * from './payrollImportDraft';
 export * from './payrollImportDraftInput';
 export * from './payrollImportDraftInputState';
 export * from './payrollImportDraftState';
+export * from './payrollLedgerEntrySummary';
 export * from './payrollLine';
 export * from './payrollLineInput';
 export * from './payrollLineInputLineType';

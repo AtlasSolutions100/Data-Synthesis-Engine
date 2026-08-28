@@ -95,7 +95,7 @@ export default function Payroll() {
             Time Cards
           </h1>
           <p className="mt-1 text-slate-500">
-            Pay-period time card runs with burdened labor cost posted to jobs
+            Track employee time, payroll status, and resulting ledger entries
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -156,11 +156,13 @@ export default function Payroll() {
             <TableHeader>
               <TableRow>
                 <TableHead>Pay Period</TableHead>
+                <TableHead>Employees</TableHead>
                 <TableHead>Pay Date</TableHead>
                 <TableHead className="text-right">Gross</TableHead>
                 <TableHead className="text-right">Burden</TableHead>
                 <TableHead className="text-right">Total Cost</TableHead>
                 <TableHead>Status</TableHead>
+                <TableHead>Ledger Entries</TableHead>
                 <TableHead className="w-[60px]"></TableHead>
               </TableRow>
             </TableHeader>
@@ -168,7 +170,7 @@ export default function Payroll() {
               {isLoading ? (
                 <TableRow>
                   <TableCell
-                    colSpan={7}
+                    colSpan={9}
                     className="py-8 text-center text-slate-500"
                   >
                     Loading time card runs...
@@ -177,7 +179,7 @@ export default function Payroll() {
               ) : runs?.length === 0 ? (
                 <TableRow>
                   <TableCell
-                    colSpan={7}
+                    colSpan={9}
                     className="py-8 text-center text-slate-500"
                   >
                     No time card runs yet.
@@ -196,15 +198,24 @@ export default function Payroll() {
                         </Link>
                         <DemoBadge isDemo={run.isDemo} />
                       </div>
-                      {/* Who's on this run, at a glance — no need to open it
-                          to see whose time cards it contains (P11-TC-01). */}
+                    </TableCell>
+                    <TableCell>
                       {run.workerSummaries && run.workerSummaries.length > 0 ? (
-                        <div className="mt-0.5 text-xs font-normal text-slate-500">
-                          {run.workerSummaries
-                            .map((w) => `${w.name} · ${formatCents(w.totalCostCents)}`)
-                            .join(", ")}
+                        <div className="space-y-0.5 text-sm">
+                          {run.workerSummaries.map((worker) => (
+                            <div key={worker.name}>
+                              <span>{worker.name}</span>
+                              <span className="ml-1 text-xs text-slate-500">
+                                {formatCents(worker.totalCostCents)}
+                              </span>
+                            </div>
+                          ))}
                         </div>
-                      ) : null}
+                      ) : (
+                        <span className="text-sm text-slate-400">
+                          No employees
+                        </span>
+                      )}
                     </TableCell>
                     <TableCell className="whitespace-nowrap">
                       {formatDate(run.payDate)}
@@ -220,8 +231,39 @@ export default function Payroll() {
                     </TableCell>
                     <TableCell>
                       <Badge variant={run.posted ? "secondary" : "default"}>
-                        {run.posted ? "Posted" : "Draft"}
+                        {run.posted ? "Posted" : "Unposted"}
                       </Badge>
+                    </TableCell>
+                    <TableCell>
+                      {!run.posted ? (
+                        <div className="text-sm">
+                          <div className="text-slate-500">Not posted</div>
+                          <div className="text-xs text-slate-400">
+                            No ledger entries yet
+                          </div>
+                        </div>
+                      ) : run.ledgerEntries?.length > 0 ? (
+                        <div className="max-w-[280px] space-y-0.5 text-sm">
+                          {run.ledgerEntries.map((entry) => (
+                            <Link
+                              key={entry.id}
+                              href={`/transactions?highlight=${entry.id}`}
+                              className="block truncate text-blue-600 hover:underline"
+                              title={`${entry.reference} · ${entry.description}`}
+                              aria-label={`Open ledger entry ${entry.id}`}
+                            >
+                              {entry.reference} · #{entry.id}
+                              <span className="ml-1 text-xs text-slate-500">
+                                {entry.jobName ?? "Unallocated"}
+                              </span>
+                            </Link>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-sm text-slate-400">
+                          Posted · no entries
+                        </span>
+                      )}
                     </TableCell>
                     <TableCell>
                       <div className="flex justify-end opacity-0 transition-opacity group-hover:opacity-100">
