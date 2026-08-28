@@ -6,6 +6,7 @@ import { runBillLinkBackfillAtStartup } from "./lib/billLinkBackfill";
 import { consolidateHomedepotAccountAtStartup } from "./lib/consolidateHomedepotAccount";
 import { ensureAccountNumberUniquenessAtStartup } from "./lib/ensureAccountNumberUniqueness";
 import { ensureAllied2026 } from "./lib/ensureAllied2026";
+import { runBillVendorAccountBackfillAtStartup } from "./lib/billVendorAccountBackfill";
 
 const rawPort = process.env["PORT"];
 
@@ -35,7 +36,9 @@ app.listen(port, (err) => {
 
   // One-time data migration: consolidate the duplicate Home Depot credit-card
   // account (20500→21100). Idempotent; no-ops when 20500 is already absent.
-  void consolidateHomedepotAccountAtStartup();
+  void consolidateHomedepotAccountAtStartup().then(() =>
+    runBillVendorAccountBackfillAtStartup(),
+  );
 
   // One-time data migration: deduplicate accounts.number and apply a unique
   // DB index so concurrent creates can't produce duplicates. Skips safely when

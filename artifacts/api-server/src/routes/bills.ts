@@ -42,6 +42,7 @@ import {
   SaveBillImportDraftBody,
   SaveBillImportDraftResponse,
 } from "@workspace/api-zod";
+import { BALANCE_SHEET_TYPES } from "../lib/finance";
 
 const objectStorageService = new ObjectStorageService();
 
@@ -572,6 +573,20 @@ export async function syncBillTransactionsBatch(
     .from(billLinesTable)
     .where(inArray(billLinesTable.billId, billIds))
     .orderBy(billLinesTable.billId, billLinesTable.id);
+  const vendorAccountRows = await tx
+    .select({
+      accountId: accountsTable.id,
+      accountName: accountsTable.name,
+    })
+    .from(accountsTable)
+    .where(inArray(accountsTable.type, [...BALANCE_SHEET_TYPES]));
+  const vendorAccountIdsByName = new Map<string, number[]>();
+  for (const account of vendorAccountRows) {
+    const key = account.accountName.trim().toLowerCase();
+    const ids = vendorAccountIdsByName.get(key) ?? [];
+    ids.push(account.accountId);
+    vendorAccountIdsByName.set(key, ids);
+  }
   await tx
     .delete(transactionsTable)
     .where(
@@ -588,6 +603,14 @@ export async function syncBillTransactionsBatch(
     if (l.accountId == null) return [];
     const row = byBillId.get(l.billId);
     if (!row) return [];
+    const vendorAccountIds =
+      vendorAccountIdsByName.get(
+        (row.vendorName ?? "").trim().toLowerCase(),
+      ) ?? [];
+    const vendorAccountId =
+      vendorAccountIds.length === 1 && vendorAccountIds[0] !== l.accountId
+        ? vendorAccountIds[0]
+        : null;
     return [
       {
         date: row.bill.date,
@@ -596,6 +619,7 @@ export async function syncBillTransactionsBatch(
         partyName: row.vendorName,
         description: l.description,
         accountId: l.accountId,
+        splitAccountId: vendorAccountId,
         jobId: l.jobId ?? row.bill.jobId,
         vendorId: row.bill.vendorId,
         amountCents: Number(l.amountCents),

@@ -16,6 +16,7 @@ import {
   billsTable,
   transactionsTable,
 } from "@workspace/db";
+import { getAccountLedger } from "../lib/finance";
 
 /**
  * Locks in the bill → ledger traceability link: posting a bill creates one
@@ -40,10 +41,12 @@ let vendorId: number;
 let jobId: number;
 let acctId: number;
 let acct2Id: number;
+let vendorAccountId: number;
 let laborAcctId: number;
 let laborAcctCreated = false;
 let lineJobId: number;
 let manualTxId: number;
+let importedVendorTxId: number;
 const billIds: number[] = [];
 
 beforeAll(async () => {
@@ -71,6 +74,15 @@ beforeAll(async () => {
     .values({ number: "TEST-BP-5001", name: "Test BP Expense 2", type: "expense" })
     .returning();
   acct2Id = acct2.id;
+  const [vendorAccount] = await db
+    .insert(accountsTable)
+    .values({
+      number: "TEST-BP-21100",
+      name: "TEST-BP Vendor",
+      type: "credit_card",
+    })
+    .returning();
+  vendorAccountId = vendorAccount.id;
   const [existingLaborAccount] = await db
     .select({ id: accountsTable.id })
     .from(accountsTable)
@@ -103,15 +115,32 @@ beforeAll(async () => {
     })
     .returning();
   manualTxId = manual.id;
+  const [importedVendorTx] = await db
+    .insert(transactionsTable)
+    .values({
+      date: "2098-02-05",
+      type: "credit_card",
+      num: "TEST-BP-UPLOADED",
+      partyName: "TEST-BP Vendor",
+      accountId: vendorAccountId,
+      amountCents: 2000,
+      vendorId,
+    })
+    .returning();
+  importedVendorTxId = importedVendorTx.id;
 });
 
 afterAll(async () => {
   await db.delete(transactionsTable).where(eq(transactionsTable.id, manualTxId));
+  await db
+    .delete(transactionsTable)
+    .where(eq(transactionsTable.id, importedVendorTxId));
   for (const id of billIds) {
     await db.delete(billsTable).where(eq(billsTable.id, id));
   }
   await db.delete(accountsTable).where(eq(accountsTable.id, acctId));
   await db.delete(accountsTable).where(eq(accountsTable.id, acct2Id));
+  await db.delete(accountsTable).where(eq(accountsTable.id, vendorAccountId));
   await db.delete(jobsTable).where(eq(jobsTable.id, jobId));
   await db.delete(jobsTable).where(eq(jobsTable.id, lineJobId));
   if (laborAcctCreated) {
@@ -150,8 +179,42 @@ describe("bill posting creates linked ledger transactions", () => {
       expect(row.vendorId).toBe(vendorId);
       expect(row.jobId).toBe(jobId);
       expect(row.date).toBe("2098-02-10");
+      expect(row.splitAccountId).toBe(vendorAccountId);
     }
     expect(rows.map((r) => Number(r.amountCents)).sort()).toEqual([2500, 5000]);
+  });
+
+  it("shows uploaded and manually entered vendor activity in one reconcile ledger", async () => {
+    const ledger = await getAccountLedger(vendorAccountId, "2098-02-28");
+    expect(ledger).not.toBeNull();
+
+    const importedLine = ledger!.lines.find(
+      (line) => line.transactionId === importedVendorTxId,
+    );
+    expect(importedLine).toMatchObject({
+      role: "primary",
+      num: "TEST-BP-UPLOADED",
+      effectCents: 2000,
+    });
+
+    const manualBillLines = ledger!.lines.filter(
+      (line) => line.num === "TEST-BP-1001",
+    );
+    expect(manualBillLines).toHaveLength(2);
+    expect(manualBillLines).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          role: "split",
+          otherAccountName: "Test BP Expense",
+          effectCents: 5000,
+        }),
+        expect.objectContaining({
+          role: "split",
+          otherAccountName: "Test BP Expense 2",
+          effectCents: 2500,
+        }),
+      ]),
+    );
   });
 
   it("GET /transactions exposes billId; non-bill rows return null", async () => {
