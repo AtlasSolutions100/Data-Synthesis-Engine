@@ -24,6 +24,7 @@
 - [Payroll labor account default](payroll-labor-account-default.md) — labor account auto-resolves server-side (latest run, else lone /labor/i cost account); OT falls back to 1.5× straight rate.
 - [Employee time card history links](employee-timecard-history-links.md) — preserve employeeId on saves; legacy name-only rows appear only for a unique exact normalized employee-name match.
 - [Bill ledger posting](bill-ledger-posting.md) — API-created and spreadsheet-imported bills generate billId-linked ledger transactions (batched sync, postedToLedger flag); legacy bills are never back-filled.
+- [Legacy bill auto-linking](legacy-bill-auto-linking.md) — unique vendor+invoice-number matches auto-link despite date/amount differences; only no-match or multi-match rows need review.
 - [api-client-react mock factory](api-client-mock-factory.md) — never hand-list generated hooks in vi.mock; use the shared factory so new hooks don't break suites.
 - [Hours-import job confirmation](import-job-confirmation.md) — person-like extracted job names always require explicit confirmation, even if a job with that exact name exists.
 - [Zod boolean query coercion](zod-boolean-query-coercion.md) — coerced boolean query params turn "false" into true; require the literal raw "true" string for sensitive flags.

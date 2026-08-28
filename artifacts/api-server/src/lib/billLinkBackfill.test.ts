@@ -12,8 +12,8 @@ import { backfillBillLinks } from "./billLinkBackfill";
 
 /**
  * Bill-link backfill: legacy "bill" transactions get transactions.bill_id
- * set only on a confident vendor + bill number + date + amount match.
- * Ambiguous or amount-mismatched matches are left untouched and reported.
+ * set on a unique vendor + invoice number match, even when imported posting
+ * dates or line amounts differ. Ambiguous matches are left untouched.
  */
 
 let acctId: number;
@@ -141,11 +141,12 @@ describe("backfillBillLinks", () => {
       vendorId: vendorAId,
     });
 
-    // Amount mismatch: matched transaction doesn't sum to the bill total.
+    // A unique invoice-number match still links when the imported posting date
+    // and amount do not match the bill record.
     const billMismatch = await addBill(vendorBId, "BLB-400", "2024-03-15", [9000]);
     const txnMismatch = await addTxn({
       num: "BLB-400",
-      date: "2024-03-15",
+      date: "2024-03-16",
       amountCents: 4500,
       vendorId: vendorBId,
     });
@@ -179,7 +180,7 @@ describe("backfillBillLinks", () => {
     expect(await billIdOf(txnMultiA)).toBe(billMulti);
     expect(await billIdOf(txnMultiB)).toBe(billMulti);
     expect(await billIdOf(txnAmbiguous)).toBeNull();
-    expect(await billIdOf(txnMismatch)).toBeNull();
+    expect(await billIdOf(txnMismatch)).toBe(billMismatch);
     expect(await billIdOf(txnWrongVendor)).toBeNull();
     expect(await billIdOf(txnAlreadyLinked)).toBe(billPosted);
     const [wrongType] = await db
@@ -192,15 +193,7 @@ describe("backfillBillLinks", () => {
     expect(
       result.ambiguous.some((a) => a.transactionId === txnAmbiguous && a.billIds.length === 2),
     ).toBe(true);
-    expect(
-      result.amountMismatch.some(
-        (m) =>
-          m.billId === billMismatch &&
-          m.billTotalCents === 9000 &&
-          m.matchedTotalCents === 4500 &&
-          m.transactionIds.includes(txnMismatch),
-      ),
-    ).toBe(true);
+    expect(result.amountMismatch).toEqual([]);
 
     // Amounts are never touched.
     const linkedRows = await db

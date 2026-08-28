@@ -6,17 +6,16 @@
  *
  * A transaction is linked only on a confident match:
  *   - transaction.type = 'bill', bill_id not yet set, non-empty num
- *   - the bill has the same bill number and the same date
+ *   - the bill has the same invoice number; date is supporting information,
+ *     not a requirement because imported posting dates can differ
  *   - the vendor matches (transaction.vendor_id, or — for legacy rows with
  *     no vendor link — the party name equals the vendor's name)
  *   - the transaction matches exactly ONE bill (else ambiguous → skipped)
- *   - the summed amounts of all transactions matched to that bill equal the
- *     bill's line total (else amount mismatch → skipped)
  *
  * Bills that already have billId-linked transactions (API-posted bills) are
  * never candidates, and nothing but transactions.bill_id is ever written —
- * amounts, dates, and report totals are untouched. Idempotent and safe to
- * run on every server start.
+ * amounts, dates, and report totals are untouched. Idempotent and safe to run
+ * on every server start.
  */
 import { sql } from "drizzle-orm";
 import { db } from "@workspace/db";
@@ -59,13 +58,16 @@ export async function backfillBillLinks(): Promise<BillLinkBackfillResult> {
   };
   if (candidates === 0) return empty;
 
-  // All (legacy transaction, bill) pairs that agree on vendor, bill number,
-  // and date, restricted to bills that have no ledger rows linked yet.
+  // All (legacy transaction, bill) pairs that agree on vendor and invoice
+  // number, restricted to bills that have no ledger rows linked yet. An exact
+  // invoice number is the strongest identifier available here; imported
+  // posting dates and line amounts are not identity checks.
   const matchResult = await db.execute(sql`
     WITH bill_totals AS (
       SELECT b.id,
              b.vendor_id,
-             btrim(b.bill_number) AS bill_number,
+             b.bill_number AS bill_number,
+             lower(btrim(b.bill_number)) AS normalized_bill_number,
              b.date,
              coalesce(sum(bl.amount_cents), 0)::bigint AS total_cents
       FROM bills b
@@ -83,8 +85,7 @@ export async function backfillBillLinks(): Promise<BillLinkBackfillResult> {
            b.total_cents AS bill_cents
     FROM transactions t
     JOIN bill_totals b
-      ON b.bill_number = btrim(t.num)
-     AND b.date = t.date
+     ON b.normalized_bill_number = lower(btrim(t.num))
      AND (
        t.vendor_id = b.vendor_id
        OR (
@@ -133,34 +134,16 @@ export async function backfillBillLinks(): Promise<BillLinkBackfillResult> {
     }
   }
 
-  // Per bill: only link when the matched transactions sum exactly to the
-  // bill's line total, so a partial or double match never gets linked.
-  const txnsByBill = new Map<number, MatchRow[]>();
+  const toLink = new Map<number, number[]>();
   for (const row of unambiguous) {
-    const list = txnsByBill.get(row.billId) ?? [];
-    list.push(row);
-    txnsByBill.set(row.billId, list);
-  }
-  const amountMismatch: BillLinkBackfillResult["amountMismatch"] = [];
-  const toLink: { billId: number; txnIds: number[] }[] = [];
-  for (const [billId, matches] of txnsByBill) {
-    const matchedTotalCents = matches.reduce((s, m) => s + m.txnCents, 0);
-    const billTotalCents = matches[0].billCents;
-    if (matchedTotalCents === billTotalCents) {
-      toLink.push({ billId, txnIds: matches.map((m) => m.txnId) });
-    } else {
-      amountMismatch.push({
-        billId,
-        billTotalCents,
-        matchedTotalCents,
-        transactionIds: matches.map((m) => m.txnId),
-      });
-    }
+    const ids = toLink.get(row.billId) ?? [];
+    ids.push(row.txnId);
+    toLink.set(row.billId, ids);
   }
 
   let linked = 0;
   await db.transaction(async (tx) => {
-    for (const { billId, txnIds } of toLink) {
+    for (const [billId, txnIds] of toLink) {
       const updated = await tx.execute(sql`
         UPDATE transactions
         SET bill_id = ${billId}
@@ -178,9 +161,9 @@ export async function backfillBillLinks(): Promise<BillLinkBackfillResult> {
   return {
     candidates,
     linked,
-    billsLinked: toLink.length,
+    billsLinked: toLink.size,
     ambiguous,
-    amountMismatch,
+    amountMismatch: [],
   };
 }
 
@@ -207,10 +190,9 @@ export interface UnlinkedBillTransactionReport {
 }
 
 /**
- * Read-only report of every legacy "bill" transaction that still has no
- * bill link, with the reason the automatic backfill skipped it and the
- * candidate bills that matched on vendor + bill number + date. Nothing is
- * written; this powers the manual-linking UI.
+ * Report every legacy "bill" transaction that still has no bill link after
+ * the automatic invoice-number matcher has run. Only no-match and ambiguous
+ * rows should remain; this powers the manual-review UI.
  */
 export async function listUnlinkedBillTransactions(): Promise<
   UnlinkedBillTransactionReport[]
@@ -228,12 +210,13 @@ export async function listUnlinkedBillTransactions(): Promise<
   `);
   if (txnResult.rows.length === 0) return [];
 
-  // Same confident-match pairing the backfill uses, plus display fields.
+  // Same invoice-number/vendor pairing the backfill uses, plus display fields.
   const matchResult = await db.execute(sql`
     WITH bill_totals AS (
       SELECT b.id,
              b.vendor_id,
-             btrim(b.bill_number) AS bill_number,
+             b.bill_number AS bill_number,
+             lower(btrim(b.bill_number)) AS normalized_bill_number,
              b.date,
              coalesce(sum(bl.amount_cents), 0)::bigint AS total_cents
       FROM bills b
@@ -254,8 +237,7 @@ export async function listUnlinkedBillTransactions(): Promise<
            v.name AS vendor_name
     FROM transactions t
     JOIN bill_totals b
-      ON b.bill_number = btrim(t.num)
-     AND b.date = t.date
+     ON b.normalized_bill_number = lower(btrim(t.num))
      AND (
        t.vendor_id = b.vendor_id
        OR (
@@ -297,18 +279,6 @@ export async function listUnlinkedBillTransactions(): Promise<
     candidatesByTxn.set(txnId, list);
   }
 
-  // Per-bill matched totals over unambiguous transactions, mirroring the
-  // backfill's amount check.
-  const matchedTotalByBill = new Map<number, number>();
-  for (const [, matches] of candidatesByTxn) {
-    if (matches.length !== 1) continue;
-    const m = matches[0];
-    matchedTotalByBill.set(
-      m.billId,
-      (matchedTotalByBill.get(m.billId) ?? 0) + m.txnCents,
-    );
-  }
-
   return txnResult.rows.map((r) => {
     const transactionId = Number(r["id"]);
     const matches = candidatesByTxn.get(transactionId) ?? [];
@@ -318,11 +288,10 @@ export async function listUnlinkedBillTransactions(): Promise<
     } else if (matches.length > 1) {
       reason = "ambiguous";
     } else {
-      const m = matches[0];
-      reason =
-        matchedTotalByBill.get(m.billId) === m.totalCents
-          ? "linkable"
-          : "amount_mismatch";
+      // A unique invoice-number match is normally linked by backfill before
+      // this report is read. Keep the legacy "linkable" value as a defensive
+      // compatibility state if a concurrent write races the backfill.
+      reason = "linkable";
     }
     return {
       transactionId,

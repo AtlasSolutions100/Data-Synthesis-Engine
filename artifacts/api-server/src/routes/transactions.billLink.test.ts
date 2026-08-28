@@ -115,11 +115,11 @@ describe("GET /api/transactions/unlinked-bills", () => {
       amountCents: 1000,
     });
 
-    // Amount mismatch: single matching bill but totals differ.
+    // Unique invoice-number match: differing amount/date must not force review.
     const mismatchBill = await addBill("MBL-MIS", "2024-04-02", [9000]);
     const txnMismatch = await addTxn({
       num: "MBL-MIS",
-      date: "2024-04-02",
+      date: "2024-04-03",
       amountCents: 4500,
     });
 
@@ -144,11 +144,12 @@ describe("GET /api/transactions/unlinked-bills", () => {
     expect(amb.candidates[0].vendorName).toBe("Test MBL Vendor");
     expect(amb.amountCents).toBe(1000);
 
-    const mis = byId.get(txnMismatch) as any;
-    expect(mis.reason).toBe("amount_mismatch");
-    expect(mis.candidates).toHaveLength(1);
-    expect(mis.candidates[0].billId).toBe(mismatchBill);
-    expect(mis.candidates[0].totalCents).toBe(9000);
+    expect(byId.has(txnMismatch)).toBe(false);
+    const [linkedMismatch] = await db
+      .select({ billId: transactionsTable.billId })
+      .from(transactionsTable)
+      .where(eq(transactionsTable.id, txnMismatch));
+    expect(linkedMismatch.billId).toBe(mismatchBill);
 
     const none = byId.get(txnNoMatch) as any;
     expect(none.reason).toBe("no_match");

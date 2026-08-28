@@ -30,7 +30,10 @@ import {
 } from "@workspace/api-zod";
 import { dateRangeConds, BALANCE_SHEET_TYPES, DEBIT_NATURED_TYPES } from "../lib/finance";
 import * as z from "zod";
-import { listUnlinkedBillTransactions } from "../lib/billLinkBackfill";
+import {
+  backfillBillLinks,
+  listUnlinkedBillTransactions,
+} from "../lib/billLinkBackfill";
 
 const router: IRouter = Router();
 
@@ -499,6 +502,10 @@ router.post(
  */
 
 router.get("/transactions/unlinked-bills", async (_req, res): Promise<void> => {
+  // Imports can happen after server startup. Run the same idempotent matcher
+  // before building the queue so a newly available exact invoice match never
+  // lands in manual review.
+  await backfillBillLinks();
   const report = await listUnlinkedBillTransactions();
   res.json(ListUnlinkedBillTransactionsResponse.parse(report));
 });
