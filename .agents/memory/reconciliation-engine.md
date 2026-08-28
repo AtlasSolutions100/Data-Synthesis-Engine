@@ -42,6 +42,11 @@ Mounted in `routes/index.ts`. Key endpoints:
 ## Register cleared marks
 - `AccountBalanceTransactionLine.clearedStatus` (cleared|pending|uncleared): "cleared" = in a completed period's clears, "pending" = in-progress period, else "uncleared". Past date alone never labels a row cleared. Computed in reports.ts register route by joining clears→periods for the account.
 - PATCH on a completed period is 400 ("Reopen it first") — statement balance is part of the diff=0 close invariant.
+- In-progress periods and their clear marks are intentionally server-persisted; leaving and returning to the period must restore the same draft state.
+
+**Why:** This resume behavior is a confirmed user-valued workflow and is a regression guard for ledger synchronization changes.
+
+**How to apply:** Preserve the period and `reconciliation_clears` records while adding or changing transaction visibility; verify with a fresh GET/page-reload simulation.
 
 ## isDemo pattern (ongoing)
 Partial `.select()` queries in route files must include `isDemo: table.isDemo` or the Zod response schema throws. Found and fixed in: `getFullBill()` (bills.ts), `serializeJob()` (jobs.ts), customers list (customers.ts). The vendors list uses `db.select()` (all columns) so it's safe.
