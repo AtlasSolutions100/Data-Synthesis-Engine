@@ -109,6 +109,10 @@ const allocationSchema = z.object({
   jobId: z.string().min(1, "Job ID required"),
   hours: z.string().optional(),
   amount: z.string().min(1, "Amount required"),
+  // Internal UI metadata used to preserve mixed-rate import splits while
+  // recalculating the displayed wage amount. It is omitted from the API
+  // payload in handleSubmit.
+  wageWeightCents: z.number().optional(),
 });
 
 const hourEntrySchema = z.object({
@@ -262,7 +266,19 @@ function LineAllocations({
   });
   const {
     formState: { errors },
+    getValues,
+    setValue,
   } = useFormContext<RunFormValues>();
+  const clearWageWeights = () => {
+    const allocations = getValues(`lines.${lineIndex}.allocations`) ?? [];
+    allocations.forEach((_, allocationIndex) => {
+      setValue(
+        `lines.${lineIndex}.allocations.${allocationIndex}.wageWeightCents`,
+        undefined,
+        { shouldDirty: true },
+      );
+    });
+  };
   // Overtime-requires-job validation error (P11-TC-06). The superRefine on
   // lineSchema attaches the message to the `allocations` key of the line.
   const allocError = (
@@ -279,7 +295,10 @@ function LineAllocations({
           type="button"
           variant="outline"
           size="sm"
-          onClick={() => append({ jobId: "", hours: "", amount: "" })}
+          onClick={() => {
+            clearWageWeights();
+            append({ jobId: "", hours: "", amount: "" });
+          }}
         >
           <Plus className="mr-1 h-3 w-3" /> Add Job
         </Button>
@@ -312,7 +331,10 @@ function LineAllocations({
                     <JobCombobox
                       jobs={jobs}
                       value={field.value}
-                      onChange={field.onChange}
+                      onChange={(value) => {
+                        field.onChange(value);
+                        clearWageWeights();
+                      }}
                     />
                   </FormControl>
                   <FormMessage />
@@ -338,6 +360,10 @@ function LineAllocations({
                       readOnly={fields.length === 1}
                       className={fields.length === 1 ? "bg-slate-100" : ""}
                       {...field}
+                      onChange={(event) => {
+                        field.onChange(event);
+                        clearWageWeights();
+                      }}
                     />
                   </FormControl>
                   <FormMessage />
@@ -374,7 +400,11 @@ function LineAllocations({
               variant="ghost"
               size="icon"
               className="text-red-500 hover:bg-red-50 hover:text-red-700"
-              onClick={() => remove(aIndex)}
+              aria-label="Remove allocation"
+              onClick={() => {
+                clearWageWeights();
+                remove(aIndex);
+              }}
             >
               <Trash2 className="h-4 w-4" />
             </Button>
@@ -538,14 +568,29 @@ function WorkerLine({
     );
     if (totalHours <= 0 || computed.grossCents <= 0) return;
 
+    const useWageWeights = allocations.some(
+      (allocation) => allocation.wageWeightCents != null,
+    );
+    const split = useWageWeights
+      ? splitCentsByWeights(
+          computed.grossCents,
+          allocations.map((allocation, allocationIndex) => ({
+            key: String(allocationIndex),
+            weight:
+              allocation.wageWeightCents ??
+              Math.max(0, parseFloat(allocation.hours || "0") || 0),
+          })),
+        )
+      : null;
+
     allocations.forEach((allocation, allocationIndex) => {
       const hours =
         allocations.length === 1
           ? totalHours
           : Math.max(0, parseFloat(allocation.hours || "0") || 0);
-      const amountCents = Math.round(
-        computed.grossCents * Math.min(hours / totalHours, 1),
-      );
+      const amountCents =
+        split?.get(String(allocationIndex)) ??
+        Math.round(computed.grossCents * Math.min(hours / totalHours, 1));
       const hoursValue = String(Math.round(hours * 100) / 100);
       const amountValue = (amountCents / 100).toFixed(2);
 
@@ -2507,14 +2552,43 @@ function ImportHoursDialog({
             },
           ];
         }
-        // Split gross wages across jobs in proportion to hours worked on each.
+        // Split gross wages across jobs in proportion to each job's wage
+        // contribution, not raw hours. This matters when a day-grid split
+        // mixes regular, overtime, and holiday entries: OT hours carry the
+        // higher rate, while holiday hours use the straight-time rate.
         // Per-entry resolvedJobId overrides the shared association so day-grid
         // edits are reflected in both the visible hours and calculated wages.
+        const grossByJob = new Map<
+          string,
+          { regular: number; overtime: number; holiday: number }
+        >();
+        for (const e of r.entries) {
+          const jobId = jobIdForEntry(e);
+          if (!jobId) continue;
+          const hoursByType = grossByJob.get(jobId) ?? {
+            regular: 0,
+            overtime: 0,
+            holiday: 0,
+          };
+          hoursByType[e.costType] += e.hours;
+          grossByJob.set(jobId, hoursByType);
+        }
+        const straightRate = employee?.straightTimeRateCents ?? 0;
+        const overtimeRate =
+          employee?.overtimeRateCents ?? Math.round(straightRate * 1.5);
+        const wageCentsByJob = new Map(
+          [...grossByJob].map(([jobId, hours]) => [
+            jobId,
+            Math.round(hours.regular * straightRate) +
+              Math.round(hours.overtime * overtimeRate) +
+              Math.round(hours.holiday * straightRate),
+          ]),
+        );
         const split = splitCentsByWeights(
           computed.grossCents,
           rowJobIds.map((jobId) => ({
             key: jobId,
-            weight: hoursByJob.get(jobId) ?? 0,
+            weight: wageCentsByJob.get(jobId) ?? 0,
           })),
         );
         return rowJobIds
@@ -2526,6 +2600,7 @@ function ImportHoursDialog({
               Math.round((hoursByJob.get(x.jobId) ?? 0) * 100) / 100,
             ),
             amount: (x.cents / 100).toFixed(2),
+            wageWeightCents: wageCentsByJob.get(x.jobId) ?? 0,
           }));
       };
 

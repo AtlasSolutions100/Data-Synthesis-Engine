@@ -62,6 +62,11 @@ vi.mock("@workspace/api-client-react", async (importOriginal) => {
         name: "Bruce Randolph",
         customerName: "Bassett & Associates, Inc",
       },
+      {
+        id: 540,
+        name: "Summit Site",
+        customerName: "Douglas County Schools",
+      },
     ],
     isLoading: false,
   }),
@@ -955,6 +960,231 @@ describe("Cost-type change in day grid — recalculation", () => {
     expect(
       (screen.getByLabelText("Calculated wages") as HTMLInputElement).value,
     ).toBe("240.00");
+  });
+
+  it("splits mixed regular and OT entries by wage contribution across dated jobs", async () => {
+    mutateAsync.mockResolvedValueOnce({
+      rows: [
+        {
+          workerName: "Brendan Friedman",
+          regularHours: 6,
+          overtimeHours: 2,
+          holidayHours: 0,
+          entries: [
+            {
+              date: "2026-07-07",
+              jobName: "HR Stadium",
+              hours: 6,
+              costType: "regular",
+            },
+            {
+              date: "2026-07-07",
+              jobName: "Larkspur Gear",
+              hours: 2,
+              costType: "overtime",
+            },
+          ],
+        },
+      ],
+    });
+    renderForm(<PayrollRunForm onSubmit={vi.fn()} defaultValues={defaults} />);
+    await importText("Brendan Friedman — 6 regular at HR Stadium, 2 OT at Larkspur Gear");
+
+    expect(screen.getByTestId("job-auto-matched-hr stadium")).toBeTruthy();
+    expect(screen.getByTestId("job-auto-matched-larkspur gear")).toBeTruthy();
+    expect(screen.getAllByText("Tue 7/7").length).toBe(2);
+    expect(applyButton().disabled).toBe(false);
+
+    fireEvent.click(applyButton());
+    await waitFor(() =>
+      expect(screen.queryByText(/will be applied/i)).toBeNull(),
+    );
+
+    // Gross wages are $180 regular + $90 OT. The split must follow those
+    // wage contributions, not the 6h/2h raw-hours ratio (which would be
+    // $202.50/$67.50). Allocations remain pre-burden.
+    const amounts = (
+      screen.getAllByLabelText("Calculated wages") as HTMLInputElement[]
+    ).map((el) => el.value);
+    expect(amounts).toContain("180.00");
+    expect(amounts).toContain("90.00");
+
+    // Default burden is 10.17% applied component-by-component with cent
+    // rounding: $16.74 + $3.92 + $1.62 + $4.59 + $0.59 = $27.46.
+    expect(screen.getAllByText("$297.46").length).toBeGreaterThan(0);
+  });
+
+  it("recalculates every allocation when an imported allocation job changes", async () => {
+    mutateAsync.mockResolvedValueOnce({
+      rows: [
+        {
+          workerName: "Brendan Friedman",
+          regularHours: 6,
+          overtimeHours: 2,
+          holidayHours: 0,
+          entries: [
+            {
+              date: "2026-07-07",
+              jobName: "HR Stadium",
+              hours: 6,
+              costType: "regular",
+            },
+            {
+              date: "2026-07-07",
+              jobName: "Larkspur Gear",
+              hours: 2,
+              costType: "overtime",
+            },
+          ],
+        },
+      ],
+    });
+    renderForm(<PayrollRunForm onSubmit={vi.fn()} defaultValues={defaults} />);
+    await importText("Brendan Friedman — 6 regular at HR Stadium, 2 OT at Larkspur Gear");
+    fireEvent.click(applyButton());
+    await waitFor(() =>
+      expect(screen.queryByText(/will be applied/i)).toBeNull(),
+    );
+
+    const hrJob = (
+      screen.getAllByRole("combobox") as HTMLElement[]
+    ).find((el) => el.textContent?.trim() === "HR Stadium");
+    expect(hrJob).toBeTruthy();
+    fireEvent.click(hrJob!);
+    const search = await screen.findByPlaceholderText(/search job names/i);
+    fireEvent.change(search, { target: { value: "Bruce" } });
+    fireEvent.click(await screen.findByText("Bruce Randolph"));
+
+    // Editing one job clears the preserved mixed-rate weights from the whole
+    // line, so the other allocation does not retain incompatible units.
+    await waitFor(() => {
+      const amounts = (
+        screen.getAllByLabelText("Calculated wages") as HTMLInputElement[]
+      ).map((el) => el.value);
+      expect(amounts).toEqual(["202.50", "67.50"]);
+    });
+  });
+
+  it("recalculates every allocation when imported allocation hours change", async () => {
+    mutateAsync.mockResolvedValueOnce({
+      rows: [
+        {
+          workerName: "Brendan Friedman",
+          regularHours: 6,
+          overtimeHours: 2,
+          holidayHours: 0,
+          entries: [
+            {
+              date: "2026-07-07",
+              jobName: "HR Stadium",
+              hours: 6,
+              costType: "regular",
+            },
+            {
+              date: "2026-07-07",
+              jobName: "Larkspur Gear",
+              hours: 2,
+              costType: "overtime",
+            },
+          ],
+        },
+      ],
+    });
+    renderForm(<PayrollRunForm onSubmit={vi.fn()} defaultValues={defaults} />);
+    await importText("Brendan Friedman — 6 regular at HR Stadium, 2 OT at Larkspur Gear");
+    fireEvent.click(applyButton());
+    await waitFor(() =>
+      expect(screen.queryByText(/will be applied/i)).toBeNull(),
+    );
+
+    const allocationHours = screen.getAllByPlaceholderText(
+      "Hours",
+    ) as HTMLInputElement[];
+    expect(allocationHours).toHaveLength(2);
+    fireEvent.change(allocationHours[0], { target: { value: "4" } });
+    fireEvent.change(allocationHours[1], { target: { value: "4" } });
+
+    // With both allocations now at 4h, raw-hour recalculation is consistent
+    // for the manually edited line and still sums to the $270 gross.
+    await waitFor(() => {
+      const amounts = (
+        screen.getAllByLabelText("Calculated wages") as HTMLInputElement[]
+      ).map((el) => el.value);
+      expect(amounts).toEqual(["135.00", "135.00"]);
+    });
+  });
+
+  it("clears mixed-rate weights when deleting an allocation", async () => {
+    mutateAsync.mockResolvedValueOnce({
+      rows: [
+        {
+          workerName: "Brendan Friedman",
+          regularHours: 4,
+          overtimeHours: 2,
+          holidayHours: 2,
+          entries: [
+            {
+              date: "2026-07-07",
+              jobName: "HR Stadium",
+              hours: 4,
+              costType: "regular",
+            },
+            {
+              date: "2026-07-07",
+              jobName: "Larkspur Gear",
+              hours: 2,
+              costType: "overtime",
+            },
+            {
+              date: "2026-07-07",
+              jobName: "Summit Site",
+              hours: 2,
+              costType: "holiday",
+            },
+          ],
+        },
+      ],
+    });
+    renderForm(<PayrollRunForm onSubmit={vi.fn()} defaultValues={defaults} />);
+    await importText(
+      "Brendan Friedman — 4 regular at HR Stadium, 2 OT at Larkspur Gear, 2 holiday at Summit Site",
+    );
+    fireEvent.click(applyButton());
+    await waitFor(() =>
+      expect(screen.queryByText(/will be applied/i)).toBeNull(),
+    );
+
+    const removeAllocationButtons = screen.getAllByRole("button", {
+      name: /remove allocation/i,
+    });
+    expect(removeAllocationButtons).toHaveLength(3);
+    // Remove the OT allocation. Its old $90 wage weight must not remain
+    // attached to the surviving allocations.
+    fireEvent.click(removeAllocationButtons[1]);
+    await waitFor(() => {
+      const amounts = (
+        screen.getAllByLabelText("Calculated wages") as HTMLInputElement[]
+      ).map((el) => el.value);
+      expect(amounts).toEqual(["135.00", "67.50"]);
+    });
+
+    // Rebalance the surviving rows to the full 8h line. The cleared weights
+    // mean the remaining equal-hour allocations use raw-hour recalculation
+    // and sum exactly to the $270 gross wages.
+    const remainingHours = screen.getAllByPlaceholderText(
+      "Hours",
+    ) as HTMLInputElement[];
+    expect(remainingHours).toHaveLength(2);
+    fireEvent.change(remainingHours[1], { target: { value: "4" } });
+    await waitFor(() => {
+      const amounts = (
+        screen.getAllByLabelText("Calculated wages") as HTMLInputElement[]
+      ).map((el) => el.value);
+      expect(amounts).toEqual(["135.00", "135.00"]);
+      expect(
+        amounts.reduce((sum, amount) => sum + Math.round(Number(amount) * 100), 0),
+      ).toBe(27000);
+    });
   });
 });
 
