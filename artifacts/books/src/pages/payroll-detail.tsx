@@ -97,6 +97,7 @@ function runToFormValues(run: PayrollRun) {
             : "",
         allocations: line.allocations.map((a) => ({
           jobId: String(a.jobId),
+          hours: "",
           amount: centsToInput(a.amountCents),
         })),
       };
@@ -343,7 +344,9 @@ export default function PayrollDetail() {
               <TableRow>
                 <TableHead>Worker</TableHead>
                 <TableHead>Job Name</TableHead>
-                <TableHead className="text-right">Burdened Cost</TableHead>
+                <TableHead className="text-right">
+                  Wages Before Burden
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>

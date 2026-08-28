@@ -2484,7 +2484,7 @@ export const ListPayrollRunsResponseItem = zod.object({
   "jobId": zod.number(),
   "jobNumber": zod.string().nullish(),
   "jobName": zod.string().nullish(),
-  "amountCents": zod.number().describe('Burdened labor cost allocated to this job, in integer cents')
+  "amountCents": zod.number().describe('Gross wages before employer burden allocated to this job, in integer cents')
 }))
 }))
 })
@@ -2604,7 +2604,7 @@ export const CreatePayrollRunResponse = zod.object({
   "jobId": zod.number(),
   "jobNumber": zod.string().nullish(),
   "jobName": zod.string().nullish(),
-  "amountCents": zod.number().describe('Burdened labor cost allocated to this job, in integer cents')
+  "amountCents": zod.number().describe('Gross wages before employer burden allocated to this job, in integer cents')
 }))
 }))
 })
@@ -2673,7 +2673,7 @@ export const GetPayrollRunResponse = zod.object({
   "jobId": zod.number(),
   "jobNumber": zod.string().nullish(),
   "jobName": zod.string().nullish(),
-  "amountCents": zod.number().describe('Burdened labor cost allocated to this job, in integer cents')
+  "amountCents": zod.number().describe('Gross wages before employer burden allocated to this job, in integer cents')
 }))
 }))
 })
@@ -2796,7 +2796,7 @@ export const UpdatePayrollRunResponse = zod.object({
   "jobId": zod.number(),
   "jobNumber": zod.string().nullish(),
   "jobName": zod.string().nullish(),
-  "amountCents": zod.number().describe('Burdened labor cost allocated to this job, in integer cents')
+  "amountCents": zod.number().describe('Gross wages before employer burden allocated to this job, in integer cents')
 }))
 }))
 })
@@ -2876,7 +2876,7 @@ export const PostPayrollRunResponse = zod.object({
   "jobId": zod.number(),
   "jobNumber": zod.string().nullish(),
   "jobName": zod.string().nullish(),
-  "amountCents": zod.number().describe('Burdened labor cost allocated to this job, in integer cents')
+  "amountCents": zod.number().describe('Gross wages before employer burden allocated to this job, in integer cents')
 }))
 }))
 })
@@ -2946,7 +2946,7 @@ export const UnpostPayrollRunResponse = zod.object({
   "jobId": zod.number(),
   "jobNumber": zod.string().nullish(),
   "jobName": zod.string().nullish(),
-  "amountCents": zod.number().describe('Burdened labor cost allocated to this job, in integer cents')
+  "amountCents": zod.number().describe('Gross wages before employer burden allocated to this job, in integer cents')
 }))
 }))
 })

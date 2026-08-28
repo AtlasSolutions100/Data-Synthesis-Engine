@@ -182,12 +182,12 @@ describe("Import hours — Job Name association", () => {
         regularHours: 8,
         overtimeHours: 0,
         holidayHours: 0,
-        allocations: [{ jobId: 518, amountCents: 26441 }],
+        allocations: [{ jobId: 518, amountCents: 24000 }],
       }),
     ]);
   });
 
-  it("auto-matches an extracted job name to an existing job and applies a burdened allocation", async () => {
+  it("auto-matches an extracted job name and calculates wages before burden", async () => {
     mutateAsync.mockResolvedValueOnce({
       rows: [
         {
@@ -220,19 +220,16 @@ describe("Import hours — Job Name association", () => {
 
     fireEvent.click(applyButton());
 
-    // Dialog closed; the worker line now carries a job allocation whose
-    // amount is the burdened labor cost (rates from the Employee Center plus
-    // default employer burden percentages) — no manual re-entry.
+    // Dialog closed; the worker line now carries a job allocation whose amount
+    // is calculated from gross wages before burden — no manual dollar entry.
     await waitFor(() =>
       expect(screen.queryByText(/will be applied/i)).toBeNull(),
     );
     expect(screen.getAllByText("HR Stadium").length).toBeGreaterThan(0);
-    // 40h x $30 + 5h x $45 = $1,425.00 gross; plus employer burden at the
-    // default rates (6.2 + 1.45 + 0.6 + 1.7 + 0.22 %), each component rounded
-    // to cents = $1,569.93 total burdened cost.
+    // 40h x $30 + 5h x $45 = $1,425.00 wages before burden.
     expect(
-      (screen.getByPlaceholderText("Amount") as HTMLInputElement).value,
-    ).toBe("1569.93");
+      (screen.getByLabelText("Calculated wages") as HTMLInputElement).value,
+    ).toBe("1425.00");
   });
 
   it("flags a job that looks like a person's name and blocks Apply until Mike confirms a job", async () => {
@@ -377,10 +374,10 @@ describe("Import hours — Job Name association", () => {
     await waitFor(() =>
       expect(screen.queryByText(/will be applied/i)).toBeNull(),
     );
-    // Same burdened roll-up as an exact match: 40h reg + 5h OT.
+    // Same wages-before-burden roll-up as an exact match: 40h reg + 5h OT.
     expect(
-      (screen.getByPlaceholderText("Amount") as HTMLInputElement).value,
-    ).toBe("1569.93");
+      (screen.getByLabelText("Calculated wages") as HTMLInputElement).value,
+    ).toBe("1425.00");
   });
 
   it("never fuzzy-suggests a job for a person-like name — even a misspelled one", async () => {
@@ -530,10 +527,10 @@ describe("Import hours — Job Name association", () => {
     expect(screen.queryByLabelText(/worker name/i)).toBeNull();
     expect(screen.getAllByText("Michael Grenz").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Bruce Randolph").length).toBeGreaterThan(0);
-    // Michael Grenz has no rate on file, so the burdened amount can't be
+    // Michael Grenz has no rate on file, so the wage amount can't be
     // computed yet — allocation is created with the job but an empty amount.
     expect(
-      (screen.getByPlaceholderText("Amount") as HTMLInputElement).value,
+      (screen.getByLabelText("Calculated wages") as HTMLInputElement).value,
     ).toBe("");
   });
 });
@@ -627,12 +624,12 @@ describe("Import hours — weekly timesheets", () => {
     await waitFor(() =>
       expect(screen.queryByText(/will be applied/i)).toBeNull(),
     );
-    // Brendan: $1,569.93 burdened total split 30h/15h between the two jobs.
+    // Brendan: $1,425.00 gross wages split 30h/15h between the two jobs.
     const amounts = (
-      screen.getAllByPlaceholderText("Amount") as HTMLInputElement[]
+      screen.getAllByLabelText("Calculated wages") as HTMLInputElement[]
     ).map((el) => el.value);
-    expect(amounts).toContain("1046.62");
-    expect(amounts).toContain("523.31");
+    expect(amounts).toContain("950.00");
+    expect(amounts).toContain("475.00");
   });
 
   it("auto-bills Office time to the year's overhead job under Allied [Year], creating both on apply", async () => {
@@ -686,10 +683,10 @@ describe("Import hours — weekly timesheets", () => {
         customerId: 77,
       }),
     });
-    // 8h x $30 = $240 gross, plus 10.17% burden = $264.41 allocated.
+    // 8h x $30 = $240 gross wages before burden.
     expect(
-      (screen.getByPlaceholderText("Amount") as HTMLInputElement).value,
-    ).toBe("264.41");
+      (screen.getByLabelText("Calculated wages") as HTMLInputElement).value,
+    ).toBe("240.00");
   });
 });
 
@@ -738,16 +735,15 @@ describe("Import hours — same-date splits and row additions", () => {
       expect(screen.queryByText(/will be applied/i)).toBeNull(),
     );
 
-    // Burdened cost: 8h × $30 = $240 gross, × 1.1017 = $264.41 total.
-    // Split proportionally: 6h → $198.31 (HR Stadium), 2h → $66.10 (Larkspur Gear).
+    // Gross wages: 8h × $30 = $240, split by attributed job hours.
     const amounts = (
-      screen.getAllByPlaceholderText("Amount") as HTMLInputElement[]
+      screen.getAllByLabelText("Calculated wages") as HTMLInputElement[]
     ).map((el) => el.value);
-    expect(amounts).toContain("198.31");
-    expect(amounts).toContain("66.10");
+    expect(amounts).toContain("180.00");
+    expect(amounts).toContain("60.00");
   });
 
-  it("removing a row recalculates totals and the remaining job receives the full burdened cost", async () => {
+  it("removing a row recalculates totals and the remaining job receives the gross wages", async () => {
     mutateAsync.mockResolvedValueOnce({
       rows: [
         {
@@ -790,18 +786,18 @@ describe("Import hours — same-date splits and row additions", () => {
     );
 
     // Apply now produces a single allocation for HR Stadium.
-    // 6h × $30 = $180 gross; × 1.1017 burden = $198.31.
+    // 6h × $30 = $180 gross wages before burden.
     fireEvent.click(applyButton());
     await waitFor(() =>
       expect(screen.queryByText(/will be applied/i)).toBeNull(),
     );
 
     const amounts = (
-      screen.getAllByPlaceholderText("Amount") as HTMLInputElement[]
+      screen.getAllByLabelText("Calculated wages") as HTMLInputElement[]
     ).map((el) => el.value);
-    // Exactly one allocation, for the full 6h burdened cost.
+    // Exactly one allocation, for the full 6h gross wages.
     expect(amounts).toHaveLength(1);
-    expect(amounts[0]).toBe("198.31");
+    expect(amounts[0]).toBe("180.00");
     expect(screen.getAllByText("HR Stadium").length).toBeGreaterThan(0);
   });
 
@@ -855,13 +851,12 @@ describe("Import hours — same-date splits and row additions", () => {
       expect(screen.queryByText(/will be applied/i)).toBeNull(),
     );
 
-    // Burdened cost now uses the combined 8h (6 + 2): $264.41 total.
-    // Split 6h/2h → $198.31 HR Stadium, $66.10 Larkspur Gear.
+    // Gross wages use the combined 8h: split 6h/2h → $180/$60.
     const amounts = (
-      screen.getAllByPlaceholderText("Amount") as HTMLInputElement[]
+      screen.getAllByLabelText("Calculated wages") as HTMLInputElement[]
     ).map((el) => el.value);
-    expect(amounts).toContain("198.31");
-    expect(amounts).toContain("66.10");
+    expect(amounts).toContain("180.00");
+    expect(amounts).toContain("60.00");
   });
 });
 
@@ -911,11 +906,10 @@ describe("Cost-type change in day grid — recalculation", () => {
       expect(screen.queryByText(/will be applied/i)).toBeNull(),
     );
 
-    // 8h × $45 OT = $360 gross; burden (SS 6.2 + Medicare 1.45 + FUTA 0.6 +
-    // CoSUI 1.7 + CoSurcharge 0.22 %) = $36.61; total burdened = $396.61.
+    // 8h × $45 OT = $360 gross wages before burden.
     expect(
-      (screen.getByPlaceholderText("Amount") as HTMLInputElement).value,
-    ).toBe("396.61");
+      (screen.getByLabelText("Calculated wages") as HTMLInputElement).value,
+    ).toBe("360.00");
   });
 
   it("switching from OT back to regular reverts to the straight-time rate", async () => {
@@ -957,10 +951,10 @@ describe("Cost-type change in day grid — recalculation", () => {
       expect(screen.queryByText(/will be applied/i)).toBeNull(),
     );
 
-    // 8h × $30 straight = $240 gross; burden = $24.41; total = $264.41.
+    // 8h × $30 straight = $240 gross wages before burden.
     expect(
-      (screen.getByPlaceholderText("Amount") as HTMLInputElement).value,
-    ).toBe("264.41");
+      (screen.getByLabelText("Calculated wages") as HTMLInputElement).value,
+    ).toBe("240.00");
   });
 });
 
@@ -1052,7 +1046,7 @@ describe("OT job coding validation — rendered PayrollRunForm (P11-TC-06)", () 
                 { costType: "overtime" as const, hours: "5" },
               ],
               taxExempt: false,
-              // Allocation uses the schema shape: { jobId, amount }.
+              // Legacy/default values may omit display-only allocation hours.
               // A valid jobId + non-empty amount satisfies both allocationSchema
               // and the OT-requires-allocation superRefine.
               allocations: [{ jobId: "518", amount: "1569.93" }],

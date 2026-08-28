@@ -14,6 +14,6 @@ export interface PayrollAllocation {
   jobNumber?: string | null;
   /** @nullable */
   jobName?: string | null;
-  /** Burdened labor cost allocated to this job, in integer cents */
+  /** Gross wages before employer burden allocated to this job, in integer cents */
   amountCents: number;
 }

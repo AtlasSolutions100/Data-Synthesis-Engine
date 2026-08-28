@@ -3829,7 +3829,7 @@ components:
           type: ["string", "null"]
         amountCents:
           type: integer
-          description: Burdened labor cost allocated to this job, in integer cents
+          description: Gross wages before employer burden allocated to this job, in integer cents
     PayrollAllocationInput:
       type: object
       required: [jobId, amountCents]

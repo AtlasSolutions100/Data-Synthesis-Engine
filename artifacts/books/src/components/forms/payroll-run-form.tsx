@@ -107,6 +107,7 @@ const laborCostLabel = (v: LaborCostType) =>
 
 const allocationSchema = z.object({
   jobId: z.string().min(1, "Job ID required"),
+  hours: z.string().optional(),
   amount: z.string().min(1, "Amount required"),
 });
 
@@ -193,7 +194,7 @@ const emptyLine = {
   hourEntries: [{ costType: "regular" as const, hours: "" }],
   taxExempt: false,
   subcontractorAmount: "",
-  allocations: [] as { jobId: string; amount: string }[],
+  allocations: [] as { jobId: string; hours?: string; amount: string }[],
 };
 
 /** Sum hour entries into the three pay buckets. */
@@ -272,13 +273,13 @@ function LineAllocations({
     <div className="space-y-2 rounded-md bg-slate-50 p-3">
       <div className="flex items-center justify-between">
         <span className="text-xs font-medium text-slate-600">
-          Job allocations (burdened cost)
+          Job allocations (wages before burden)
         </span>
         <Button
           type="button"
           variant="outline"
           size="sm"
-          onClick={() => append({ jobId: "", amount: "" })}
+          onClick={() => append({ jobId: "", hours: "", amount: "" })}
         >
           <Plus className="mr-1 h-3 w-3" /> Add Job
         </Button>
@@ -291,7 +292,8 @@ function LineAllocations({
       )}
       {fields.length === 0 ? (
         <p className="text-xs text-slate-400">
-          No allocations — full cost stays unallocated in the ledger.
+          No allocations — wages and employer burden stay unallocated in the
+          ledger.
         </p>
       ) : (
         fields.map((f, aIndex) => (
@@ -301,6 +303,11 @@ function LineAllocations({
               name={`lines.${lineIndex}.allocations.${aIndex}.jobId`}
               render={({ field }) => (
                 <FormItem className="w-64">
+                  {aIndex === 0 ? (
+                    <FormLabel className="text-xs text-slate-500">
+                      Job
+                    </FormLabel>
+                  ) : null}
                   <FormControl>
                     <JobCombobox
                       jobs={jobs}
@@ -314,14 +321,47 @@ function LineAllocations({
             />
             <FormField
               control={control}
-              name={`lines.${lineIndex}.allocations.${aIndex}.amount`}
+              name={`lines.${lineIndex}.allocations.${aIndex}.hours`}
               render={({ field }) => (
-                <FormItem className="w-36">
+                <FormItem className="w-24">
+                  {aIndex === 0 ? (
+                    <FormLabel className="text-xs text-slate-500">
+                      Hours
+                    </FormLabel>
+                  ) : null}
                   <FormControl>
                     <Input
                       type="number"
                       step="0.01"
-                      placeholder="Amount"
+                      min="0"
+                      placeholder="Hours"
+                      readOnly={fields.length === 1}
+                      className={fields.length === 1 ? "bg-slate-100" : ""}
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={control}
+              name={`lines.${lineIndex}.allocations.${aIndex}.amount`}
+              render={({ field }) => (
+                <FormItem className="w-36">
+                  {aIndex === 0 ? (
+                    <FormLabel className="text-xs text-slate-500">
+                      Wages
+                    </FormLabel>
+                  ) : null}
+                  <FormControl>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      placeholder="Calculated"
+                      readOnly
+                      aria-label="Calculated wages"
+                      className="bg-slate-100"
                       {...field}
                     />
                   </FormControl>
@@ -341,6 +381,12 @@ function LineAllocations({
           </div>
         ))
       )}
+      {fields.length > 0 ? (
+        <p className="text-xs text-slate-500">
+          Dollar amounts are calculated automatically from the hours assigned
+          to each job. Employer burden is shown separately above.
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -473,12 +519,59 @@ function WorkerLine({
       sum + parseDollars(a?.amount || "0"),
     0,
   );
-  const unallocated = computed.totalCents - allocated;
   // Legacy runs may still carry subcontractor lines; new entries are always
   // employees (P5-TC-04) — subs are tracked as vendors/bills instead.
   const isSub = line?.lineType === "subcontractor";
+  const allocatableCents = isSub ? computed.totalCents : computed.grossCents;
+  const unallocated = allocatableCents - allocated;
   const missingRate =
     !isSub && (!employee || employee.straightTimeRateCents == null);
+
+  useEffect(() => {
+    if (isSub || !line || !employee) return;
+    const allocations = line.allocations ?? [];
+    if (allocations.length === 0) return;
+
+    const totalHours = Object.values(sumHours(line.hourEntries)).reduce(
+      (sum, hours) => sum + hours,
+      0,
+    );
+    if (totalHours <= 0 || computed.grossCents <= 0) return;
+
+    allocations.forEach((allocation, allocationIndex) => {
+      const hours =
+        allocations.length === 1
+          ? totalHours
+          : Math.max(0, parseFloat(allocation.hours || "0") || 0);
+      const amountCents = Math.round(
+        computed.grossCents * Math.min(hours / totalHours, 1),
+      );
+      const hoursValue = String(Math.round(hours * 100) / 100);
+      const amountValue = (amountCents / 100).toFixed(2);
+
+      if (allocation.hours !== hoursValue) {
+        form.setValue(
+          `lines.${index}.allocations.${allocationIndex}.hours`,
+          hoursValue,
+          { shouldDirty: true },
+        );
+      }
+      if (allocation.amount !== amountValue) {
+        form.setValue(
+          `lines.${index}.allocations.${allocationIndex}.amount`,
+          amountValue,
+          { shouldDirty: true, shouldValidate: true },
+        );
+      }
+    });
+  }, [
+    computed.grossCents,
+    employee,
+    form,
+    index,
+    isSub,
+    line,
+  ]);
 
   return (
     <div className="space-y-3 rounded-lg border p-4">
@@ -690,7 +783,7 @@ function WorkerLine({
                 : "text-red-600"
           }
         >
-          Unallocated remainder: {formatCents(unallocated)}
+          Unallocated wages: {formatCents(unallocated)}
         </span>
       </div>
     </div>
@@ -2199,8 +2292,9 @@ function ImportHoursDialog({
       const hasHours = (line.hourEntries ?? []).some(
         (entry) => (parseFloat(entry.hours || "0") || 0) > 0,
       );
-      const hasAllocations = (line.allocations ?? []).some(
-        (allocation) => allocation.jobId || allocation.amount,
+        const hasAllocations = (line.allocations ?? []).some(
+          (allocation) =>
+            allocation.jobId || allocation.hours || allocation.amount,
       );
       const isBlankEmployeeLine =
         line.lineType === "employee" &&
@@ -2366,13 +2460,12 @@ function ImportHoursDialog({
             ]
           : [...new Set(r.jobKeys.map(jobIdForKey).filter(Boolean))];
 
-      // Burdened labor cost rolls up from the Employee Center rates and the
-      // run's burden percentages — no manual re-entry. When the timesheet
-      // splits days across several jobs, the cost is split in proportion to
-      // the hours worked on each job.
+      // Job allocations represent gross wages before employer burden. The
+      // dollar amount is derived from the hours assigned to each job, so Mike
+      // reviews hours and never has to calculate or enter dollars manually.
       const buildAllocations = (taxExempt: boolean) => {
         if (rowJobIds.length === 0)
-          return [] as { jobId: string; amount: string }[];
+          return [] as { jobId: string; hours?: string; amount: string }[];
         const computed = computeLineCents(
           {
             lineType: "employee",
@@ -2384,29 +2477,41 @@ function ImportHoursDialog({
           employee,
           burdenRates,
         );
-        if (computed.totalCents <= 0) {
-          return rowJobIds.map((jobId) => ({ jobId, amount: "" }));
+        if (computed.grossCents <= 0) {
+          return rowJobIds.map((jobId) => ({
+            jobId,
+            hours: "",
+            amount: "",
+          }));
         }
-        if (rowJobIds.length === 1) {
-          return [
-            {
-              jobId: rowJobIds[0],
-              amount: (computed.totalCents / 100).toFixed(2),
-            },
-          ];
-        }
-        // Split burdened cost across jobs in proportion to hours worked on
-        // each. Per-entry resolvedJobId overrides the assoc lookup so that
-        // day-grid edits (e.g. reassigning Monday to a different job) are
-        // reflected accurately in the allocation split.
         const hoursByJob = new Map<string, number>();
         for (const e of r.entries) {
           const jobId = jobIdForEntry(e);
           if (!jobId) continue;
           hoursByJob.set(jobId, (hoursByJob.get(jobId) ?? 0) + e.hours);
         }
+        const totalHours = [...hoursByJob.values()].reduce(
+          (sum, hours) => sum + hours,
+          0,
+        );
+        if (rowJobIds.length === 1) {
+          return [
+            {
+              jobId: rowJobIds[0],
+              hours: String(
+                Math.round(
+                  (hoursByJob.get(rowJobIds[0]) ?? totalHours) * 100,
+                ) / 100,
+              ),
+              amount: (computed.grossCents / 100).toFixed(2),
+            },
+          ];
+        }
+        // Split gross wages across jobs in proportion to hours worked on each.
+        // Per-entry resolvedJobId overrides the shared association so day-grid
+        // edits are reflected in both the visible hours and calculated wages.
         const split = splitCentsByWeights(
-          computed.totalCents,
+          computed.grossCents,
           rowJobIds.map((jobId) => ({
             key: jobId,
             weight: hoursByJob.get(jobId) ?? 0,
@@ -2417,6 +2522,9 @@ function ImportHoursDialog({
           .filter((x) => x.cents > 0)
           .map((x) => ({
             jobId: x.jobId,
+            hours: String(
+              Math.round((hoursByJob.get(x.jobId) ?? 0) * 100) / 100,
+            ),
             amount: (x.cents / 100).toFixed(2),
           }));
       };

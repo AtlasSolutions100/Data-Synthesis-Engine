@@ -695,9 +695,9 @@ router.get("/reports/payroll-by-job", async (req, res): Promise<void> => {
     endDate: query.data.endDate,
   };
 
-  // Burdened labor allocated to each job across POSTED payroll runs. Totals
-  // reconcile to the ledger payroll entries (sum of allocation amounts); the
-  // wage/burden breakdown is pro-rated from each line by allocation share.
+  // Gross wages (before employer burden) allocated to each job across POSTED
+  // payroll runs. Employer burden remains in the unallocated payroll ledger
+  // remainder rather than being attributed to a job.
   const rows = await db
     .select({
       jobId: payrollAllocationsTable.jobId,
@@ -742,8 +742,8 @@ router.get("/reports/payroll-by-job", async (req, res): Promise<void> => {
 
   for (const r of rows) {
     const amount = Number(r.amountCents);
-    const lineTotal = Number(r.totalCostCents);
-    const fraction = lineTotal > 0 ? amount / lineTotal : 0;
+    const lineGross = Number(r.grossWagesCents);
+    const fraction = lineGross > 0 ? amount / lineGross : 0;
     const row =
       byJob.get(r.jobId) ??
       ({
@@ -756,20 +756,15 @@ router.get("/reports/payroll-by-job", async (req, res): Promise<void> => {
         burdenCents: 0,
         totalCostCents: 0,
       } satisfies Row);
-    // Employee lines: pro-rate wages by allocation share, derive gross from
-    // its parts and burden as the remainder so each allocation reconciles
-    // exactly (regular + overtime = gross, gross + burden = amount). Subcontractor
-    // lines are a flat pass-through with no wages/burden — the allocated amount
-    // appears only in total cost.
+    // Employee allocations are wages before burden. Pro-rate the wage
+    // categories by allocation share and keep burden at zero for job totals.
+    // Subcontractor lines remain flat pass-through amounts.
     if (r.lineType === "employee") {
       const regular = Math.round(Number(r.regularWagesCents) * fraction);
       const overtime = Math.round(Number(r.overtimeWagesCents) * fraction);
-      const gross = regular + overtime;
-      const burden = amount - gross;
       row.regularWagesCents += regular;
       row.overtimeWagesCents += overtime;
-      row.grossWagesCents += gross;
-      row.burdenCents += burden;
+      row.grossWagesCents += amount;
     }
     row.totalCostCents += amount;
     byJob.set(r.jobId, row);
