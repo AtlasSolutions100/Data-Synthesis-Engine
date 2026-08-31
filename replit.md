@@ -27,6 +27,7 @@ Parses the QuickBooks workbook (at the **repo-root** `attached_assets/`, not und
 
 - Money is stored as integer **cents**; all totals are summed from stored line items, never from floats.
 - Account-type buckets drive finance: income = `income`; cost-to-date = `cogs` + `expense` + `other_expense` (see `artifacts/api-server/src/lib/finance.ts`). Transaction *type* (invoice/bill/etc.) never affects rollups.
+- Payroll terminology uses **Employee** in all user-facing titles and labels. **Bruce Randolph** is a job name, never an Employee Center person; import it as the job when it appears on a time card.
 - Job list/detail expose `incomeCents`, `costCents`, `profitCents` (income − cost) and `remainingCents` (contract − cost). The job-detail ledger groups transactions by account with per-account subtotals; the "Total Cost to Date" footer sums **cost-type accounts only**, income shown separately.
 - `GET /api/healthz` is public (mounted before the auth gate); every other `/api/*` route requires Clerk auth.
 

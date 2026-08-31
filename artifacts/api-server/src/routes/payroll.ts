@@ -257,7 +257,7 @@ function workerSummariesFromLines(
   const byName = new Map<string, number>();
   const order: string[] = [];
   for (const l of lines) {
-    const name = l.workerName.trim() || "Unnamed worker";
+    const name = l.workerName.trim() || "Unnamed employee";
     if (!byName.has(name)) {
       byName.set(name, 0);
       order.push(name);
@@ -723,7 +723,7 @@ router.get("/payroll-runs", async (req, res): Promise<void> => {
   for (const w of workerRows) {
     const arr = workerSummariesByRun.get(w.runId) ?? [];
     arr.push({
-      name: w.workerName.trim() || "Unnamed worker",
+      name: w.workerName.trim() || "Unnamed employee",
       totalCostCents: Number(w.total),
     });
     workerSummariesByRun.set(w.runId, arr);
@@ -1016,7 +1016,7 @@ router.post("/payroll-runs/:id/post", async (req, res): Promise<void> => {
   if (lines.length === 0) {
     res
       .status(400)
-      .json({ error: "Cannot post a payroll run with no worker lines" });
+      .json({ error: "Cannot post a payroll run with no employee lines" });
     return;
   }
 
@@ -1143,14 +1143,14 @@ function normalizeHours(value: unknown): number {
   return Math.round(n * 100) / 100;
 }
 
-const EXTRACT_SYSTEM_PROMPT = `You extract worker payroll hours from timesheets: free-form text (emails, notes, CSV) or images/PDFs of time cards. Formats vary widely.
+const EXTRACT_SYSTEM_PROMPT = `You extract employee payroll hours from timesheets: free-form text (emails, notes, CSV) or images/PDFs of time cards. Formats vary widely.
 
 Return ONLY a JSON object of this exact shape:
 {"rows": [{"workerName": string, "regularHours": number, "overtimeHours": number, "holidayHours": number, "entries": [{"date": string|null, "jobName": string|null, "hours": number, "costType": "regular"|"overtime"|"holiday"}]}]}
 
 Rules:
-- One row per distinct worker.
-- workerName: the person's name exactly as written (keep normal capitalization).
+- One row per distinct employee.
+- workerName: the employee's name exactly as written (keep normal capitalization); this field must never contain a job, site, customer, or project name.
 - regularHours: total straight-time hours. Default 0 when not stated.
 - overtimeHours: total overtime / OT / time-and-a-half hours. Default 0 when not stated.
 - holidayHours: total holiday, vacation, PTO, or sick hours combined. Default 0 when not stated.
@@ -1162,6 +1162,7 @@ Rules:
 - Numbers only (no units, no text). Convert values like "8h" to 8.
 - If only a single total is given with no split, put the whole amount in regularHours.
 - Ignore anything that is not a worker's hours (greetings, signatures, dollar amounts).
+- "Bruce Randolph" is a known job name, not an employee or person. When it appears on a timesheet, put it in an entry's jobName and never in workerName.
 - If no worker hours are present, return {"rows": []}.`;
 
 const MAX_EXTRACT_FILE_BYTES = 10 * 1024 * 1024;

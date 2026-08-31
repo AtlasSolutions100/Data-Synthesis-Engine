@@ -103,6 +103,10 @@ type LaborCostType = (typeof LABOR_COST_OPTIONS)[number]["value"];
 const laborCostLabel = (v: LaborCostType) =>
   LABOR_COST_OPTIONS.find((o) => o.value === v)?.label ?? v;
 
+// Bruce Randolph is a real job in Books, not an Employee Center person.
+// Exact known-job matches take precedence over the person-name heuristic.
+const KNOWN_JOB_NAMES = new Set(["bruce randolph"]);
+
 const allocationSchema = z.object({
   jobId: z.string().min(1, "Job ID required"),
   hours: z.string().optional(),
@@ -130,7 +134,7 @@ const lineSchema = z
     lineType: z.enum(["employee", "subcontractor"]),
     employeeId: z.string().optional(),
     vendorId: z.string().optional(),
-    workerName: z.string().min(1, "Worker name is required"),
+    workerName: z.string().min(1, "Employee name is required"),
     hourEntries: z.array(hourEntrySchema),
     dailyEntries: z.array(dailyEntrySchema).optional(),
     taxExempt: z.boolean().default(false),
@@ -168,7 +172,7 @@ const runSchema = z.object({
   futaRate: z.string().optional(),
   coSuiRate: z.string().optional(),
   coSurchargeRate: z.string().optional(),
-  lines: z.array(lineSchema).min(1, "At least one worker line is required"),
+  lines: z.array(lineSchema).min(1, "At least one employee line is required"),
 });
 
 type RunFormValues = z.infer<typeof runSchema>;
@@ -673,7 +677,7 @@ function WorkerLine({
               name={`lines.${index}.workerName`}
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Worker Name</FormLabel>
+                  <FormLabel>Employee Name</FormLabel>
                   <FormControl>
                     <Input {...field} />
                   </FormControl>
@@ -754,7 +758,7 @@ function WorkerLine({
               </FormItem>
             )}
           />
-          {/* Worker Name has no visible input (Employee selection above sets it
+          {/* Employee Name has no visible input (Employee selection above sets it
               automatically), but it's still a required field — surface its
               validation error here so an unselected employee isn't a silent
               submit failure. */}
@@ -1886,9 +1890,10 @@ function ImportHoursDialog({
       const jobMatches = jobsByName.get(key) ?? [];
       const customerMatch = customersByName.get(key) ?? "";
       const looksLikePerson =
-        employeeNames.has(key) ||
-        extracted.some((x) => normalizeName(x.workerName) === key) ||
-        looksLikePersonName(raw);
+        !KNOWN_JOB_NAMES.has(key) &&
+        (employeeNames.has(key) ||
+          extracted.some((x) => normalizeName(x.workerName) === key) ||
+          looksLikePersonName(raw));
       const a: JobAssociation = {
         raw,
         jobId: "",
@@ -2920,7 +2925,7 @@ function ImportHoursDialog({
                 Review imported hours
               </span>{" "}
               {appliedCount} of {rows.length} row
-              {rows.length === 1 ? "" : "s"} will be applied. Workers already
+              {rows.length === 1 ? "" : "s"} will be applied. Employees already
               on file are matched automatically — including close spelling
               variants — so you'll only need to confirm who's who when we
               can't tell for sure. Review the hours and confirm the Job Name
@@ -2940,7 +2945,7 @@ function ImportHoursDialog({
             {unconfirmedEmployeeCount > 0 ? (
               <p className="flex items-center gap-1 text-sm text-amber-600">
                 <AlertTriangle className="h-4 w-4 shrink-0" />
-                {unconfirmedEmployeeCount} worker name
+                {unconfirmedEmployeeCount} employee name
                 {unconfirmedEmployeeCount === 1 ? " needs" : "s need"}{" "}
                 confirming before you can apply. Each name only needs
                 confirming once — or set the row to Skip.
@@ -2951,7 +2956,7 @@ function ImportHoursDialog({
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Worker</TableHead>
+                    <TableHead>Employee</TableHead>
                     <TableHead className="w-24 min-w-24 text-right">Reg</TableHead>
                     <TableHead className="w-16 text-right">OT</TableHead>
                     <TableHead className="w-16 text-right">Hol/Vac</TableHead>
@@ -3173,7 +3178,7 @@ function ImportHoursDialog({
                                     value={String(option.index)}
                                   >
                                     {option.name ||
-                                      `Worker ${option.index + 1}`}
+                                      `Employee ${option.index + 1}`}
                                   </SelectItem>
                                 ))}
                               </SelectContent>
@@ -3892,7 +3897,7 @@ export function PayrollRunForm({
 
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <p className="text-sm font-medium leading-none">Worker Lines</p>
+            <p className="text-sm font-medium leading-none">Employee Lines</p>
             <div className="flex items-center gap-2">
               <ImportHoursDialog
                 form={form}

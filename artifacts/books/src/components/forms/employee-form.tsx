@@ -245,7 +245,7 @@ export function EmployeeForm({ defaultValues, onSubmit, isLoading, includeSsn = 
                 <FormLabel>Tax exempt</FormLabel>
                 <p className="text-xs text-slate-500">
                   Skip employer payroll taxes (SS, Medicare, FUTA, SUI) for this
-                  worker.
+                  employee.
                 </p>
               </div>
             </FormItem>

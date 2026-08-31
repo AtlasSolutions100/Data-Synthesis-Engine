@@ -332,13 +332,13 @@ export default function PayrollDetail() {
 
       <Card>
         <CardHeader className="border-b">
-          <CardTitle>Worker Lines</CardTitle>
+          <CardTitle>Employee Lines</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Worker</TableHead>
+                <TableHead>Employee</TableHead>
                 <TableHead className="text-right">Reg Hrs</TableHead>
                 <TableHead className="text-right">OT Hrs</TableHead>
                 <TableHead className="text-right">Hol/Vac Hrs</TableHead>
@@ -403,7 +403,7 @@ export default function PayrollDetail() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Worker</TableHead>
+                <TableHead>Employee</TableHead>
                 <TableHead>Job Name</TableHead>
                 <TableHead className="text-right">
                   Wages Before Burden

@@ -510,36 +510,24 @@ describe("Import hours — Job Name association", () => {
     renderForm(<PayrollRunForm onSubmit={vi.fn()} defaultValues={defaults} />);
     await importText("Michael Grenz — 16 hours at Bruce Randolph");
 
-    // "Bruce Randolph" IS a real job on file, but it looks like a person's
-    // name — the requirement says these must always be confirmed, never
-    // auto-matched. The worker defaults to a brand-new line.
-    expect(
-      screen.getByText(
-        /"Bruce Randolph" looks like a person's name, but a job with this name exists\. What job is this associated with\?/,
-      ),
-    ).toBeTruthy();
-    // The employee matches exactly, so there is no redundant worker picker;
-    // the row is already queued as a new worker line behind the scenes.
+    // Bruce Randolph is a known job name, so the exact job match wins over
+    // the person-name heuristic and does not ask the user to classify it.
+    expect(screen.getByTestId("job-auto-matched-bruce randolph")).toBeTruthy();
+    // The employee matches exactly, so there is no redundant employee picker;
+    // the row is already queued as a new employee line behind the scenes.
     expect(screen.queryByText(/is this the same person/i)).toBeNull();
     expect(screen.queryByText(/create new employee/i)).toBeNull();
-    expect(applyButton().disabled).toBe(true);
-
-    // Confirm it really is the "Bruce Randolph" job.
-    fireEvent.click(screen.getByText(/confirm job/i));
-    const search = await screen.findByPlaceholderText(/search job names/i);
-    fireEvent.change(search, { target: { value: "Bruce" } });
-    fireEvent.click(await screen.findByText("Bruce Randolph"));
-    await waitFor(() => expect(applyButton().disabled).toBe(false));
+    expect(applyButton().disabled).toBe(false);
 
     fireEvent.click(applyButton());
     await waitFor(() =>
       expect(screen.queryByText(/will be applied/i)).toBeNull(),
     );
     // A second employee line now exists, linked to the Employee Center record.
-    // Employee selection is the source of truth; the redundant Worker Name
+    // Employee selection is the source of truth; the redundant Employee Name
     // input was intentionally removed from employee lines.
-    expect(screen.queryByText(/worker name/i)).toBeNull();
-    expect(screen.queryByLabelText(/worker name/i)).toBeNull();
+    expect(screen.queryByText(/employee name/i)).toBeNull();
+    expect(screen.queryByLabelText(/employee name/i)).toBeNull();
     expect(screen.getAllByText("Michael Grenz").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Bruce Randolph").length).toBeGreaterThan(0);
     // Michael Grenz has no rate on file, so the wage amount can't be
