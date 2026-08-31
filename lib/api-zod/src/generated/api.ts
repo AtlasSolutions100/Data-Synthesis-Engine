@@ -2428,6 +2428,10 @@ export const ListPayrollRunsQueryParams = zod.object({
   "endDate": zod.coerce.string().regex(listPayrollRunsQueryEndDateRegExp).optional().describe('Inclusive end of the date range (YYYY-MM-DD). Omit for no upper bound.')
 })
 
+export const listPayrollRunsResponseLinesItemEntryDetailsItemHoursMin = 0;
+
+
+
 export const ListPayrollRunsResponseItem = zod.object({
   "id": zod.number(),
   "isDemo": zod.boolean().describe('True when this record was created by the Practice \/ Demo Data loader'),
@@ -2469,6 +2473,12 @@ export const ListPayrollRunsResponseItem = zod.object({
   "employeeId": zod.number().nullish(),
   "vendorId": zod.number().nullish(),
   "workerName": zod.string(),
+  "entryDetails": zod.array(zod.object({
+  "date": zod.string().nullable().describe('Work date in YYYY-MM-DD form when present on the imported time card'),
+  "hours": zod.number().min(listPayrollRunsResponseLinesItemEntryDetailsItemHoursMin),
+  "jobId": zod.number().nullable(),
+  "costType": zod.enum(['regular', 'overtime', 'holiday'])
+})).describe('Imported daily breakdown retained so the saved run can show the same date, hours, cost type, and job rows'),
   "regularHours": zod.number(),
   "overtimeHours": zod.number(),
   "holidayHours": zod.number().describe('Combined Holiday \/ Vacation \/ Sick hours, paid at the straight-time rate'),
@@ -2513,6 +2523,8 @@ export const createPayrollRunBodyCoSuiRateBpsMin = 0;
 export const createPayrollRunBodyCoSurchargeRateBpsMin = 0;
 
 
+export const createPayrollRunBodyLinesItemEntryDetailsItemHoursMin = 0;
+
 export const createPayrollRunBodyLinesItemRegularHoursDefault = 0;
 export const createPayrollRunBodyLinesItemRegularHoursMin = 0;
 
@@ -2531,7 +2543,6 @@ export const CreatePayrollRunBody = zod.object({
   "payDate": zod.string(),
   "memo": zod.string().nullish(),
   "laborAccountId": zod.number().optional(),
-  "paymentAccountId": zod.number().optional().describe('Bank account payroll is paid from; resolved automatically when omitted'),
   "ssRateBps": zod.number().min(createPayrollRunBodySsRateBpsMin).optional(),
   "medicareRateBps": zod.number().min(createPayrollRunBodyMedicareRateBpsMin).optional(),
   "futaRateBps": zod.number().min(createPayrollRunBodyFutaRateBpsMin).optional(),
@@ -2542,6 +2553,12 @@ export const CreatePayrollRunBody = zod.object({
   "employeeId": zod.number().nullish(),
   "vendorId": zod.number().nullish(),
   "workerName": zod.string().min(1),
+  "entryDetails": zod.array(zod.object({
+  "date": zod.string().nullable().describe('Work date in YYYY-MM-DD form when present on the imported time card'),
+  "hours": zod.number().min(createPayrollRunBodyLinesItemEntryDetailsItemHoursMin),
+  "jobId": zod.number().nullable(),
+  "costType": zod.enum(['regular', 'overtime', 'holiday'])
+})).optional(),
   "regularHours": zod.number().min(createPayrollRunBodyLinesItemRegularHoursMin).default(createPayrollRunBodyLinesItemRegularHoursDefault),
   "overtimeHours": zod.number().min(createPayrollRunBodyLinesItemOvertimeHoursMin).default(createPayrollRunBodyLinesItemOvertimeHoursDefault),
   "holidayHours": zod.number().min(createPayrollRunBodyLinesItemHolidayHoursMin).default(createPayrollRunBodyLinesItemHolidayHoursDefault).describe('Combined Holiday \/ Vacation \/ Sick hours, paid at the straight-time rate'),
@@ -2555,6 +2572,10 @@ export const CreatePayrollRunBody = zod.object({
 })).optional()
 })).optional()
 })
+
+export const createPayrollRunResponseLinesItemEntryDetailsItemHoursMin = 0;
+
+
 
 export const CreatePayrollRunResponse = zod.object({
   "id": zod.number(),
@@ -2597,6 +2618,12 @@ export const CreatePayrollRunResponse = zod.object({
   "employeeId": zod.number().nullish(),
   "vendorId": zod.number().nullish(),
   "workerName": zod.string(),
+  "entryDetails": zod.array(zod.object({
+  "date": zod.string().nullable().describe('Work date in YYYY-MM-DD form when present on the imported time card'),
+  "hours": zod.number().min(createPayrollRunResponseLinesItemEntryDetailsItemHoursMin),
+  "jobId": zod.number().nullable(),
+  "costType": zod.enum(['regular', 'overtime', 'holiday'])
+})).describe('Imported daily breakdown retained so the saved run can show the same date, hours, cost type, and job rows'),
   "regularHours": zod.number(),
   "overtimeHours": zod.number(),
   "holidayHours": zod.number().describe('Combined Holiday \/ Vacation \/ Sick hours, paid at the straight-time rate'),
@@ -2632,6 +2659,10 @@ export const CreatePayrollRunResponse = zod.object({
 export const GetPayrollRunParams = zod.object({
   "id": zod.coerce.number()
 })
+
+export const getPayrollRunResponseLinesItemEntryDetailsItemHoursMin = 0;
+
+
 
 export const GetPayrollRunResponse = zod.object({
   "id": zod.number(),
@@ -2674,6 +2705,12 @@ export const GetPayrollRunResponse = zod.object({
   "employeeId": zod.number().nullish(),
   "vendorId": zod.number().nullish(),
   "workerName": zod.string(),
+  "entryDetails": zod.array(zod.object({
+  "date": zod.string().nullable().describe('Work date in YYYY-MM-DD form when present on the imported time card'),
+  "hours": zod.number().min(getPayrollRunResponseLinesItemEntryDetailsItemHoursMin),
+  "jobId": zod.number().nullable(),
+  "costType": zod.enum(['regular', 'overtime', 'holiday'])
+})).describe('Imported daily breakdown retained so the saved run can show the same date, hours, cost type, and job rows'),
   "regularHours": zod.number(),
   "overtimeHours": zod.number(),
   "holidayHours": zod.number().describe('Combined Holiday \/ Vacation \/ Sick hours, paid at the straight-time rate'),
@@ -2721,6 +2758,8 @@ export const updatePayrollRunBodyCoSuiRateBpsMin = 0;
 export const updatePayrollRunBodyCoSurchargeRateBpsMin = 0;
 
 
+export const updatePayrollRunBodyLinesItemEntryDetailsItemHoursMin = 0;
+
 export const updatePayrollRunBodyLinesItemRegularHoursDefault = 0;
 export const updatePayrollRunBodyLinesItemRegularHoursMin = 0;
 
@@ -2739,7 +2778,6 @@ export const UpdatePayrollRunBody = zod.object({
   "payDate": zod.string().optional(),
   "memo": zod.string().nullish(),
   "laborAccountId": zod.number().optional(),
-  "paymentAccountId": zod.number().optional(),
   "ssRateBps": zod.number().min(updatePayrollRunBodySsRateBpsMin).optional(),
   "medicareRateBps": zod.number().min(updatePayrollRunBodyMedicareRateBpsMin).optional(),
   "futaRateBps": zod.number().min(updatePayrollRunBodyFutaRateBpsMin).optional(),
@@ -2750,6 +2788,12 @@ export const UpdatePayrollRunBody = zod.object({
   "employeeId": zod.number().nullish(),
   "vendorId": zod.number().nullish(),
   "workerName": zod.string().min(1),
+  "entryDetails": zod.array(zod.object({
+  "date": zod.string().nullable().describe('Work date in YYYY-MM-DD form when present on the imported time card'),
+  "hours": zod.number().min(updatePayrollRunBodyLinesItemEntryDetailsItemHoursMin),
+  "jobId": zod.number().nullable(),
+  "costType": zod.enum(['regular', 'overtime', 'holiday'])
+})).optional(),
   "regularHours": zod.number().min(updatePayrollRunBodyLinesItemRegularHoursMin).default(updatePayrollRunBodyLinesItemRegularHoursDefault),
   "overtimeHours": zod.number().min(updatePayrollRunBodyLinesItemOvertimeHoursMin).default(updatePayrollRunBodyLinesItemOvertimeHoursDefault),
   "holidayHours": zod.number().min(updatePayrollRunBodyLinesItemHolidayHoursMin).default(updatePayrollRunBodyLinesItemHolidayHoursDefault).describe('Combined Holiday \/ Vacation \/ Sick hours, paid at the straight-time rate'),
@@ -2763,6 +2807,10 @@ export const UpdatePayrollRunBody = zod.object({
 })).optional()
 })).optional()
 })
+
+export const updatePayrollRunResponseLinesItemEntryDetailsItemHoursMin = 0;
+
+
 
 export const UpdatePayrollRunResponse = zod.object({
   "id": zod.number(),
@@ -2805,6 +2853,12 @@ export const UpdatePayrollRunResponse = zod.object({
   "employeeId": zod.number().nullish(),
   "vendorId": zod.number().nullish(),
   "workerName": zod.string(),
+  "entryDetails": zod.array(zod.object({
+  "date": zod.string().nullable().describe('Work date in YYYY-MM-DD form when present on the imported time card'),
+  "hours": zod.number().min(updatePayrollRunResponseLinesItemEntryDetailsItemHoursMin),
+  "jobId": zod.number().nullable(),
+  "costType": zod.enum(['regular', 'overtime', 'holiday'])
+})).describe('Imported daily breakdown retained so the saved run can show the same date, hours, cost type, and job rows'),
   "regularHours": zod.number(),
   "overtimeHours": zod.number(),
   "holidayHours": zod.number().describe('Combined Holiday \/ Vacation \/ Sick hours, paid at the straight-time rate'),
@@ -2852,6 +2906,10 @@ export const PostPayrollRunParams = zod.object({
   "id": zod.coerce.number()
 })
 
+export const postPayrollRunResponseLinesItemEntryDetailsItemHoursMin = 0;
+
+
+
 export const PostPayrollRunResponse = zod.object({
   "id": zod.number(),
   "isDemo": zod.boolean().describe('True when this record was created by the Practice \/ Demo Data loader'),
@@ -2893,6 +2951,12 @@ export const PostPayrollRunResponse = zod.object({
   "employeeId": zod.number().nullish(),
   "vendorId": zod.number().nullish(),
   "workerName": zod.string(),
+  "entryDetails": zod.array(zod.object({
+  "date": zod.string().nullable().describe('Work date in YYYY-MM-DD form when present on the imported time card'),
+  "hours": zod.number().min(postPayrollRunResponseLinesItemEntryDetailsItemHoursMin),
+  "jobId": zod.number().nullable(),
+  "costType": zod.enum(['regular', 'overtime', 'holiday'])
+})).describe('Imported daily breakdown retained so the saved run can show the same date, hours, cost type, and job rows'),
   "regularHours": zod.number(),
   "overtimeHours": zod.number(),
   "holidayHours": zod.number().describe('Combined Holiday \/ Vacation \/ Sick hours, paid at the straight-time rate'),
@@ -2929,6 +2993,10 @@ export const PostPayrollRunResponse = zod.object({
 export const UnpostPayrollRunParams = zod.object({
   "id": zod.coerce.number()
 })
+
+export const unpostPayrollRunResponseLinesItemEntryDetailsItemHoursMin = 0;
+
+
 
 export const UnpostPayrollRunResponse = zod.object({
   "id": zod.number(),
@@ -2971,6 +3039,12 @@ export const UnpostPayrollRunResponse = zod.object({
   "employeeId": zod.number().nullish(),
   "vendorId": zod.number().nullish(),
   "workerName": zod.string(),
+  "entryDetails": zod.array(zod.object({
+  "date": zod.string().nullable().describe('Work date in YYYY-MM-DD form when present on the imported time card'),
+  "hours": zod.number().min(unpostPayrollRunResponseLinesItemEntryDetailsItemHoursMin),
+  "jobId": zod.number().nullable(),
+  "costType": zod.enum(['regular', 'overtime', 'holiday'])
+})).describe('Imported daily breakdown retained so the saved run can show the same date, hours, cost type, and job rows'),
   "regularHours": zod.number(),
   "overtimeHours": zod.number(),
   "holidayHours": zod.number().describe('Combined Holiday \/ Vacation \/ Sick hours, paid at the straight-time rate'),

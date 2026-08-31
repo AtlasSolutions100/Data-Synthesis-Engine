@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { PayrollAllocationInput } from './payrollAllocationInput';
+import type { PayrollEntryDetail } from './payrollEntryDetail';
 import type { PayrollLineInputLineType } from './payrollLineInputLineType';
 
 export interface PayrollLineInput {
@@ -16,6 +17,7 @@ export interface PayrollLineInput {
   vendorId?: number | null;
   /** @minLength 1 */
   workerName: string;
+  entryDetails?: PayrollEntryDetail[];
   /** @minimum 0 */
   regularHours?: number;
   /** @minimum 0 */

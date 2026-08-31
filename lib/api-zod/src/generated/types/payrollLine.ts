@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { PayrollAllocation } from './payrollAllocation';
+import type { PayrollEntryDetail } from './payrollEntryDetail';
 import type { PayrollLineLineType } from './payrollLineLineType';
 
 export interface PayrollLine {
@@ -17,6 +18,8 @@ export interface PayrollLine {
   /** @nullable */
   vendorId?: number | null;
   workerName: string;
+  /** Imported daily breakdown retained so the saved run can show the same date, hours, cost type, and job rows */
+  entryDetails: PayrollEntryDetail[];
   regularHours: number;
   overtimeHours: number;
   /** Combined Holiday / Vacation / Sick hours, paid at the straight-time rate */

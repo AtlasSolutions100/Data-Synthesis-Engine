@@ -895,4 +895,36 @@ describe("POST /api/payroll-runs default labor account (P5-TC-06)", () => {
     expect(res.body.laborAccountId).toBeTypeOf("number");
     runIds.push(res.body.id); // cleanup with the other seeded runs
   });
+
+  it("retains the imported daily breakdown on the saved run", async () => {
+    const entryDetails = [
+      {
+        date: "2026-06-09",
+        hours: 3,
+        jobId: null,
+        costType: "regular",
+      },
+    ];
+    const res = await request(payrollApp).post("/api/payroll-runs").send({
+      payPeriodStart: "2026-06-08",
+      payPeriodEnd: "2026-06-21",
+      payDate: "2026-06-25",
+      lines: [
+        {
+          lineType: "employee",
+          workerName: "Daily Breakdown Test",
+          regularHours: 3,
+          overtimeHours: 0,
+          holidayHours: 0,
+          taxExempt: false,
+          entryDetails,
+          allocations: [],
+        },
+      ],
+    });
+
+    expect(res.status).toBe(201);
+    expect(res.body.lines[0].entryDetails).toEqual(entryDetails);
+    runIds.push(res.body.id);
+  });
 });

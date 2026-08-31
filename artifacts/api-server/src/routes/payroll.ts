@@ -50,6 +50,12 @@ type LineInput = {
   employeeId?: number | null;
   vendorId?: number | null;
   workerName: string;
+  entryDetails: Array<{
+    date: string | null;
+    hours: number;
+    jobId: number | null;
+    costType: "regular" | "overtime" | "holiday";
+  }>;
   regularHours: number;
   overtimeHours: number;
   holidayHours: number;
@@ -144,6 +150,7 @@ async function getFullRun(id: number) {
       employeeId: l.employeeId,
       vendorId: l.vendorId,
       workerName: l.workerName,
+      entryDetails: l.entryDetails,
       regularHours: Number(l.regularHours),
       overtimeHours: Number(l.overtimeHours),
       holidayHours: Number(l.holidayHours),
@@ -275,25 +282,15 @@ async function validatePaymentAccount(
   return null;
 }
 
-/**
- * Default payment account when a run doesn't specify one: the account used by
- * the most recent payroll run that has one, else the sole bank account.
- */
+/** Payroll always posts through account 10000 Checking. */
 async function resolveDefaultPaymentAccountId(): Promise<number | null> {
-  const [latest] = await db
-    .select({ paymentAccountId: payrollRunsTable.paymentAccountId })
-    .from(payrollRunsTable)
-    .where(sql`${payrollRunsTable.paymentAccountId} is not null`)
-    .orderBy(desc(payrollRunsTable.id))
-    .limit(1);
-  if (latest?.paymentAccountId) return latest.paymentAccountId;
-  const bankAccounts = await db
-    .select({ id: accountsTable.id })
+  const [checking] = await db
+    .select({ id: accountsTable.id, type: accountsTable.type })
     .from(accountsTable)
-    .where(eq(accountsTable.type, "bank"))
-    .orderBy(accountsTable.id);
-  // Only auto-pick when unambiguous.
-  return bankAccounts.length === 1 ? bankAccounts[0].id : null;
+    .where(eq(accountsTable.number, "10000"))
+    .orderBy(accountsTable.id)
+    .limit(1);
+  return checking?.type === "bank" ? checking.id : null;
 }
 
 /** Validate that a labor account exists and is a cost-type account. */
@@ -445,6 +442,7 @@ async function insertLines(
       employeeId: l.employeeId ?? null,
       vendorId: l.vendorId ?? null,
       workerName: l.workerName,
+      entryDetails: l.entryDetails,
       regularHours: l.regularHours,
       overtimeHours: l.overtimeHours,
       holidayHours: l.holidayHours,
@@ -493,6 +491,12 @@ function normalizeLines(
     employeeId?: number | null;
     vendorId?: number | null;
     workerName: string;
+    entryDetails?: Array<{
+      date: string | null;
+      hours: number;
+      jobId: number | null;
+      costType: "regular" | "overtime" | "holiday";
+    }>;
     regularHours: number;
     overtimeHours: number;
     holidayHours?: number;
@@ -508,6 +512,7 @@ function normalizeLines(
     employeeId: l.employeeId ?? null,
     vendorId: l.vendorId ?? null,
     workerName: l.workerName,
+    entryDetails: l.entryDetails ?? [],
     regularHours: l.regularHours,
     overtimeHours: l.overtimeHours,
     holidayHours: l.holidayHours ?? 0,
@@ -783,20 +788,13 @@ router.post("/payroll-runs", async (req, res): Promise<void> => {
     return;
   }
 
-  // Payment account (Checking) is resolved automatically when omitted:
-  // reuse the most recent run's account, else the sole bank account.
-  let paymentAccountId = data.paymentAccountId ?? null;
+  const paymentAccountId = await resolveDefaultPaymentAccountId();
   if (paymentAccountId == null) {
-    paymentAccountId = await resolveDefaultPaymentAccountId();
-    // Allowed to be null — the run can be created without one; it will be
-    // required when the user clicks "Post to ledger".
-  }
-  if (paymentAccountId != null) {
-    const paymentError = await validatePaymentAccount(paymentAccountId);
-    if (paymentError) {
-      res.status(400).json({ error: paymentError });
-      return;
-    }
+    res.status(400).json({
+      error:
+        'Payroll requires bank account 10000 "Checking". Restore that account before saving a payroll run.',
+    });
+    return;
   }
 
   const rates: BurdenRates = {
@@ -824,7 +822,7 @@ router.post("/payroll-runs", async (req, res): Promise<void> => {
         payDate: data.payDate,
         memo: data.memo ?? null,
         laborAccountId,
-        paymentAccountId: paymentAccountId ?? undefined,
+        paymentAccountId,
         ssRateBps: rates.ssRateBps,
         medicareRateBps: rates.medicareRateBps,
         futaRateBps: rates.futaRateBps,
@@ -899,12 +897,13 @@ router.patch("/payroll-runs/:id", async (req, res): Promise<void> => {
     }
   }
 
-  if (data.paymentAccountId != null) {
-    const paymentError = await validatePaymentAccount(data.paymentAccountId);
-    if (paymentError) {
-      res.status(400).json({ error: paymentError });
-      return;
-    }
+  const paymentAccountId = await resolveDefaultPaymentAccountId();
+  if (paymentAccountId == null) {
+    res.status(400).json({
+      error:
+        'Payroll requires bank account 10000 "Checking". Restore that account before saving a payroll run.',
+    });
+    return;
   }
 
   const lines =
@@ -926,8 +925,7 @@ router.patch("/payroll-runs/:id", async (req, res): Promise<void> => {
     if (data.memo !== undefined) set.memo = data.memo;
     if (data.laborAccountId !== undefined)
       set.laborAccountId = data.laborAccountId;
-    if (data.paymentAccountId !== undefined)
-      set.paymentAccountId = data.paymentAccountId;
+    set.paymentAccountId = paymentAccountId;
     if (data.ssRateBps !== undefined) set.ssRateBps = data.ssRateBps;
     if (data.medicareRateBps !== undefined)
       set.medicareRateBps = data.medicareRateBps;
@@ -996,16 +994,15 @@ router.post("/payroll-runs/:id/post", async (req, res): Promise<void> => {
     return;
   }
 
-  // A payment account (bank) is required before posting so the payroll cash
-  // outflow shows in the Checking register.
-  if (!run.paymentAccountId) {
+  const paymentAccountId = await resolveDefaultPaymentAccountId();
+  if (!paymentAccountId) {
     res.status(400).json({
       error:
-        "A payment account (bank) must be set on this payroll run before posting. Edit the run and select a Checking or bank account.",
+        'Payroll requires bank account 10000 "Checking". Restore that account before posting.',
     });
     return;
   }
-  const paymentError = await validatePaymentAccount(run.paymentAccountId);
+  const paymentError = await validatePaymentAccount(paymentAccountId);
   if (paymentError) {
     res.status(400).json({ error: paymentError });
     return;
@@ -1059,7 +1056,7 @@ router.post("/payroll-runs/:id/post", async (req, res): Promise<void> => {
         // getAccountLedger returns effectCents = +amount for the labor account
         // and effectCents = -amount for the bank account — exactly right for
         // an expense posting and a cash outflow respectively.
-        splitAccountId: run.paymentAccountId,
+        splitAccountId: paymentAccountId,
         jobId: a.jobId,
         payrollRunId: run.id,
         amountCents: amount,
@@ -1080,7 +1077,7 @@ router.post("/payroll-runs/:id/post", async (req, res): Promise<void> => {
         partyName: l.workerName,
         description: `Payroll ${run.payPeriodStart} – ${run.payPeriodEnd} (unallocated)`,
         accountId: run.laborAccountId,
-        splitAccountId: run.paymentAccountId,
+        splitAccountId: paymentAccountId,
         jobId: null,
         payrollRunId: run.id,
         amountCents: remainder,
@@ -1097,7 +1094,7 @@ router.post("/payroll-runs/:id/post", async (req, res): Promise<void> => {
     }
     await tx
       .update(payrollRunsTable)
-      .set({ posted: true, postedAt: new Date() })
+      .set({ paymentAccountId, posted: true, postedAt: new Date() })
       .where(eq(payrollRunsTable.id, run.id));
   });
 

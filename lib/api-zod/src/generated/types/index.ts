@@ -160,6 +160,8 @@ export * from './payrollAllocationInput';
 export * from './payrollByJob';
 export * from './payrollByJobRow';
 export * from './payrollByJobTotals';
+export * from './payrollEntryDetail';
+export * from './payrollEntryDetailCostType';
 export * from './payrollImportDraft';
 export * from './payrollImportDraftInput';
 export * from './payrollImportDraftInputState';

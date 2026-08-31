@@ -59,7 +59,6 @@ function runToFormValues(run: PayrollRun) {
     payPeriodEnd: run.payPeriodEnd,
     payDate: run.payDate,
     laborAccountId: String(run.laborAccountId),
-    paymentAccountId: run.paymentAccountId ? String(run.paymentAccountId) : "",
     memo: run.memo ?? "",
     ssRate: bpsToPct(run.ssRateBps),
     medicareRate: bpsToPct(run.medicareRateBps),
@@ -91,6 +90,12 @@ function runToFormValues(run: PayrollRun) {
         vendorId: line.vendorId != null ? String(line.vendorId) : "",
         workerName: line.workerName,
         hourEntries,
+        dailyEntries: line.entryDetails.map((entry) => ({
+          date: entry.date,
+          hours: entry.hours,
+          jobId: entry.jobId == null ? "" : String(entry.jobId),
+          costType: entry.costType,
+        })),
         taxExempt: line.taxExempt,
         subcontractorAmount:
           line.lineType === "subcontractor"
@@ -236,16 +241,6 @@ export default function PayrollDetail() {
             </div>
           )}
         </div>
-        {!run.posted && !run.paymentAccountId && (
-          <div
-            role="alert"
-            className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800"
-            data-testid="text-missing-payment-account"
-          >
-            Select a <strong>Payment Account (Checking)</strong> in Edit before
-            posting this run to the ledger.
-          </div>
-        )}
         {postError && (
           <div
             role="alert"

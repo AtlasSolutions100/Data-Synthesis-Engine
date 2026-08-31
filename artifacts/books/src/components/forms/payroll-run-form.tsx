@@ -70,8 +70,6 @@ import {
   getListJobsQueryKey,
   useListCustomers,
   getListCustomersQueryKey,
-  useListAccounts,
-  getListAccountsQueryKey,
   useCreateJob,
   useCreateCustomer,
   useCreateEmployee,
@@ -120,6 +118,13 @@ const hourEntrySchema = z.object({
   hours: z.string(),
 });
 
+const dailyEntrySchema = z.object({
+  date: z.string().nullable(),
+  hours: z.number().min(0),
+  jobId: z.string().optional(),
+  costType: z.enum(["regular", "overtime", "holiday"]),
+});
+
 const lineSchema = z
   .object({
     lineType: z.enum(["employee", "subcontractor"]),
@@ -127,6 +132,7 @@ const lineSchema = z
     vendorId: z.string().optional(),
     workerName: z.string().min(1, "Worker name is required"),
     hourEntries: z.array(hourEntrySchema),
+    dailyEntries: z.array(dailyEntrySchema).optional(),
     taxExempt: z.boolean().default(false),
     subcontractorAmount: z.string().optional(),
     allocations: z.array(allocationSchema),
@@ -156,9 +162,6 @@ const runSchema = z.object({
   // Resolved automatically by the server when blank (P5-TC-06); kept in the
   // form state so editing an existing run preserves its account.
   laborAccountId: z.string().optional(),
-  // Bank account payroll is paid from; required before posting so the
-  // Checking register shows the cash outflow (P11-TC-05).
-  paymentAccountId: z.string().optional(),
   memo: z.string().optional(),
   ssRate: z.string().optional(),
   medicareRate: z.string().optional(),
@@ -196,6 +199,7 @@ const emptyLine = {
   vendorId: "",
   workerName: "",
   hourEntries: [{ costType: "regular" as const, hours: "" }],
+  dailyEntries: [],
   taxExempt: false,
   subcontractorAmount: "",
   allocations: [] as { jobId: string; hours?: string; amount: string }[],
@@ -772,6 +776,38 @@ function WorkerLine({
           ) : null}
 
           <LineHourEntries control={control} lineIndex={index} />
+          {line.dailyEntries?.length ? (
+            <div className="rounded-md border bg-white">
+              <div className="border-b px-3 py-2 text-xs font-medium text-slate-600">
+                Imported daily breakdown
+              </div>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Hours</TableHead>
+                    <TableHead>Type</TableHead>
+                    <TableHead>Job</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {line.dailyEntries.map((entry, entryIndex) => (
+                    <TableRow key={`${entry.date}-${entryIndex}`}>
+                      <TableCell>{entry.date ?? "—"}</TableCell>
+                      <TableCell>{entry.hours}</TableCell>
+                      <TableCell>
+                        {laborCostLabel(entry.costType)}
+                      </TableCell>
+                      <TableCell>
+                        {jobs.find((job) => String(job.id) === entry.jobId)
+                          ?.name ?? "Unallocated"}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          ) : null}
 
           <FormField
             control={control}
@@ -2612,6 +2648,12 @@ function ImportHoursDialog({
           vendorId: "",
           workerName: employee?.name ?? r.workerName,
           hourEntries,
+          dailyEntries: r.entries.map((entry) => ({
+            date: entry.date,
+            hours: entry.hours,
+            jobId: jobIdForEntry(entry),
+            costType: entry.costType,
+          })),
           taxExempt,
           subcontractorAmount: "",
           allocations: buildAllocations(taxExempt),
@@ -3489,15 +3531,8 @@ export function PayrollRunForm({
   const { data: jobs } = useListJobs(undefined, {
     query: { queryKey: getListJobsQueryKey() },
   });
-  const { data: accounts } = useListAccounts({
-    query: { queryKey: getListAccountsQueryKey() },
-  });
   const employeeList = useMemo(() => employees ?? [], [employees]);
   const jobList = useMemo(() => jobs ?? [], [jobs]);
-  const bankAccounts = useMemo(
-    () => (accounts ?? []).filter((a) => a.type === "bank"),
-    [accounts],
-  );
 
   const form = useForm<RunFormValues>({
     resolver: zodResolver(runSchema),
@@ -3507,7 +3542,6 @@ export function PayrollRunForm({
       payDate:
         defaultValues?.payDate || new Date().toISOString().split("T")[0],
       laborAccountId: defaultValues?.laborAccountId || "",
-      paymentAccountId: defaultValues?.paymentAccountId || "",
       memo: defaultValues?.memo || "",
       ssRate: defaultValues?.ssRate ?? "6.2",
       medicareRate: defaultValues?.medicareRate ?? "1.45",
@@ -3603,9 +3637,6 @@ export function PayrollRunForm({
       laborAccountId: values.laborAccountId
         ? parseInt(values.laborAccountId, 10)
         : undefined,
-      paymentAccountId: values.paymentAccountId
-        ? parseInt(values.paymentAccountId, 10)
-        : undefined,
       ssRateBps: pctToBps(values.ssRate),
       medicareRateBps: pctToBps(values.medicareRate),
       futaRateBps: pctToBps(values.futaRate),
@@ -3628,6 +3659,12 @@ export function PayrollRunForm({
               ? parseInt(l.vendorId, 10)
               : null,
           workerName: l.workerName,
+          entryDetails: (l.dailyEntries ?? []).map((entry) => ({
+            date: entry.date,
+            hours: entry.hours,
+            jobId: entry.jobId ? parseInt(entry.jobId, 10) : null,
+            costType: entry.costType,
+          })),
           regularHours: hours.regular,
           overtimeHours: hours.overtime,
           holidayHours: hours.holiday,
@@ -3733,38 +3770,9 @@ export function PayrollRunForm({
           />
         </div>
 
-        <FormField
-          control={form.control}
-          name="paymentAccountId"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Payment Account (Checking)</FormLabel>
-              <Select
-                value={field.value || "none"}
-                onValueChange={(v) => field.onChange(v === "none" ? "" : v)}
-              >
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select bank account" />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  <SelectItem value="none">— None (required before posting) —</SelectItem>
-                  {bankAccounts.map((a) => (
-                    <SelectItem key={a.id} value={String(a.id)}>
-                      {a.number} · {a.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-slate-500">
-                Bank account payroll is paid from. Required before posting to
-                ledger so the Checking register shows the cash outflow.
-              </p>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+        <p className="rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-600">
+          Payroll posts automatically through <strong>10000 Checking</strong>.
+        </p>
 
         <FormField
           control={form.control}

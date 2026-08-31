@@ -1460,6 +1460,28 @@ export interface PayrollAllocationInput {
   amountCents: number;
 }
 
+export type PayrollEntryDetailCostType = typeof PayrollEntryDetailCostType[keyof typeof PayrollEntryDetailCostType];
+
+
+export const PayrollEntryDetailCostType = {
+  regular: 'regular',
+  overtime: 'overtime',
+  holiday: 'holiday',
+} as const;
+
+export interface PayrollEntryDetail {
+  /**
+     * Work date in YYYY-MM-DD form when present on the imported time card
+     * @nullable
+     */
+  date: string | null;
+  /** @minimum 0 */
+  hours: number;
+  /** @nullable */
+  jobId: number | null;
+  costType: PayrollEntryDetailCostType;
+}
+
 export type PayrollLineLineType = typeof PayrollLineLineType[keyof typeof PayrollLineLineType];
 
 
@@ -1477,6 +1499,8 @@ export interface PayrollLine {
   /** @nullable */
   vendorId?: number | null;
   workerName: string;
+  /** Imported daily breakdown retained so the saved run can show the same date, hours, cost type, and job rows */
+  entryDetails: PayrollEntryDetail[];
   regularHours: number;
   overtimeHours: number;
   /** Combined Holiday / Vacation / Sick hours, paid at the straight-time rate */
@@ -1517,6 +1541,7 @@ export interface PayrollLineInput {
   vendorId?: number | null;
   /** @minLength 1 */
   workerName: string;
+  entryDetails?: PayrollEntryDetail[];
   /** @minimum 0 */
   regularHours?: number;
   /** @minimum 0 */
@@ -1617,8 +1642,6 @@ export interface PayrollRunInput {
   /** @nullable */
   memo?: string | null;
   laborAccountId?: number;
-  /** Bank account payroll is paid from; resolved automatically when omitted */
-  paymentAccountId?: number;
   /** @minimum 0 */
   ssRateBps?: number;
   /** @minimum 0 */
@@ -1639,7 +1662,6 @@ export interface PayrollRunUpdate {
   /** @nullable */
   memo?: string | null;
   laborAccountId?: number;
-  paymentAccountId?: number;
   /** @minimum 0 */
   ssRateBps?: number;
   /** @minimum 0 */

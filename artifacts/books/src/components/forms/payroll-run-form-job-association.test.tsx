@@ -174,6 +174,8 @@ describe("Import hours — Job Name association", () => {
     await waitFor(() =>
       expect(screen.queryByText(/will be applied/i)).toBeNull(),
     );
+    expect(screen.getByText("Imported daily breakdown")).toBeTruthy();
+    expect(screen.getByText("2026-07-07")).toBeTruthy();
 
     fireEvent.click(
       screen.getByRole("button", { name: /save time card run/i }),
@@ -187,6 +189,14 @@ describe("Import hours — Job Name association", () => {
         regularHours: 8,
         overtimeHours: 0,
         holidayHours: 0,
+        entryDetails: [
+          {
+            date: "2026-07-07",
+            hours: 8,
+            jobId: 518,
+            costType: "regular",
+          },
+        ],
         allocations: [{ jobId: 518, amountCents: 24000 }],
       }),
     ]);

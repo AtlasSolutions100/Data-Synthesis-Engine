@@ -3839,6 +3839,21 @@ components:
         amountCents:
           type: integer
           minimum: 1
+    PayrollEntryDetail:
+      type: object
+      required: [date, hours, jobId, costType]
+      properties:
+        date:
+          type: ["string", "null"]
+          description: Work date in YYYY-MM-DD form when present on the imported time card
+        hours:
+          type: number
+          minimum: 0
+        jobId:
+          type: ["integer", "null"]
+        costType:
+          type: string
+          enum: [regular, overtime, holiday]
     PayrollLine:
       type: object
       required:
@@ -3862,6 +3877,7 @@ components:
           burdenCents,
           totalCostCents,
           taxExempt,
+          entryDetails,
           allocations,
         ]
       properties:
@@ -3878,6 +3894,11 @@ components:
           type: ["integer", "null"]
         workerName:
           type: string
+        entryDetails:
+          type: array
+          description: Imported daily breakdown retained so the saved run can show the same date, hours, cost type, and job rows
+          items:
+            $ref: "#/components/schemas/PayrollEntryDetail"
         regularHours:
           type: number
         overtimeHours:
@@ -3932,6 +3953,10 @@ components:
         workerName:
           type: string
           minLength: 1
+        entryDetails:
+          type: array
+          items:
+            $ref: "#/components/schemas/PayrollEntryDetail"
         regularHours:
           type: number
           minimum: 0
@@ -4106,9 +4131,6 @@ components:
           type: ["string", "null"]
         laborAccountId:
           type: integer
-        paymentAccountId:
-          type: integer
-          description: Bank account payroll is paid from; resolved automatically when omitted
         ssRateBps:
           type: integer
           minimum: 0
@@ -4140,8 +4162,6 @@ components:
         memo:
           type: ["string", "null"]
         laborAccountId:
-          type: integer
-        paymentAccountId:
           type: integer
         ssRateBps:
           type: integer

@@ -14,8 +14,6 @@ export interface PayrollRunInput {
   /** @nullable */
   memo?: string | null;
   laborAccountId?: number;
-  /** Bank account payroll is paid from; resolved automatically when omitted */
-  paymentAccountId?: number;
   /** @minimum 0 */
   ssRateBps?: number;
   /** @minimum 0 */

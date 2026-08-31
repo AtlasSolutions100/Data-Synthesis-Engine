@@ -98,13 +98,10 @@ beforeAll(async () => {
   laborAcctId = acct.id;
 
   const [bankAcct] = await db
-    .insert(accountsTable)
-    .values({
-      number: "TEST-POST-1010",
-      name: "Test Post Checking",
-      type: "bank",
-    })
-    .returning();
+    .select({ id: accountsTable.id })
+    .from(accountsTable)
+    .where(eq(accountsTable.number, "10000"));
+  if (!bankAcct) throw new Error("Test requires account 10000 Checking");
   bankAcctId = bankAcct.id;
 
   const jobs = await db
@@ -181,9 +178,6 @@ afterAll(async () => {
   }
   if (laborAcctId != null) {
     await db.delete(accountsTable).where(eq(accountsTable.id, laborAcctId));
-  }
-  if (bankAcctId != null) {
-    await db.delete(accountsTable).where(eq(accountsTable.id, bankAcctId));
   }
 });
 

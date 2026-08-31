@@ -18,6 +18,13 @@ import { employeesTable } from "./employees";
 import { vendorsTable } from "./vendors";
 import { jobsTable } from "./jobs";
 
+export type PayrollEntryDetail = {
+  date: string | null;
+  hours: number;
+  jobId: number | null;
+  costType: "regular" | "overtime" | "holiday";
+};
+
 export const payrollRunsTable = pgTable("payroll_runs", {
   id: serial("id").primaryKey(),
   payPeriodStart: date("pay_period_start", { mode: "string" }).notNull(),
@@ -70,6 +77,10 @@ export const payrollLinesTable = pgTable("payroll_lines", {
     onDelete: "set null",
   }),
   workerName: text("worker_name").notNull(),
+  entryDetails: jsonb("entry_details")
+    .$type<PayrollEntryDetail[]>()
+    .notNull()
+    .default([]),
   regularHours: numeric("regular_hours", {
     precision: 10,
     scale: 2,

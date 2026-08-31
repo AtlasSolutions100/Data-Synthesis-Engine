@@ -14,7 +14,6 @@ export interface PayrollRunUpdate {
   /** @nullable */
   memo?: string | null;
   laborAccountId?: number;
-  paymentAccountId?: number;
   /** @minimum 0 */
   ssRateBps?: number;
   /** @minimum 0 */
