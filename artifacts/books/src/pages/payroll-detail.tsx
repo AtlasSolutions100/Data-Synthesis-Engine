@@ -39,6 +39,7 @@ import {
 import { PayrollRunForm } from "@/components/forms/payroll-run-form";
 import { useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, CheckCircle2, Undo2, Pencil } from "lucide-react";
+import { toServerFieldError } from "@/lib/server-field-error";
 
 /** Basis points (620) -> percentage string ("6.2"). */
 function bpsToPct(bps: number): string {
@@ -110,6 +111,7 @@ export default function PayrollDetail() {
   const runId = parseInt(id || "0", 10);
   const queryClient = useQueryClient();
   const [isEditOpen, setIsEditOpen] = useState(false);
+  const [postError, setPostError] = useState<string | null>(null);
 
   const { data: run, isLoading } = useGetPayrollRun(runId, {
     query: { enabled: !!runId, queryKey: getGetPayrollRunQueryKey(runId) },
@@ -123,7 +125,22 @@ export default function PayrollDetail() {
     queryClient.invalidateQueries({ queryKey: getListTransactionsQueryKey() });
   };
 
-  const postRun = usePostPayrollRun({ mutation: { onSuccess: invalidate } });
+  const postRun = usePostPayrollRun({
+    mutation: {
+      onSuccess: () => {
+        setPostError(null);
+        invalidate();
+      },
+      onError: (error) => {
+        setPostError(
+          toServerFieldError(
+            error,
+            "Could not post this time card run. Check the run details and try again.",
+          ).message,
+        );
+      },
+    },
+  });
   const unpostRun = useUnpostPayrollRun({ mutation: { onSuccess: invalidate } });
   const updateRun = useUpdatePayrollRun({
     mutation: {
@@ -198,14 +215,20 @@ export default function PayrollDetail() {
             <div className="flex items-center gap-3">
               <Button
                 variant="outline"
-                onClick={() => setIsEditOpen(true)}
+                onClick={() => {
+                  setPostError(null);
+                  setIsEditOpen(true);
+                }}
               >
                 <Pencil className="mr-2 h-4 w-4" /> Edit
               </Button>
               <Button
                 className="bg-emerald-600 hover:bg-emerald-700"
                 disabled={postRun.isPending}
-                onClick={() => postRun.mutate({ id: runId })}
+                onClick={() => {
+                  setPostError(null);
+                  postRun.mutate({ id: runId });
+                }}
               >
                 <CheckCircle2 className="mr-2 h-4 w-4" />
                 {postRun.isPending ? "Posting..." : "Post to Ledger"}
@@ -213,6 +236,25 @@ export default function PayrollDetail() {
             </div>
           )}
         </div>
+        {!run.posted && !run.paymentAccountId && (
+          <div
+            role="alert"
+            className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800"
+            data-testid="text-missing-payment-account"
+          >
+            Select a <strong>Payment Account (Checking)</strong> in Edit before
+            posting this run to the ledger.
+          </div>
+        )}
+        {postError && (
+          <div
+            role="alert"
+            className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+            data-testid="text-post-error"
+          >
+            {postError}
+          </div>
+        )}
       </div>
 
       <div className="grid gap-6 md:grid-cols-4">
