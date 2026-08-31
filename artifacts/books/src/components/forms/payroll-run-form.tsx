@@ -541,10 +541,17 @@ function WorkerLine({
   const employee = employees.find(
     (e) => String(e.id) === (line?.employeeId ?? ""),
   );
+  const exactEmployee =
+    employee ??
+    (line?.workerName
+      ? employees.find(
+          (e) => normalizeName(e.name) === normalizeName(line.workerName),
+        )
+      : undefined);
   const computed = line
     ? computeLineCents(
         line as RunFormValues["lines"][number],
-        employee,
+         exactEmployee,
         rates,
       )
     : { grossCents: 0, burdenCents: 0, totalCents: 0 };
@@ -562,7 +569,7 @@ function WorkerLine({
     !isSub && (!employee || employee.straightTimeRateCents == null);
 
   useEffect(() => {
-    if (isSub || !line || !employee) return;
+    if (isSub || !line || !exactEmployee) return;
     const allocations = line.allocations ?? [];
     if (allocations.length === 0) return;
 
@@ -615,12 +622,30 @@ function WorkerLine({
     });
   }, [
     computed.grossCents,
-    employee,
+    exactEmployee,
     form,
     index,
     isSub,
     line,
   ]);
+
+  useEffect(() => {
+    if (
+      isSub ||
+      !line ||
+      line.employeeId ||
+      !line.workerName.trim() ||
+      !exactEmployee
+    )
+      return;
+    form.setValue(`lines.${index}.employeeId`, String(exactEmployee.id), {
+      shouldDirty: false,
+      shouldValidate: true,
+    });
+    form.setValue(`lines.${index}.taxExempt`, exactEmployee.taxExempt ?? false, {
+      shouldDirty: false,
+    });
+  }, [exactEmployee, form, index, isSub, line]);
 
   return (
     <div className="space-y-3 rounded-lg border p-4">
@@ -1297,6 +1322,7 @@ function parseDraftState(raw: unknown): ImportDraftState | null {
     );
     return { ...row, employeeKey: key, entries };
   });
+
   const employeeAssoc: Record<string, EmployeeAssociation> =
     s.employeeAssoc && typeof s.employeeAssoc === "object"
       ? (s.employeeAssoc as Record<string, EmployeeAssociation>)

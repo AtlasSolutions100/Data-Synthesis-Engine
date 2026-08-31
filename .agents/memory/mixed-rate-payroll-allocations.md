@@ -7,4 +7,4 @@ description: Preserve wage-rate differences when imported payroll hours are spli
 
 **Why:** A raw-hours recalculation can overwrite a correct import result, making a smaller number of higher-rate OT hours look like an equal-rate allocation.
 
-**How to apply:** Keep employer burden separate from job wage allocations, and clear any preserved wage weighting when users manually change an allocation's job or hours.
+**How to apply:** Keep employer burden separate from job wage allocations, and clear any preserved wage weighting when users manually change an allocation's job or hours. Reopened forms must seed allocation hours from persisted daily details and recalculate wages from the linked or exact-name-matched employee rate; never make users re-enter derived values.

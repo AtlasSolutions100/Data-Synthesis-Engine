@@ -66,6 +66,19 @@ function runToFormValues(run: PayrollRun) {
     coSuiRate: bpsToPct(run.coSuiRateBps),
     coSurchargeRate: bpsToPct(run.coSurchargeRateBps),
     lines: run.lines.map((line) => {
+      const hoursByJob = new Map<number, number>();
+      for (const entry of line.entryDetails ?? []) {
+        if (entry.jobId != null) {
+          hoursByJob.set(
+            entry.jobId,
+            (hoursByJob.get(entry.jobId) ?? 0) + entry.hours,
+          );
+        }
+      }
+      const totalLineHours =
+        Number(line.regularHours) +
+        Number(line.overtimeHours) +
+        Number(line.holidayHours);
       const hourEntries: {
         costType: "regular" | "overtime" | "holiday";
         hours: string;
@@ -103,8 +116,19 @@ function runToFormValues(run: PayrollRun) {
             : "",
         allocations: line.allocations.map((a) => ({
           jobId: String(a.jobId),
-          hours: "",
-          amount: centsToInput(a.amountCents),
+          hours: String(
+            Math.round(
+              (hoursByJob.get(a.jobId) ??
+                (line.allocations.length === 1 ? totalLineHours : 0)) * 100,
+            ) / 100,
+          ),
+          amount: centsToInput(
+            a.amountCents > 0
+              ? a.amountCents
+              : line.allocations.length === 1
+                ? line.grossWagesCents
+                : a.amountCents,
+          ),
         })),
       };
     }),
