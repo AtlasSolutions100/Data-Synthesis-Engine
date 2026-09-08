@@ -50,6 +50,12 @@ export const payrollRunsTable = pgTable("payroll_runs", {
   futaRateBps: integer("futa_rate_bps").notNull().default(60),
   coSuiRateBps: integer("co_sui_rate_bps").notNull().default(170),
   coSurchargeRateBps: integer("co_surcharge_rate_bps").notNull().default(22),
+  // What the payroll company charges to run this period (e.g. $72). Posted
+  // as its own register line so the bank's single payroll debit — net pays +
+  // taxes + this fee — can be matched to the run line by line.
+  processingFeeCents: bigint("processing_fee_cents", { mode: "number" })
+    .notNull()
+    .default(0),
   posted: boolean("posted").notNull().default(false),
   postedAt: timestamp("posted_at", { withTimezone: true }),
   /** True for records seeded by the Practice / Demo Data loader. */
@@ -146,6 +152,13 @@ export const payrollAllocationsTable = pgTable("payroll_allocations", {
     .notNull()
     .references(() => jobsTable.id, { onDelete: "restrict" }),
   amountCents: bigint("amount_cents", { mode: "number" }).notNull(),
+  // Hours the worker put in on this job for the period. Persisted alongside
+  // the dollar allocation so the run detail can show "68 hrs across 4 jobs"
+  // without reconstructing it from the day grid (which the merge-into-
+  // existing-line import path never populated, leaving zeros).
+  hours: numeric("hours", { precision: 10, scale: 2, mode: "number" })
+    .notNull()
+    .default(0),
 });
 
 /**

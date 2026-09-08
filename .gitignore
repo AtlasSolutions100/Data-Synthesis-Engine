@@ -48,3 +48,8 @@ Thumbs.db
 .cache/
 .local/
 lib/api-spec/orval.codegen-check.*.config.ts
+
+# Local environment (never commit real secrets; copy .env.example to .env)
+.env
+.env.*
+!.env.example

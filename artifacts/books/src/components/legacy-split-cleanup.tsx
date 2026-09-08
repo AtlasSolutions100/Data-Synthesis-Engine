@@ -49,8 +49,11 @@ export function LegacySplitCleanup() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
+  // Fetched up front (cheap: a grouped count) so the button can disappear
+  // once the one-time QuickBooks cleanup is done instead of lingering as a
+  // mystery control on the Transactions page.
   const { data: groups, isLoading } = useListLegacySplits({
-    query: { queryKey: getListLegacySplitsQueryKey(), enabled: open },
+    query: { queryKey: getListLegacySplitsQueryKey() },
   });
   const { data: accounts } = useListAccounts({
     query: { queryKey: getListAccountsQueryKey(), enabled: open },
@@ -146,11 +149,18 @@ export function LegacySplitCleanup() {
         }
       }}
     >
-      <DialogTrigger asChild>
-        <Button variant="outline" data-testid="button-legacy-split-cleanup">
-          <Wand2 className="mr-2 h-4 w-4" /> Clean Up Legacy Splits
-        </Button>
-      </DialogTrigger>
+      {(open || (groups?.length ?? 0) > 0) && (
+        <DialogTrigger asChild>
+          <Button variant="outline" data-testid="button-legacy-split-cleanup">
+            <Wand2 className="mr-2 h-4 w-4" /> Clean Up Legacy Splits
+            {(groups?.length ?? 0) > 0 && (
+              <span className="ml-2 rounded-full bg-amber-100 px-2 text-xs text-amber-800">
+                {groups!.length}
+              </span>
+            )}
+          </Button>
+        </DialogTrigger>
+      )}
       <DialogContent className="sm:max-w-[560px]">
         <DialogHeader>
           <DialogTitle>Clean Up Legacy Splits</DialogTitle>

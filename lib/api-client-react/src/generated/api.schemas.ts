@@ -309,6 +309,168 @@ export interface VendorDefaultAccount {
   accountId: number | null;
 }
 
+export interface InboundEmailAttachment {
+  fileName: string;
+  /** @nullable */
+  contentType: string | null;
+  sizeBytes: number;
+}
+
+export type InboundEmailKind = typeof InboundEmailKind[keyof typeof InboundEmailKind];
+
+
+export const InboundEmailKind = {
+  bill: 'bill',
+  timecard: 'timecard',
+  statement: 'statement',
+  unknown: 'unknown',
+} as const;
+
+export type InboundEmailStatus = typeof InboundEmailStatus[keyof typeof InboundEmailStatus];
+
+
+export const InboundEmailStatus = {
+  new: 'new',
+  processed: 'processed',
+  dismissed: 'dismissed',
+} as const;
+
+export interface InboundEmail {
+  id: number;
+  /** @nullable */
+  fromAddress: string | null;
+  /** @nullable */
+  fromName: string | null;
+  /** @nullable */
+  subject: string | null;
+  receivedAt: string;
+  /** @nullable */
+  textBody: string | null;
+  attachments: InboundEmailAttachment[];
+  kind: InboundEmailKind;
+  status: InboundEmailStatus;
+  /** @nullable */
+  note: string | null;
+  /** @nullable */
+  processedAt: string | null;
+}
+
+export type InboundEmailUpdateKind = typeof InboundEmailUpdateKind[keyof typeof InboundEmailUpdateKind];
+
+
+export const InboundEmailUpdateKind = {
+  bill: 'bill',
+  timecard: 'timecard',
+  statement: 'statement',
+  unknown: 'unknown',
+} as const;
+
+export type InboundEmailUpdateStatus = typeof InboundEmailUpdateStatus[keyof typeof InboundEmailUpdateStatus];
+
+
+export const InboundEmailUpdateStatus = {
+  new: 'new',
+  processed: 'processed',
+  dismissed: 'dismissed',
+} as const;
+
+export interface InboundEmailUpdate {
+  kind?: InboundEmailUpdateKind;
+  status?: InboundEmailUpdateStatus;
+  /** @nullable */
+  note?: string | null;
+}
+
+export interface InboundEmailAttachmentData {
+  fileName: string;
+  /** @nullable */
+  contentType: string | null;
+  sizeBytes: number;
+  /** data:<mime>;base64,<content> */
+  dataUrl: string;
+}
+
+export interface VendorReconcileAccount {
+  accountId: number;
+  accountNumber: string;
+  accountName: string;
+  /** True when the account was created by this request */
+  created: boolean;
+}
+
+export interface VendorPaymentBillInput {
+  billId: number;
+  /**
+     * Portion of the check applied to this bill, in cents
+     * @minimum 1
+     */
+  amountCents: number;
+  /**
+     * Vendor credit applied to this bill before payment (optional)
+     * @minimum 0
+     */
+  creditCents?: number;
+}
+
+export type VendorPaymentInputMethod = typeof VendorPaymentInputMethod[keyof typeof VendorPaymentInputMethod];
+
+
+export const VendorPaymentInputMethod = {
+  check: 'check',
+  credit_card: 'credit_card',
+  ach: 'ach',
+  cash: 'cash',
+  other: 'other',
+} as const;
+
+export interface VendorPaymentInput {
+  /** @minLength 1 */
+  date: string;
+  method?: VendorPaymentInputMethod;
+  /**
+     * Check number; null with method "check" marks the check "To Print"
+     * @nullable
+     */
+  referenceNum?: string | null;
+  /** @nullable */
+  memo?: string | null;
+  /** @nullable */
+  bankAccountId?: number | null;
+  /** @minItems 1 */
+  bills: VendorPaymentBillInput[];
+}
+
+export interface VendorPaymentBill {
+  billId: number;
+  /** @nullable */
+  billNumber: string | null;
+  /** @nullable */
+  jobName: string | null;
+  amountCents: number;
+}
+
+export interface VendorPayment {
+  id: number;
+  vendorId: number;
+  vendorName: string;
+  date: string;
+  method: string;
+  /** @nullable */
+  referenceNum: string | null;
+  /** @nullable */
+  memo: string | null;
+  /** @nullable */
+  bankAccountId: number | null;
+  /** Total of the check, in cents */
+  amountCents: number;
+  /**
+     * The single register withdrawal posted for this check (null for credit-card payments)
+     * @nullable
+     */
+  transactionId: number | null;
+  bills: VendorPaymentBill[];
+}
+
 export interface VendorInput {
   /** @minLength 1 */
   name: string;
@@ -925,6 +1087,15 @@ export const AccountBalanceTransactionLineClearedStatus = {
   uncleared: 'uncleared',
 } as const;
 
+export interface RegisterCheckItem {
+  billId: number;
+  /** @nullable */
+  billNumber: string | null;
+  /** @nullable */
+  jobName: string | null;
+  amountCents: number;
+}
+
 export interface AccountBalanceTransactionLine {
   transactionId: number;
   date: string;
@@ -953,6 +1124,23 @@ export interface AccountBalanceTransactionLine {
   voidedAmountCents?: number | null;
   /** Actual reconciliation status of this transaction for the account: "cleared" when checked off in a completed reconciliation period, "pending" when checked off in an in-progress period, and "uncleared" otherwise. A past date alone never makes a line cleared. */
   clearedStatus: AccountBalanceTransactionLineClearedStatus;
+  /**
+     * Set when this line is the single register withdrawal for a multi-bill vendor check.
+     * @nullable
+     */
+  vendorPaymentId?: number | null;
+  /**
+     * Set when this line was generated by posting a payroll run.
+     * @nullable
+     */
+  payrollRunId?: number | null;
+  /**
+     * Job the line is coded to, when any (used to itemize payroll lines per job).
+     * @nullable
+     */
+  jobName?: string | null;
+  /** For a vendor-check line, the bills that check settled. Lets the register show one row per check with an expandable itemized list. */
+  checkItems?: RegisterCheckItem[];
 }
 
 export type AccountBalanceTransactionsType = typeof AccountBalanceTransactionsType[keyof typeof AccountBalanceTransactionsType];
@@ -1213,6 +1401,11 @@ export interface BillPayment {
   memo?: string | null;
   /** @nullable */
   bankAccountId?: number | null;
+  /**
+     * The multi-bill vendor check this payment belongs to, when recorded through Write Check
+     * @nullable
+     */
+  vendorPaymentId?: number | null;
 }
 
 export type BillPaymentInputMethod = typeof BillPaymentInputMethod[keyof typeof BillPaymentInputMethod];
@@ -1452,12 +1645,19 @@ export interface PayrollAllocation {
   jobName?: string | null;
   /** Gross wages before employer burden allocated to this job, in integer cents */
   amountCents: number;
+  /** Hours worked on this job during the pay period */
+  hours?: number;
 }
 
 export interface PayrollAllocationInput {
   jobId: number;
   /** @minimum 1 */
   amountCents: number;
+  /**
+     * Hours worked on this job during the pay period (optional)
+     * @minimum 0
+     */
+  hours?: number;
 }
 
 export type PayrollEntryDetailCostType = typeof PayrollEntryDetailCostType[keyof typeof PayrollEntryDetailCostType];
@@ -1605,6 +1805,8 @@ export interface PayrollRun {
   payDate: string;
   /** @nullable */
   memo?: string | null;
+  /** Payroll company processing fee for this run, in cents (0 when none) */
+  processingFeeCents?: number;
   laborAccountId: number;
   /** @nullable */
   laborAccountName?: string | null;
@@ -1641,6 +1843,11 @@ export interface PayrollRunInput {
   payDate: string;
   /** @nullable */
   memo?: string | null;
+  /**
+     * Payroll company processing fee for this run, in cents
+     * @minimum 0
+     */
+  processingFeeCents?: number;
   laborAccountId?: number;
   /** @minimum 0 */
   ssRateBps?: number;
@@ -1661,6 +1868,11 @@ export interface PayrollRunUpdate {
   payDate?: string;
   /** @nullable */
   memo?: string | null;
+  /**
+     * Payroll company processing fee for this run, in cents
+     * @minimum 0
+     */
+  processingFeeCents?: number;
   laborAccountId?: number;
   /** @minimum 0 */
   ssRateBps?: number;
@@ -2358,6 +2570,20 @@ export type CheckVendorDuplicatesParams = {
  */
 name: string;
 };
+
+export type ListInboundEmailsParams = {
+status?: ListInboundEmailsStatus;
+};
+
+export type ListInboundEmailsStatus = typeof ListInboundEmailsStatus[keyof typeof ListInboundEmailsStatus];
+
+
+export const ListInboundEmailsStatus = {
+  new: 'new',
+  processed: 'processed',
+  dismissed: 'dismissed',
+  all: 'all',
+} as const;
 
 export type GetEmployeeParams = {
 /**

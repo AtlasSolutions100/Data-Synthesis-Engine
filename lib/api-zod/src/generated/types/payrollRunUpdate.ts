@@ -13,6 +13,11 @@ export interface PayrollRunUpdate {
   payDate?: string;
   /** @nullable */
   memo?: string | null;
+  /**
+     * Payroll company processing fee for this run, in cents
+     * @minimum 0
+     */
+  processingFeeCents?: number;
   laborAccountId?: number;
   /** @minimum 0 */
   ssRateBps?: number;

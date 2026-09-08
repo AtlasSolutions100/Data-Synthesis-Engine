@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   useGetDashboardSummary,
   getGetDashboardSummaryQueryKey,
@@ -11,13 +11,48 @@ import { formatCents, formatDate } from "@/lib/format";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { DollarSign, Activity, CreditCard, Users, ChevronRight, ChevronDown } from "lucide-react";
-import { Link } from "wouter";
+import { Link, useSearch } from "wouter";
+import { fetchInboxAttachmentsAsFiles } from "@/lib/inbox-attachments";
+import { useToast } from "@/hooks/use-toast";
 import { DateRangePicker, type DateRangeValue, describeRange } from "@/components/date-range-picker";
 import { QuickDashboardUploadDialog } from "@/components/quick-upload-dialog";
 import { DemoDataCard } from "@/components/demo-data-card";
 
 export default function Dashboard() {
   const [range, setRange] = useState<DateRangeValue>({});
+
+  // ── Inbox handoff (?inboxEmail=ID): a forwarded bank/vendor statement ──
+  // opens the upload dialog in statement mode with the file already staged.
+  const inboxSearch = useSearch();
+  const inboxEmailId = (() => {
+    const raw = new URLSearchParams(inboxSearch).get("inboxEmail");
+    const n = raw ? Number(raw) : NaN;
+    return Number.isInteger(n) && n > 0 ? n : null;
+  })();
+  const [inboxStatementFile, setInboxStatementFile] = useState<File | null>(null);
+  const { toast: inboxToast } = useToast();
+  useEffect(() => {
+    if (inboxEmailId == null) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const files = await fetchInboxAttachmentsAsFiles(inboxEmailId);
+        if (cancelled) return;
+        const statement =
+          files.find((f) => /\.(pdf|csv|xlsx)$/i.test(f.name)) ?? files[0] ?? null;
+        if (!statement) {
+          inboxToast({ title: "That email has no statement attached", variant: "destructive" });
+          return;
+        }
+        setInboxStatementFile(statement);
+      } catch {
+        if (!cancelled) inboxToast({ title: "Could not load the forwarded statement", variant: "destructive" });
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [inboxEmailId, inboxToast]);
   const params = {
     startDate: range.startDate,
     endDate: range.endDate,
@@ -55,7 +90,11 @@ export default function Dashboard() {
           </p>
         </div>
         <div className="flex items-end gap-3">
-          <QuickDashboardUploadDialog />
+          <QuickDashboardUploadDialog
+            initialMode={inboxStatementFile ? "statement" : "document"}
+            initialStatementFile={inboxStatementFile}
+            autoOpen={inboxStatementFile != null}
+          />
           <DateRangePicker value={range} onChange={setRange} />
         </div>
       </div>

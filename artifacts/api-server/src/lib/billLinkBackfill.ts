@@ -197,6 +197,11 @@ export interface UnlinkedBillTransactionReport {
 export async function listUnlinkedBillTransactions(): Promise<
   UnlinkedBillTransactionReport[]
 > {
+  // Only rows that still lack identity need a human: an invoice number the
+  // matcher could not resolve to exactly one bill. A hand-entered bill that
+  // already names its vendor and job is fully coded — asking Mike to
+  // "verify" it again is noise — and a row with no invoice number at all
+  // can never be matched, so review would be pointless.
   const txnResult = await db.execute(sql`
     SELECT t.id,
            t.date::text AS date,
@@ -206,6 +211,12 @@ export async function listUnlinkedBillTransactions(): Promise<
     FROM transactions t
     WHERE t.type = 'bill'
       AND t.bill_id IS NULL
+      AND t.num IS NOT NULL
+      AND btrim(t.num) <> ''
+      AND NOT (
+        (t.vendor_id IS NOT NULL OR t.party_name IS NOT NULL)
+        AND (t.job_id IS NOT NULL OR t.customer_id IS NOT NULL)
+      )
     ORDER BY t.date DESC, t.id DESC
   `);
   if (txnResult.rows.length === 0) return [];

@@ -16,6 +16,7 @@ import importDataRouter from "./importData";
 import feedbackRouter from "./feedback";
 import demoRouter from "./demo";
 import reconciliationRouter from "./reconciliation";
+import inboundEmailsRouter from "./inboundEmails";
 
 const router: IRouter = Router();
 
@@ -36,5 +37,6 @@ router.use(importDataRouter);
 router.use(feedbackRouter);
 router.use(demoRouter);
 router.use(reconciliationRouter);
+router.use(inboundEmailsRouter);
 
 export default router;

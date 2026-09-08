@@ -60,6 +60,8 @@ function runToFormValues(run: PayrollRun) {
     payDate: run.payDate,
     laborAccountId: String(run.laborAccountId),
     memo: run.memo ?? "",
+    processingFee:
+      (run.processingFeeCents ?? 0) > 0 ? centsToInput(run.processingFeeCents ?? 0) : "",
     ssRate: bpsToPct(run.ssRateBps),
     medicareRate: bpsToPct(run.medicareRateBps),
     futaRate: bpsToPct(run.futaRateBps),
@@ -116,10 +118,14 @@ function runToFormValues(run: PayrollRun) {
             : "",
         allocations: line.allocations.map((a) => ({
           jobId: String(a.jobId),
+          // Persisted per-job hours win; fall back to the day grid, then to
+          // the line total for a single-job line.
           hours: String(
             Math.round(
-              (hoursByJob.get(a.jobId) ??
-                (line.allocations.length === 1 ? totalLineHours : 0)) * 100,
+              ((a.hours ?? 0) > 0
+                ? (a.hours as number)
+                : (hoursByJob.get(a.jobId) ??
+                  (line.allocations.length === 1 ? totalLineHours : 0))) * 100,
             ) / 100,
           ),
           amount: centsToInput(
@@ -221,6 +227,9 @@ export default function PayrollDetail() {
               Pay date {formatDate(run.payDate)}
               {run.laborAccountName ? ` · ${run.laborAccountName}` : ""}
               {run.memo ? ` · ${run.memo}` : ""}
+              {(run.processingFeeCents ?? 0) > 0
+                ? ` · Service fee ${formatCents(run.processingFeeCents ?? 0)}`
+                : ""}
             </p>
           </div>
           {run.posted ? (
@@ -405,34 +414,61 @@ export default function PayrollDetail() {
               <TableRow>
                 <TableHead>Employee</TableHead>
                 <TableHead>Job Name</TableHead>
+                <TableHead className="text-right">Hours</TableHead>
                 <TableHead className="text-right">
                   Wages Before Burden
                 </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {run.lines.flatMap((line) =>
-                line.allocations.map((a) => (
-                  <TableRow key={a.id}>
-                    <TableCell>{line.workerName}</TableCell>
-                    <TableCell>
-                      <Link
-                        href={`/jobs/${a.jobId}`}
-                        className="text-blue-600 hover:underline"
+              {run.lines.flatMap((line) => {
+                const hoursByJob = new Map<number, number>();
+                for (const entry of line.entryDetails ?? []) {
+                  if (entry.jobId != null) {
+                    hoursByJob.set(
+                      entry.jobId,
+                      (hoursByJob.get(entry.jobId) ?? 0) + entry.hours,
+                    );
+                  }
+                }
+                const totalLineHours =
+                  Number(line.regularHours) +
+                  Number(line.overtimeHours) +
+                  Number(line.holidayHours);
+                return line.allocations.map((a) => {
+                  const hours =
+                    (a.hours ?? 0) > 0
+                      ? (a.hours as number)
+                      : (hoursByJob.get(a.jobId) ??
+                        (line.allocations.length === 1 ? totalLineHours : 0));
+                  return (
+                    <TableRow key={a.id} data-testid={`row-allocation-${a.id}`}>
+                      <TableCell>{line.workerName}</TableCell>
+                      <TableCell>
+                        <Link
+                          href={`/jobs/${a.jobId}`}
+                          className="text-blue-600 hover:underline"
+                        >
+                          {a.jobName || `Job ${a.jobId}`}
+                        </Link>
+                      </TableCell>
+                      <TableCell
+                        className="text-right tabular-nums"
+                        data-testid={`text-allocation-hours-${a.id}`}
                       >
-                        {a.jobName || `Job ${a.jobId}`}
-                      </Link>
-                    </TableCell>
-                    <TableCell className="text-right font-medium">
-                      {formatCents(a.amountCents)}
-                    </TableCell>
-                  </TableRow>
-                )),
-              )}
+                        {hours > 0 ? `${Math.round(hours * 100) / 100} hrs` : "—"}
+                      </TableCell>
+                      <TableCell className="text-right font-medium">
+                        {formatCents(a.amountCents)}
+                      </TableCell>
+                    </TableRow>
+                  );
+                });
+              })}
               {run.lines.every((l) => l.allocations.length === 0) && (
                 <TableRow>
                   <TableCell
-                    colSpan={3}
+                    colSpan={4}
                     className="py-8 text-center text-slate-500"
                   >
                     No job allocations — full cost is unallocated.

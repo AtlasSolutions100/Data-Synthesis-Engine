@@ -18,4 +18,9 @@ export interface BillPayment {
   memo?: string | null;
   /** @nullable */
   bankAccountId?: number | null;
+  /**
+     * The multi-bill vendor check this payment belongs to, when recorded through Write Check
+     * @nullable
+     */
+  vendorPaymentId?: number | null;
 }

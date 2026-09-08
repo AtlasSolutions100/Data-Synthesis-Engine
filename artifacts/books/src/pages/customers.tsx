@@ -19,6 +19,13 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { CustomerForm } from "@/components/forms/customer-form";
 import { DemoBadge } from "@/components/demo-badge";
+import { SortSelect, sortItems, byText, byNumber, type SortOption } from "@/components/list-controls";
+
+const CUSTOMER_SORT_OPTIONS: SortOption<Customer>[] = [
+  { value: "name-asc", label: "Name A → Z", compare: byText((c) => c.name) },
+  { value: "name-desc", label: "Name Z → A", compare: byText((c) => c.name, -1) },
+  { value: "newest", label: "Newest first", compare: byNumber((c) => c.id, -1) },
+];
 import { useQueryClient } from "@tanstack/react-query";
 import { Plus, Edit2, Trash2, Search, ChevronRight, Download } from "lucide-react";
 import { Link } from "wouter";
@@ -43,6 +50,7 @@ export default function Customers() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [search, setSearch] = useState("");
+  const [sort, setSort] = useState("name-asc");
 
   const { data: customers, isLoading } = useListCustomers({
     query: { queryKey: getListCustomersQueryKey() }
@@ -65,14 +73,16 @@ export default function Customers() {
   const filteredCustomers = useMemo(() => {
     const q = search.trim().toLowerCase();
     const all = customers ?? [];
-    if (!q) return all;
-    return all.filter((c) => {
-      if (c.name.toLowerCase().includes(q)) return true;
-      return (jobsByCustomer.get(c.id) ?? []).some((j) =>
-        j.name.toLowerCase().includes(q),
-      );
-    });
-  }, [customers, search, jobsByCustomer]);
+    const matched = !q
+      ? all
+      : all.filter((c) => {
+          if (c.name.toLowerCase().includes(q)) return true;
+          return (jobsByCustomer.get(c.id) ?? []).some((j) =>
+            j.name.toLowerCase().includes(q),
+          );
+        });
+    return sortItems(matched, CUSTOMER_SORT_OPTIONS, sort);
+  }, [customers, search, sort, jobsByCustomer]);
 
   const createCustomer = useCreateCustomer({
     mutation: {
@@ -143,14 +153,17 @@ export default function Customers() {
         </div>
       </div>
 
-      <div className="relative max-w-sm">
-        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-        <Input
-          placeholder="Search customers or jobs..."
-          className="pl-9"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="relative flex-1 min-w-[220px] max-w-sm">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <Input
+            placeholder="Search customers or jobs..."
+            className="pl-9"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+        <SortSelect value={sort} onChange={setSort} options={CUSTOMER_SORT_OPTIONS} testId="customers-sort" />
       </div>
 
       {isLoading ? (

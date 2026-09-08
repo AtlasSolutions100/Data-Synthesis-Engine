@@ -1,3 +1,9 @@
+// Side-effect import, and it MUST stay first: ES module imports are hoisted
+// and evaluated in order, so this is the only way to load a repo-root `.env`
+// before `@workspace/db` (imported via ./app) throws on a missing
+// DATABASE_URL. Never put a statement between imports here (esbuild breaks
+// the module).
+import "./lib/loadEnv";
 import app from "./app";
 import { logger } from "./lib/logger";
 import { startOrphanCleanupScheduler } from "./lib/storageCleanup";

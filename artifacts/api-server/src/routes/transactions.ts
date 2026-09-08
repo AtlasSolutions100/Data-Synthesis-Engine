@@ -599,6 +599,11 @@ const TRANSFER_PROTECTED_FIELDS = new Set([
   "splitAccountId",
 ]);
 
+// Fields that describe an entry without changing how it is coded to the
+// books. A patch touching only these is exempt from the "must have a job or
+// customer" rule (see PATCH /transactions/:id).
+const NON_CODING_FIELDS = new Set(["num", "partyName", "description", "date"]);
+
 router.patch("/transactions/:id", async (req, res): Promise<void> => {
   const params = UpdateTransactionParams.safeParse(req.params);
   if (!params.success) {
@@ -627,6 +632,10 @@ router.patch("/transactions/:id", async (req, res): Promise<void> => {
       type: transactionsTable.type,
       jobId: transactionsTable.jobId,
       customerId: transactionsTable.customerId,
+      billId: transactionsTable.billId,
+      billPaymentId: transactionsTable.billPaymentId,
+      vendorPaymentId: transactionsTable.vendorPaymentId,
+      payrollRunId: transactionsTable.payrollRunId,
     })
     .from(transactionsTable)
     .where(eq(transactionsTable.id, params.data.id))
@@ -659,9 +668,25 @@ router.patch("/transactions/:id", async (req, res): Promise<void> => {
   const resultingJobId = "jobId" in parsed.data ? parsed.data.jobId : existing?.jobId;
   const resultingCustomerId =
     "customerId" in parsed.data ? parsed.data.customerId : existing?.customerId;
+  // Editing the check number / payee / description never changes how a
+  // transaction is coded, so it must not trip the coding rule — otherwise a
+  // bookkeeper can't record the check number on a payment the app generated
+  // (register withdrawals from Write Check carry no job or customer by
+  // design). Rows generated from a bill, payment, or payroll run are coded
+  // by their source record, so they're exempt as well.
+  const touchesNoCodingFields = Object.keys(parsed.data).every((k) =>
+    NON_CODING_FIELDS.has(k),
+  );
+  const isSystemGenerated =
+    existing?.billId != null ||
+    existing?.billPaymentId != null ||
+    existing?.vendorPaymentId != null ||
+    existing?.payrollRunId != null;
   if (
     resultingJobId == null &&
     resultingCustomerId == null &&
+    !touchesNoCodingFields &&
+    !isSystemGenerated &&
     req.currentUser?.role !== "owner"
   ) {
     res.status(403).json({

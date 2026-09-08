@@ -16,4 +16,6 @@ export interface PayrollAllocation {
   jobName?: string | null;
   /** Gross wages before employer burden allocated to this job, in integer cents */
   amountCents: number;
+  /** Hours worked on this job during the pay period */
+  hours?: number;
 }

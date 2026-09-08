@@ -61,11 +61,46 @@ export const billLinesTable = pgTable("bill_lines", {
   amountCents: bigint("amount_cents", { mode: "number" }).notNull(),
 });
 
+/**
+ * One check (or ACH/cash payment) written to a vendor that settles one or
+ * more bills at once. The Write Check dialog creates exactly one of these
+ * per submission; each bill it covers gets its own bill_payments row that
+ * points back here. The checking register shows ONE withdrawal per vendor
+ * payment (transactions.vendor_payment_id), never one per bill, so a
+ * three-statement month with CED reads as three checks — not fifteen lines.
+ */
+export const vendorPaymentsTable = pgTable("vendor_payments", {
+  id: serial("id").primaryKey(),
+  vendorId: integer("vendor_id")
+    .notNull()
+    .references(() => vendorsTable.id, { onDelete: "restrict" }),
+  date: date("date", { mode: "string" }).notNull(),
+  method: text("method").notNull().default("check"),
+  referenceNum: text("reference_num"),
+  amountCents: bigint("amount_cents", { mode: "number" }).notNull(),
+  memo: text("memo"),
+  bankAccountId: integer("bank_account_id").references(() => accountsTable.id, {
+    onDelete: "set null",
+  }),
+  /** True for records seeded by the Practice / Demo Data loader. */
+  isDemo: boolean("is_demo").notNull().default(false),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
 export const billPaymentsTable = pgTable("bill_payments", {
   id: serial("id").primaryKey(),
   billId: integer("bill_id")
     .notNull()
     .references(() => billsTable.id, { onDelete: "cascade" }),
+  // The vendor check this bill payment was part of, when it was recorded
+  // through the multi-bill Write Check flow. Cascade: undoing the check
+  // undoes every bill payment it covered. Null for single-bill payments.
+  vendorPaymentId: integer("vendor_payment_id").references(
+    () => vendorPaymentsTable.id,
+    { onDelete: "cascade" },
+  ),
   date: date("date", { mode: "string" }).notNull(),
   method: text("method").notNull().default("check"),
   referenceNum: text("reference_num"),
@@ -106,6 +141,7 @@ export type InsertBill = z.infer<typeof insertBillSchema>;
 export type Bill = typeof billsTable.$inferSelect;
 export type BillLine = typeof billLinesTable.$inferSelect;
 export type BillPayment = typeof billPaymentsTable.$inferSelect;
+export type VendorPayment = typeof vendorPaymentsTable.$inferSelect;
 export type VendorCredit = typeof vendorCreditsTable.$inferSelect;
 
 /**

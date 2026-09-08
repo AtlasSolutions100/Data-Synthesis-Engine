@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, cleanup, fireEvent, screen } from "@testing-library/react";
+import { render, cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import VendorDetail from "./vendor-detail";
 
@@ -42,12 +42,18 @@ vi.mock("@/hooks/use-toast", () => ({
 
 // Shared factory: only the hooks under test are overridden so new generated
 // hooks used elsewhere on the page can't break this suite.
+const ensureAccountSpy = vi.fn();
+
 vi.mock("@workspace/api-client-react", async (importOriginal) => {
   const { createApiClientReactMock } = await import("@/test/mock-api-client");
   return createApiClientReactMock(importOriginal, {
     useGetVendor: () => ({ data: vendorData, isLoading: false }),
     useListAccounts: () => ({ data: accountsData, isLoading: false }),
     useListBills: () => ({ data: billsData, isLoading: false, refetch: vi.fn() }),
+    useEnsureVendorReconcileAccount: () => ({
+      mutateAsync: ensureAccountSpy,
+      isPending: false,
+    }),
   });
 });
 
@@ -64,6 +70,13 @@ function renderPage() {
 beforeEach(() => {
   navigateSpy.mockClear();
   toastSpy.mockClear();
+  ensureAccountSpy.mockReset();
+  ensureAccountSpy.mockResolvedValue({
+    accountId: 77,
+    accountNumber: "21200",
+    accountName: "Home Depot",
+    created: true,
+  });
   accountsData = [];
   billsData = [];
 });
@@ -89,22 +102,35 @@ describe("Vendor detail — Reconcile entry point (P10-REC-01)", () => {
     expect(toastSpy).not.toHaveBeenCalled();
   });
 
-  it("excludes P&L-only accounts from matching, so an expense account with the same name isn't used", () => {
+  it("excludes P&L-only accounts from matching, so an expense account with the same name isn't used", async () => {
     accountsData = [{ id: 55, name: "Home Depot", type: "expense" }];
     renderPage();
     fireEvent.click(screen.getByTestId("button-vendor-detail-reconcile"));
-    // No reconcilable match — falls back to Accounts, not the expense account.
-    expect(navigateSpy).toHaveBeenCalledWith("/accounts");
-    expect(toastSpy).toHaveBeenCalled();
+    // No reconcilable match — a statement account is created instead of
+    // reusing the expense account.
+    await waitFor(() => expect(ensureAccountSpy).toHaveBeenCalledWith({ id: 7 }));
+    await waitFor(() => expect(navigateSpy).toHaveBeenCalledWith("/accounts/77/reconcile"));
   });
 
-  it("falls back to the Accounts page with a clear toast when no account matches", () => {
+  it("creates the vendor's statement account and opens its reconciliation when no account matches", async () => {
     accountsData = [{ id: 1, name: "Unrelated Bank", type: "bank" }];
     renderPage();
     fireEvent.click(screen.getByTestId("button-vendor-detail-reconcile"));
-    expect(navigateSpy).toHaveBeenCalledWith("/accounts");
+    await waitFor(() => expect(ensureAccountSpy).toHaveBeenCalledWith({ id: 7 }));
+    await waitFor(() => expect(navigateSpy).toHaveBeenCalledWith("/accounts/77/reconcile"));
     expect(toastSpy).toHaveBeenCalledWith(
-      expect.objectContaining({ title: "No matching account found" }),
+      expect.objectContaining({ title: expect.stringContaining("Created account 21200") }),
+    );
+  });
+
+  it("falls back to the Accounts page when the account can't be set up", async () => {
+    accountsData = [];
+    ensureAccountSpy.mockRejectedValueOnce(new Error("matches more than one account"));
+    renderPage();
+    fireEvent.click(screen.getByTestId("button-vendor-detail-reconcile"));
+    await waitFor(() => expect(navigateSpy).toHaveBeenCalledWith("/accounts"));
+    expect(toastSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ title: "Could not set up a reconciliation account" }),
     );
   });
 

@@ -100,6 +100,10 @@ export function BillLinkReview() {
       b.vendorName ?? "Unknown vendor"
     } · ${formatDate(b.date)} · ${formatCents(b.totalCents)}`;
 
+  // Nothing to review → no button. The queue only ever holds imported rows
+  // whose invoice number could not be resolved, so most days this is empty.
+  if (!isLoading && unlinkedCount === 0 && !open) return null;
+
   return (
     <Dialog
       open={open}
