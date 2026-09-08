@@ -28,6 +28,7 @@ import Employees from "./pages/employees";
 import EmployeeDetail from "./pages/employee-detail";
 import Payroll from "./pages/payroll";
 import PayrollDetail from "./pages/payroll-detail";
+import InboxPage from "./pages/inbox";
 import Reports from "./pages/reports";
 import ReportPnl from "./pages/report-pnl";
 import ReportBalanceSheet from "./pages/report-balance-sheet";
@@ -52,7 +53,12 @@ const clerkPubKey = publishableKeyFromHost(
   import.meta.env.VITE_CLERK_PUBLISHABLE_KEY,
 );
 
-const clerkProxyUrl = import.meta.env.VITE_CLERK_PROXY_URL;
+// The Clerk proxy is a production-only path. A proxy URL can still be present
+// in the shared environment while preview is running, but the dev API server
+// intentionally does not mount the production proxy.
+const clerkProxyUrl = import.meta.env.PROD
+  ? import.meta.env.VITE_CLERK_PROXY_URL
+  : undefined;
 
 function stripBase(path: string): string {
   return basePath && path.startsWith(basePath)
@@ -281,6 +287,7 @@ function ClerkProviderWithRoutes() {
           <Route path="/employees/:id"><ProtectedRoute component={EmployeeDetail} /></Route>
           <Route path="/payroll"><ProtectedRoute component={Payroll} /></Route>
           <Route path="/payroll/:id"><ProtectedRoute component={PayrollDetail} /></Route>
+          <Route path="/inbox"><ProtectedRoute component={InboxPage} /></Route>
           <Route path="/reports"><ProtectedRoute component={Reports} /></Route>
           <Route path="/reports/pnl"><ProtectedRoute component={ReportPnl} /></Route>
           <Route path="/reports/balance-sheet"><ProtectedRoute component={ReportBalanceSheet} /></Route>

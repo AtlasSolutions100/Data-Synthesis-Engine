@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   useListInvoices,
   useCreateInvoice,
@@ -37,6 +37,27 @@ import { DateRangePicker, type DateRangeValue } from "@/components/date-range-pi
 import { DemoBadge } from "@/components/demo-badge";
 import { useQueryClient } from "@tanstack/react-query";
 import { Plus, Trash2 } from "lucide-react";
+import { SearchInput, SortSelect, sortItems, byText, byNumber, byDate, type SortOption } from "@/components/list-controls";
+
+type InvoiceRow = {
+  invoiceNumber: string;
+  jobName?: string | null;
+  customerName?: string | null;
+  date: string;
+  totalCents: number;
+  balanceCents: number;
+  status: string;
+};
+
+const INVOICE_SORT_OPTIONS: SortOption<InvoiceRow>[] = [
+  { value: "date-desc", label: "Newest first", compare: byDate((i) => i.date, -1) },
+  { value: "date-asc", label: "Oldest first", compare: byDate((i) => i.date) },
+  { value: "number-asc", label: "Invoice # (low → high)", compare: byText((i) => i.invoiceNumber) },
+  { value: "number-desc", label: "Invoice # (high → low)", compare: byText((i) => i.invoiceNumber, -1) },
+  { value: "customer-asc", label: "Customer A → Z", compare: (a, b) => byText<InvoiceRow>((i) => i.customerName)(a, b) || byDate<InvoiceRow>((i) => i.date, -1)(a, b) },
+  { value: "job-asc", label: "Job A → Z", compare: (a, b) => byText<InvoiceRow>((i) => i.jobName)(a, b) || byDate<InvoiceRow>((i) => i.date, -1)(a, b) },
+  { value: "balance-desc", label: "Balance due (high → low)", compare: byNumber((i) => i.balanceCents, -1) },
+];
 import { ImportDataDialog } from "@/components/import-data-dialog";
 
 const statusVariant: Record<string, "default" | "secondary" | "outline"> = {
@@ -49,11 +70,26 @@ export default function Invoices() {
   const queryClient = useQueryClient();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [range, setRange] = useState<DateRangeValue>({});
+  const [search, setSearch] = useState("");
+  const [sort, setSort] = useState("date-desc");
 
   const params = { startDate: range.startDate, endDate: range.endDate };
   const { data: invoices, isLoading } = useListInvoices(params, {
     query: { queryKey: getListInvoicesQueryKey(params) },
   });
+
+  // Client-side search over invoice number, job, and customer, then sort.
+  const visibleInvoices = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const filtered = q
+      ? (invoices ?? []).filter((inv) =>
+          [inv.invoiceNumber, inv.jobName, inv.customerName, inv.status]
+            .filter(Boolean)
+            .some((f) => String(f).toLowerCase().includes(q)),
+        )
+      : (invoices ?? []);
+    return sortItems(filtered, INVOICE_SORT_OPTIONS, sort);
+  }, [invoices, search, sort]);
 
   const [createError, setCreateError] = useState<ServerFieldError | null>(
     null,
@@ -142,6 +178,16 @@ export default function Invoices() {
         </div>
       </div>
 
+      <div className="flex flex-wrap items-center gap-3">
+        <SearchInput
+          value={search}
+          onChange={setSearch}
+          placeholder="Search by invoice #, job, or customer…"
+          testId="invoices-search"
+        />
+        <SortSelect value={sort} onChange={setSort} options={INVOICE_SORT_OPTIONS} testId="invoices-sort" />
+      </div>
+
       <Card>
         <CardContent className="p-0">
           <Table>
@@ -169,7 +215,7 @@ export default function Invoices() {
                     Loading invoices...
                   </TableCell>
                 </TableRow>
-              ) : invoices?.length === 0 ? (
+              ) : visibleInvoices.length === 0 ? (
                 <TableRow>
                   <TableCell
                     colSpan={10}
@@ -179,7 +225,7 @@ export default function Invoices() {
                   </TableCell>
                 </TableRow>
               ) : (
-                invoices?.map((inv) => (
+                visibleInvoices.map((inv) => (
                   <TableRow key={inv.id} className="hover:bg-slate-50 group">
                     <TableCell className="font-medium">
                       <div className="flex items-center gap-2">

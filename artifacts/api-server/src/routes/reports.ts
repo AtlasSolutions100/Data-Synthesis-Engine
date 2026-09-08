@@ -444,12 +444,56 @@ router.get(
       }
     }
 
+    // Itemize multi-bill vendor checks: the register shows one row per check
+    // and the bills it settled ride along as expandable check items.
+    const vendorPaymentIds = [
+      ...new Set(
+        ledger.lines
+          .map((l) => l.vendorPaymentId)
+          .filter((id): id is number => id != null),
+      ),
+    ];
+    const checkItemsByPayment = new Map<
+      number,
+      Array<{ billId: number; billNumber: string | null; jobName: string | null; amountCents: number }>
+    >();
+    if (vendorPaymentIds.length > 0) {
+      const items = await db
+        .select({
+          vendorPaymentId: billPaymentsTable.vendorPaymentId,
+          billId: billPaymentsTable.billId,
+          billNumber: billsTable.billNumber,
+          jobName: jobsTable.name,
+          amountCents: billPaymentsTable.amountCents,
+        })
+        .from(billPaymentsTable)
+        .innerJoin(billsTable, eq(billsTable.id, billPaymentsTable.billId))
+        .leftJoin(jobsTable, eq(jobsTable.id, billsTable.jobId))
+        .where(inArray(billPaymentsTable.vendorPaymentId, vendorPaymentIds))
+        .orderBy(billPaymentsTable.id);
+      for (const item of items) {
+        if (item.vendorPaymentId == null) continue;
+        const list = checkItemsByPayment.get(item.vendorPaymentId) ?? [];
+        list.push({
+          billId: item.billId,
+          billNumber: item.billNumber,
+          jobName: item.jobName ?? null,
+          amountCents: Number(item.amountCents),
+        });
+        checkItemsByPayment.set(item.vendorPaymentId, list);
+      }
+    }
+
     res.json(
       GetAccountBalanceTransactionsResponse.parse({
         ...ledger,
         lines: ledger.lines.map((line) => ({
           ...line,
           clearedStatus: statusByTx.get(line.transactionId) ?? "uncleared",
+          checkItems:
+            line.vendorPaymentId != null
+              ? (checkItemsByPayment.get(line.vendorPaymentId) ?? [])
+              : undefined,
         })),
       }),
     );

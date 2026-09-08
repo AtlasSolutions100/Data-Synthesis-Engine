@@ -197,7 +197,9 @@ describe("Import hours — Job Name association", () => {
             costType: "regular",
           },
         ],
-        allocations: [{ jobId: 518, amountCents: 24000 }],
+        // Hours ride along with the dollar split so the saved run can show
+        // "8 hrs on job 518" without rebuilding it from the day grid.
+        allocations: [{ jobId: 518, amountCents: 24000, hours: 8 }],
       }),
     ]);
   });

@@ -79,6 +79,9 @@ import type {
   ImportChartOfAccountsResult,
   ImportDataInput,
   ImportDataResult,
+  InboundEmail,
+  InboundEmailAttachmentData,
+  InboundEmailUpdate,
   Invoice,
   InvoiceInput,
   InvoicePaymentInput,
@@ -98,6 +101,7 @@ import type {
   ListBillsParams,
   ListEmployeeTimecardsParams,
   ListFeedbackParams,
+  ListInboundEmailsParams,
   ListInvoicesParams,
   ListJobsParams,
   ListPayrollRunsParams,
@@ -128,6 +132,9 @@ import type {
   VendorDefaultAccount,
   VendorDuplicateCandidate,
   VendorInput,
+  VendorPayment,
+  VendorPaymentInput,
+  VendorReconcileAccount,
   VendorUpdate
 } from './api.schemas';
 
@@ -1926,6 +1933,456 @@ export function useGetVendorDefaultAccount<TData = Awaited<ReturnType<typeof get
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetVendorDefaultAccountQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateVendorPaymentUrl = (id: number,) => {
+
+
+
+
+  return `/api/vendors/${id}/payments`
+}
+
+/**
+ * Records a single vendor payment (check, ACH, cash…) covering the listed bills. Each bill gets its own bill payment, but the bank register shows exactly ONE withdrawal for the check, with the per-bill breakdown available as expandable check items.
+ * @summary Write one check to a vendor that settles one or more of its open bills
+ */
+export const createVendorPayment = async (id: number,
+    vendorPaymentInput: VendorPaymentInput, options?: RequestInit): Promise<VendorPayment> => {
+
+  return customFetch<VendorPayment>(getCreateVendorPaymentUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(vendorPaymentInput)
+  }
+);}
+
+
+
+
+export const getCreateVendorPaymentMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createVendorPayment>>, TError,{id: number;data: BodyType<VendorPaymentInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createVendorPayment>>, TError,{id: number;data: BodyType<VendorPaymentInput>}, TContext> => {
+
+const mutationKey = ['createVendorPayment'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createVendorPayment>>, {id: number;data: BodyType<VendorPaymentInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  createVendorPayment(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateVendorPaymentMutationResult = NonNullable<Awaited<ReturnType<typeof createVendorPayment>>>
+    export type CreateVendorPaymentMutationBody = BodyType<VendorPaymentInput>
+    export type CreateVendorPaymentMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Write one check to a vendor that settles one or more of its open bills
+ */
+export const useCreateVendorPayment = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createVendorPayment>>, TError,{id: number;data: BodyType<VendorPaymentInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createVendorPayment>>,
+        TError,
+        {id: number;data: BodyType<VendorPaymentInput>},
+        TContext
+      > => {
+      return useMutation(getCreateVendorPaymentMutationOptions(options));
+    }
+
+export const getDeleteVendorPaymentUrl = (id: number,) => {
+
+
+
+
+  return `/api/vendor-payments/${id}`
+}
+
+/**
+ * @summary Undo a vendor check (removes every bill payment it covered and its register row)
+ */
+export const deleteVendorPayment = async (id: number, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getDeleteVendorPaymentUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+export const getDeleteVendorPaymentMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteVendorPayment>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteVendorPayment>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['deleteVendorPayment'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteVendorPayment>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  deleteVendorPayment(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteVendorPaymentMutationResult = NonNullable<Awaited<ReturnType<typeof deleteVendorPayment>>>
+
+    export type DeleteVendorPaymentMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Undo a vendor check (removes every bill payment it covered and its register row)
+ */
+export const useDeleteVendorPayment = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteVendorPayment>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteVendorPayment>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getDeleteVendorPaymentMutationOptions(options));
+    }
+
+export const getEnsureVendorReconcileAccountUrl = (id: number,) => {
+
+
+
+
+  return `/api/vendors/${id}/reconcile-account`
+}
+
+/**
+ * Returns the reconcilable account whose name matches the vendor exactly. When none exists, a liability account named after the vendor is created (like the existing Home Depot charge account) and the vendor's posted bills and payments are linked to it so they appear in the reconciliation.
+ * @summary Find or create the balance-sheet account used to reconcile this vendor's statements
+ */
+export const ensureVendorReconcileAccount = async (id: number, options?: RequestInit): Promise<VendorReconcileAccount> => {
+
+  return customFetch<VendorReconcileAccount>(getEnsureVendorReconcileAccountUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getEnsureVendorReconcileAccountMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof ensureVendorReconcileAccount>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof ensureVendorReconcileAccount>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['ensureVendorReconcileAccount'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof ensureVendorReconcileAccount>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  ensureVendorReconcileAccount(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type EnsureVendorReconcileAccountMutationResult = NonNullable<Awaited<ReturnType<typeof ensureVendorReconcileAccount>>>
+
+    export type EnsureVendorReconcileAccountMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Find or create the balance-sheet account used to reconcile this vendor's statements
+ */
+export const useEnsureVendorReconcileAccount = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof ensureVendorReconcileAccount>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof ensureVendorReconcileAccount>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getEnsureVendorReconcileAccountMutationOptions(options));
+    }
+
+export const getListInboundEmailsUrl = (params?: ListInboundEmailsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/inbound-emails?${stringifiedParams}` : `/api/inbound-emails`
+}
+
+/**
+ * @summary List mail forwarded to the books inbox address (newest first)
+ */
+export const listInboundEmails = async (params?: ListInboundEmailsParams, options?: RequestInit): Promise<InboundEmail[]> => {
+
+  return customFetch<InboundEmail[]>(getListInboundEmailsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListInboundEmailsQueryKey = (params?: ListInboundEmailsParams,) => {
+    return [
+    `/api/inbound-emails`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListInboundEmailsQueryOptions = <TData = Awaited<ReturnType<typeof listInboundEmails>>, TError = ErrorType<unknown>>(params?: ListInboundEmailsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listInboundEmails>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListInboundEmailsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listInboundEmails>>> = ({ signal }) => listInboundEmails(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listInboundEmails>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListInboundEmailsQueryResult = NonNullable<Awaited<ReturnType<typeof listInboundEmails>>>
+export type ListInboundEmailsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List mail forwarded to the books inbox address (newest first)
+ */
+
+export function useListInboundEmails<TData = Awaited<ReturnType<typeof listInboundEmails>>, TError = ErrorType<unknown>>(
+ params?: ListInboundEmailsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listInboundEmails>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListInboundEmailsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpdateInboundEmailUrl = (id: number,) => {
+
+
+
+
+  return `/api/inbound-emails/${id}`
+}
+
+/**
+ * @summary Change an inbound email's kind, status, or note
+ */
+export const updateInboundEmail = async (id: number,
+    inboundEmailUpdate: InboundEmailUpdate, options?: RequestInit): Promise<InboundEmail> => {
+
+  return customFetch<InboundEmail>(getUpdateInboundEmailUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(inboundEmailUpdate)
+  }
+);}
+
+
+
+
+export const getUpdateInboundEmailMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateInboundEmail>>, TError,{id: number;data: BodyType<InboundEmailUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateInboundEmail>>, TError,{id: number;data: BodyType<InboundEmailUpdate>}, TContext> => {
+
+const mutationKey = ['updateInboundEmail'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateInboundEmail>>, {id: number;data: BodyType<InboundEmailUpdate>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateInboundEmail(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateInboundEmailMutationResult = NonNullable<Awaited<ReturnType<typeof updateInboundEmail>>>
+    export type UpdateInboundEmailMutationBody = BodyType<InboundEmailUpdate>
+    export type UpdateInboundEmailMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Change an inbound email's kind, status, or note
+ */
+export const useUpdateInboundEmail = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateInboundEmail>>, TError,{id: number;data: BodyType<InboundEmailUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateInboundEmail>>,
+        TError,
+        {id: number;data: BodyType<InboundEmailUpdate>},
+        TContext
+      > => {
+      return useMutation(getUpdateInboundEmailMutationOptions(options));
+    }
+
+export const getGetInboundEmailAttachmentUrl = (id: number,
+    index: number,) => {
+
+
+
+
+  return `/api/inbound-emails/${id}/attachments/${index}`
+}
+
+/**
+ * @summary Fetch one attachment as a base64 data URL (for extraction or download)
+ */
+export const getInboundEmailAttachment = async (id: number,
+    index: number, options?: RequestInit): Promise<InboundEmailAttachmentData> => {
+
+  return customFetch<InboundEmailAttachmentData>(getGetInboundEmailAttachmentUrl(id,index),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetInboundEmailAttachmentQueryKey = (id: number,
+    index: number,) => {
+    return [
+    `/api/inbound-emails/${id}/attachments/${index}`
+    ] as const;
+    }
+
+
+export const getGetInboundEmailAttachmentQueryOptions = <TData = Awaited<ReturnType<typeof getInboundEmailAttachment>>, TError = ErrorType<ErrorResponse>>(id: number,
+    index: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getInboundEmailAttachment>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetInboundEmailAttachmentQueryKey(id,index);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getInboundEmailAttachment>>> = ({ signal }) => getInboundEmailAttachment(id,index, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined && index !== null && index !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getInboundEmailAttachment>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetInboundEmailAttachmentQueryResult = NonNullable<Awaited<ReturnType<typeof getInboundEmailAttachment>>>
+export type GetInboundEmailAttachmentQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary Fetch one attachment as a base64 data URL (for extraction or download)
+ */
+
+export function useGetInboundEmailAttachment<TData = Awaited<ReturnType<typeof getInboundEmailAttachment>>, TError = ErrorType<ErrorResponse>>(
+ id: number,
+    index: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getInboundEmailAttachment>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetInboundEmailAttachmentQueryOptions(id,index,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

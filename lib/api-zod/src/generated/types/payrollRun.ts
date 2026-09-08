@@ -18,6 +18,8 @@ export interface PayrollRun {
   payDate: string;
   /** @nullable */
   memo?: string | null;
+  /** Payroll company processing fee for this run, in cents (0 when none) */
+  processingFeeCents?: number;
   laborAccountId: number;
   /** @nullable */
   laborAccountName?: string | null;

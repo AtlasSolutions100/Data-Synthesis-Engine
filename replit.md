@@ -11,6 +11,23 @@ A desktop-first, browser-based job-costing and construction-accounting app that 
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
 - `pnpm --filter @workspace/db run push` — push DB schema changes (dev only). There are no migration files by design: production schema changes are applied automatically as a diff when the app is Published (Replit deploy), so a table pushed in dev reaches prod at the next Publish.
 - Required env: `DATABASE_URL`, `CLERK_SECRET_KEY`, `CLERK_PUBLISHABLE_KEY`, `VITE_CLERK_PUBLISHABLE_KEY`
+- Optional env: `INBOUND_EMAIL_TOKEN` — shared secret for the public `POST /api/inbound-email` webhook (the books inbox). Point the mail provider's inbound-parse webhook (Postmark inbound JSON, or a generic `{from, subject, text, attachments[{fileName, contentType, contentBase64}]}` payload) at `https://<app>/api/inbound-email?token=<INBOUND_EMAIL_TOKEN>`. Attachments go to object storage when `PRIVATE_OBJECT_DIR` is set, otherwise they are kept inline (≤10 MB each).
+
+### Running tests locally (Windows / outside Replit)
+
+- `pnpm-workspace.yaml` strips the win32-x64 binaries for esbuild/rollup/lightningcss (Replit-only). To install on Windows, temporarily remove the `win32-x64` override lines, run `pnpm install --no-frozen-lockfile`, then `git checkout -- pnpm-workspace.yaml pnpm-lock.yaml`. Invoke binaries directly (`./node_modules/.bin/vitest`, `./node_modules/.bin/tsc`) — `pnpm run` re-verifies deps and re-strips them.
+- API tests need a database: `docker run -d --name books-test-pg -e POSTGRES_PASSWORD=pg -e POSTGRES_DB=books_test -p 55432:5432 postgres:16`, push the schema with a drizzle config whose `schema` path uses forward slashes, seed an account `10000 Checking` (type bank), and run vitest with `DATABASE_URL=postgres://postgres:pg@localhost:55432/books_test` and `--no-file-parallelism` (suites share the DB).
+- Known environment-only failures: `consolidateHomedepotAccount.test.ts` hard-codes vendor id 22 from the dev DB; `jobs.test.tsx`'s path-scan sanity check assumes `/` separators; `payroll-run-form-import-draft.test.tsx` fails under Windows jsdom timing.
+
+## Money flow (vendor checks, payroll, reconciliation)
+
+- **Write Check is one check for many bills.** `POST /vendors/:id/payments` creates a `vendor_payments` row, one `bill_payments` row per bill (each `vendor_payment_id`-linked), and exactly ONE bank-register transaction (`transactions.vendor_payment_id`) for the total, offset to the vendor's same-name balance-sheet account when one exists. Undoing one bill payment shrinks the check; `DELETE /vendor-payments/:id` undoes everything. The register shows `checkItems` so a check row expands into the bills it paid. Nothing is pre-selected in the dialog.
+- **Vendor Reconcile creates the statement account.** `POST /vendors/:id/reconcile-account` finds the reconcilable account named exactly like the vendor or creates a `liability` account in the 212xx block, then backfills the vendor's posted bills and payments onto it as the split side.
+- **Check numbers are always editable.** `PATCH /transactions/:id` skips the "needs a job or customer" rule for patches that only touch `num`/`partyName`/`description`/`date` and for rows generated from bills, payments, or payroll runs.
+- **Payroll pays from Checking, never savings.** The default payment account is the bank account named like "Checking"/"Operating"; account 10000 is only used when it isn't named like savings. Runs carry an optional `processingFeeCents` that posts as its own "Payroll processing fee" line (expense account matched by name, else "Payroll Processing Fees" is created). Per-job `hours` are persisted on `payroll_allocations`.
+- **Bank statement matching understands payroll lump sums.** When a statement line matches no single ledger line, the matcher tries the summed lines of one payroll run (same run id, ±1 day) and clears them all. The checking register folds each employee's per-job lines into one expandable row.
+- **Transfers were removed from the register UI** (the client only ever moves checking→savings and records that by hand). `POST /transactions/transfer` still exists for existing rows.
+- **The Transactions review queue only lists imported `bill` rows that have an invoice number AND are missing vendor or job/customer coding**; fully coded rows never need "verification". The review and legacy-split buttons hide themselves when empty.
 
 ### Re-seed historical QuickBooks data (one-time / idempotent)
 

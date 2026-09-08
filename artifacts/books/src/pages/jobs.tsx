@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useListJobs, useCreateJob, useUpdateJob, useDeleteJob, getListJobsQueryKey, getListCustomersQueryKey, type Job } from "@workspace/api-client-react";
 import { formatCents } from "@/lib/format";
 import { Card, CardContent } from "@/components/ui/card";
@@ -15,6 +15,16 @@ import { QuickJobDocUploadDialog } from "@/components/quick-upload-dialog";
 import { ImportDataDialog } from "@/components/import-data-dialog";
 import { buildCsv, csvFilename, downloadCsv } from "@/lib/csv-export";
 import { DemoBadge } from "@/components/demo-badge";
+import { SearchInput, SortSelect, sortItems, byText, byNumber, type SortOption } from "@/components/list-controls";
+
+const JOB_SORT_OPTIONS: SortOption<Job>[] = [
+  { value: "name-asc", label: "Job name A → Z", compare: byText((j) => j.name) },
+  { value: "name-desc", label: "Job name Z → A", compare: byText((j) => j.name, -1) },
+  { value: "customer-asc", label: "Customer A → Z", compare: (a, b) => byText<Job>((j) => j.customerName)(a, b) || byText<Job>((j) => j.name)(a, b) },
+  { value: "newest", label: "Newest first", compare: byNumber((j) => j.id, -1) },
+  { value: "contract-desc", label: "Contract (high → low)", compare: byNumber((j) => j.contractAmountCents, -1) },
+  { value: "profit-desc", label: "Profit (high → low)", compare: byNumber((j) => j.profitCents, -1) },
+];
 
 /** Download the visible jobs list as CSV (same columns as the table). */
 function exportJobsCsv(jobs: Job[]) {
@@ -48,11 +58,26 @@ export default function Jobs() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [showInactive, setShowInactive] = useState(false);
+  const [search, setSearch] = useState("");
+  const [sort, setSort] = useState("name-asc");
 
   const listParams = showInactive ? { includeInactive: true } : undefined;
   const { data: jobs, isLoading } = useListJobs(listParams, {
     query: { queryKey: getListJobsQueryKey(listParams) }
   });
+
+  // Client-side search over name, PO number, and customer, then sort.
+  const visibleJobs = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const filtered = q
+      ? (jobs ?? []).filter((j) =>
+          [j.name, j.poNumber, j.customerName, j.jobNumber]
+            .filter(Boolean)
+            .some((f) => String(f).toLowerCase().includes(q)),
+        )
+      : (jobs ?? []);
+    return sortItems(filtered, JOB_SORT_OPTIONS, sort);
+  }, [jobs, search, sort]);
 
   const createJob = useCreateJob({
     mutation: {
@@ -133,6 +158,16 @@ export default function Jobs() {
         </div>
       </div>
 
+      <div className="flex flex-wrap items-center gap-3">
+        <SearchInput
+          value={search}
+          onChange={setSearch}
+          placeholder="Search jobs by name, PO number, or customer…"
+          testId="jobs-search"
+        />
+        <SortSelect value={sort} onChange={setSort} options={JOB_SORT_OPTIONS} testId="jobs-sort" />
+      </div>
+
       <Card>
         <CardContent className="p-0">
           <Table>
@@ -155,12 +190,14 @@ export default function Jobs() {
                 <TableRow>
                   <TableCell colSpan={10} className="text-center py-8 text-slate-500">Loading jobs...</TableCell>
                 </TableRow>
-              ) : jobs?.length === 0 ? (
+              ) : visibleJobs.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={10} className="text-center py-8 text-slate-500">No jobs found.</TableCell>
+                  <TableCell colSpan={10} className="text-center py-8 text-slate-500">
+                    {search.trim() ? "No jobs match your search." : "No jobs found."}
+                  </TableCell>
                 </TableRow>
               ) : (
-                jobs?.map((job) => (
+                visibleJobs.map((job) => (
                   <TableRow key={job.id} className="hover:bg-slate-50 group">
                     <TableCell className="font-medium">
                       <div className="flex items-center gap-2">

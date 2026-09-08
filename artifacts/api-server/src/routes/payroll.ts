@@ -63,7 +63,7 @@ type LineInput = {
   overtimeRateCents?: number | null;
   taxExempt: boolean;
   subcontractorAmountCents?: number | null;
-  allocations: Array<{ jobId: number; amountCents: number }>;
+  allocations: Array<{ jobId: number; amountCents: number; hours?: number }>;
 };
 
 const DEFAULT_RATES: BurdenRates = {
@@ -141,6 +141,7 @@ async function getFullRun(id: number) {
         jobNumber: a.jobNumber,
         jobName: a.jobName,
         amountCents: Number(a.alloc.amountCents),
+        hours: Number(a.alloc.hours ?? 0),
       };
     });
     return {
@@ -179,6 +180,7 @@ async function getFullRun(id: number) {
     payPeriodEnd: row.run.payPeriodEnd,
     payDate: row.run.payDate,
     memo: row.run.memo,
+    processingFeeCents: Number(row.run.processingFeeCents ?? 0),
     laborAccountId: row.run.laborAccountId,
     laborAccountName: row.laborAccountName,
     paymentAccountId: row.run.paymentAccountId ?? null,
@@ -282,15 +284,63 @@ async function validatePaymentAccount(
   return null;
 }
 
-/** Payroll always posts through account 10000 Checking. */
+/**
+ * Payroll is paid from the operating checking account, never from savings.
+ * Prefer the bank account literally named like "Checking"; otherwise fall
+ * back to the historical 10000 account — but only when it isn't a savings
+ * account, so a chart where savings happens to carry that number can never
+ * pull every payroll deduction into the savings register.
+ */
 async function resolveDefaultPaymentAccountId(): Promise<number | null> {
-  const [checking] = await db
-    .select({ id: accountsTable.id, type: accountsTable.type })
+  const banks = await db
+    .select({
+      id: accountsTable.id,
+      number: accountsTable.number,
+      name: accountsTable.name,
+    })
     .from(accountsTable)
-    .where(eq(accountsTable.number, "10000"))
-    .orderBy(accountsTable.id)
-    .limit(1);
-  return checking?.type === "bank" ? checking.id : null;
+    .where(eq(accountsTable.type, "bank"))
+    .orderBy(accountsTable.number, accountsTable.id);
+  const isSavings = (name: string) => /saving/i.test(name);
+  const named = banks.filter(
+    (b) => /checking|operating/i.test(b.name) && !isSavings(b.name),
+  );
+  if (named.length === 1) return named[0].id;
+  if (named.length > 1) {
+    return named.find((b) => b.number.trim() === "10000")?.id ?? named[0].id;
+  }
+  const tenThousand = banks.find((b) => b.number.trim() === "10000");
+  if (tenThousand && !isSavings(tenThousand.name)) return tenThousand.id;
+  const nonSavings = banks.filter((b) => !isSavings(b.name));
+  return nonSavings.length === 1 ? nonSavings[0].id : null;
+}
+
+/**
+ * Expense account for the payroll company's fee. Reuses an existing account
+ * whose name reads like a payroll fee; otherwise creates "Payroll Processing
+ * Fees" right after the highest-numbered expense account so it lands in the
+ * CPA's expense block.
+ */
+async function resolvePayrollFeeAccountId(): Promise<number> {
+  const expenses = await db
+    .select({ id: accountsTable.id, number: accountsTable.number, name: accountsTable.name })
+    .from(accountsTable)
+    .where(eq(accountsTable.type, "expense"));
+  const existing = expenses.find((a) =>
+    /payroll.*(fee|processing|service)|processing fee|payroll service/i.test(a.name),
+  );
+  if (existing) return existing.id;
+  const numeric = expenses
+    .map((a) => Number(a.number))
+    .filter((n) => Number.isInteger(n) && n >= 60000 && n < 70000);
+  const used = new Set(expenses.map((a) => a.number.trim()));
+  let candidate = numeric.length ? Math.max(...numeric) + 10 : 66500;
+  while (used.has(String(candidate))) candidate += 10;
+  const [created] = await db
+    .insert(accountsTable)
+    .values({ number: String(candidate), name: "Payroll Processing Fees", type: "expense" })
+    .returning({ id: accountsTable.id });
+  return created.id;
 }
 
 /** Validate that a labor account exists and is a cost-type account. */
@@ -416,6 +466,28 @@ async function validateLines(
   return null;
 }
 
+/**
+ * Hours for one job, derived from the day grid when the client didn't send
+ * them explicitly (older clients, or lines keyed in by hand). A single-job
+ * line simply gets the line's total hours.
+ */
+function allocationHoursFromEntries(line: LineInput, jobId: number): number {
+  const fromEntries = (line.entryDetails ?? [])
+    .filter((e) => e.jobId === jobId)
+    .reduce((s, e) => s + (Number(e.hours) || 0), 0);
+  if (fromEntries > 0) return Math.round(fromEntries * 100) / 100;
+  if (line.allocations.length === 1) {
+    return (
+      Math.round(
+        ((Number(line.regularHours) || 0) +
+          (Number(line.overtimeHours) || 0) +
+          (Number(line.holidayHours) || 0)) * 100,
+      ) / 100
+    );
+  }
+  return 0;
+}
+
 /** Insert payroll lines and allocations for a run inside a transaction. */
 async function insertLines(
   tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
@@ -476,6 +548,7 @@ async function insertLines(
       lineId: insertedIds[idx],
       jobId: a.jobId,
       amountCents: a.amountCents,
+      hours: a.hours ?? allocationHoursFromEntries(l, a.jobId),
     })),
   );
   for (let i = 0; i < allocationValues.length; i += BATCH_SIZE) {
@@ -504,7 +577,7 @@ function normalizeLines(
     overtimeRateCents?: number | null;
     taxExempt: boolean;
     subcontractorAmountCents?: number | null;
-    allocations?: Array<{ jobId: number; amountCents: number }>;
+    allocations?: Array<{ jobId: number; amountCents: number; hours?: number }>;
   }>,
 ): LineInput[] {
   return raw.map((l) => ({
@@ -821,6 +894,7 @@ router.post("/payroll-runs", async (req, res): Promise<void> => {
         payPeriodEnd: data.payPeriodEnd,
         payDate: data.payDate,
         memo: data.memo ?? null,
+        processingFeeCents: data.processingFeeCents ?? 0,
         laborAccountId,
         paymentAccountId,
         ssRateBps: rates.ssRateBps,
@@ -923,6 +997,8 @@ router.patch("/payroll-runs/:id", async (req, res): Promise<void> => {
     if (data.payPeriodEnd !== undefined) set.payPeriodEnd = data.payPeriodEnd;
     if (data.payDate !== undefined) set.payDate = data.payDate;
     if (data.memo !== undefined) set.memo = data.memo;
+    if (data.processingFeeCents !== undefined)
+      set.processingFeeCents = data.processingFeeCents;
     if (data.laborAccountId !== undefined)
       set.laborAccountId = data.laborAccountId;
     set.paymentAccountId = paymentAccountId;
@@ -1083,6 +1159,26 @@ router.post("/payroll-runs/:id/post", async (req, res): Promise<void> => {
         amountCents: remainder,
       });
     }
+  }
+
+  // The payroll company's processing fee is part of the same bank debit as
+  // the wages, so it posts with the run — as its own register line, coded to
+  // a payroll-fees expense account rather than to job labor.
+  const feeCents = Number(run.processingFeeCents ?? 0);
+  if (feeCents > 0) {
+    const feeAccountId = await resolvePayrollFeeAccountId();
+    ledgerRows.push({
+      date: run.payDate,
+      type: "payroll",
+      num: `PR-${run.id}`,
+      partyName: "Payroll processing fee",
+      description: `Payroll service fee ${run.payPeriodStart} – ${run.payPeriodEnd}`,
+      accountId: feeAccountId,
+      splitAccountId: paymentAccountId,
+      jobId: null,
+      payrollRunId: run.id,
+      amountCents: feeCents,
+    });
   }
 
   await db.transaction(async (tx) => {

@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { useListVendors, useCreateVendor, useUpdateVendor, useDeleteVendor, getListVendorsQueryKey, useListAccounts, getListAccountsQueryKey, type Vendor } from "@workspace/api-client-react";
+import { useListVendors, useCreateVendor, useUpdateVendor, useDeleteVendor, getListVendorsQueryKey, useListAccounts, getListAccountsQueryKey, useEnsureVendorReconcileAccount, type Vendor } from "@workspace/api-client-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,13 @@ import { Input } from "@/components/ui/input";
 import { ImportDataDialog } from "@/components/import-data-dialog";
 import { buildCsv, csvFilename, downloadCsv } from "@/lib/csv-export";
 import { DemoBadge } from "@/components/demo-badge";
+import { SortSelect, sortItems, byText, byNumber, type SortOption } from "@/components/list-controls";
+
+const VENDOR_SORT_OPTIONS: SortOption<Vendor>[] = [
+  { value: "name-asc", label: "Name A → Z", compare: byText((v) => v.name) },
+  { value: "name-desc", label: "Name Z → A", compare: byText((v) => v.name, -1) },
+  { value: "newest", label: "Newest first", compare: byNumber((v) => v.id, -1) },
+];
 import { useToast } from "@/hooks/use-toast";
 import {
   NON_RECONCILABLE_ACCOUNT_TYPES,
@@ -36,6 +43,7 @@ export default function Vendors() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [search, setSearch] = useState("");
+  const [sort, setSort] = useState("name-asc");
   const [, navigate] = useLocation();
 
   const { data: vendors, isLoading } = useListVendors({
@@ -60,36 +68,58 @@ export default function Vendors() {
     return map;
   }, [accounts]);
 
-  function handleReconcile(vendorName: string) {
-    const key = vendorName.trim().toLowerCase();
+  const ensureReconcileAccount = useEnsureVendorReconcileAccount();
+
+  async function handleReconcile(vendor: { id: number; name: string }) {
+    const key = vendor.name.trim().toLowerCase();
     const ids = reconcilableAccountByVendorName.get(key) ?? [];
     if (ids.length === 1) {
       navigate(`/accounts/${ids[0]}/reconcile`);
       return;
     }
-    // Multiple matches or none — drop the user at the Accounts page so they
-    // can pick the right account themselves.
-    toast({
-      title:
-        ids.length > 1
-          ? "Multiple matching accounts"
-          : "No matching account found",
-      description:
-        ids.length > 1
-          ? `"${vendorName}" matches more than one account. Choose the right one on the Accounts page.`
-          : `No reconcilable account is named exactly "${vendorName}". Choose the right one on the Accounts page.`,
-    });
-    navigate("/accounts");
+    if (ids.length > 1) {
+      // Ambiguous — drop the user at the Accounts page so they can pick the
+      // right account themselves.
+      toast({
+        title: "Multiple matching accounts",
+        description: `"${vendor.name}" matches more than one account. Choose the right one on the Accounts page.`,
+      });
+      navigate("/accounts");
+      return;
+    }
+    // No account yet — create the vendor's statement account (like Home
+    // Depot's) and go straight to reconciling it.
+    try {
+      const result = await ensureReconcileAccount.mutateAsync({ id: vendor.id });
+      await queryClient.invalidateQueries({ queryKey: getListAccountsQueryKey() });
+      if (result.created) {
+        toast({
+          title: `Created account ${result.accountNumber} · ${result.accountName}`,
+          description: "Bills and payments for this vendor now show in its reconciliation.",
+        });
+      }
+      navigate(`/accounts/${result.accountId}/reconcile`);
+    } catch (err: any) {
+      toast({
+        title: "Could not set up a reconciliation account",
+        description: err?.message ?? "Choose the right account on the Accounts page.",
+        variant: "destructive",
+      });
+      navigate("/accounts");
+    }
   }
 
   const normalizedSearch = search.trim().toLowerCase();
-  const filteredVendors = normalizedSearch
+  const matchedVendors = normalizedSearch
     ? vendors?.filter((v) =>
         [v.name, v.email, v.phone, v.notes]
           .filter(Boolean)
           .some((field) => String(field).toLowerCase().includes(normalizedSearch))
       )
     : vendors;
+  const filteredVendors = matchedVendors
+    ? sortItems(matchedVendors, VENDOR_SORT_OPTIONS, sort)
+    : matchedVendors;
 
   const createVendor = useCreateVendor({
     mutation: {
@@ -158,14 +188,17 @@ export default function Vendors() {
         </div>
       </div>
 
-      <div className="relative max-w-sm">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-        <Input
-          placeholder="Search vendors..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="pl-9"
-        />
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="relative flex-1 min-w-[220px] max-w-sm">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+          <Input
+            placeholder="Search vendors..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+        <SortSelect value={sort} onChange={setSort} options={VENDOR_SORT_OPTIONS} testId="vendors-sort" />
       </div>
 
       <Card>
@@ -213,7 +246,7 @@ export default function Vendors() {
                           variant="outline"
                           size="sm"
                           className="h-8 text-xs gap-1.5 text-emerald-700 border-emerald-200 hover:bg-emerald-50"
-                          onClick={() => handleReconcile(vendor.name)}
+                          onClick={() => handleReconcile(vendor)}
                           data-testid={`button-vendor-reconcile-${vendor.id}`}
                           title="Reconcile the account linked to this vendor"
                         >

@@ -504,6 +504,155 @@ export const GetVendorDefaultAccountResponse = zod.object({
 
 
 /**
+ * Records a single vendor payment (check, ACH, cash…) covering the listed bills. Each bill gets its own bill payment, but the bank register shows exactly ONE withdrawal for the check, with the per-bill breakdown available as expandable check items.
+ * @summary Write one check to a vendor that settles one or more of its open bills
+ */
+export const CreateVendorPaymentParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+
+export const createVendorPaymentBodyBillsItemCreditCentsMin = 0;
+
+
+
+
+export const CreateVendorPaymentBody = zod.object({
+  "date": zod.string().min(1),
+  "method": zod.enum(['check', 'credit_card', 'ach', 'cash', 'other']).optional(),
+  "referenceNum": zod.string().nullish().describe('Check number; null with method \"check\" marks the check \"To Print\"'),
+  "memo": zod.string().nullish(),
+  "bankAccountId": zod.number().nullish(),
+  "bills": zod.array(zod.object({
+  "billId": zod.number(),
+  "amountCents": zod.number().min(1).describe('Portion of the check applied to this bill, in cents'),
+  "creditCents": zod.number().min(createVendorPaymentBodyBillsItemCreditCentsMin).optional().describe('Vendor credit applied to this bill before payment (optional)')
+})).min(1)
+})
+
+export const CreateVendorPaymentResponse = zod.object({
+  "id": zod.number(),
+  "vendorId": zod.number(),
+  "vendorName": zod.string(),
+  "date": zod.string(),
+  "method": zod.string(),
+  "referenceNum": zod.string().nullable(),
+  "memo": zod.string().nullable(),
+  "bankAccountId": zod.number().nullable(),
+  "amountCents": zod.number().describe('Total of the check, in cents'),
+  "transactionId": zod.number().nullable().describe('The single register withdrawal posted for this check (null for credit-card payments)'),
+  "bills": zod.array(zod.object({
+  "billId": zod.number(),
+  "billNumber": zod.string().nullable(),
+  "jobName": zod.string().nullable(),
+  "amountCents": zod.number()
+}))
+})
+
+
+/**
+ * @summary Undo a vendor check (removes every bill payment it covered and its register row)
+ */
+export const DeleteVendorPaymentParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeleteVendorPaymentResponse = zod.void()
+
+
+/**
+ * Returns the reconcilable account whose name matches the vendor exactly. When none exists, a liability account named after the vendor is created (like the existing Home Depot charge account) and the vendor's posted bills and payments are linked to it so they appear in the reconciliation.
+ * @summary Find or create the balance-sheet account used to reconcile this vendor's statements
+ */
+export const EnsureVendorReconcileAccountParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const EnsureVendorReconcileAccountResponse = zod.object({
+  "accountId": zod.number(),
+  "accountNumber": zod.string(),
+  "accountName": zod.string(),
+  "created": zod.boolean().describe('True when the account was created by this request')
+})
+
+
+/**
+ * @summary List mail forwarded to the books inbox address (newest first)
+ */
+export const ListInboundEmailsQueryParams = zod.object({
+  "status": zod.enum(['new', 'processed', 'dismissed', 'all']).optional()
+})
+
+export const ListInboundEmailsResponseItem = zod.object({
+  "id": zod.number(),
+  "fromAddress": zod.string().nullable(),
+  "fromName": zod.string().nullable(),
+  "subject": zod.string().nullable(),
+  "receivedAt": zod.string(),
+  "textBody": zod.string().nullable(),
+  "attachments": zod.array(zod.object({
+  "fileName": zod.string(),
+  "contentType": zod.string().nullable(),
+  "sizeBytes": zod.number()
+})),
+  "kind": zod.enum(['bill', 'timecard', 'statement', 'unknown']),
+  "status": zod.enum(['new', 'processed', 'dismissed']),
+  "note": zod.string().nullable(),
+  "processedAt": zod.string().nullable()
+})
+export const ListInboundEmailsResponse = zod.array(ListInboundEmailsResponseItem)
+
+
+/**
+ * @summary Change an inbound email's kind, status, or note
+ */
+export const UpdateInboundEmailParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateInboundEmailBody = zod.object({
+  "kind": zod.enum(['bill', 'timecard', 'statement', 'unknown']).optional(),
+  "status": zod.enum(['new', 'processed', 'dismissed']).optional(),
+  "note": zod.string().nullish()
+})
+
+export const UpdateInboundEmailResponse = zod.object({
+  "id": zod.number(),
+  "fromAddress": zod.string().nullable(),
+  "fromName": zod.string().nullable(),
+  "subject": zod.string().nullable(),
+  "receivedAt": zod.string(),
+  "textBody": zod.string().nullable(),
+  "attachments": zod.array(zod.object({
+  "fileName": zod.string(),
+  "contentType": zod.string().nullable(),
+  "sizeBytes": zod.number()
+})),
+  "kind": zod.enum(['bill', 'timecard', 'statement', 'unknown']),
+  "status": zod.enum(['new', 'processed', 'dismissed']),
+  "note": zod.string().nullable(),
+  "processedAt": zod.string().nullable()
+})
+
+
+/**
+ * @summary Fetch one attachment as a base64 data URL (for extraction or download)
+ */
+export const GetInboundEmailAttachmentParams = zod.object({
+  "id": zod.coerce.number(),
+  "index": zod.coerce.number()
+})
+
+export const GetInboundEmailAttachmentResponse = zod.object({
+  "fileName": zod.string(),
+  "contentType": zod.string().nullable(),
+  "sizeBytes": zod.number(),
+  "dataUrl": zod.string().describe('data:<mime>;base64,<content>')
+})
+
+
+/**
  * @summary List employees
  */
 export const ListEmployeesResponseItem = zod.object({
@@ -1445,7 +1594,16 @@ export const GetAccountBalanceTransactionsResponse = zod.object({
   "effectCents": zod.number().describe('Signed effect of this line on the account\'s natural balance.'),
   "amountCents": zod.number().describe('Raw signed transaction amount in cents (as stored on the transaction row).'),
   "voidedAmountCents": zod.number().nullish().describe('Original amount in cents before voiding; null when not voided.'),
-  "clearedStatus": zod.enum(['cleared', 'pending', 'uncleared']).describe('Actual reconciliation status of this transaction for the account: \"cleared\" when checked off in a completed reconciliation period, \"pending\" when checked off in an in-progress period, and \"uncleared\" otherwise. A past date alone never makes a line cleared.\n')
+  "clearedStatus": zod.enum(['cleared', 'pending', 'uncleared']).describe('Actual reconciliation status of this transaction for the account: \"cleared\" when checked off in a completed reconciliation period, \"pending\" when checked off in an in-progress period, and \"uncleared\" otherwise. A past date alone never makes a line cleared.\n'),
+  "vendorPaymentId": zod.number().nullish().describe('Set when this line is the single register withdrawal for a multi-bill vendor check.'),
+  "payrollRunId": zod.number().nullish().describe('Set when this line was generated by posting a payroll run.'),
+  "jobName": zod.string().nullish().describe('Job the line is coded to, when any (used to itemize payroll lines per job).'),
+  "checkItems": zod.array(zod.object({
+  "billId": zod.number(),
+  "billNumber": zod.string().nullable(),
+  "jobName": zod.string().nullable(),
+  "amountCents": zod.number()
+})).optional().describe('For a vendor-check line, the bills that check settled. Lets the register show one row per check with an expandable itemized list.')
 }))
 })
 
@@ -1907,7 +2065,8 @@ export const ListBillsResponseItem = zod.object({
   "referenceNum": zod.string().nullish(),
   "amountCents": zod.number(),
   "memo": zod.string().nullish(),
-  "bankAccountId": zod.number().nullish()
+  "bankAccountId": zod.number().nullish(),
+  "vendorPaymentId": zod.number().nullish().describe('The multi-bill vendor check this payment belongs to, when recorded through Write Check')
 })).optional(),
   "credits": zod.array(zod.object({
   "id": zod.number(),
@@ -1978,7 +2137,8 @@ export const CreateBillResponse = zod.object({
   "referenceNum": zod.string().nullish(),
   "amountCents": zod.number(),
   "memo": zod.string().nullish(),
-  "bankAccountId": zod.number().nullish()
+  "bankAccountId": zod.number().nullish(),
+  "vendorPaymentId": zod.number().nullish().describe('The multi-bill vendor check this payment belongs to, when recorded through Write Check')
 })).optional(),
   "credits": zod.array(zod.object({
   "id": zod.number(),
@@ -2101,7 +2261,8 @@ export const GetBillResponse = zod.object({
   "referenceNum": zod.string().nullish(),
   "amountCents": zod.number(),
   "memo": zod.string().nullish(),
-  "bankAccountId": zod.number().nullish()
+  "bankAccountId": zod.number().nullish(),
+  "vendorPaymentId": zod.number().nullish().describe('The multi-bill vendor check this payment belongs to, when recorded through Write Check')
 })).optional(),
   "credits": zod.array(zod.object({
   "id": zod.number(),
@@ -2174,7 +2335,8 @@ export const UpdateBillResponse = zod.object({
   "referenceNum": zod.string().nullish(),
   "amountCents": zod.number(),
   "memo": zod.string().nullish(),
-  "bankAccountId": zod.number().nullish()
+  "bankAccountId": zod.number().nullish(),
+  "vendorPaymentId": zod.number().nullish().describe('The multi-bill vendor check this payment belongs to, when recorded through Write Check')
 })).optional(),
   "credits": zod.array(zod.object({
   "id": zod.number(),
@@ -2250,7 +2412,8 @@ export const CreateBillPaymentResponse = zod.object({
   "referenceNum": zod.string().nullish(),
   "amountCents": zod.number(),
   "memo": zod.string().nullish(),
-  "bankAccountId": zod.number().nullish()
+  "bankAccountId": zod.number().nullish(),
+  "vendorPaymentId": zod.number().nullish().describe('The multi-bill vendor check this payment belongs to, when recorded through Write Check')
 })).optional(),
   "credits": zod.array(zod.object({
   "id": zod.number(),
@@ -2305,7 +2468,8 @@ export const DeleteBillPaymentResponse = zod.object({
   "referenceNum": zod.string().nullish(),
   "amountCents": zod.number(),
   "memo": zod.string().nullish(),
-  "bankAccountId": zod.number().nullish()
+  "bankAccountId": zod.number().nullish(),
+  "vendorPaymentId": zod.number().nullish().describe('The multi-bill vendor check this payment belongs to, when recorded through Write Check')
 })).optional(),
   "credits": zod.array(zod.object({
   "id": zod.number(),
@@ -2369,7 +2533,8 @@ export const CreateVendorCreditResponse = zod.object({
   "referenceNum": zod.string().nullish(),
   "amountCents": zod.number(),
   "memo": zod.string().nullish(),
-  "bankAccountId": zod.number().nullish()
+  "bankAccountId": zod.number().nullish(),
+  "vendorPaymentId": zod.number().nullish().describe('The multi-bill vendor check this payment belongs to, when recorded through Write Check')
 })).optional(),
   "credits": zod.array(zod.object({
   "id": zod.number(),
@@ -2439,6 +2604,7 @@ export const ListPayrollRunsResponseItem = zod.object({
   "payPeriodEnd": zod.string(),
   "payDate": zod.string(),
   "memo": zod.string().nullish(),
+  "processingFeeCents": zod.number().optional().describe('Payroll company processing fee for this run, in cents (0 when none)'),
   "laborAccountId": zod.number(),
   "laborAccountName": zod.string().nullish(),
   "paymentAccountId": zod.number().nullish().describe('Bank account payroll is paid from; required before posting so the Checking register shows the outflow'),
@@ -2502,7 +2668,8 @@ export const ListPayrollRunsResponseItem = zod.object({
   "jobId": zod.number(),
   "jobNumber": zod.string().nullish(),
   "jobName": zod.string().nullish(),
-  "amountCents": zod.number().describe('Gross wages before employer burden allocated to this job, in integer cents')
+  "amountCents": zod.number().describe('Gross wages before employer burden allocated to this job, in integer cents'),
+  "hours": zod.number().optional().describe('Hours worked on this job during the pay period')
 }))
 }))
 })
@@ -2512,6 +2679,8 @@ export const ListPayrollRunsResponse = zod.array(ListPayrollRunsResponseItem)
 /**
  * @summary Create a payroll run for a pay period
  */
+export const createPayrollRunBodyProcessingFeeCentsMin = 0;
+
 export const createPayrollRunBodySsRateBpsMin = 0;
 
 export const createPayrollRunBodyMedicareRateBpsMin = 0;
@@ -2535,6 +2704,8 @@ export const createPayrollRunBodyLinesItemHolidayHoursDefault = 0;
 export const createPayrollRunBodyLinesItemHolidayHoursMin = 0;
 
 export const createPayrollRunBodyLinesItemTaxExemptDefault = false;
+export const createPayrollRunBodyLinesItemAllocationsItemHoursMin = 0;
+
 
 
 export const CreatePayrollRunBody = zod.object({
@@ -2542,6 +2713,7 @@ export const CreatePayrollRunBody = zod.object({
   "payPeriodEnd": zod.string(),
   "payDate": zod.string(),
   "memo": zod.string().nullish(),
+  "processingFeeCents": zod.number().min(createPayrollRunBodyProcessingFeeCentsMin).optional().describe('Payroll company processing fee for this run, in cents'),
   "laborAccountId": zod.number().optional(),
   "ssRateBps": zod.number().min(createPayrollRunBodySsRateBpsMin).optional(),
   "medicareRateBps": zod.number().min(createPayrollRunBodyMedicareRateBpsMin).optional(),
@@ -2568,7 +2740,8 @@ export const CreatePayrollRunBody = zod.object({
   "subcontractorAmountCents": zod.number().nullish().describe('For subcontractor lines, the flat labor cost in cents (no burden applied)'),
   "allocations": zod.array(zod.object({
   "jobId": zod.number(),
-  "amountCents": zod.number().min(1)
+  "amountCents": zod.number().min(1),
+  "hours": zod.number().min(createPayrollRunBodyLinesItemAllocationsItemHoursMin).optional().describe('Hours worked on this job during the pay period (optional)')
 })).optional()
 })).optional()
 })
@@ -2584,6 +2757,7 @@ export const CreatePayrollRunResponse = zod.object({
   "payPeriodEnd": zod.string(),
   "payDate": zod.string(),
   "memo": zod.string().nullish(),
+  "processingFeeCents": zod.number().optional().describe('Payroll company processing fee for this run, in cents (0 when none)'),
   "laborAccountId": zod.number(),
   "laborAccountName": zod.string().nullish(),
   "paymentAccountId": zod.number().nullish().describe('Bank account payroll is paid from; required before posting so the Checking register shows the outflow'),
@@ -2647,7 +2821,8 @@ export const CreatePayrollRunResponse = zod.object({
   "jobId": zod.number(),
   "jobNumber": zod.string().nullish(),
   "jobName": zod.string().nullish(),
-  "amountCents": zod.number().describe('Gross wages before employer burden allocated to this job, in integer cents')
+  "amountCents": zod.number().describe('Gross wages before employer burden allocated to this job, in integer cents'),
+  "hours": zod.number().optional().describe('Hours worked on this job during the pay period')
 }))
 }))
 })
@@ -2671,6 +2846,7 @@ export const GetPayrollRunResponse = zod.object({
   "payPeriodEnd": zod.string(),
   "payDate": zod.string(),
   "memo": zod.string().nullish(),
+  "processingFeeCents": zod.number().optional().describe('Payroll company processing fee for this run, in cents (0 when none)'),
   "laborAccountId": zod.number(),
   "laborAccountName": zod.string().nullish(),
   "paymentAccountId": zod.number().nullish().describe('Bank account payroll is paid from; required before posting so the Checking register shows the outflow'),
@@ -2734,7 +2910,8 @@ export const GetPayrollRunResponse = zod.object({
   "jobId": zod.number(),
   "jobNumber": zod.string().nullish(),
   "jobName": zod.string().nullish(),
-  "amountCents": zod.number().describe('Gross wages before employer burden allocated to this job, in integer cents')
+  "amountCents": zod.number().describe('Gross wages before employer burden allocated to this job, in integer cents'),
+  "hours": zod.number().optional().describe('Hours worked on this job during the pay period')
 }))
 }))
 })
@@ -2746,6 +2923,8 @@ export const GetPayrollRunResponse = zod.object({
 export const UpdatePayrollRunParams = zod.object({
   "id": zod.coerce.number()
 })
+
+export const updatePayrollRunBodyProcessingFeeCentsMin = 0;
 
 export const updatePayrollRunBodySsRateBpsMin = 0;
 
@@ -2770,6 +2949,8 @@ export const updatePayrollRunBodyLinesItemHolidayHoursDefault = 0;
 export const updatePayrollRunBodyLinesItemHolidayHoursMin = 0;
 
 export const updatePayrollRunBodyLinesItemTaxExemptDefault = false;
+export const updatePayrollRunBodyLinesItemAllocationsItemHoursMin = 0;
+
 
 
 export const UpdatePayrollRunBody = zod.object({
@@ -2777,6 +2958,7 @@ export const UpdatePayrollRunBody = zod.object({
   "payPeriodEnd": zod.string().optional(),
   "payDate": zod.string().optional(),
   "memo": zod.string().nullish(),
+  "processingFeeCents": zod.number().min(updatePayrollRunBodyProcessingFeeCentsMin).optional().describe('Payroll company processing fee for this run, in cents'),
   "laborAccountId": zod.number().optional(),
   "ssRateBps": zod.number().min(updatePayrollRunBodySsRateBpsMin).optional(),
   "medicareRateBps": zod.number().min(updatePayrollRunBodyMedicareRateBpsMin).optional(),
@@ -2803,7 +2985,8 @@ export const UpdatePayrollRunBody = zod.object({
   "subcontractorAmountCents": zod.number().nullish().describe('For subcontractor lines, the flat labor cost in cents (no burden applied)'),
   "allocations": zod.array(zod.object({
   "jobId": zod.number(),
-  "amountCents": zod.number().min(1)
+  "amountCents": zod.number().min(1),
+  "hours": zod.number().min(updatePayrollRunBodyLinesItemAllocationsItemHoursMin).optional().describe('Hours worked on this job during the pay period (optional)')
 })).optional()
 })).optional()
 })
@@ -2819,6 +3002,7 @@ export const UpdatePayrollRunResponse = zod.object({
   "payPeriodEnd": zod.string(),
   "payDate": zod.string(),
   "memo": zod.string().nullish(),
+  "processingFeeCents": zod.number().optional().describe('Payroll company processing fee for this run, in cents (0 when none)'),
   "laborAccountId": zod.number(),
   "laborAccountName": zod.string().nullish(),
   "paymentAccountId": zod.number().nullish().describe('Bank account payroll is paid from; required before posting so the Checking register shows the outflow'),
@@ -2882,7 +3066,8 @@ export const UpdatePayrollRunResponse = zod.object({
   "jobId": zod.number(),
   "jobNumber": zod.string().nullish(),
   "jobName": zod.string().nullish(),
-  "amountCents": zod.number().describe('Gross wages before employer burden allocated to this job, in integer cents')
+  "amountCents": zod.number().describe('Gross wages before employer burden allocated to this job, in integer cents'),
+  "hours": zod.number().optional().describe('Hours worked on this job during the pay period')
 }))
 }))
 })
@@ -2917,6 +3102,7 @@ export const PostPayrollRunResponse = zod.object({
   "payPeriodEnd": zod.string(),
   "payDate": zod.string(),
   "memo": zod.string().nullish(),
+  "processingFeeCents": zod.number().optional().describe('Payroll company processing fee for this run, in cents (0 when none)'),
   "laborAccountId": zod.number(),
   "laborAccountName": zod.string().nullish(),
   "paymentAccountId": zod.number().nullish().describe('Bank account payroll is paid from; required before posting so the Checking register shows the outflow'),
@@ -2980,7 +3166,8 @@ export const PostPayrollRunResponse = zod.object({
   "jobId": zod.number(),
   "jobNumber": zod.string().nullish(),
   "jobName": zod.string().nullish(),
-  "amountCents": zod.number().describe('Gross wages before employer burden allocated to this job, in integer cents')
+  "amountCents": zod.number().describe('Gross wages before employer burden allocated to this job, in integer cents'),
+  "hours": zod.number().optional().describe('Hours worked on this job during the pay period')
 }))
 }))
 })
@@ -3005,6 +3192,7 @@ export const UnpostPayrollRunResponse = zod.object({
   "payPeriodEnd": zod.string(),
   "payDate": zod.string(),
   "memo": zod.string().nullish(),
+  "processingFeeCents": zod.number().optional().describe('Payroll company processing fee for this run, in cents (0 when none)'),
   "laborAccountId": zod.number(),
   "laborAccountName": zod.string().nullish(),
   "paymentAccountId": zod.number().nullish().describe('Bank account payroll is paid from; required before posting so the Checking register shows the outflow'),
@@ -3068,7 +3256,8 @@ export const UnpostPayrollRunResponse = zod.object({
   "jobId": zod.number(),
   "jobNumber": zod.string().nullish(),
   "jobName": zod.string().nullish(),
-  "amountCents": zod.number().describe('Gross wages before employer burden allocated to this job, in integer cents')
+  "amountCents": zod.number().describe('Gross wages before employer burden allocated to this job, in integer cents'),
+  "hours": zod.number().optional().describe('Hours worked on this job during the pay period')
 }))
 }))
 })

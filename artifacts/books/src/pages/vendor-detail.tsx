@@ -5,8 +5,8 @@ import {
   getGetVendorQueryKey,
   useListBills,
   getListBillsQueryKey,
-  useCreateBillPayment,
-  useCreateVendorCredit,
+  useCreateVendorPayment,
+  useEnsureVendorReconcileAccount,
   useListAccounts,
   getListAccountsQueryKey,
   getListTransactionsQueryKey,
@@ -64,7 +64,10 @@ interface WriteCheckDialogProps {
 
 function WriteCheckDialog({ vendorId, vendorName, openBills, onDone }: WriteCheckDialogProps) {
   const [open, setOpen] = useState(false);
-  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set(openBills.map((b) => b.id)));
+  // Nothing is pre-selected: Mike picks the invoices that appear on the
+  // vendor's statement (and skips any he disputes), then sees the check
+  // total build up as he goes.
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [date, setDate] = useState(todayStr);
   const [method, setMethod] = useState<"check" | "cash" | "ach" | "credit_card" | "other">("check");
   const [printLater, setPrintLater] = useState(false);
@@ -79,8 +82,7 @@ function WriteCheckDialog({ vendorId, vendorName, openBills, onDone }: WriteChec
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
-  const createPayment = useCreateBillPayment();
-  const createCredit = useCreateVendorCredit();
+  const createVendorPayment = useCreateVendorPayment();
 
   const { data: accounts } = useListAccounts({
     query: { queryKey: getListAccountsQueryKey() },
@@ -93,7 +95,7 @@ function WriteCheckDialog({ vendorId, vendorName, openBills, onDone }: WriteChec
   // Reset when dialog opens
   const handleOpenChange = (v: boolean) => {
     if (v) {
-      setSelectedIds(new Set(openBills.map((b) => b.id)));
+      setSelectedIds(new Set());
       setDate(todayStr);
       setMethod("check");
       setPrintLater(false);
@@ -159,49 +161,43 @@ function WriteCheckDialog({ vendorId, vendorName, openBills, onDone }: WriteChec
         return;
       }
     }
+    const payable = selectedBills.filter((b) => billNetCents(b) > 0);
+    if (payable.length === 0) {
+      setError("The selected bills are fully covered by credits — there is nothing to pay.");
+      return;
+    }
     setError(null);
     setSubmitting(true);
     try {
       const referenceNum = printLater ? null : (checkNum.trim() || null);
-      for (const bill of selectedBills) {
-        const creditCents = parseCreditCents(creditInputs[bill.id] ?? "");
-        const paymentCents = bill.balanceCents - creditCents;
-
-        // Apply credit first so the payment doesn't exceed the reduced balance
-        if (creditCents > 0) {
-          await createCredit.mutateAsync({
-            id: bill.id,
-            data: {
-              date,
-              amountCents: creditCents,
-              referenceNum: referenceNum ?? null,
-              memo: memo.trim() || `Credit applied — ${bill.billNumber || `Bill #${bill.id}`}`,
-            },
-          });
-        }
-
-        // Only record a payment if there's a remaining balance after the credit
-        if (paymentCents > 0) {
-          await createPayment.mutateAsync({
-            id: bill.id,
-            data: {
-              date,
-              method,
-              referenceNum,
-              amountCents: paymentCents,
-              memo: memo.trim() || null,
-              bankAccountId:
-                method !== "credit_card" && bankAccountId
-                  ? Number(bankAccountId)
-                  : null,
-            },
-          });
-        }
-      }
+      // One request = one check. The server records a payment on every bill
+      // but posts a single withdrawal to the register.
+      await createVendorPayment.mutateAsync({
+        id: vendorId,
+        data: {
+          date,
+          method,
+          referenceNum,
+          memo: memo.trim() || null,
+          bankAccountId:
+            method !== "credit_card" && bankAccountId
+              ? Number(bankAccountId)
+              : null,
+          bills: payable.map((bill) => {
+            const creditCents = parseCreditCents(creditInputs[bill.id] ?? "");
+            return {
+              billId: bill.id,
+              amountCents: bill.balanceCents - creditCents,
+              ...(creditCents > 0 ? { creditCents } : {}),
+            };
+          }),
+        },
+      });
       // Invalidate bills list for this vendor, plus the register data the
       // payments just changed (bank transactions + account balances).
       await queryClient.invalidateQueries({ queryKey: getListBillsQueryKey({ vendorId }) });
       await queryClient.invalidateQueries({ queryKey: getListTransactionsQueryKey() });
+      await queryClient.invalidateQueries({ queryKey: ["getAccountBalanceTransactions"] });
 
       const parts: string[] = [];
       if (totalCreditCents > 0) parts.push(`${formatCents(totalCreditCents)} credited`);
@@ -231,9 +227,12 @@ function WriteCheckDialog({ vendorId, vendorName, openBills, onDone }: WriteChec
           Write Check
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-xl">
+      <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto pb-0">
         <DialogHeader>
           <DialogTitle>Write Check — {vendorName}</DialogTitle>
+          <p className="text-sm text-slate-500 font-normal">
+            Tick the invoices on this statement. One check is written for the total.
+          </p>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-5 pt-1">
 
@@ -434,17 +433,21 @@ function WriteCheckDialog({ vendorId, vendorName, openBills, onDone }: WriteChec
             />
           </div>
 
-          {/* Total + error */}
+          {/* Total + error — pinned to the bottom so it stays visible no
+              matter how many bills are listed above. */}
           {error && (
             <p className="text-sm text-red-600">{error}</p>
           )}
 
-          <div className="flex items-center justify-between pt-1">
+          <div
+            className="sticky bottom-0 -mx-6 px-6 py-4 bg-white border-t flex items-center justify-between"
+            data-testid="write-check-total"
+          >
             <div>
               <div className="text-xs text-slate-500 uppercase tracking-wide">
                 {totalCreditCents > 0 ? "Check Total" : "Total Payment"}
               </div>
-              <div className="text-xl font-bold tabular-nums text-slate-900">
+              <div className="text-xl font-bold tabular-nums text-slate-900" data-testid="write-check-total-amount">
                 {formatCents(totalPaymentCents)}
               </div>
               {selectedBills.length > 0 && (
@@ -464,8 +467,10 @@ function WriteCheckDialog({ vendorId, vendorName, openBills, onDone }: WriteChec
                   <Loader2 className="h-4 w-4 animate-spin mr-2" />
                   Recording…
                 </>
+              ) : selectedBills.length === 0 ? (
+                "Select bills to pay"
               ) : (
-                `Record ${selectedBills.length > 1 ? `${selectedBills.length} Bills` : "Payment"}`
+                `Record Check${selectedBills.length > 1 ? ` (${selectedBills.length} bills)` : ""}`
               )}
             </Button>
           </div>
@@ -483,6 +488,8 @@ export default function VendorDetail() {
   const [, navigate] = useLocation();
 
   const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const ensureReconcileAccount = useEnsureVendorReconcileAccount();
 
   const { data: vendor, isLoading: vendorLoading } = useGetVendor(vendorId, {
     query: { enabled: !!vendorId, queryKey: getGetVendorQueryKey(vendorId) },
@@ -525,26 +532,43 @@ export default function VendorDetail() {
     [bills],
   );
 
-  function handleReconcile() {
+  async function handleReconcile() {
     if (!vendor) return;
     const ids = findReconcilableAccountIds(vendor.name, reconcileAccounts);
     if (ids.length === 1) {
       navigate(`/accounts/${ids[0]}/reconcile`);
       return;
     }
-    // Multiple matches or none — send the user to Accounts so they can pick
-    // the right one themselves rather than guessing.
-    toast({
-      title:
-        ids.length > 1
-          ? "Multiple matching accounts"
-          : "No matching account found",
-      description:
-        ids.length > 1
-          ? `"${vendor.name}" matches more than one account. Choose the right one on the Accounts page.`
-          : `No reconcilable account is named exactly "${vendor.name}". Choose the right one on the Accounts page.`,
-    });
-    navigate("/accounts");
+    if (ids.length > 1) {
+      // Ambiguous — send the user to Accounts so they can pick the right one
+      // themselves rather than guessing.
+      toast({
+        title: "Multiple matching accounts",
+        description: `"${vendor.name}" matches more than one account. Choose the right one on the Accounts page.`,
+      });
+      navigate("/accounts");
+      return;
+    }
+    // No account yet — create the vendor's statement account on the spot
+    // (the same way Home Depot has one) and go straight to reconciling it.
+    try {
+      const result = await ensureReconcileAccount.mutateAsync({ id: vendorId });
+      await queryClient.invalidateQueries({ queryKey: getListAccountsQueryKey() });
+      if (result.created) {
+        toast({
+          title: `Created account ${result.accountNumber} · ${result.accountName}`,
+          description: "Bills and payments for this vendor now show in its reconciliation.",
+        });
+      }
+      navigate(`/accounts/${result.accountId}/reconcile`);
+    } catch (err: any) {
+      toast({
+        title: "Could not set up a reconciliation account",
+        description: err?.message ?? "Choose the right account on the Accounts page.",
+        variant: "destructive",
+      });
+      navigate("/accounts");
+    }
   }
 
   if (vendorLoading) {

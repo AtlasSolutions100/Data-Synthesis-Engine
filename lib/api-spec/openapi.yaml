@@ -473,6 +473,136 @@ paths:
         "404":
           $ref: "#/components/responses/Error"
 
+  /vendors/{id}/payments:
+    post:
+      operationId: createVendorPayment
+      tags: [vendors]
+      summary: Write one check to a vendor that settles one or more of its open bills
+      description: >-
+        Records a single vendor payment (check, ACH, cash…) covering the listed
+        bills. Each bill gets its own bill payment, but the bank register shows
+        exactly ONE withdrawal for the check, with the per-bill breakdown
+        available as expandable check items.
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VendorPaymentInput"
+      responses:
+        "201":
+          description: The recorded vendor payment
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VendorPayment"
+        "400":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+  /vendor-payments/{id}:
+    delete:
+      operationId: deleteVendorPayment
+      tags: [vendors]
+      summary: Undo a vendor check (removes every bill payment it covered and its register row)
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          $ref: "#/components/responses/Error"
+  /vendors/{id}/reconcile-account:
+    post:
+      operationId: ensureVendorReconcileAccount
+      tags: [vendors]
+      summary: Find or create the balance-sheet account used to reconcile this vendor's statements
+      description: >-
+        Returns the reconcilable account whose name matches the vendor exactly.
+        When none exists, a liability account named after the vendor is created
+        (like the existing Home Depot charge account) and the vendor's posted
+        bills and payments are linked to it so they appear in the reconciliation.
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "200":
+          description: The account to reconcile for this vendor
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VendorReconcileAccount"
+        "404":
+          $ref: "#/components/responses/Error"
+        "409":
+          $ref: "#/components/responses/Error"
+
+  /inbound-emails:
+    get:
+      operationId: listInboundEmails
+      tags: [inbox]
+      summary: List mail forwarded to the books inbox address (newest first)
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [new, processed, dismissed, all]
+      responses:
+        "200":
+          description: Inbound emails
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/InboundEmail"
+  /inbound-emails/{id}:
+    patch:
+      operationId: updateInboundEmail
+      tags: [inbox]
+      summary: Change an inbound email's kind, status, or note
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InboundEmailUpdate"
+      responses:
+        "200":
+          description: Updated inbound email
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InboundEmail"
+        "404":
+          $ref: "#/components/responses/Error"
+  /inbound-emails/{id}/attachments/{index}:
+    get:
+      operationId: getInboundEmailAttachment
+      tags: [inbox]
+      summary: Fetch one attachment as a base64 data URL (for extraction or download)
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+        - name: index
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: The attachment
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InboundEmailAttachmentData"
+        "404":
+          $ref: "#/components/responses/Error"
+
   /employees:
     get:
       operationId: listEmployees
@@ -2619,6 +2749,161 @@ components:
           description: >-
             The account this vendor's costs are most often categorized to,
             or null when the vendor has no history yet.
+    InboundEmailAttachment:
+      type: object
+      required: [fileName, contentType, sizeBytes]
+      properties:
+        fileName:
+          type: string
+        contentType:
+          type: ["string", "null"]
+        sizeBytes:
+          type: integer
+    InboundEmail:
+      type: object
+      required: [id, fromAddress, fromName, subject, receivedAt, textBody, attachments, kind, status, note, processedAt]
+      properties:
+        id:
+          type: integer
+        fromAddress:
+          type: ["string", "null"]
+        fromName:
+          type: ["string", "null"]
+        subject:
+          type: ["string", "null"]
+        receivedAt:
+          type: string
+        textBody:
+          type: ["string", "null"]
+        attachments:
+          type: array
+          items:
+            $ref: "#/components/schemas/InboundEmailAttachment"
+        kind:
+          type: string
+          enum: [bill, timecard, statement, unknown]
+        status:
+          type: string
+          enum: [new, processed, dismissed]
+        note:
+          type: ["string", "null"]
+        processedAt:
+          type: ["string", "null"]
+    InboundEmailUpdate:
+      type: object
+      properties:
+        kind:
+          type: string
+          enum: [bill, timecard, statement, unknown]
+        status:
+          type: string
+          enum: [new, processed, dismissed]
+        note:
+          type: ["string", "null"]
+    InboundEmailAttachmentData:
+      type: object
+      required: [fileName, contentType, sizeBytes, dataUrl]
+      properties:
+        fileName:
+          type: string
+        contentType:
+          type: ["string", "null"]
+        sizeBytes:
+          type: integer
+        dataUrl:
+          type: string
+          description: data:<mime>;base64,<content>
+    VendorReconcileAccount:
+      type: object
+      required: [accountId, accountNumber, accountName, created]
+      properties:
+        accountId:
+          type: integer
+        accountNumber:
+          type: string
+        accountName:
+          type: string
+        created:
+          type: boolean
+          description: True when the account was created by this request
+    VendorPaymentBillInput:
+      type: object
+      required: [billId, amountCents]
+      properties:
+        billId:
+          type: integer
+        amountCents:
+          type: integer
+          minimum: 1
+          description: Portion of the check applied to this bill, in cents
+        creditCents:
+          type: integer
+          minimum: 0
+          description: Vendor credit applied to this bill before payment (optional)
+    VendorPaymentInput:
+      type: object
+      required: [date, bills]
+      properties:
+        date:
+          type: string
+          minLength: 1
+        method:
+          type: string
+          enum: [check, credit_card, ach, cash, other]
+        referenceNum:
+          type: ["string", "null"]
+          description: Check number; null with method "check" marks the check "To Print"
+        memo:
+          type: ["string", "null"]
+        bankAccountId:
+          type: ["integer", "null"]
+        bills:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/VendorPaymentBillInput"
+    VendorPaymentBill:
+      type: object
+      required: [billId, billNumber, jobName, amountCents]
+      properties:
+        billId:
+          type: integer
+        billNumber:
+          type: ["string", "null"]
+        jobName:
+          type: ["string", "null"]
+        amountCents:
+          type: integer
+    VendorPayment:
+      type: object
+      required: [id, vendorId, vendorName, date, method, referenceNum, memo, bankAccountId, amountCents, transactionId, bills]
+      properties:
+        id:
+          type: integer
+        vendorId:
+          type: integer
+        vendorName:
+          type: string
+        date:
+          type: string
+        method:
+          type: string
+        referenceNum:
+          type: ["string", "null"]
+        memo:
+          type: ["string", "null"]
+        bankAccountId:
+          type: ["integer", "null"]
+        amountCents:
+          type: integer
+          description: Total of the check, in cents
+        transactionId:
+          type: ["integer", "null"]
+          description: The single register withdrawal posted for this check (null for credit-card payments)
+        bills:
+          type: array
+          items:
+            $ref: "#/components/schemas/VendorPaymentBill"
     VendorInput:
       type: object
       required: [name]
@@ -3272,6 +3557,34 @@ components:
             "cleared" when checked off in a completed reconciliation period,
             "pending" when checked off in an in-progress period, and
             "uncleared" otherwise. A past date alone never makes a line cleared.
+        vendorPaymentId:
+          type: ["integer", "null"]
+          description: Set when this line is the single register withdrawal for a multi-bill vendor check.
+        payrollRunId:
+          type: ["integer", "null"]
+          description: Set when this line was generated by posting a payroll run.
+        jobName:
+          type: ["string", "null"]
+          description: Job the line is coded to, when any (used to itemize payroll lines per job).
+        checkItems:
+          type: array
+          description: >-
+            For a vendor-check line, the bills that check settled. Lets the
+            register show one row per check with an expandable itemized list.
+          items:
+            $ref: "#/components/schemas/RegisterCheckItem"
+    RegisterCheckItem:
+      type: object
+      required: [billId, billNumber, jobName, amountCents]
+      properties:
+        billId:
+          type: integer
+        billNumber:
+          type: ["string", "null"]
+        jobName:
+          type: ["string", "null"]
+        amountCents:
+          type: integer
     AccountBalanceTransactions:
       type: object
       required: [accountId, accountNumber, accountName, type, balanceCents, lines]
@@ -3542,6 +3855,9 @@ components:
           type: ["string", "null"]
         bankAccountId:
           type: ["integer", "null"]
+        vendorPaymentId:
+          type: ["integer", "null"]
+          description: The multi-bill vendor check this payment belongs to, when recorded through Write Check
     BillPaymentInput:
       type: object
       required: [date, amountCents]
@@ -3830,6 +4146,9 @@ components:
         amountCents:
           type: integer
           description: Gross wages before employer burden allocated to this job, in integer cents
+        hours:
+          type: number
+          description: Hours worked on this job during the pay period
     PayrollAllocationInput:
       type: object
       required: [jobId, amountCents]
@@ -3839,6 +4158,10 @@ components:
         amountCents:
           type: integer
           minimum: 1
+        hours:
+          type: number
+          minimum: 0
+          description: Hours worked on this job during the pay period (optional)
     PayrollEntryDetail:
       type: object
       required: [date, hours, jobId, costType]
@@ -4047,6 +4370,9 @@ components:
           type: string
         memo:
           type: ["string", "null"]
+        processingFeeCents:
+          type: integer
+          description: Payroll company processing fee for this run, in cents (0 when none)
         laborAccountId:
           type: integer
         laborAccountName:
@@ -4129,6 +4455,10 @@ components:
           type: string
         memo:
           type: ["string", "null"]
+        processingFeeCents:
+          type: integer
+          minimum: 0
+          description: Payroll company processing fee for this run, in cents
         laborAccountId:
           type: integer
         ssRateBps:
@@ -4161,6 +4491,10 @@ components:
           type: string
         memo:
           type: ["string", "null"]
+        processingFeeCents:
+          type: integer
+          minimum: 0
+          description: Payroll company processing fee for this run, in cents
         laborAccountId:
           type: integer
         ssRateBps:

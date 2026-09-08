@@ -697,6 +697,48 @@ router.post("/reconciliation/periods", async (req, res) => {
       ledgerByKey.set(key, bucket);
     }
 
+    // The payroll company debits one lump sum per pay run, while the books
+    // carry one line per employee per job. Group each run's lines so a single
+    // statement debit can clear the whole run when the totals agree.
+    const payrollGroups = new Map<
+      number,
+      { date: string; totalCents: number; transactionIds: number[] }
+    >();
+    for (const line of ledgerLines) {
+      if (line.payrollRunId == null) continue;
+      const group = payrollGroups.get(line.payrollRunId) ?? {
+        date: line.date,
+        totalCents: 0,
+        transactionIds: [],
+      };
+      group.totalCents += line.effectCents;
+      group.transactionIds.push(line.transactionId);
+      payrollGroups.set(line.payrollRunId, group);
+    }
+    const consumedTx = new Set<number>();
+    const tryConsumePayrollRun = (
+      date: string,
+      amountCents: number,
+    ): number[] | null => {
+      const window = new Set(dateWindow(date));
+      for (const [runId, group] of payrollGroups) {
+        if (group.totalCents !== amountCents) continue;
+        if (!window.has(group.date)) continue;
+        if (group.transactionIds.some((id) => consumedTx.has(id))) continue;
+        payrollGroups.delete(runId);
+        for (const id of group.transactionIds) {
+          consumedTx.add(id);
+          // Pull the run's lines out of the single-line pool too.
+          for (const bucket of ledgerByKey.values()) {
+            const idx = bucket.indexOf(id);
+            if (idx >= 0) bucket.splice(idx, 1);
+          }
+        }
+        return group.transactionIds;
+      }
+      return null;
+    };
+
     // Try to consume one ledger transaction matching this date+amount.
     // Returns the matched transactionId or null.
     const tryConsume = (date: string, amountCents: number): number | null => {
@@ -733,7 +775,20 @@ router.post("/reconciliation/periods", async (req, res) => {
       }
 
       if (txId !== null) {
+        consumedTx.add(txId);
         matchedClears.push({ transactionId: txId, statementLine });
+        continue;
+      }
+
+      // No single line matches — see if the debit is a whole payroll run.
+      let runTxIds = tryConsumePayrollRun(csvLine.date, csvLine.amountCents);
+      if (runTxIds === null && csvLine.signUnknown && csvLine.amountCents !== 0) {
+        runTxIds = tryConsumePayrollRun(csvLine.date, -csvLine.amountCents);
+      }
+      if (runTxIds !== null) {
+        for (const id of runTxIds) {
+          matchedClears.push({ transactionId: id, statementLine });
+        }
       } else {
         // Persist only the schema fields (drop internal flags like signUnknown)
         unmatchedLines.push(statementLine);

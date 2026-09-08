@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
-import { eq, sql } from "drizzle-orm";
-import { db, vendorsTable } from "@workspace/db";
+import { and, eq, inArray, isNull, sql } from "drizzle-orm";
+import { db, vendorsTable, accountsTable, transactionsTable } from "@workspace/db";
 import {
   ListVendorsResponse,
   GetVendorDefaultAccountResponse,
@@ -11,9 +11,117 @@ import {
   UpdateVendorBody,
   DeleteVendorParams,
   CheckVendorDuplicatesQueryParams,
+  EnsureVendorReconcileAccountParams,
+  EnsureVendorReconcileAccountResponse,
 } from "@workspace/api-zod";
+import { BALANCE_SHEET_TYPES } from "../lib/finance";
+import { backfillBillVendorAccounts } from "../lib/billVendorAccountBackfill";
 
 const router: IRouter = Router();
+
+/**
+ * Vendor charge accounts (the "CED", "Lowe's", … statements Mike reconciles
+ * every month) live in the 212xx block, right after the 21100 Home Depot
+ * card that the QuickBooks import created. Picks the first free number.
+ */
+async function nextVendorAccountNumber(): Promise<string> {
+  const rows = await db
+    .select({ number: accountsTable.number })
+    .from(accountsTable);
+  const used = new Set(rows.map((r) => r.number.trim()));
+  for (let n = 21200; n < 21999; n += 10) {
+    if (!used.has(String(n))) return String(n);
+  }
+  // Block exhausted — fall back to a unique but obviously-generated number.
+  return `21999-${Date.now()}`;
+}
+
+/**
+ * Find-or-create the balance-sheet account a vendor's statement reconciles
+ * against. Mirrors the frontend matcher (exact, case-insensitive name match
+ * on reconcilable account types) so the Reconcile button lands on the same
+ * account the Vendors list would, and creates one when the vendor has none.
+ */
+router.post(
+  "/vendors/:id/reconcile-account",
+  async (req, res): Promise<void> => {
+    const params = EnsureVendorReconcileAccountParams.safeParse(req.params);
+    if (!params.success) {
+      res.status(400).json({ error: params.error.message });
+      return;
+    }
+    const [vendor] = await db
+      .select({ id: vendorsTable.id, name: vendorsTable.name })
+      .from(vendorsTable)
+      .where(eq(vendorsTable.id, params.data.id));
+    if (!vendor) {
+      res.status(404).json({ error: "Vendor not found" });
+      return;
+    }
+    const key = vendor.name.trim().toLowerCase();
+    const matches = await db
+      .select({
+        id: accountsTable.id,
+        number: accountsTable.number,
+        name: accountsTable.name,
+      })
+      .from(accountsTable)
+      .where(
+        and(
+          inArray(accountsTable.type, [...BALANCE_SHEET_TYPES]),
+          sql`lower(btrim(${accountsTable.name})) = ${key}`,
+        ),
+      )
+      .orderBy(accountsTable.id);
+    if (matches.length > 1) {
+      res.status(409).json({
+        error: `"${vendor.name}" matches more than one account. Choose the right one on the Accounts page.`,
+      });
+      return;
+    }
+    let account = matches[0];
+    let created = false;
+    if (!account) {
+      const [row] = await db
+        .insert(accountsTable)
+        .values({
+          number: await nextVendorAccountNumber(),
+          name: vendor.name.trim(),
+          type: "liability",
+        })
+        .returning({
+          id: accountsTable.id,
+          number: accountsTable.number,
+          name: accountsTable.name,
+        });
+      account = row;
+      created = true;
+      // Pull the vendor's already-posted bills into the new account so the
+      // first reconciliation shows every open invoice on the statement.
+      await backfillBillVendorAccounts();
+      // …and its recorded payments, which are register withdrawals with the
+      // vendor as party and no offset account yet.
+      await db
+        .update(transactionsTable)
+        .set({ splitAccountId: account.id })
+        .where(
+          and(
+            eq(transactionsTable.vendorId, vendor.id),
+            isNull(transactionsTable.splitAccountId),
+            sql`(${transactionsTable.billPaymentId} is not null or ${transactionsTable.vendorPaymentId} is not null)`,
+          ),
+        );
+    }
+    res.json(
+      EnsureVendorReconcileAccountResponse.parse({
+        accountId: account.id,
+        accountNumber: account.number,
+        accountName: account.name,
+        created,
+      }),
+    );
+  },
+);
 
 /** Normalise a name for comparison: lower-case, trim, collapse whitespace. */
 function normName(s: string): string {

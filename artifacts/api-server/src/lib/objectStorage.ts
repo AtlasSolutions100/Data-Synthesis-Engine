@@ -178,6 +178,42 @@ export class ObjectStorageService {
     });
   }
 
+  /** True when a private bucket is configured for this deployment. */
+  isConfigured(): boolean {
+    return Boolean(process.env.PRIVATE_OBJECT_DIR);
+  }
+
+  /**
+   * Write a buffer straight into the private uploads area from the server
+   * (used for email attachments that never pass through the browser upload
+   * flow). Returns the normalized `/objects/uploads/<id>` path that the rest
+   * of the app stores and serves.
+   */
+  async saveObjectFromBuffer(
+    data: Buffer,
+    contentType: string | null,
+  ): Promise<string> {
+    const privateObjectDir = this.getPrivateObjectDir();
+    const objectId = randomUUID();
+    const fullPath = `${privateObjectDir}/uploads/${objectId}`;
+    const { bucketName, objectName } = parseObjectPath(fullPath);
+    await objectStorageClient
+      .bucket(bucketName)
+      .file(objectName)
+      .save(data, {
+        resumable: false,
+        contentType: contentType ?? "application/octet-stream",
+      });
+    return `/objects/uploads/${objectId}`;
+  }
+
+  /** Read a whole stored object into memory (bounded by the caller). */
+  async readObjectEntity(objectPath: string): Promise<Buffer> {
+    const file = await this.getObjectEntityFile(objectPath);
+    const [contents] = await file.download();
+    return contents;
+  }
+
   /**
    * Read the first `length` bytes of a stored object, for magic-number type
    * sniffing. Reads a bounded byte range so we never pull a full (potentially

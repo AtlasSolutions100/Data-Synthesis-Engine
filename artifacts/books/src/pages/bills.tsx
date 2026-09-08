@@ -1,4 +1,5 @@
 import { useRef, useState, useEffect, useCallback } from "react";
+import { SortSelect, sortItems, byText, byNumber, byDate, type SortOption } from "@/components/list-controls";
 import {
   useListBills,
   useCreateBill,
@@ -10,7 +11,10 @@ import {
   getListJobsQueryKey,
   getListBillsQueryKey,
   getGetApAgingQueryKey,
+  useUpdateInboundEmail,
 } from "@workspace/api-client-react";
+import { useSearch } from "wouter";
+import { fetchInboxAttachmentsAsFiles } from "@/lib/inbox-attachments";
 import type { ExtractBillResult } from "@workspace/api-client-react";
 import { formatCents, formatDate } from "@/lib/format";
 import { Card, CardContent } from "@/components/ui/card";
@@ -44,6 +48,27 @@ import { DemoBadge } from "@/components/demo-badge";
 import { Plus, Trash2, Upload, Loader2, ChevronLeft, ChevronRight, Search, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { ImportDataDialog } from "@/components/import-data-dialog";
+import { useToast } from "@/hooks/use-toast";
+
+
+type BillRow = {
+  billNumber?: string | null;
+  vendorName?: string | null;
+  jobName?: string | null;
+  date: string;
+  totalCents: number;
+  balanceCents: number;
+};
+
+const BILL_SORT_OPTIONS: SortOption<BillRow>[] = [
+  { value: "date-desc", label: "Newest first", compare: byDate((b) => b.date, -1) },
+  { value: "date-asc", label: "Oldest first", compare: byDate((b) => b.date) },
+  { value: "vendor-asc", label: "Vendor A → Z", compare: (a, b) => byText<BillRow>((x) => x.vendorName)(a, b) || byDate<BillRow>((x) => x.date, -1)(a, b) },
+  { value: "vendor-desc", label: "Vendor Z → A", compare: (a, b) => byText<BillRow>((x) => x.vendorName, -1)(a, b) || byDate<BillRow>((x) => x.date, -1)(a, b) },
+  { value: "job-asc", label: "Job A → Z", compare: (a, b) => byText<BillRow>((x) => x.jobName)(a, b) || byDate<BillRow>((x) => x.date, -1)(a, b) },
+  { value: "balance-desc", label: "Balance due (high → low)", compare: byNumber((b) => b.balanceCents, -1) },
+  { value: "total-desc", label: "Amount (high → low)", compare: byNumber((b) => b.totalCents, -1) },
+];
 
 const UPLOAD_MAX_BYTES = 10 * 1024 * 1024;
 
@@ -106,8 +131,15 @@ async function deleteBillDraft(): Promise<void> {
 
 function UploadInvoiceDialog({
   onExtracted,
+  initialFiles = null,
 }: {
   onExtracted: (queue: ReviewQueue) => void;
+  /**
+   * Files handed over from the Inbox page (a forwarded vendor invoice).
+   * When set, the dialog opens itself and starts reading them right away —
+   * exactly as if they had been dropped on the drop zone.
+   */
+  initialFiles?: File[] | null;
 }) {
   const [open, setOpen] = useState(false);
   const [error, setError] = useState("");
@@ -259,6 +291,18 @@ function UploadInvoiceDialog({
     }
   };
 
+  const startedInboxRef = useRef<File[] | null>(null);
+  useEffect(() => {
+    if (!initialFiles || initialFiles.length === 0) return;
+    if (startedInboxRef.current === initialFiles) return;
+    startedInboxRef.current = initialFiles;
+    setOpen(true);
+    void handleFiles(initialFiles);
+    // handleFiles is recreated every render; the ref guard above makes this
+    // effect fire once per handed-over batch.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialFiles]);
+
   return (
     <Dialog
       open={open}
@@ -368,6 +412,46 @@ export default function Bills() {
 
   // Bill-number search
   const [billSearch, setBillSearch] = useState("");
+  const [billSort, setBillSort] = useState("date-desc");
+
+  // ── Inbox handoff (?inboxEmail=ID) ─────────────────────────────────────
+  // A vendor invoice forwarded to the books address arrives here with its
+  // attachments already fetched, so the upload dialog can read them without
+  // Mike downloading and dragging anything.
+  const inboxSearch = useSearch();
+  const inboxEmailId = (() => {
+    const raw = new URLSearchParams(inboxSearch).get("inboxEmail");
+    const n = raw ? Number(raw) : NaN;
+    return Number.isInteger(n) && n > 0 ? n : null;
+  })();
+  const [inboxFiles, setInboxFiles] = useState<File[] | null>(null);
+  const markInboxProcessed = useUpdateInboundEmail();
+  const { toast: inboxToast } = useToast();
+  useEffect(() => {
+    if (inboxEmailId == null) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const files = await fetchInboxAttachmentsAsFiles(inboxEmailId);
+        if (cancelled) return;
+        if (files.length === 0) {
+          inboxToast({
+            title: "That email has no attachments to read",
+            variant: "destructive",
+          });
+          return;
+        }
+        setInboxFiles(files);
+      } catch {
+        if (!cancelled) {
+          inboxToast({ title: "Could not load the forwarded invoice", variant: "destructive" });
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [inboxEmailId, inboxToast]);
 
   // Manual "New Bill" dialog — separate state so it doesn't interfere with the review queue
   const [isManualOpen, setIsManualOpen] = useState(false);
@@ -518,7 +602,7 @@ export default function Bills() {
 
   // Client-side search — matches bill number, vendor name, or job name
   const billSearchTrimmed = billSearch.trim().toLowerCase();
-  const filteredBills = billSearchTrimmed
+  const matchedBills = billSearchTrimmed
     ? (bills ?? []).filter(
         (b) =>
           (b.billNumber ?? "").toLowerCase().includes(billSearchTrimmed) ||
@@ -526,6 +610,7 @@ export default function Bills() {
           (b.jobName ?? "").toLowerCase().includes(billSearchTrimmed),
       )
     : (bills ?? []);
+  const filteredBills = sortItems(matchedBills, BILL_SORT_OPTIONS, billSort);
 
   // ---------------------------------------------------------------------------
   // Render
@@ -549,7 +634,17 @@ export default function Bills() {
               queryClient.invalidateQueries({ queryKey: getListBillsQueryKey() })
             }
           />
-          <UploadInvoiceDialog onExtracted={handleExtracted} />
+          <UploadInvoiceDialog
+            onExtracted={(queue) => {
+              handleExtracted(queue);
+              if (inboxEmailId != null) {
+                // The forwarded invoice is now in the review queue — close
+                // it out on the Inbox page so it doesn't linger.
+                markInboxProcessed.mutate({ id: inboxEmailId, data: { status: "processed" } });
+              }
+            }}
+            initialFiles={inboxFiles}
+          />
 
           {/* Manual "New Bill" button */}
           <Dialog open={isManualOpen} onOpenChange={(v) => { setIsManualOpen(v); if (!v) setManualError(null); }}>
@@ -677,8 +772,8 @@ export default function Bills() {
       {/* ------------------------------------------------------------------ */}
       {/* Bill-number search bar                                               */}
       {/* ------------------------------------------------------------------ */}
-      <div className="flex items-center gap-2 max-w-sm">
-        <div className="relative flex-1">
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="relative flex-1 min-w-[220px] max-w-sm">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
           <Input
             data-testid="bill-number-search"
@@ -700,6 +795,7 @@ export default function Bills() {
             </button>
           )}
         </div>
+        <SortSelect value={billSort} onChange={setBillSort} options={BILL_SORT_OPTIONS} testId="bills-sort" />
       </div>
 
       {/* ------------------------------------------------------------------ */}

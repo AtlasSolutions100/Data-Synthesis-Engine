@@ -167,6 +167,8 @@ const runSchema = z.object({
   // form state so editing an existing run preserves its account.
   laborAccountId: z.string().optional(),
   memo: z.string().optional(),
+  // Payroll company fee for this run, in dollars (e.g. "72.00").
+  processingFee: z.string().optional(),
   ssRate: z.string().optional(),
   medicareRate: z.string().optional(),
   futaRate: z.string().optional(),
@@ -2701,6 +2703,19 @@ function ImportHoursDialog({
         shouldDirty: true,
         shouldValidate: true,
       });
+      // Keep the day-by-job detail on the merged line too — it is what the
+      // saved run uses to show hours per job (and to rebuild the grid on
+      // edit). Without it, a re-opened multi-job line showed 0 hrs per job.
+      form.setValue(
+        `lines.${idx}.dailyEntries`,
+        r.entries.map((entry) => ({
+          date: entry.date,
+          hours: entry.hours,
+          jobId: jobIdForEntry(entry),
+          costType: entry.costType,
+        })),
+        { shouldDirty: true },
+      );
       // Link the Employee Center record so rates apply automatically.
       if (r.employeeId && !form.getValues(`lines.${idx}.employeeId`)) {
         form.setValue(`lines.${idx}.employeeId`, r.employeeId, {
@@ -3574,6 +3589,7 @@ export function PayrollRunForm({
         defaultValues?.payDate || new Date().toISOString().split("T")[0],
       laborAccountId: defaultValues?.laborAccountId || "",
       memo: defaultValues?.memo || "",
+      processingFee: defaultValues?.processingFee ?? "",
       ssRate: defaultValues?.ssRate ?? "6.2",
       medicareRate: defaultValues?.medicareRate ?? "1.45",
       futaRate: defaultValues?.futaRate ?? "0.6",
@@ -3665,6 +3681,9 @@ export function PayrollRunForm({
       payPeriodEnd: values.payPeriodEnd,
       payDate: values.payDate,
       memo: values.memo || null,
+      processingFeeCents: values.processingFee
+        ? Math.max(0, parseDollars(values.processingFee))
+        : 0,
       laborAccountId: values.laborAccountId
         ? parseInt(values.laborAccountId, 10)
         : undefined,
@@ -3712,10 +3731,14 @@ export function PayrollRunForm({
               : null,
           allocations: (l.allocations ?? [])
             .filter((a) => a.jobId && a.amount)
-            .map((a) => ({
-              jobId: parseInt(a.jobId, 10),
-              amountCents: parseDollars(a.amount),
-            })),
+            .map((a) => {
+              const hours = parseFloat(a.hours ?? "");
+              return {
+                jobId: parseInt(a.jobId, 10),
+                amountCents: parseDollars(a.amount),
+                ...(Number.isFinite(hours) && hours >= 0 ? { hours } : {}),
+              };
+            }),
         };
       }),
     });
@@ -3802,22 +3825,43 @@ export function PayrollRunForm({
         </div>
 
         <p className="rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-600">
-          Payroll posts automatically through <strong>10000 Checking</strong>.
+          Payroll posts automatically through the operating <strong>Checking</strong> account
+          (never savings). Each employee shows as one line in the check register.
         </p>
 
-        <FormField
-          control={form.control}
-          name="memo"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Memo (Optional)</FormLabel>
-              <FormControl>
-                <Input {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+        <div className="grid grid-cols-[1fr_180px] gap-3">
+          <FormField
+            control={form.control}
+            name="memo"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Memo (Optional)</FormLabel>
+                <FormControl>
+                  <Input {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="processingFee"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Payroll service fee ($)</FormLabel>
+                <FormControl>
+                  <Input
+                    {...field}
+                    inputMode="decimal"
+                    placeholder="e.g. 72.00"
+                    data-testid="input-processing-fee"
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
 
         <div className="space-y-2 rounded-lg border p-4">
           <p className="text-sm font-medium leading-none">

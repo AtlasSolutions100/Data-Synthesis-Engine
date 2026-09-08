@@ -331,6 +331,7 @@ router.delete("/demo/remove", async (_req, res): Promise<void> => {
     // Dependency order: cascade-children handled by FK; delete parents
     // in the order that respects RESTRICT FK constraints.
     await tx.execute(sql`DELETE FROM payroll_runs WHERE is_demo = true`);
+    await tx.execute(sql`DELETE FROM vendor_payments WHERE is_demo = true`); // cascades bill payments + register row
     await tx.execute(sql`DELETE FROM transactions WHERE is_demo = true`);
     await tx.execute(sql`DELETE FROM invoices WHERE is_demo = true`); // cascades lines + payments
     await tx.execute(sql`DELETE FROM bills WHERE is_demo = true`);    // cascades lines + payments + credits

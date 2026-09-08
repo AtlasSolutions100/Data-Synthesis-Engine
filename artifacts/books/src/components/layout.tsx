@@ -24,6 +24,7 @@ import {
   CircleDollarSign,
   MessageSquare,
   MessagesSquare,
+  Inbox,
 } from "lucide-react";
 import { FeedbackButton } from "./feedback-button";
 
@@ -60,6 +61,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
   const navItems = [
     { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+    { href: "/inbox", label: "Inbox", icon: Inbox },
     { href: "/customers", label: "Customers", icon: Building2 },
     { href: "/jobs", label: "Jobs", icon: Briefcase },
     { href: "/invoices", label: "Invoices", icon: FileText },

@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   useListJobs,
   getListJobsQueryKey,
@@ -6,7 +6,13 @@ import {
   getListCustomersQueryKey,
   useCreateJobDocument,
   getListJobDocumentsQueryKey,
+  useListAccounts,
+  getListAccountsQueryKey,
+  useCreateReconciliationPeriod,
 } from "@workspace/api-client-react";
+import { useLocation } from "wouter";
+import { Input } from "@/components/ui/input";
+import { NON_RECONCILABLE_ACCOUNT_TYPES } from "@/lib/vendor-reconcile-match";
 import { useUpload } from "@workspace/object-storage-web";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -26,7 +32,225 @@ import {
 } from "@/components/ui/select";
 import { EntityCombobox } from "@/components/forms/entity-combobox";
 import { useToast } from "@/hooks/use-toast";
-import { Upload, Loader2 } from "lucide-react";
+import { Upload, Loader2, Landmark, FolderOpen } from "lucide-react";
+
+type DashboardUploadMode = "document" | "statement";
+
+const STATEMENT_ACCEPT = ".pdf,.csv,.xlsx,application/pdf,text/csv";
+const STATEMENT_MAX_MB = 10;
+
+/**
+ * Bank / vendor statement path for the dashboard upload button. A statement
+ * belongs to an account, not a job, so instead of forcing a customer + job
+ * pick it asks which account the statement is for, the statement date and
+ * ending balance, and starts a reconciliation with the file attached — the
+ * same thing "Start New" does on the account's reconcile page.
+ */
+function StatementUploadPanel({
+  initialFile,
+  onDone,
+}: {
+  initialFile?: File | null;
+  onDone: () => void;
+}) {
+  const [, navigate] = useLocation();
+  const { toast } = useToast();
+  const [accountId, setAccountId] = useState("");
+  const [statementDate, setStatementDate] = useState("");
+  const [statementBalance, setStatementBalance] = useState("");
+  const [file, setFile] = useState<File | null>(initialFile ?? null);
+  const [dragOver, setDragOver] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const createPeriod = useCreateReconciliationPeriod();
+
+  useEffect(() => {
+    if (initialFile) setFile(initialFile);
+  }, [initialFile]);
+
+  const { data: accounts } = useListAccounts({
+    query: { queryKey: getListAccountsQueryKey() },
+  });
+  const reconcilable = (accounts ?? []).filter(
+    (a) => !NON_RECONCILABLE_ACCOUNT_TYPES.has(a.type),
+  );
+  const banks = reconcilable.filter((a) => a.type === "bank");
+  const others = reconcilable.filter((a) => a.type !== "bank");
+
+  const stage = (next: File | undefined) => {
+    if (!next) return;
+    if (next.size > STATEMENT_MAX_MB * 1024 * 1024) {
+      setError(`"${next.name}" is larger than ${STATEMENT_MAX_MB} MB. Export a smaller CSV or XLSX from the bank instead.`);
+      return;
+    }
+    const ext = next.name.slice(next.name.lastIndexOf(".") + 1).toLowerCase();
+    if (!["pdf", "csv", "xlsx"].includes(ext)) {
+      setError("Statements can be PDF, CSV, or XLSX files.");
+      return;
+    }
+    setError(null);
+    setFile(next);
+  };
+
+  const handleSubmit = async () => {
+    if (!accountId) {
+      setError("Choose which account this statement is for.");
+      return;
+    }
+    if (!statementDate) {
+      setError("Enter the statement date (the closing date printed on it).");
+      return;
+    }
+    const balanceCents = Math.round(parseFloat(statementBalance) * 100);
+    if (!Number.isFinite(balanceCents)) {
+      setError("Enter the ending balance shown on the statement.");
+      return;
+    }
+    setError(null);
+    setSubmitting(true);
+    try {
+      let statementFileData: string | null = null;
+      if (file) {
+        statementFileData = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(String(reader.result));
+          reader.onerror = () => reject(new Error(`Couldn't read ${file.name}`));
+          reader.readAsDataURL(file);
+        });
+      }
+      const created = await createPeriod.mutateAsync({
+        data: {
+          accountId: Number(accountId),
+          statementDate,
+          statementBalanceCents: balanceCents,
+          statementDocumentName: file?.name ?? null,
+          statementDocumentPath: null,
+          statementFileData,
+        },
+      });
+      toast({
+        title: "Statement loaded",
+        description: file
+          ? "Matching entries were checked off automatically. Review what's left."
+          : "Reconciliation started.",
+      });
+      onDone();
+      navigate(`/accounts/${accountId}/reconcile/${created.id}`);
+    } catch (err: any) {
+      setError(
+        err?.status === 413
+          ? `The file is too large. Choose a statement under ${STATEMENT_MAX_MB} MB.`
+          : err?.message ?? "Could not start the reconciliation.",
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="space-y-4" data-testid="statement-upload-panel">
+      <div>
+        <p className="text-sm font-medium mb-1">Account on the statement</p>
+        <Select value={accountId} onValueChange={setAccountId}>
+          <SelectTrigger data-testid="select-statement-account">
+            <SelectValue placeholder="Checking, savings, or a vendor account…" />
+          </SelectTrigger>
+          <SelectContent>
+            {banks.map((a) => (
+              <SelectItem key={a.id} value={String(a.id)}>
+                {a.number} · {a.name}
+              </SelectItem>
+            ))}
+            {others.map((a) => (
+              <SelectItem key={a.id} value={String(a.id)}>
+                {a.number} · {a.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <p className="text-xs text-slate-400 mt-1">
+          Only the checking or savings section of a bank statement is matched — pick the account it belongs to.
+        </p>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <p className="text-sm font-medium mb-1">Statement date</p>
+          <Input
+            type="date"
+            value={statementDate}
+            onChange={(e) => setStatementDate(e.target.value)}
+            data-testid="input-statement-date"
+          />
+        </div>
+        <div>
+          <p className="text-sm font-medium mb-1">Ending balance ($)</p>
+          <Input
+            inputMode="decimal"
+            placeholder="0.00"
+            value={statementBalance}
+            onChange={(e) => setStatementBalance(e.target.value)}
+            data-testid="input-statement-balance"
+          />
+        </div>
+      </div>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept={STATEMENT_ACCEPT}
+        className="hidden"
+        onChange={(e) => {
+          stage(e.target.files?.[0]);
+          e.target.value = "";
+        }}
+      />
+      <div
+        className={`border-2 border-dashed rounded-lg p-4 text-center cursor-pointer transition-colors ${
+          dragOver ? "border-blue-400 bg-blue-50" : "border-slate-200 hover:border-blue-300"
+        }`}
+        onClick={() => !submitting && fileInputRef.current?.click()}
+        onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+        onDragLeave={() => setDragOver(false)}
+        onDrop={(e) => {
+          e.preventDefault();
+          setDragOver(false);
+          stage(e.dataTransfer.files?.[0]);
+        }}
+        data-testid="drop-zone-statement-upload"
+      >
+        {file ? (
+          <p className="text-sm font-medium text-slate-700 truncate">
+            📄 {file.name}
+            <span className="ml-2 text-xs text-slate-400 font-normal">(click or drop to replace)</span>
+          </p>
+        ) : (
+          <p className="text-sm text-slate-500">
+            <Upload className="inline h-4 w-4 mr-1 -mt-0.5" />
+            Drop the statement here (optional)
+          </p>
+        )}
+        <p className="text-xs text-slate-400 mt-1">PDF, CSV, or XLSX — up to {STATEMENT_MAX_MB} MB</p>
+      </div>
+      {error && <p className="text-sm text-red-600">{error}</p>}
+      <Button
+        className="w-full bg-blue-600 hover:bg-blue-700"
+        disabled={submitting}
+        onClick={handleSubmit}
+        data-testid="button-statement-upload-submit"
+      >
+        {submitting ? (
+          <>
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Reading statement…
+          </>
+        ) : (
+          <>
+            <Landmark className="mr-2 h-4 w-4" /> Reconcile this statement
+          </>
+        )}
+      </Button>
+    </div>
+  );
+}
 
 // All categories available for job-detail uploads.
 const CATEGORIES = [
@@ -101,8 +325,23 @@ function validateFile(file: File): string | null {
  * Dashboard upload dialog: customer-centric, excludes contract/timesheet,
  * and auto-detects the document category from the uploaded file.
  */
-export function QuickDashboardUploadDialog() {
-  const [open, setOpen] = useState(false);
+export function QuickDashboardUploadDialog({
+  initialMode = "document",
+  initialStatementFile = null,
+  autoOpen = false,
+}: {
+  initialMode?: DashboardUploadMode;
+  initialStatementFile?: File | null;
+  autoOpen?: boolean;
+} = {}) {
+  const [open, setOpen] = useState(autoOpen);
+  const [mode, setMode] = useState<DashboardUploadMode>(initialMode);
+  useEffect(() => {
+    if (autoOpen) {
+      setMode(initialMode);
+      setOpen(true);
+    }
+  }, [autoOpen, initialMode]);
   const [customerId, setCustomerId] = useState("");
   const [jobId, setJobId] = useState("");
   // Category is set by detection on file pick; the user may change it before
@@ -208,10 +447,49 @@ export function QuickDashboardUploadDialog() {
           <Upload className="mr-2 h-4 w-4" /> Upload Document
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[440px]">
+      <DialogContent className="sm:max-w-[460px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Upload a Job Document</DialogTitle>
+          <DialogTitle>
+            {mode === "statement" ? "Reconcile a Statement" : "Upload a Job Document"}
+          </DialogTitle>
         </DialogHeader>
+        {/* What is this file? Statements go to reconciliation, not to a job. */}
+        <div className="grid grid-cols-2 gap-2" role="tablist" aria-label="Upload type">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={mode === "document"}
+            onClick={() => setMode("document")}
+            className={`flex items-center justify-center gap-2 rounded-md border px-3 py-2 text-sm ${
+              mode === "document" ? "border-blue-500 bg-blue-50 text-blue-700" : "border-slate-200 text-slate-600 hover:bg-slate-50"
+            }`}
+            data-testid="upload-mode-document"
+          >
+            <FolderOpen className="h-4 w-4" /> Job document
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={mode === "statement"}
+            onClick={() => setMode("statement")}
+            className={`flex items-center justify-center gap-2 rounded-md border px-3 py-2 text-sm ${
+              mode === "statement" ? "border-blue-500 bg-blue-50 text-blue-700" : "border-slate-200 text-slate-600 hover:bg-slate-50"
+            }`}
+            data-testid="upload-mode-statement"
+          >
+            <Landmark className="h-4 w-4" /> Bank / vendor statement
+          </button>
+        </div>
+        {mode === "statement" ? (
+          <StatementUploadPanel
+            initialFile={initialStatementFile}
+            onDone={() => {
+              setOpen(false);
+              reset();
+            }}
+          />
+        ) : (
+        <>
         <p className="text-sm text-slate-500">
           Attach certified payroll, invoice backups, permits, or other files to
           a job.
@@ -363,6 +641,8 @@ export function QuickDashboardUploadDialog() {
             </p>
           )}
         </div>
+        </>
+        )}
       </DialogContent>
     </Dialog>
   );

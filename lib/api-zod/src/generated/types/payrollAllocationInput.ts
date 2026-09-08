@@ -10,4 +10,9 @@ export interface PayrollAllocationInput {
   jobId: number;
   /** @minimum 1 */
   amountCents: number;
+  /**
+     * Hours worked on this job during the pay period (optional)
+     * @minimum 0
+     */
+  hours?: number;
 }

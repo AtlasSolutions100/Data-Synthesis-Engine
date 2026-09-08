@@ -10,6 +10,7 @@ import {
 } from "./middlewares/clerkProxyMiddleware";
 import router from "./routes";
 import healthRouter from "./routes/health";
+import inboundWebhookRouter from "./routes/inboundWebhook";
 import { withCurrentUser } from "./middlewares/currentUser";
 import { logger } from "./lib/logger";
 
@@ -75,6 +76,9 @@ app.use(
 
 // Public health probe — must stay outside the auth gate.
 app.use("/api", healthRouter);
+// Inbound-mail webhook: the mail provider has no Clerk session, so it sits
+// outside the auth gate and is protected by INBOUND_EMAIL_TOKEN instead.
+app.use("/api", inboundWebhookRouter);
 
 // `withCurrentUser` is the auth gate: it reads the Clerk session via
 // `getAuth(req)` and responds with a JSON 401 when the request is

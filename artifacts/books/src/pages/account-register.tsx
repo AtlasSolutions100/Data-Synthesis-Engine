@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { Fragment, useState, useRef, useEffect, useCallback } from "react";
 import { useParams } from "wouter";
 import { Link } from "wouter";
 import {
@@ -33,7 +33,6 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { TransactionForm } from "@/components/forms/transaction-form";
-import { TransferForm } from "@/components/forms/transfer-form";
 import {
   toServerFieldError,
   type ServerFieldError,
@@ -50,7 +49,9 @@ import {
   Trash2,
   Ban,
   RotateCcw,
-  ArrowLeftRight,
+  ChevronRight,
+  ChevronDown,
+  X,
 } from "lucide-react";
 
 /* ── helpers ──────────────────────────────────────────────────────────── */
@@ -135,12 +136,23 @@ function NumCell({
     setTimeout(() => inputRef.current?.select(), 0);
   };
 
+  // Guards the blur→save and Save-button→save pair so one edit never fires
+  // two requests (mousedown on the button blurs the input first).
+  const savingRef = useRef(false);
+
+  const cancel = useCallback(() => {
+    setValue(initialNum ?? "");
+    setEditing(false);
+  }, [initialNum]);
+
   const save = useCallback(async () => {
+    if (savingRef.current) return;
     const trimmed = value.trim();
     if (trimmed === (initialNum ?? "")) {
       setEditing(false);
       return;
     }
+    savingRef.current = true;
     setSaving(true);
     try {
       await updateTx.mutateAsync({
@@ -149,33 +161,73 @@ function NumCell({
       });
       onSaved();
       setEditing(false);
-    } catch {
-      toast({ title: "Could not save check number", variant: "destructive" });
+      toast({ title: trimmed ? `Check #${trimmed} saved` : "Check number cleared" });
+    } catch (err: any) {
+      toast({
+        title: "Could not save check number",
+        description:
+          err?.message ??
+          "The server rejected the change. Try again, or ask an admin.",
+        variant: "destructive",
+      });
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
   }, [value, initialNum, transactionId, updateTx, onSaved, toast]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter") save();
-    if (e.key === "Escape") { setValue(initialNum ?? ""); setEditing(false); }
+    if (e.key === "Enter") {
+      e.preventDefault();
+      save();
+    }
+    if (e.key === "Escape") cancel();
   };
 
   if (editing) {
     return (
-      <div className="flex items-center gap-1 min-w-[90px]">
-        <Input
-          ref={inputRef}
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          onBlur={save}
-          onKeyDown={handleKeyDown}
-          className="h-7 text-xs px-2 w-24"
-          placeholder="check #"
-          disabled={saving}
-          autoFocus
-        />
-        {saving && <Loader2 className="h-3 w-3 animate-spin text-slate-400 flex-shrink-0" />}
+      <div className="flex flex-col gap-1 min-w-[120px]" data-testid={`num-editor-${transactionId}`}>
+        <div className="flex items-center gap-1">
+          <Input
+            ref={inputRef}
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            onBlur={save}
+            onKeyDown={handleKeyDown}
+            className="h-7 text-xs px-2 w-24"
+            placeholder="check #"
+            disabled={saving}
+            autoFocus
+          />
+          {saving ? (
+            <Loader2 className="h-3 w-3 animate-spin text-slate-400 flex-shrink-0" />
+          ) : (
+            <>
+              <button
+                type="button"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={save}
+                title="Save check number (Enter)"
+                aria-label="Save check number"
+                className="inline-flex h-6 w-6 items-center justify-center rounded bg-emerald-600 text-white hover:bg-emerald-700"
+                data-testid={`num-save-${transactionId}`}
+              >
+                <Check className="h-3.5 w-3.5" />
+              </button>
+              <button
+                type="button"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={cancel}
+                title="Cancel (Esc)"
+                aria-label="Cancel editing check number"
+                className="inline-flex h-6 w-6 items-center justify-center rounded text-slate-500 hover:bg-slate-100"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </>
+          )}
+        </div>
+        <span className="text-[10px] text-slate-400 leading-none">Enter to save · Esc to cancel</span>
       </div>
     );
   }
@@ -183,8 +235,9 @@ function NumCell({
   return (
     <button
       onClick={startEditing}
-      title="Click to edit check number"
+      title="Click to enter the check number you wrote"
       className="group flex items-center gap-1 text-left min-w-[70px] rounded px-1 -ml-1 hover:bg-blue-50 focus:outline-none focus:ring-1 focus:ring-blue-300"
+      data-testid={`num-edit-${transactionId}`}
     >
       <span className="text-xs font-mono text-slate-700 group-hover:text-blue-700 transition-colors">
         {initialNum ? `#${initialNum}` : <span className="text-slate-300">—</span>}
@@ -314,8 +367,16 @@ export default function AccountRegister() {
   const params = {};
 
   const [isCreateOpen, setIsCreateOpen] = useState(false);
-  const [isTransferOpen, setIsTransferOpen] = useState(false);
   const [createError, setCreateError] = useState<ServerFieldError | null>(null);
+  // Rows with an itemized breakdown (a vendor check covering several bills,
+  // or one employee's payroll spread across jobs) that are currently open.
+  const [expandedKeys, setExpandedKeys] = useState<Set<string>>(new Set());
+  const toggleExpanded = (key: string) =>
+    setExpandedKeys((prev) => {
+      const next = new Set(prev);
+      next.has(key) ? next.delete(key) : next.add(key);
+      return next;
+    });
   const [editingId, setEditingId] = useState<number | null>(null);
   const [confirmAction, setConfirmAction] = useState<
     | { kind: "delete"; transactionId: number; label: string; description: string | null }
@@ -443,6 +504,17 @@ export default function AccountRegister() {
         amountCents: number;
         /** Non-null when this entry was previously voided. */
         voidedAmountCents: number | null;
+        /**
+         * Itemized breakdown shown when the row is expanded: the bills one
+         * vendor check settled, or the jobs one employee's payroll covered.
+         */
+        items: Array<{ key: string; label: string; href: string | null; amountCents: number }>;
+        /** Stable key for the expand/collapse state. */
+        rowKey: string;
+        /** Payroll run this (grouped) row came from, when any. */
+        payrollRunId: number | null;
+        /** Number of ledger lines folded into this row (1 for a plain entry). */
+        lineCount: number;
       }
     | { kind: "divider" };
 
@@ -452,6 +524,11 @@ export default function AccountRegister() {
   if (data) {
     let running = 0;
     const lines = data.lines;
+    // Payroll posts one ledger line per employee per job. In the checkbook
+    // that reads as noise, so fold each employee's lines for a run into one
+    // row (the way the payroll company's debit will show a per-person total)
+    // with the per-job split available on expand.
+    const payrollRowByKey = new Map<string, Extract<DisplayRow, { kind: "tx" }>>();
 
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
@@ -461,6 +538,50 @@ export default function AccountRegister() {
       if (!dividerInserted && line.date > todayStr) {
         rows.push({ kind: "divider" });
         dividerInserted = true;
+      }
+
+      if (line.payrollRunId != null) {
+        const key = `payroll-${line.payrollRunId}-${line.partyName ?? ""}-${line.date}`;
+        const item = {
+          key: `${line.transactionId}`,
+          label: line.jobName ?? "Unallocated",
+          href: null,
+          amountCents: -line.effectCents,
+        };
+        const existing = payrollRowByKey.get(key);
+        if (existing) {
+          existing.withdrawalCents += line.effectCents < 0 ? -line.effectCents : 0;
+          existing.depositCents += line.effectCents > 0 ? line.effectCents : 0;
+          existing.amountCents += line.amountCents;
+          existing.runningBalanceCents = running;
+          existing.items.push(item);
+          existing.lineCount += 1;
+          continue;
+        }
+        const row: Extract<DisplayRow, { kind: "tx" }> = {
+          kind: "tx",
+          transactionId: line.transactionId,
+          date: line.date,
+          type: line.type,
+          num: line.num,
+          partyName: line.partyName,
+          description: line.description,
+          otherAccountName: line.otherAccountName,
+          withdrawalCents: line.effectCents < 0 ? -line.effectCents : 0,
+          depositCents: line.effectCents > 0 ? line.effectCents : 0,
+          runningBalanceCents: running,
+          isForecast: line.date > todayStr,
+          clearedStatus: line.clearedStatus,
+          amountCents: line.amountCents,
+          voidedAmountCents: line.voidedAmountCents ?? null,
+          items: [item],
+          rowKey: key,
+          payrollRunId: line.payrollRunId,
+          lineCount: 1,
+        };
+        payrollRowByKey.set(key, row);
+        rows.push(row);
+        continue;
       }
 
       rows.push({
@@ -479,6 +600,17 @@ export default function AccountRegister() {
         clearedStatus: line.clearedStatus,
         amountCents: line.amountCents,
         voidedAmountCents: line.voidedAmountCents ?? null,
+        items: (line.checkItems ?? []).map((item) => ({
+          key: `bill-${item.billId}`,
+          label: [item.billNumber || `Bill #${item.billId}`, item.jobName]
+            .filter(Boolean)
+            .join(" · "),
+          href: `/bills/${item.billId}`,
+          amountCents: item.amountCents,
+        })),
+        rowKey: `tx-${line.transactionId}`,
+        payrollRunId: null,
+        lineCount: 1,
       });
     }
 
@@ -521,13 +653,6 @@ export default function AccountRegister() {
         </div>
 
         <div className="flex items-start gap-4">
-          <Button
-            variant="outline"
-            onClick={() => setIsTransferOpen(true)}
-            data-testid="button-register-new-transfer"
-          >
-            <ArrowLeftRight className="mr-2 h-4 w-4" /> Transfer
-          </Button>
           <Button
             className="bg-blue-600 hover:bg-blue-700"
             onClick={() => setIsCreateOpen(true)}
@@ -659,10 +784,13 @@ export default function AccountRegister() {
                       .filter(Boolean)
                       .join(" — ");
                     const voided = isVoided(row.description);
+                    const expandable = row.items.length > 1 || (row.items.length === 1 && row.items[0].href != null);
+                    const expanded = expandable && expandedKeys.has(row.rowKey);
+                    const isPayrollGroup = row.payrollRunId != null;
 
                     return (
+                      <Fragment key={`${row.rowKey}-${i}`}>
                       <tr
-                        key={`${row.transactionId}-${i}`}
                         className={`
                           border-b border-slate-100 last:border-0
                           ${row.isForecast ? "bg-blue-50/40 hover:bg-blue-50/70" : "bg-white hover:bg-slate-50/60"}
@@ -717,14 +845,35 @@ export default function AccountRegister() {
                         </td>
 
                         {/* Payee / Description */}
-                        <td className="px-3 py-2 text-slate-800 max-w-[240px]">
-                          {payee ? (
-                            <span className={`line-clamp-1 text-xs ${voided ? "text-slate-400 line-through decoration-slate-300" : ""}`}>
-                              {payee}
-                            </span>
-                          ) : (
-                            <span className="text-slate-300 text-xs">—</span>
-                          )}
+                        <td className="px-3 py-2 text-slate-800 max-w-[260px]">
+                          <div className="flex items-center gap-1.5">
+                            {expandable && (
+                              <button
+                                type="button"
+                                onClick={() => toggleExpanded(row.rowKey)}
+                                className="flex-shrink-0 inline-flex h-5 w-5 items-center justify-center rounded text-slate-500 hover:bg-slate-200"
+                                title={expanded ? "Hide itemized list" : `Show what this ${isPayrollGroup ? "payroll entry" : "check"} covers`}
+                                aria-expanded={expanded}
+                                data-testid={`button-expand-${row.transactionId}`}
+                              >
+                                {expanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                              </button>
+                            )}
+                            {payee ? (
+                              <span className={`line-clamp-1 text-xs ${voided ? "text-slate-400 line-through decoration-slate-300" : ""}`}>
+                                {payee}
+                              </span>
+                            ) : (
+                              <span className="text-slate-300 text-xs">—</span>
+                            )}
+                            {expandable && (
+                              <span className="flex-shrink-0 text-[10px] text-slate-400 whitespace-nowrap">
+                                {isPayrollGroup
+                                  ? `${row.items.length} job${row.items.length !== 1 ? "s" : ""}`
+                                  : `${row.items.length} bill${row.items.length !== 1 ? "s" : ""}`}
+                              </span>
+                            )}
+                          </div>
                         </td>
 
                         {/* Other Account */}
@@ -767,6 +916,17 @@ export default function AccountRegister() {
 
                         {/* Actions */}
                         <td className="px-3 py-2">
+                          {isPayrollGroup ? (
+                            <div className="flex items-center justify-end">
+                              <Link
+                                href={`/payroll/${row.payrollRunId}`}
+                                className="text-xs text-blue-600 hover:underline whitespace-nowrap"
+                                title="Payroll entries are managed from the payroll run"
+                              >
+                                Payroll run
+                              </Link>
+                            </div>
+                          ) : (
                           <div className="flex items-center gap-1 justify-end">
                             <Button
                               variant="ghost"
@@ -844,8 +1004,39 @@ export default function AccountRegister() {
                               <Trash2 className="h-3.5 w-3.5" />
                             </Button>
                           </div>
+                          )}
                         </td>
                       </tr>
+                      {expanded &&
+                        row.items.map((item) => (
+                          <tr
+                            key={`${row.rowKey}-${item.key}`}
+                            className="bg-slate-50/70 border-b border-slate-100 text-xs"
+                            data-testid={`row-register-item-${row.transactionId}-${item.key}`}
+                          >
+                            <td />
+                            <td colSpan={3} />
+                            <td className="px-3 py-1.5 text-slate-600" colSpan={2}>
+                              <span className="text-slate-300 mr-2">↳</span>
+                              {item.href ? (
+                                <Link href={item.href} className="text-blue-600 hover:underline">
+                                  {item.label}
+                                </Link>
+                              ) : (
+                                item.label
+                              )}
+                            </td>
+                            <td className="px-3 py-1.5 text-right tabular-nums text-slate-600">
+                              {item.amountCents > 0 ? fmtDollars(item.amountCents) : ""}
+                            </td>
+                            <td className="px-3 py-1.5 text-right tabular-nums text-slate-600">
+                              {item.amountCents < 0 ? fmtDollars(-item.amountCents) : ""}
+                            </td>
+                            <td />
+                            <td />
+                          </tr>
+                        ))}
+                      </Fragment>
                     );
                   })}
                 </tbody>
@@ -883,23 +1074,6 @@ export default function AccountRegister() {
           )}
         </CardContent>
       </Card>
-
-      {/* transfer dialog */}
-      <Dialog open={isTransferOpen} onOpenChange={setIsTransferOpen}>
-        <DialogContent className="sm:max-w-[520px]">
-          <DialogHeader>
-            <DialogTitle>Record a Transfer</DialogTitle>
-          </DialogHeader>
-          <TransferForm
-            defaultFromAccountId={Number.isFinite(accountId) ? String(accountId) : undefined}
-            onSuccess={() => {
-              invalidate();
-              setIsTransferOpen(false);
-            }}
-            onCancel={() => setIsTransferOpen(false)}
-          />
-        </DialogContent>
-      </Dialog>
 
       {/* create dialog */}
       <Dialog

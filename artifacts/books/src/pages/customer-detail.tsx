@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useParams, Link } from "wouter";
 import {
   useGetCustomer,
@@ -23,6 +23,16 @@ import {
 } from "@/components/ui/dialog";
 import { CustomerForm } from "@/components/forms/customer-form";
 import { ArrowLeft, Pencil } from "lucide-react";
+import { SearchInput, SortSelect, sortItems, byText, byNumber, type SortOption } from "@/components/list-controls";
+
+type CustomerJobRow = { id: number; name: string; poNumber?: string | null; contractAmountCents: number; profitCents: number };
+
+const CUSTOMER_JOB_SORT_OPTIONS: SortOption<CustomerJobRow>[] = [
+  { value: "name-asc", label: "Job name A → Z", compare: byText((j) => j.name) },
+  { value: "name-desc", label: "Job name Z → A", compare: byText((j) => j.name, -1) },
+  { value: "newest", label: "Newest first", compare: byNumber((j) => j.id, -1) },
+  { value: "contract-desc", label: "Contract (high → low)", compare: byNumber((j) => j.contractAmountCents, -1) },
+];
 import { useQueryClient } from "@tanstack/react-query";
 
 export default function CustomerDetail() {
@@ -57,6 +67,17 @@ export default function CustomerDetail() {
   );
 
   const customerJobs = jobs ?? [];
+  const [jobSearch, setJobSearch] = useState("");
+  const [jobSort, setJobSort] = useState("name-asc");
+  const visibleJobs = useMemo(() => {
+    const q = jobSearch.trim().toLowerCase();
+    const matched = q
+      ? customerJobs.filter((j) =>
+          [j.name, j.poNumber].filter(Boolean).some((f) => String(f).toLowerCase().includes(q)),
+        )
+      : customerJobs;
+    return sortItems(matched, CUSTOMER_JOB_SORT_OPTIONS, jobSort);
+  }, [customerJobs, jobSearch, jobSort]);
 
   // Sum of overpayments across all of this customer's invoices — surfaced so
   // the user can decide to refund or apply credit without scanning invoice rows.
@@ -215,6 +236,15 @@ export default function CustomerDetail() {
           <p className="text-sm text-slate-500 mt-1">Click a job to see its details and transactions.</p>
         </CardHeader>
         <CardContent className="p-0">
+          <div className="flex flex-wrap items-center gap-3 px-4 py-3 border-b bg-slate-50/60">
+            <SearchInput
+              value={jobSearch}
+              onChange={setJobSearch}
+              placeholder="Search this customer's jobs…"
+              testId="customer-jobs-search"
+            />
+            <SortSelect value={jobSort} onChange={setJobSort} options={CUSTOMER_JOB_SORT_OPTIONS} testId="customer-jobs-sort" />
+          </div>
           <Table>
             <TableHeader>
               <TableRow>
@@ -233,12 +263,14 @@ export default function CustomerDetail() {
                 <TableRow>
                   <TableCell colSpan={8} className="text-center py-8 text-slate-500">Loading jobs...</TableCell>
                 </TableRow>
-              ) : customerJobs.length === 0 ? (
+              ) : visibleJobs.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center py-8 text-slate-500">No jobs for this customer yet.</TableCell>
+                  <TableCell colSpan={8} className="text-center py-8 text-slate-500">
+                    {jobSearch.trim() ? "No jobs match your search." : "No jobs for this customer yet."}
+                  </TableCell>
                 </TableRow>
               ) : (
-                customerJobs.map((job) => (
+                visibleJobs.map((job) => (
                   <TableRow key={job.id} className="hover:bg-slate-50">
                     <TableCell className="font-medium">
                       <Link href={`/jobs/${job.id}`} className="text-blue-600 hover:underline">
