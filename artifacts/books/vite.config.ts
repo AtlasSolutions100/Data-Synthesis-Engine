@@ -2,7 +2,18 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import path from "path";
+import fs from "fs";
 import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
+
+// One `.env` at the repo root serves both apps. Vite only exposes VITE_* keys
+// to the browser bundle; PORT and BASE_PATH below are read by this config at
+// build/dev time, so load the file into process.env first. Existing
+// environment variables (Replit Secrets, CI, a hosting dashboard) win.
+const repoRoot = path.resolve(import.meta.dirname, "..", "..");
+const rootEnvFile = path.join(repoRoot, ".env");
+if (fs.existsSync(rootEnvFile) && typeof process.loadEnvFile === "function") {
+  process.loadEnvFile(rootEnvFile);
+}
 
 const rawPort = process.env.PORT;
 
@@ -28,6 +39,8 @@ if (!basePath) {
 
 export default defineConfig({
   base: basePath,
+  // VITE_* keys come from the repo-root .env (shared with the API server).
+  envDir: repoRoot,
   plugins: [
     react(),
     tailwindcss({ optimize: false }),
