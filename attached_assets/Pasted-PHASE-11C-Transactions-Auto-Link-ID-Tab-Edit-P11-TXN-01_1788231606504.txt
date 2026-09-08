@@ -1,0 +1,35 @@
+PHASE 11C — Transactions Auto-Link
+ID	Tab	Edit	
+P11-TXN-01	Transactions → "unlinked bills" queue	Auto-link bills to their invoice/job when the invoice number is already present and matches, instead of forcing Mike to manually confirm every one (he hit 67 unlinked entries needing individual review). Verification should be the exception, not the default, when the system already has enough matching information.	
+✅ Phase 11C QA — Transactions Auto-Link
+ Bills with a clear matching invoice number auto-link, no manual step
+ Only ambiguous/no-match entries appear in the review queue
+ Queue count drops sharply from the current ~67 baseline on the same dataset
+PHASE 11D — Split Payments Across Jobs/Invoices + Retention
+ID	Tab	Edit	Acceptance criteria
+P11-PAY-01	Checking (transaction) → Edit	Split a single deposit across multiple invoices/jobs. When one customer check covers multiple jobs (common for Mike), let him apply portions of that one payment against two or more existing invoice numbers so each job's "paid" amount is accurate.	Edit a deposit → add a second line → apply part of the total to Invoice A and part to Invoice B; both invoices reflect the correct partial/full payment.
+P11-PAY-02	Checking (transaction) → Edit	Invoice selection for a split payment must pull from existing invoices only (dropdown of real invoice numbers) — if the invoice doesn't exist yet, prompt Mike to create it first rather than allowing a mismatch.	Split-payment dropdown only lists real, existing invoice numbers; no free-text mismatch possible.
+P11-PAY-03	Invoice / job balance	Support retention / partial payment tracking. When a customer (typically a general contractor) withholds a retention percentage, the invoice should show a running balance — what's been paid vs. what's still owed — rather than needing to match exactly or appear as an error. This is Mike's "partially paid" status, mirrored from his QuickBooks flow.	Applying a payment less than the full invoice amount (due to retention) marks the invoice "Partially Paid" with a visible remaining balance; does not block reconciliation.
+P11-PAY-04	Job / invoice report	Remaining retention balance is visible on a report / job view so Mike can see what's still owed him once the job is out of active billing but retention is outstanding.	A job with a partial-payment invoice shows the outstanding retention balance on its summary or a report.
+✅ Phase 11D QA — Split Payments & Retention
+ One deposit splits cleanly across 2+ invoices
+ Split payment dropdown only offers real existing invoices
+ Partial payment (retention) marks invoice "Partially Paid" with correct remaining balance
+ Retention balance visible on job/report view
+PHASE 11E — Subcontractor Expense Line-Item Coding
+ID	Tab	Edit	Acceptance criteria
+P11-SUB-01	Bills → upload	Itemize line items by job, but ONLY for subcontractor/temp-labor expense bills (e.g. Worker B temp agency), not universally. Mike was explicit: doing this for every bill (e.g. a 22-line CES bill) would be far too much manual work. Scope the itemization trigger to the subcontractor/temp-labor account category specifically.	Uploading a Worker B (subcontractor) bill with multiple workers/jobs prompts per-line job assignment. Uploading a standard materials bill (e.g. CES) does NOT prompt per-line job assignment.
+P11-SUB-02	Bills → upload (subcontractor)	Each line item in a subcontractor bill should retain its worker name as a note while being codeable to the correct job — both pieces of information matter to Mike (who worked where, and what it cost that job).	A subcontractor bill line shows both the worker's name (note) and is assigned to a specific job.
+✅ Phase 11E QA — Subcontractor Line-Item Coding
+ Worker B / subcontractor bill triggers per-line job itemization
+ Standard vendor bill (CES, Home Depot, etc.) does NOT trigger per-line itemization
+ Each itemized line keeps the worker-name note and its job assignment
+PHASE 11F — Job Name Aliasing
+ID	Tab	Edit	Acceptance criteria
+P11-JOB-01	Jobs / upload matching	Support job name aliases. A job may be referred to by an old/informal name (e.g. "Kip High School") that doesn't match its system name (e.g. "Ritual"). When AI encounters an unrecognized job name on an upload, flag it and let Mike map it to the correct existing job — and remember that mapping going forward.	Uploading a bill referencing "Kip High School" flags as unrecognized, Mike maps it to "Ritual" once, and future uploads with "Kip" auto-resolve to Ritual.
+✅ Phase 11F QA — Job Aliasing
+ Unrecognized job name on upload flags for mapping, doesn't silently create a new job
+ Once mapped, the alias resolves automatically on subsequent uploads
+PHASE 11G — Global Polish
+ID	Scope	Edit	
+P11-BILL-05	Bills → list view	Add sort and search by vendor, invoice all views with a listview should incorporate list (and keep existing search) on the bills list. Mike wants to browse alphabetically by vendor, not just search by exact term.	Bills list can be sorted alphabetically by vendor name; search still works as before.

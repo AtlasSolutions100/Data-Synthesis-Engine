@@ -52,7 +52,12 @@ const clerkPubKey = publishableKeyFromHost(
   import.meta.env.VITE_CLERK_PUBLISHABLE_KEY,
 );
 
-const clerkProxyUrl = import.meta.env.VITE_CLERK_PROXY_URL;
+// The Clerk proxy is a production-only path. A proxy URL can still be present
+// in the shared environment while preview is running, but the dev API server
+// intentionally does not mount the production proxy.
+const clerkProxyUrl = import.meta.env.PROD
+  ? import.meta.env.VITE_CLERK_PROXY_URL
+  : undefined;
 
 function stripBase(path: string): string {
   return basePath && path.startsWith(basePath)
