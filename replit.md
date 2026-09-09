@@ -9,7 +9,7 @@ A desktop-first, browser-based job-costing and construction-accounting app that 
 - `pnpm run typecheck` — full typecheck across all packages
 - `pnpm run build` — typecheck + build all packages
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
-- `pnpm --filter @workspace/db run push` — push DB schema changes (dev only). There are no migration files by design: production schema changes are applied automatically as a diff when the app is Published (Replit deploy), so a table pushed in dev reaches prod at the next Publish.
+- `pnpm --filter @workspace/db run push` — push DB schema changes to the DEVELOPMENT database. There are no migration files by design: at Publish, Replit's Promote step diffs the development database against production and applies the difference. Always run this push in the workspace shell before publishing; if dev is behind prod, Promote proposes DROP statements for the newer tables — cancel the deployment if you ever see one.
 - Required env: `DATABASE_URL`, `CLERK_SECRET_KEY`, `CLERK_PUBLISHABLE_KEY`, `VITE_CLERK_PUBLISHABLE_KEY`
 - Optional env: `INBOUND_EMAIL_TOKEN` — shared secret for the public `POST /api/inbound-email` webhook (the books inbox). Point the mail provider's inbound-parse webhook (Postmark inbound JSON, or a generic `{from, subject, text, attachments[{fileName, contentType, contentBase64}]}` payload) at `https://<app>/api/inbound-email?token=<INBOUND_EMAIL_TOKEN>`. Attachments go to object storage when `PRIVATE_OBJECT_DIR` is set, otherwise they are kept inline (≤10 MB each).
 
