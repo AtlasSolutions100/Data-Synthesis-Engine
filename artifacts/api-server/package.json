@@ -12,6 +12,7 @@
     "backfill-split-accounts": "tsx ./scripts/backfill-split-accounts.ts",
     "set-field-tech-rates": "tsx ./scripts/set-field-tech-rates.ts",
     "cleanup-orphaned-uploads": "tsx ./scripts/cleanup-orphaned-uploads.ts",
+    "import-json-export": "tsx ./scripts/import-json-export.ts",
     "test": "vitest run",
     "typecheck": "tsc -b ../../lib/db ../../lib/api-zod ../../lib/integrations-openai-ai-server && tsc -p tsconfig.json --noEmit"
   },

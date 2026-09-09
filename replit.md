@@ -40,6 +40,15 @@ A desktop-first, browser-based job-costing and construction-accounting app that 
 - **Job nicknames (`job_aliases`).** `PUT /jobs/:id/aliases` replaces a job's aliases; a normalized alias belongs to one job (latest mapping wins). `Job.aliases` rides on list/detail. The bill and time-card extraction prompts include a KNOWN JOBS section with aliases so the model returns real job names; the frontend matchers treat an exact alias as a confident match; and whenever Mike resolves an unrecognized job name by hand in the bill review or hours import, the alias is remembered automatically (`lib/job-aliases.ts`). Managed on the job detail page ("Also known as").
 - **AI extraction runs with `reasoning_effort: "low"`** (bills, hours, employees) and the bill uploader reads up to three files concurrently.
 
+### Load a Replit table export (JSON per table)
+
+```
+pnpm --filter @workspace/api-server run import-json-export -- /path/to/export --dry-run
+pnpm --filter @workspace/api-server run import-json-export -- /path/to/export --owner you@example.com
+```
+
+Preserves ids, skips rows that already exist, trims timestamp dates to YYYY-MM-DD, resets sequences, and drops integration-test fixtures (TEST-/Test names, @example.com users, payroll runs dated 2090+) plus anything whose parent was dropped. `--wipe` truncates first (empty databases only); `--keep-tests` keeps fixtures. The Replit dev and production databases are separate: export from Production for the client's real books.
+
 ### Re-seed historical QuickBooks data (one-time / idempotent)
 
 ```
