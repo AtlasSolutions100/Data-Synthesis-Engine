@@ -22,6 +22,8 @@ export interface Job {
   customerName?: string | null;
   /** True when this record was created by the Practice / Demo Data loader */
   isDemo: boolean;
+  /** Nicknames that resolve to this job on bill / time-card uploads */
+  aliases?: string[];
   /** @nullable */
   description?: string | null;
   status: JobStatus;

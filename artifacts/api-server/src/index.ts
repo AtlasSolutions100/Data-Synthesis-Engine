@@ -13,6 +13,7 @@ import { consolidateHomedepotAccountAtStartup } from "./lib/consolidateHomedepot
 import { ensureAccountNumberUniquenessAtStartup } from "./lib/ensureAccountNumberUniqueness";
 import { ensureAllied2026 } from "./lib/ensureAllied2026";
 import { runBillVendorAccountBackfillAtStartup } from "./lib/billVendorAccountBackfill";
+import { repairPayrollPostedToSavingsAtStartup } from "./lib/payrollSavingsRepair";
 
 const rawPort = process.env["PORT"];
 
@@ -60,6 +61,10 @@ app.listen(port, (err) => {
   // their source bill (vendor + bill number + date, amount-verified).
   // Idempotent; only populates transactions.bill_id, never amounts.
   void runBillLinkBackfillAtStartup();
+
+  // One-time data repair: payroll that older builds posted through a
+  // savings account moves to checking. Idempotent; no-ops when clean.
+  void repairPayrollPostedToSavingsAtStartup();
 
   // Periodically reclaim orphaned uploads (objects with no document row).
   // Only meaningful when object storage is configured.

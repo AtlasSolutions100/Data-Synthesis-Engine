@@ -860,6 +860,33 @@ paths:
           description: Deleted
         "404":
           $ref: "#/components/responses/Error"
+  /jobs/{id}/aliases:
+    put:
+      operationId: setJobAliases
+      tags: [jobs]
+      summary: Replace the nicknames that resolve to this job on uploads
+      description: >-
+        Aliases are the informal names the crew or a vendor uses for a job
+        ("Founders" for the Rose Parking Garage). Bill and time-card
+        extraction resolve them automatically. A nickname can belong to only
+        one job; sending one that another job already owns moves it here.
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JobAliasesInput"
+      responses:
+        "200":
+          description: The job with its updated aliases
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Job"
+        "404":
+          $ref: "#/components/responses/Error"
   /jobs/{id}/cost-summary:
     get:
       operationId: getJobCostSummary
@@ -3079,6 +3106,11 @@ components:
         isDemo:
           type: boolean
           description: True when this record was created by the Practice / Demo Data loader
+        aliases:
+          type: array
+          items:
+            type: string
+          description: Nicknames that resolve to this job on bill / time-card uploads
         description:
           type: ["string", "null"]
         status:
@@ -3117,6 +3149,15 @@ components:
         lastInvoicedDate:
           type: ["string", "null"]
           description: Date of the most recent invoice for this job (YYYY-MM-DD)
+    JobAliasesInput:
+      type: object
+      required: [aliases]
+      properties:
+        aliases:
+          type: array
+          items:
+            type: string
+            maxLength: 120
     JobInput:
       type: object
       required: [name]

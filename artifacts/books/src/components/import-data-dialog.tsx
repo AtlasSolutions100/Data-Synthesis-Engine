@@ -374,7 +374,7 @@ export function ImportDataDialog({
         ) : (
           <Upload className="mr-2 h-4 w-4" />
         )}
-        Import
+        Import Spreadsheet
       </Button>
 
       <Dialog open={open} onOpenChange={(o) => !o && setOpen(false)}>

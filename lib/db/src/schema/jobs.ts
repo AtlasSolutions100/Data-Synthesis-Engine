@@ -38,6 +38,30 @@ export const jobsTable = pgTable("jobs", {
     .$onUpdate(() => new Date()),
 });
 
+/**
+ * Nicknames the crew (or a vendor) uses for a job — "Founders" for the Rose
+ * Parking Garage, "Ritual" for Rachel. Bill and time-card extraction resolve
+ * these to the real job automatically; a new alias is remembered the first
+ * time Mike maps an unrecognized name to a job in a review screen.
+ */
+export const jobAliasesTable = pgTable(
+  "job_aliases",
+  {
+    id: serial("id").primaryKey(),
+    jobId: integer("job_id")
+      .notNull()
+      .references(() => jobsTable.id, { onDelete: "cascade" }),
+    alias: text("alias").notNull(),
+    /** lower-cased, whitespace-collapsed alias; one job per nickname. */
+    normalized: text("normalized").notNull().unique(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+);
+
+export type JobAlias = typeof jobAliasesTable.$inferSelect;
+
 export const insertJobSchema = createInsertSchema(jobsTable).omit({
   id: true,
   createdAt: true,

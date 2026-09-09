@@ -188,6 +188,9 @@ router.post("/employees/extract", async (req, res): Promise<void> => {
     const completion = await openai.chat.completions.create({
       model: "gpt-5-mini",
       max_completion_tokens: 8192,
+      // Reading a form is extraction, not reasoning: low effort cuts the
+      // wait from tens of seconds to a few without changing what is read.
+      reasoning_effort: "low",
       response_format: { type: "json_object" },
       messages: [
         { role: "system", content: EXTRACT_EMPLOYEES_SYSTEM_PROMPT },

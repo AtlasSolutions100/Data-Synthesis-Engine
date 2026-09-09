@@ -5,6 +5,8 @@ export type JobOption = {
   name: string;
   poNumber?: string | null;
   customerId?: number | null;
+  /** Nicknames the crew / vendors use; an exact alias match is as good as the name. */
+  aliases?: string[] | null;
 };
 
 export type ExtractedJobMatch = {
@@ -49,6 +51,14 @@ export function matchExtractedJob(
       };
     }
     return { job: null, confident: false, note: null };
+  }
+  // A remembered nickname is an explicit mapping Mike confirmed before, so it
+  // wins outright — even when the nickname looks like a person's name.
+  const aliasHits = jobs.filter((j) =>
+    (j.aliases ?? []).some((a) => norm(a) === norm(jobName)),
+  );
+  if (aliasHits.length === 1) {
+    return { job: aliasHits[0], confident: true, note: null };
   }
   const personLike = looksLikePersonName(jobName);
   const exact = jobs.filter((j) => norm(j.name) === norm(jobName));

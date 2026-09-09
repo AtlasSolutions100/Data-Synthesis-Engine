@@ -868,6 +868,7 @@ export const ListJobsResponseItem = zod.object({
   "customerId": zod.number().nullish(),
   "customerName": zod.string().nullish(),
   "isDemo": zod.boolean().describe('True when this record was created by the Practice \/ Demo Data loader'),
+  "aliases": zod.array(zod.string()).optional().describe('Nicknames that resolve to this job on bill \/ time-card uploads'),
   "description": zod.string().nullish(),
   "status": zod.enum(['active', 'completed', 'on_hold', 'inactive']),
   "inactiveNote": zod.string().nullish().describe('Why the job was made inactive; kept after reactivation'),
@@ -911,6 +912,7 @@ export const CreateJobResponse = zod.object({
   "customerId": zod.number().nullish(),
   "customerName": zod.string().nullish(),
   "isDemo": zod.boolean().describe('True when this record was created by the Practice \/ Demo Data loader'),
+  "aliases": zod.array(zod.string()).optional().describe('Nicknames that resolve to this job on bill \/ time-card uploads'),
   "description": zod.string().nullish(),
   "status": zod.enum(['active', 'completed', 'on_hold', 'inactive']),
   "inactiveNote": zod.string().nullish().describe('Why the job was made inactive; kept after reactivation'),
@@ -961,6 +963,7 @@ export const GetJobResponse = zod.object({
   "customerId": zod.number().nullish(),
   "customerName": zod.string().nullish(),
   "isDemo": zod.boolean().describe('True when this record was created by the Practice \/ Demo Data loader'),
+  "aliases": zod.array(zod.string()).optional().describe('Nicknames that resolve to this job on bill \/ time-card uploads'),
   "description": zod.string().nullish(),
   "status": zod.enum(['active', 'completed', 'on_hold', 'inactive']),
   "inactiveNote": zod.string().nullish().describe('Why the job was made inactive; kept after reactivation'),
@@ -1008,6 +1011,7 @@ export const UpdateJobResponse = zod.object({
   "customerId": zod.number().nullish(),
   "customerName": zod.string().nullish(),
   "isDemo": zod.boolean().describe('True when this record was created by the Practice \/ Demo Data loader'),
+  "aliases": zod.array(zod.string()).optional().describe('Nicknames that resolve to this job on bill \/ time-card uploads'),
   "description": zod.string().nullish(),
   "status": zod.enum(['active', 'completed', 'on_hold', 'inactive']),
   "inactiveNote": zod.string().nullish().describe('Why the job was made inactive; kept after reactivation'),
@@ -1032,6 +1036,47 @@ export const DeleteJobParams = zod.object({
 })
 
 export const DeleteJobResponse = zod.void()
+
+
+/**
+ * Aliases are the informal names the crew or a vendor uses for a job ("Founders" for the Rose Parking Garage). Bill and time-card extraction resolve them automatically. A nickname can belong to only one job; sending one that another job already owns moves it here.
+ * @summary Replace the nicknames that resolve to this job on uploads
+ */
+export const SetJobAliasesParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const setJobAliasesBodyAliasesItemMax = 120;
+
+
+
+export const SetJobAliasesBody = zod.object({
+  "aliases": zod.array(zod.string().max(setJobAliasesBodyAliasesItemMax))
+})
+
+export const SetJobAliasesResponse = zod.object({
+  "id": zod.number(),
+  "jobNumber": zod.string(),
+  "name": zod.string(),
+  "poNumber": zod.string().nullish().describe('Customer purchase order number for this job'),
+  "customerId": zod.number().nullish(),
+  "customerName": zod.string().nullish(),
+  "isDemo": zod.boolean().describe('True when this record was created by the Practice \/ Demo Data loader'),
+  "aliases": zod.array(zod.string()).optional().describe('Nicknames that resolve to this job on bill \/ time-card uploads'),
+  "description": zod.string().nullish(),
+  "status": zod.enum(['active', 'completed', 'on_hold', 'inactive']),
+  "inactiveNote": zod.string().nullish().describe('Why the job was made inactive; kept after reactivation'),
+  "contractAmountCents": zod.number().describe('Contract value in integer cents'),
+  "incomeCents": zod.number().describe('Billed income in cents (computed from line items)'),
+  "costCents": zod.number().describe('Total cost in cents (computed from line items)'),
+  "profitCents": zod.number().describe('incomeCents minus costCents'),
+  "remainingCents": zod.number().describe('contractAmountCents minus costCents (contract budget remaining)'),
+  "billedToDateCents": zod.number().describe('Sum of invoice line items billed against this job, in cents'),
+  "remainingContractCents": zod.number().describe('contractAmountCents minus billedToDateCents (left to bill)'),
+  "overUnderBillingCents": zod.number().describe('billedToDateCents minus costCents (positive = overbilled, negative = underbilled)'),
+  "invoiceCount": zod.number().optional().describe('Number of invoices billed against this job'),
+  "lastInvoicedDate": zod.string().nullish().describe('Date of the most recent invoice for this job (YYYY-MM-DD)')
+})
 
 
 /**
@@ -1443,6 +1488,7 @@ export const GetDashboardSummaryResponse = zod.object({
   "customerId": zod.number().nullish(),
   "customerName": zod.string().nullish(),
   "isDemo": zod.boolean().describe('True when this record was created by the Practice \/ Demo Data loader'),
+  "aliases": zod.array(zod.string()).optional().describe('Nicknames that resolve to this job on bill \/ time-card uploads'),
   "description": zod.string().nullish(),
   "status": zod.enum(['active', 'completed', 'on_hold', 'inactive']),
   "inactiveNote": zod.string().nullish().describe('Why the job was made inactive; kept after reactivation'),

@@ -87,6 +87,7 @@ import type {
   InvoicePaymentInput,
   InvoiceUpdate,
   Job,
+  JobAliasesInput,
   JobCostSummary,
   JobDocument,
   JobDocumentInput,
@@ -3388,6 +3389,78 @@ export const useDeleteJob = <TError = ErrorType<ErrorResponse>,
         TContext
       > => {
       return useMutation(getDeleteJobMutationOptions(options));
+    }
+
+export const getSetJobAliasesUrl = (id: number,) => {
+
+
+
+
+  return `/api/jobs/${id}/aliases`
+}
+
+/**
+ * Aliases are the informal names the crew or a vendor uses for a job ("Founders" for the Rose Parking Garage). Bill and time-card extraction resolve them automatically. A nickname can belong to only one job; sending one that another job already owns moves it here.
+ * @summary Replace the nicknames that resolve to this job on uploads
+ */
+export const setJobAliases = async (id: number,
+    jobAliasesInput: JobAliasesInput, options?: RequestInit): Promise<Job> => {
+
+  return customFetch<Job>(getSetJobAliasesUrl(id),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(jobAliasesInput)
+  }
+);}
+
+
+
+
+export const getSetJobAliasesMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setJobAliases>>, TError,{id: number;data: BodyType<JobAliasesInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof setJobAliases>>, TError,{id: number;data: BodyType<JobAliasesInput>}, TContext> => {
+
+const mutationKey = ['setJobAliases'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof setJobAliases>>, {id: number;data: BodyType<JobAliasesInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  setJobAliases(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SetJobAliasesMutationResult = NonNullable<Awaited<ReturnType<typeof setJobAliases>>>
+    export type SetJobAliasesMutationBody = BodyType<JobAliasesInput>
+    export type SetJobAliasesMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Replace the nicknames that resolve to this job on uploads
+ */
+export const useSetJobAliases = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setJobAliases>>, TError,{id: number;data: BodyType<JobAliasesInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof setJobAliases>>,
+        TError,
+        {id: number;data: BodyType<JobAliasesInput>},
+        TContext
+      > => {
+      return useMutation(getSetJobAliasesMutationOptions(options));
     }
 
 export const getGetJobCostSummaryUrl = (id: number,) => {

@@ -134,6 +134,7 @@ export * from './invoicePaymentMethod';
 export * from './invoiceStatus';
 export * from './invoiceUpdate';
 export * from './job';
+export * from './jobAliasesInput';
 export * from './jobCostSummary';
 export * from './jobDocument';
 export * from './jobDocumentCategory';

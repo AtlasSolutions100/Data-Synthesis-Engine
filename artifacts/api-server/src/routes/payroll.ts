@@ -41,6 +41,7 @@ import {
 // unconfigured integration never crashes unrelated payroll routes at startup.
 import { computeLine, type BurdenRates } from "../lib/payroll";
 import { formatDollars } from "../lib/money";
+import { listKnownJobsForPrompt } from "./bills";
 import { COST_TYPES, dateRangeConds } from "../lib/finance";
 
 const router: IRouter = Router();
@@ -291,7 +292,7 @@ async function validatePaymentAccount(
  * account, so a chart where savings happens to carry that number can never
  * pull every payroll deduction into the savings register.
  */
-async function resolveDefaultPaymentAccountId(): Promise<number | null> {
+export async function resolveDefaultPaymentAccountId(): Promise<number | null> {
   const banks = await db
     .select({
       id: accountsTable.id,
@@ -1360,14 +1361,23 @@ router.post("/payroll/extract-hours", async (req, res): Promise<void> => {
     userParts.push(filePart);
   }
 
+  // Job names + crew nicknames, so "Founders" comes back as the real job.
+  const knownJobs = await listKnownJobsForPrompt();
+  const hoursSystemPrompt = knownJobs
+    ? `${EXTRACT_SYSTEM_PROMPT}\n\n${knownJobs}`
+    : EXTRACT_SYSTEM_PROMPT;
+
   let content: string;
   try {
     const completion = await openai.chat.completions.create({
       model: "gpt-5-mini",
       max_completion_tokens: 8192,
+      // Reading a form is extraction, not reasoning: low effort cuts the
+      // wait from tens of seconds to a few without changing what is read.
+      reasoning_effort: "low",
       response_format: { type: "json_object" },
       messages: [
-        { role: "system", content: EXTRACT_SYSTEM_PROMPT },
+        { role: "system", content: hoursSystemPrompt },
         // Cast: the OpenAI SDK's union type for content parts lags behind the
         // API, which accepts file parts on chat completions.
         {

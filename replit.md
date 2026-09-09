@@ -28,6 +28,9 @@ A desktop-first, browser-based job-costing and construction-accounting app that 
 - **Bank statement matching understands payroll lump sums.** When a statement line matches no single ledger line, the matcher tries the summed lines of one payroll run (same run id, ±1 day) and clears them all. The checking register folds each employee's per-job lines into one expandable row.
 - **Transfers were removed from the register UI** (the client only ever moves checking→savings and records that by hand). `POST /transactions/transfer` still exists for existing rows.
 - **The Transactions review queue only lists imported `bill` rows that have an invoice number AND are missing vendor or job/customer coding**; fully coded rows never need "verification". The review and legacy-split buttons hide themselves when empty.
+- **Payroll posted to savings is repaired at startup.** `lib/payrollSavingsRepair.ts` moves payroll ledger rows (and the run's payment account) off any bank account named like "savings" onto the resolved checking account. Idempotent; transaction ids survive so reconciliation clears are kept.
+- **Job nicknames (`job_aliases`).** `PUT /jobs/:id/aliases` replaces a job's aliases; a normalized alias belongs to one job (latest mapping wins). `Job.aliases` rides on list/detail. The bill and time-card extraction prompts include a KNOWN JOBS section with aliases so the model returns real job names; the frontend matchers treat an exact alias as a confident match; and whenever Mike resolves an unrecognized job name by hand in the bill review or hours import, the alias is remembered automatically (`lib/job-aliases.ts`). Managed on the job detail page ("Also known as").
+- **AI extraction runs with `reasoning_effort: "low"`** (bills, hours, employees) and the bill uploader reads up to three files concurrently.
 
 ### Re-seed historical QuickBooks data (one-time / idempotent)
 

@@ -11,6 +11,7 @@ import {
   billImportDraftsTable,
   vendorsTable,
   jobsTable,
+  jobAliasesTable,
   accountsTable,
   transactionsTable,
   jobDocumentsTable,
@@ -75,6 +76,31 @@ Rules:
 - Ignore remittance addresses, logos, and marketing text.`;
 
 const MAX_EXTRACT_FILE_BYTES = 10 * 1024 * 1024;
+
+/**
+ * "KNOWN JOBS" prompt section: every active job with the nicknames the crew
+ * or vendors use for it, so the model returns the real job name instead of
+ * "Founders" or "Ritual". Null when there are no jobs yet.
+ */
+export async function listKnownJobsForPrompt(): Promise<string | null> {
+  const jobs = await db
+    .select({ id: jobsTable.id, name: jobsTable.name, status: jobsTable.status })
+    .from(jobsTable)
+    .orderBy(jobsTable.name);
+  if (jobs.length === 0) return null;
+  const aliasRows = await db
+    .select({ jobId: jobAliasesTable.jobId, alias: jobAliasesTable.alias })
+    .from(jobAliasesTable);
+  const aliasesByJob = new Map<number, string[]>();
+  for (const r of aliasRows) aliasesByJob.set(r.jobId, [...(aliasesByJob.get(r.jobId) ?? []), r.alias]);
+  const lines = jobs
+    .filter((j) => j.status !== "inactive" || aliasesByJob.has(j.id))
+    .map((j) => {
+      const aliases = aliasesByJob.get(j.id) ?? [];
+      return aliases.length ? `${j.name} (also called: ${aliases.join(", ")})` : j.name;
+    });
+  return `KNOWN JOBS (when the document uses a nickname listed in parentheses, return the real job name exactly as written before it; never invent a job):\n${lines.join("\n")}`;
+}
 
 router.post("/bills/extract", async (req, res): Promise<void> => {
   const rawText = (req.body as { text?: unknown })?.text;
@@ -167,7 +193,7 @@ router.post("/bills/extract", async (req, res): Promise<void> => {
     userParts.push(filePart);
   }
 
-  const [accounts, knownVendors] = await Promise.all([
+  const [accounts, knownVendors, knownJobs] = await Promise.all([
     db
       .select({ id: accountsTable.id, number: accountsTable.number, name: accountsTable.name })
       .from(accountsTable)
@@ -176,8 +202,10 @@ router.post("/bills/extract", async (req, res): Promise<void> => {
       .select({ name: vendorsTable.name })
       .from(vendorsTable)
       .orderBy(vendorsTable.name),
+    listKnownJobsForPrompt(),
   ]);
   const systemPromptParts: string[] = [EXTRACT_BILL_SYSTEM_PROMPT];
+  if (knownJobs) systemPromptParts.push(knownJobs);
   if (accounts.length) {
     systemPromptParts.push(
       `CHART OF ACCOUNTS (number — name):\n${accounts.map((a) => `${a.number} — ${a.name}`).join("\n")}`,
@@ -195,6 +223,9 @@ router.post("/bills/extract", async (req, res): Promise<void> => {
     const completion = await openai.chat.completions.create({
       model: "gpt-5-mini",
       max_completion_tokens: 8192,
+      // Reading a form is extraction, not reasoning: low effort cuts the
+      // wait from tens of seconds to a few without changing what is read.
+      reasoning_effort: "low",
       response_format: { type: "json_object" },
       messages: [
         { role: "system", content: systemPrompt },

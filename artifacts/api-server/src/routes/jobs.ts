@@ -1,8 +1,9 @@
 import { Router, type IRouter } from "express";
-import { and, eq, ne, sql } from "drizzle-orm";
+import { and, eq, ne, sql, inArray } from "drizzle-orm";
 import {
   db,
   jobsTable,
+  jobAliasesTable,
   customersTable,
   transactionsTable,
   accountsTable,
@@ -20,6 +21,8 @@ import {
   GetJobCostSummaryParams,
   GetJobCostSummaryResponse,
   CheckJobDuplicatesQueryParams,
+  SetJobAliasesParams,
+  SetJobAliasesBody,
 } from "@workspace/api-zod";
 import {
   getJobTotalsMap,
@@ -114,12 +117,31 @@ async function getInvoiceStatsMap(
   );
 }
 
+/** Normalize a nickname the way the matcher does: lower-case, one space. */
+export function normalizeAlias(raw: string): string {
+  return raw.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+/** jobId → aliases (display form) for the given jobs, or every job. */
+async function loadAliasMap(jobIds?: number[]): Promise<Map<number, string[]>> {
+  if (jobIds && jobIds.length === 0) return new Map();
+  const rows = await db
+    .select({ jobId: jobAliasesTable.jobId, alias: jobAliasesTable.alias })
+    .from(jobAliasesTable)
+    .where(jobIds ? inArray(jobAliasesTable.jobId, jobIds) : undefined)
+    .orderBy(jobAliasesTable.id);
+  const map = new Map<number, string[]>();
+  for (const r of rows) map.set(r.jobId, [...(map.get(r.jobId) ?? []), r.alias]);
+  return map;
+}
+
 function serializeJob(
   job: JobRow,
   customerName: string | null,
   totals: JobTotals | undefined,
   billedToDateCents: number,
   invoiceStats?: InvoiceStats,
+  aliases: string[] = [],
 ) {
   const incomeCents = totals?.incomeCents ?? 0;
   const costCents = totals?.costCents ?? 0;
@@ -144,6 +166,7 @@ function serializeJob(
     invoiceCount: invoiceStats?.invoiceCount ?? 0,
     lastInvoicedDate: invoiceStats?.lastInvoicedDate ?? null,
     isDemo: job.isDemo,
+    aliases,
   };
 }
 
@@ -186,10 +209,11 @@ router.get("/jobs", async (req, res): Promise<void> => {
   ).orderBy(jobsTable.name);
   const filtered = query.data.customerId != null || !includeInactive;
   const jobIds = filtered ? rows.map((r) => r.job.id) : undefined;
-  const [totals, billing, invoiceStats] = await Promise.all([
+  const [totals, billing, invoiceStats, aliases] = await Promise.all([
     getJobTotalsMap(undefined, jobIds),
     getJobBillingMap(undefined, jobIds),
     getInvoiceStatsMap(jobIds),
+    loadAliasMap(jobIds),
   ]);
   res.json(
     ListJobsResponse.parse(
@@ -200,6 +224,7 @@ router.get("/jobs", async (req, res): Promise<void> => {
           totals.get(r.job.id),
           billing.get(r.job.id) ?? 0,
           invoiceStats.get(r.job.id),
+          aliases.get(r.job.id) ?? [],
         ),
       ),
     ),
@@ -252,10 +277,11 @@ router.get("/jobs/:id", async (req, res): Promise<void> => {
     return;
   }
   const customerName = await fetchCustomerName(job.customerId);
-  const [totalsMap, billing, invoiceStats] = await Promise.all([
+  const [totalsMap, billing, invoiceStats, aliases] = await Promise.all([
     getJobTotalsMap(undefined, [job.id]),
     getJobBillingMap(undefined, [job.id]),
     getInvoiceStatsMap([job.id]),
+    loadAliasMap([job.id]),
   ]);
   res.json(
     GetJobResponse.parse(
@@ -265,6 +291,73 @@ router.get("/jobs/:id", async (req, res): Promise<void> => {
         totalsMap.get(job.id),
         billing.get(job.id) ?? 0,
         invoiceStats.get(job.id),
+        aliases.get(job.id) ?? [],
+      ),
+    ),
+  );
+});
+
+/**
+ * Replace a job's nicknames. Normalized aliases are unique across jobs, so a
+ * nickname handed to this job is taken away from any other job that had it —
+ * the most recent mapping Mike confirmed is the one that sticks. A nickname
+ * equal to the job's own name is dropped (it already matches).
+ */
+router.put("/jobs/:id/aliases", async (req, res): Promise<void> => {
+  const params = SetJobAliasesParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+  const parsed = SetJobAliasesBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+  const [job] = await db
+    .select()
+    .from(jobsTable)
+    .where(eq(jobsTable.id, params.data.id));
+  if (!job) {
+    res.status(404).json({ error: "Job not found" });
+    return;
+  }
+  const seen = new Set<string>();
+  const wanted: Array<{ alias: string; normalized: string }> = [];
+  for (const raw of parsed.data.aliases) {
+    const alias = raw.trim().replace(/\s+/g, " ");
+    const normalized = normalizeAlias(alias);
+    if (!normalized || normalized === normalizeAlias(job.name) || seen.has(normalized)) continue;
+    seen.add(normalized);
+    wanted.push({ alias, normalized });
+  }
+  await db.transaction(async (tx) => {
+    await tx.delete(jobAliasesTable).where(eq(jobAliasesTable.jobId, job.id));
+    if (wanted.length) {
+      await tx
+        .delete(jobAliasesTable)
+        .where(inArray(jobAliasesTable.normalized, wanted.map((w) => w.normalized)));
+      await tx
+        .insert(jobAliasesTable)
+        .values(wanted.map((w) => ({ jobId: job.id, alias: w.alias, normalized: w.normalized })));
+    }
+  });
+  const customerName = await fetchCustomerName(job.customerId);
+  const [totalsMap, billing, invoiceStats, aliases] = await Promise.all([
+    getJobTotalsMap(undefined, [job.id]),
+    getJobBillingMap(undefined, [job.id]),
+    getInvoiceStatsMap([job.id]),
+    loadAliasMap([job.id]),
+  ]);
+  res.json(
+    GetJobResponse.parse(
+      serializeJob(
+        job,
+        customerName,
+        totalsMap.get(job.id),
+        billing.get(job.id) ?? 0,
+        invoiceStats.get(job.id),
+        aliases.get(job.id) ?? [],
       ),
     ),
   );

@@ -51,7 +51,89 @@ import {
   type ServerFieldError,
 } from "@/lib/server-field-error";
 import { useQueryClient } from "@tanstack/react-query";
-import { Plus, Edit2, Trash2 } from "lucide-react";
+import { Plus, Edit2, Trash2, Tag, X } from "lucide-react";
+import { useSetJobAliases } from "@workspace/api-client-react";
+import { Input } from "@/components/ui/input";
+
+/**
+ * Nicknames that resolve to this job on uploads. Learned automatically when
+ * Mike maps an unrecognized name in a review screen; editable here so a bad
+ * guess can be removed or a known nickname added up front.
+ */
+function JobAliasesCard({ job }: { job: { id: number; name: string; aliases?: string[] | null } }) {
+  const queryClient = useQueryClient();
+  const [draft, setDraft] = useState("");
+  const aliases = job.aliases ?? [];
+  const setAliases = useSetJobAliases({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getGetJobQueryKey(job.id) });
+        queryClient.invalidateQueries({ queryKey: getListJobsQueryKey() });
+      },
+    },
+  });
+  const commit = (next: string[]) => setAliases.mutate({ id: job.id, data: { aliases: next } });
+  const add = () => {
+    const value = draft.trim();
+    if (!value) return;
+    if (aliases.some((a) => a.toLowerCase() === value.toLowerCase())) {
+      setDraft("");
+      return;
+    }
+    commit([...aliases, value]);
+    setDraft("");
+  };
+  return (
+    <Card data-testid="job-aliases-card">
+      <CardContent className="py-4 flex flex-wrap items-center gap-3">
+        <div className="flex items-center gap-2 text-sm font-medium text-slate-600">
+          <Tag className="h-4 w-4 text-slate-400" /> Also known as
+        </div>
+        {aliases.length === 0 && (
+          <span className="text-sm text-slate-400">
+            No nicknames yet — names your crew or vendors use for this job will be remembered here.
+          </span>
+        )}
+        {aliases.map((alias) => (
+          <span
+            key={alias}
+            className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-3 py-1 text-sm text-slate-700"
+            data-testid={`job-alias-${alias}`}
+          >
+            {alias}
+            <button
+              type="button"
+              aria-label={`Remove nickname ${alias}`}
+              className="text-slate-400 hover:text-red-500"
+              onClick={() => commit(aliases.filter((a) => a !== alias))}
+              disabled={setAliases.isPending}
+            >
+              <X className="h-3 w-3" />
+            </button>
+          </span>
+        ))}
+        <div className="flex items-center gap-2 ml-auto">
+          <Input
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                add();
+              }
+            }}
+            placeholder="Add a nickname, e.g. Founders"
+            className="h-8 w-56 text-sm"
+            data-testid="input-job-alias"
+          />
+          <Button type="button" size="sm" variant="outline" onClick={add} disabled={!draft.trim() || setAliases.isPending}>
+            Add
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
 export default function JobDetail() {
   const { id } = useParams<{ id: string }>();
@@ -473,6 +555,8 @@ export default function JobDetail() {
           </DialogContent>
         </Dialog>
       </div>
+
+      <JobAliasesCard job={job} />
 
       <div className="grid gap-6 md:grid-cols-3">
         <Card>

@@ -9,6 +9,33 @@ const jobs: JobOption[] = [
   { id: 5, name: "Warehouse Lighting", poNumber: "PO-100", customerId: 13 },
 ];
 
+describe("matchExtractedJob — remembered nicknames", () => {
+  const withAliases: JobOption[] = [
+    ...jobs,
+    { id: 6, name: "Rose Parking Garage", poNumber: null, customerId: 14, aliases: ["Founders", "Rose add-on"] },
+    { id: 7, name: "Rachel", poNumber: null, customerId: 14, aliases: ["Ritual"] },
+  ];
+
+  it("an exact alias match is confident, like the real name", () => {
+    const r = matchExtractedJob(withAliases, "founders", null);
+    expect(r.job?.id).toBe(6);
+    expect(r.confident).toBe(true);
+    expect(r.note).toBeNull();
+  });
+
+  it("an alias that looks like a person's name still resolves (Mike confirmed it before)", () => {
+    const r = matchExtractedJob(withAliases, "Ritual", null);
+    expect(r.job?.id).toBe(7);
+    expect(r.confident).toBe(true);
+  });
+
+  it("without the alias the same nickname needs a manual pick", () => {
+    const r = matchExtractedJob(jobs, "Founders", null);
+    expect(r.job).toBeNull();
+    expect(r.confident).toBe(false);
+  });
+});
+
 describe("matchExtractedJob", () => {
   it("unique PO match is confident and beats a conflicting name", () => {
     const r = matchExtractedJob(jobs, "Warehouse Lighting", "PO-200");

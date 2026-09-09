@@ -15,6 +15,7 @@ import {
 } from "@workspace/api-client-react";
 import { useSearch } from "wouter";
 import { fetchInboxAttachmentsAsFiles } from "@/lib/inbox-attachments";
+import { rememberJobAlias } from "@/lib/job-aliases";
 import type { ExtractBillResult } from "@workspace/api-client-react";
 import { formatCents, formatDate } from "@/lib/format";
 import { Card, CardContent } from "@/components/ui/card";
@@ -91,6 +92,8 @@ type BillPrefill = {
   documentPath?: string | null;
   /** Extracted vendor name that didn't match any vendor on file. */
   vendorCreateName?: string;
+  /** Job name exactly as it appeared on the invoice (for alias learning). */
+  extractedJobName?: string;
 };
 
 type ReviewQueue = {
@@ -196,6 +199,7 @@ function UploadInvoiceDialog({
             : "",
         jobId:
           jobMatch.job && jobMatch.confident ? String(jobMatch.job.id) : "",
+        extractedJobName: inv.jobName ?? undefined,
         billNumber: inv.billNumber ?? "",
         date: inv.date ?? undefined,
         dueDate: inv.dueDate ?? "",
@@ -275,13 +279,21 @@ function UploadInvoiceDialog({
       });
 
     try {
-      // Keep file order deterministic and avoid sending several large base64
-      // payloads to the AI service at once.
-      const results: ExtractBillResult[] = [];
-      for (const file of files) {
-        const payload = await readFile(file);
-        results.push(await extract.mutateAsync({ data: payload }));
-      }
+      // Read up to three invoices at a time: the AI call dominates the wait,
+      // so a forwarded email with several PDFs finishes in one round instead
+      // of one after another. Results keep the original file order.
+      const results: ExtractBillResult[] = new Array(files.length);
+      let next = 0;
+      const worker = async () => {
+        while (next < files.length) {
+          const index = next++;
+          const payload = await readFile(files[index]);
+          results[index] = await extract.mutateAsync({ data: payload });
+        }
+      };
+      await Promise.all(
+        Array.from({ length: Math.min(3, files.length) }, () => worker()),
+      );
       finish(results);
     } catch (err) {
       const msg =
@@ -413,6 +425,10 @@ export default function Bills() {
   // Bill-number search
   const [billSearch, setBillSearch] = useState("");
   const [billSort, setBillSort] = useState("date-desc");
+  // Jobs (with nicknames) for alias learning when a reviewed bill is saved.
+  const { data: pageJobs } = useListJobs(undefined, {
+    query: { queryKey: getListJobsQueryKey() },
+  });
 
   // ── Inbox handoff (?inboxEmail=ID) ─────────────────────────────────────
   // A vendor invoice forwarded to the books address arrives here with its
@@ -753,6 +769,15 @@ export default function Bills() {
             suggestedVendorName={currentPrefill?.vendorCreateName ?? null}
             onSubmit={(data) => {
               setCreateError(null);
+              // The invoice said "Founders" and Mike picked Rose Parking
+              // Garage — remember that so the next one resolves itself.
+              const rawJobName = currentPrefill?.extractedJobName;
+              const chosenJob = data.jobId
+                ? (pageJobs ?? []).find((j) => String(j.id) === String(data.jobId))
+                : undefined;
+              if (rawJobName && chosenJob) {
+                void rememberJobAlias(queryClient, chosenJob, rawJobName);
+              }
               createBill.mutate({
                 data: {
                   ...data,

@@ -87,6 +87,7 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { splitCentsByWeights } from "@/lib/hours-split";
 import { JobCombobox } from "@/components/job-combobox";
+import { rememberJobAlias } from "@/lib/job-aliases";
 import {
   MAX_EXTRACT_TEXT_LENGTH,
   extractTextTooLargeMessage,
@@ -1860,6 +1861,17 @@ function ImportHoursDialog({
       const key = normalizeName(job.name);
       jobsByName.set(key, [...(jobsByName.get(key) ?? []), job]);
     }
+    // Nicknames ("Founders" → Rose Parking Garage) resolve like real names.
+    // They are listed after the names so a name always wins a collision.
+    const aliasedJobs = new Set<string>();
+    for (const job of jobs) {
+      for (const alias of job.aliases ?? []) {
+        const key = normalizeName(alias);
+        if (!key || jobsByName.has(key)) continue;
+        jobsByName.set(key, [job]);
+        aliasedJobs.add(key);
+      }
+    }
     const employeeNames = new Set(employees.map((e) => normalizeName(e.name)));
     const customersByName = new Map<string, string>();
     for (const job of jobs) {
@@ -1893,6 +1905,7 @@ function ImportHoursDialog({
       const customerMatch = customersByName.get(key) ?? "";
       const looksLikePerson =
         !KNOWN_JOB_NAMES.has(key) &&
+        !aliasedJobs.has(key) &&
         (employeeNames.has(key) ||
           extracted.some((x) => normalizeName(x.workerName) === key) ||
           looksLikePersonName(raw));
@@ -2482,6 +2495,18 @@ function ImportHoursDialog({
       if (a.jobId) return a.jobId;
       return a.overhead ? overheadJobId : "";
     };
+
+    // Remember every nickname Mike had to resolve by hand (or confirm from a
+    // fuzzy suggestion) so the next time card with "Founders" on it resolves
+    // to the Rose Parking Garage without asking. Best effort, never blocks.
+    for (const key of usedKeys) {
+      const a = assoc[key];
+      if (!a || !a.raw || a.overhead || !a.jobId) continue;
+      if (a.auto && !a.needsConfirm) continue;
+      const job = jobs.find((j) => String(j.id) === a.jobId);
+      if (!job) continue;
+      void rememberJobAlias(queryClient, job, a.raw);
+    }
 
     // Workers not in the Employee Center that the user chose to create:
     // add the record first so the worker line links to it (rates are set
