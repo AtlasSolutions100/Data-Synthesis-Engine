@@ -591,8 +591,8 @@ export default function VendorDetail() {
             <ArrowLeft className="h-4 w-4" />
             View in aging report
           </Link>
-          <h1 className="text-3xl font-bold tracking-tight text-slate-900">{vendor.name}</h1>
-          <p className="text-slate-500 mt-1">
+          <h1 className="text-[22px] font-semibold tracking-tight text-foreground">{vendor.name}</h1>
+          <p className="text-muted-foreground mt-1">
             {[vendor.email, vendor.phone].filter(Boolean).join(" · ") || "No contact info"}
           </p>
           {vendor.notes && <p className="text-slate-500 mt-1 text-sm">{vendor.notes}</p>}

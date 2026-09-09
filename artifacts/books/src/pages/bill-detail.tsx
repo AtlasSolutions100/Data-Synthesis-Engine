@@ -180,7 +180,7 @@ export default function BillDetail() {
           <ArrowLeft className="mr-1 h-4 w-4" /> Back to Bills
         </Link>
         <div className="flex items-center gap-3">
-          <h1 className="text-3xl font-bold tracking-tight text-slate-900">
+          <h1 className="text-[22px] font-semibold tracking-tight text-foreground">
             {bill.billNumber || `Bill #${bill.id}`}
           </h1>
           <Badge
@@ -239,7 +239,7 @@ export default function BillDetail() {
             </DialogContent>
           </Dialog>
         </div>
-        <p className="text-slate-500 mt-1">
+        <p className="text-muted-foreground mt-1">
           {bill.vendorName || "Unknown vendor"}
           {bill.jobName ? (
             <>

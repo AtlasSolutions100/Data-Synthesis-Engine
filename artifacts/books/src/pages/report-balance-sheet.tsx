@@ -54,7 +54,7 @@ export default function ReportBalanceSheet() {
             <ChevronLeft className="h-4 w-4" /> All Reports
           </Link>
           <div className="flex items-center gap-3">
-            <h1 className="text-3xl font-bold tracking-tight text-slate-900">
+            <h1 className="text-[22px] font-semibold tracking-tight text-foreground">
               Balance Sheet
             </h1>
             <FeedbackButton
@@ -64,7 +64,7 @@ export default function ReportBalanceSheet() {
               variant="ghost"
             />
           </div>
-          <p className="text-slate-500 mt-1" data-testid="text-balances-as-of">
+          <p className="text-muted-foreground mt-1" data-testid="text-balances-as-of">
             {range.endDate ? `As of ${formatDate(range.endDate)}` : "All time"}
           </p>
         </div>

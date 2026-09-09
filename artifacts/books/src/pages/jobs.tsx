@@ -110,13 +110,13 @@ export default function Jobs() {
 
   return (
     <div className="space-y-8">
-      <div className="flex justify-between items-end">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight text-slate-900">Jobs</h1>
-          <p className="text-slate-500 mt-1">Manage construction projects and job costing</p>
+      <div className="flex flex-wrap justify-between items-end gap-4">
+        <div className="shrink-0">
+          <h1 className="text-[22px] font-semibold tracking-tight text-foreground">Jobs</h1>
+          <p className="text-muted-foreground mt-1">Manage construction projects and job costing</p>
         </div>
-        <div className="flex items-center gap-2">
-        <label className="mr-2 flex cursor-pointer items-center gap-2 text-sm text-slate-600">
+        <div className="flex flex-wrap items-center gap-2">
+        <label className="mr-2 flex cursor-pointer items-center gap-2 text-sm text-slate-600 whitespace-nowrap">
           <Checkbox
             checked={showInactive}
             onCheckedChange={(v) => setShowInactive(v === true)}
@@ -207,7 +207,7 @@ export default function Jobs() {
                         <DemoBadge isDemo={job.isDemo} />
                       </div>
                     </TableCell>
-                    <TableCell>{job.poNumber || "-"}</TableCell>
+                    <TableCell className="whitespace-nowrap">{job.poNumber || "-"}</TableCell>
                     <TableCell>
                       {job.customerId ? (
                         <Link href={`/customers/${job.customerId}`} className="text-blue-600 hover:underline">

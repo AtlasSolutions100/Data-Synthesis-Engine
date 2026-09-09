@@ -369,7 +369,7 @@ export default function JobDetail() {
       <div className="flex justify-between items-start">
         <div>
           <div className="flex items-center gap-3">
-            <h1 className="text-3xl font-bold tracking-tight text-slate-900">{job.name}</h1>
+            <h1 className="text-[22px] font-semibold tracking-tight text-foreground">{job.name}</h1>
             <FeedbackButton
               targetType="job"
               targetId={String(job.id)}
@@ -493,7 +493,7 @@ export default function JobDetail() {
               Inactive: {job.inactiveNote}
             </p>
           ) : null}
-          <p className="text-slate-500 mt-1">
+          <p className="text-muted-foreground mt-1">
             {job.customerId && job.customerName ? (
               <>
                 Customer:{" "}

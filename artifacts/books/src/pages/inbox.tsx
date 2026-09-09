@@ -129,10 +129,10 @@ export default function InboxPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-slate-900 flex items-center gap-3">
-            <InboxIcon className="h-7 w-7 text-blue-600" /> Inbox
+          <h1 className="text-[22px] font-semibold tracking-tight text-foreground flex items-center gap-3">
+            <InboxIcon className="h-6 w-6 text-muted-foreground" strokeWidth={1.75} /> Inbox
           </h1>
-          <p className="text-slate-500 mt-1">
+          <p className="text-muted-foreground mt-1">
             Everything forwarded to the books address. Send each item to Bills, Time Cards, or a
             reconciliation — nothing posts until you review it.
           </p>
@@ -253,7 +253,6 @@ export default function InboxPage() {
                     {email.attachments.length > 0 && (email.kind === "bill" || email.kind === "unknown") && (
                       <Button
                         size="sm"
-                        className="bg-blue-600 hover:bg-blue-700"
                         onClick={() => navigate(`/bills?inboxEmail=${email.id}`)}
                         data-testid={`inbox-open-bills-${email.id}`}
                       >
@@ -264,7 +263,6 @@ export default function InboxPage() {
                       <Button
                         size="sm"
                         variant={email.kind === "statement" ? "default" : "outline"}
-                        className={email.kind === "statement" ? "bg-emerald-600 hover:bg-emerald-700" : ""}
                         onClick={() => navigate(`/dashboard?inboxEmail=${email.id}`)}
                         data-testid={`inbox-reconcile-${email.id}`}
                       >
@@ -275,7 +273,6 @@ export default function InboxPage() {
                       <Button
                         size="sm"
                         variant={email.kind === "timecard" ? "default" : "outline"}
-                        className={email.kind === "timecard" ? "bg-sky-600 hover:bg-sky-700" : ""}
                         onClick={async () => {
                           await copyText(email);
                           navigate("/payroll");

@@ -637,7 +637,7 @@ export default function AccountRegister() {
             <span className="text-sm text-slate-400">Chart of Accounts</span>
           </div>
           <div className="flex items-center gap-3">
-            <BookOpen className="h-6 w-6 text-blue-600" />
+            <BookOpen className="h-5 w-5 text-muted-foreground" strokeWidth={1.75} />
             <div>
               <h1 className="text-2xl font-bold tracking-tight text-slate-900">
                 {accountNumber && (
@@ -845,7 +845,7 @@ export default function AccountRegister() {
                         </td>
 
                         {/* Payee / Description */}
-                        <td className="px-3 py-2 text-slate-800 max-w-[260px]">
+                        <td className="px-3 py-2 text-slate-800 max-w-[360px]">
                           <div className="flex items-center gap-1.5">
                             {expandable && (
                               <button
@@ -936,7 +936,7 @@ export default function AccountRegister() {
                               onClick={() => setEditingId(row.transactionId)}
                               data-testid={`button-edit-${row.transactionId}`}
                             >
-                              <Edit2 className="h-3.5 w-3.5 text-slate-500" />
+                              <Edit2 className="h-3.5 w-3.5 text-muted-foreground" />
                             </Button>
                             {/* Authoritative void state: voidedAmountCents != null means
                                 the entry was voided and the original amount is stored.
@@ -965,7 +965,7 @@ export default function AccountRegister() {
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                className="h-7 w-7 text-amber-600 hover:text-amber-700 hover:bg-amber-50"
+                                className="h-7 w-7 text-muted-foreground hover:text-amber-700 hover:bg-amber-50"
                                 title={
                                   voided
                                     ? "Already voided (no original amount stored — use Edit to restore manually)"
@@ -989,7 +989,7 @@ export default function AccountRegister() {
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="h-7 w-7 text-red-500 hover:text-red-700 hover:bg-red-50"
+                              className="h-7 w-7 text-muted-foreground hover:text-red-700 hover:bg-red-50"
                               title="Delete transaction"
                               onClick={() =>
                                 setConfirmAction({

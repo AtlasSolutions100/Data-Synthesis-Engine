@@ -19,6 +19,14 @@ A desktop-first, browser-based job-costing and construction-accounting app that 
 - API tests need a database: `docker run -d --name books-test-pg -e POSTGRES_PASSWORD=pg -e POSTGRES_DB=books_test -p 55432:5432 postgres:16`, push the schema with a drizzle config whose `schema` path uses forward slashes, seed an account `10000 Checking` (type bank), and run vitest with `DATABASE_URL=postgres://postgres:pg@localhost:55432/books_test` and `--no-file-parallelism` (suites share the DB).
 - Known environment-only failures: `consolidateHomedepotAccount.test.ts` hard-codes vendor id 22 from the dev DB; `jobs.test.tsx`'s path-scan sanity check assumes `/` separators; `payroll-run-form-import-draft.test.tsx` fails under Windows jsdom timing.
 
+## Visual system ("ledger paper")
+
+- Tokens live in `artifacts/books/src/index.css`: warm paper neutrals (hue 40), one accent (ink blue `--primary`) for primary actions, links, and the active nav item; `--secondary` is a neutral chip, not a second brand colour. Green/amber/red are reserved for money states (profit/loss, paid/open/overdue, withdrawals/deposits).
+- Typography: Inter with tabular lining figures set on `body`, so every column of money aligns without per-cell classes. Page titles are `text-[22px] font-semibold tracking-tight`; section eyebrows use the `.eyebrow` utility.
+- Depth is one hairline plus a soft neutral shadow (`shadow-card` on Card, `shadow-float` on dialogs/popovers). No gradients, glows, or tinted shadows.
+- Shell: light sidebar grouped Money in / Money out / Books / Support; Inbox shows a count of mail waiting for review.
+- **Design preview without a database or Clerk:** `MSYS_NO_PATHCONV=1 VITE_PREVIEW=1 PORT=18855 BASE_PATH=/ ./node_modules/.bin/vite` from `artifacts/books`, then open `http://127.0.0.1:18855/preview.html#/dashboard` (also `/jobs`, `/bills`, `/inbox`, `/accounts/1/register`, `/vendors/1`). `src/preview/main.tsx` stubs `fetch` with realistic canned data and the Vite alias swaps `@clerk/react` for `src/preview/clerk-stub.tsx`. Headless Chrome screenshots: `chrome --headless=new --window-size=1440,1000 --virtual-time-budget=8000 --screenshot=out.png <url>`.
+
 ## Money flow (vendor checks, payroll, reconciliation)
 
 - **Write Check is one check for many bills.** `POST /vendors/:id/payments` creates a `vendor_payments` row, one `bill_payments` row per bill (each `vendor_payment_id`-linked), and exactly ONE bank-register transaction (`transactions.vendor_payment_id`) for the total, offset to the vendor's same-name balance-sheet account when one exists. Undoing one bill payment shrinks the check; `DELETE /vendor-payments/:id` undoes everything. The register shows `checkItems` so a check row expands into the bills it paid. Nothing is pre-selected in the dialog.

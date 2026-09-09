@@ -75,7 +75,7 @@ export default function ReportPnl() {
             <ChevronLeft className="h-4 w-4" /> All Reports
           </Link>
           <div className="flex items-center gap-3">
-            <h1 className="text-3xl font-bold tracking-tight text-slate-900">
+            <h1 className="text-[22px] font-semibold tracking-tight text-foreground">
               Profit &amp; Loss
             </h1>
             <FeedbackButton
@@ -85,7 +85,7 @@ export default function ReportPnl() {
               variant="ghost"
             />
           </div>
-          <p className="text-slate-500 mt-1">
+          <p className="text-muted-foreground mt-1">
             Viewing:{" "}
             <span className="font-medium text-slate-700">
               {describeRange(range)}

@@ -10,7 +10,7 @@ import {
 import { formatCents, formatDate } from "@/lib/format";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { DollarSign, Activity, CreditCard, Users, ChevronRight, ChevronDown } from "lucide-react";
+import { ChevronRight, ChevronDown } from "lucide-react";
 import { Link, useSearch } from "wouter";
 import { fetchInboxAttachmentsAsFiles } from "@/lib/inbox-attachments";
 import { useToast } from "@/hooks/use-toast";
@@ -83,10 +83,9 @@ export default function Dashboard() {
     <div className="space-y-8">
       <div className="flex flex-wrap justify-between items-end gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-slate-900">Dashboard</h1>
-          <p className="text-slate-500 mt-1">
-            Company financial overview · Viewing:{" "}
-            <span className="font-medium text-slate-700">{describeRange(range)}</span>
+          <h1 className="text-[22px] font-semibold tracking-tight text-foreground">Dashboard</h1>
+          <p className="text-muted-foreground mt-1">
+            {describeRange(range)}
           </p>
         </div>
         <div className="flex items-end gap-3">
@@ -105,64 +104,47 @@ export default function Dashboard() {
         <div className="py-8 text-red-500">Failed to load dashboard data.</div>
       ) : (
       <>
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-slate-500">Total Income</CardTitle>
-            <DollarSign className="h-4 w-4 text-slate-400" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-slate-900">{formatCents(summary.totalIncomeCents)}</div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-slate-500">Total COGS</CardTitle>
-            <CreditCard className="h-4 w-4 text-slate-400" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-slate-900">{formatCents(summary.totalCogsCents)}</div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-slate-500">Gross Profit</CardTitle>
-            <Activity className="h-4 w-4 text-slate-400" />
-          </CardHeader>
-          <CardContent>
-            <div className={`flex items-baseline gap-2 ${summary.grossProfitCents >= 0 ? "text-emerald-600" : "text-red-600"}`}>
-              <span className="text-2xl font-bold">{formatCents(summary.grossProfitCents)}</span>
+      {/* Metric strip: the four numbers Mike reads first, on one rule, in
+          ledger order (income → cost → gross → net). Colour only where the
+          sign carries meaning. */}
+      <Card className="overflow-hidden">
+        <dl className="grid grid-cols-2 lg:grid-cols-4 divide-y lg:divide-y-0 lg:divide-x divide-border">
+          <div className="px-5 py-4">
+            <dt className="eyebrow">Income</dt>
+            <dd className="money mt-1.5 text-2xl font-semibold text-foreground">
+              {formatCents(summary.totalIncomeCents)}
+            </dd>
+          </div>
+          <div className="px-5 py-4">
+            <dt className="eyebrow">Cost of goods</dt>
+            <dd className="money mt-1.5 text-2xl font-semibold text-foreground">
+              {formatCents(summary.totalCogsCents)}
+            </dd>
+          </div>
+          <div className="px-5 py-4">
+            <dt className="eyebrow">Gross profit</dt>
+            <dd className={`money mt-1.5 flex items-baseline gap-2 text-2xl font-semibold ${summary.grossProfitCents >= 0 ? "text-emerald-700" : "text-red-700"}`}>
+              <span>{formatCents(summary.grossProfitCents)}</span>
               {summary.totalIncomeCents > 0 && (
-                <span className="text-sm font-semibold">
-                  {Math.round((summary.grossProfitCents / summary.totalIncomeCents) * 100)}%
+                <span className="text-xs font-medium text-muted-foreground">
+                  {Math.round((summary.grossProfitCents / summary.totalIncomeCents) * 100)}% margin
                 </span>
               )}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-slate-500">Net Income</CardTitle>
-            <DollarSign className="h-4 w-4 text-slate-400" />
-          </CardHeader>
-          <CardContent>
-            <div className={`text-2xl font-bold ${summary.netIncomeCents >= 0 ? "text-emerald-600" : "text-red-600"}`}>
+            </dd>
+          </div>
+          <div className="px-5 py-4">
+            <dt className="eyebrow">Net income</dt>
+            <dd className={`money mt-1.5 text-2xl font-semibold ${summary.netIncomeCents >= 0 ? "text-emerald-700" : "text-red-700"}`}>
               {formatCents(summary.netIncomeCents)}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+            </dd>
+          </div>
+        </dl>
+      </Card>
 
       <Card>
         <CardHeader className="pb-4 border-b">
-          <div className="flex items-center gap-2">
-            <Users className="h-5 w-5 text-blue-600" />
-            <CardTitle>Customers</CardTitle>
-          </div>
-          <p className="text-sm text-slate-500 mt-1">
+          <CardTitle>Customers</CardTitle>
+          <p className="text-sm text-muted-foreground">
             Start from a customer to see all of their jobs. Click a customer or a job to drill in.
           </p>
         </CardHeader>
@@ -176,12 +158,12 @@ export default function Dashboard() {
               {customers.map((customer) => {
                 const expanded = expandedCustomers.has(customer.id);
                 return (
-                  <div key={customer.id} className="px-6 py-4">
+                  <div key={customer.id} className="px-5 py-3.5">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
                         <Link
                           href={`/customers/${customer.id}`}
-                          className="flex items-center gap-2 font-semibold text-lg text-blue-700 hover:underline"
+                          className="flex items-center gap-1.5 font-medium text-[15px] text-foreground hover:text-primary"
                         >
                           {customer.name}
                           <ChevronRight className="h-4 w-4 text-slate-400" />
@@ -212,31 +194,43 @@ export default function Dashboard() {
         </CardContent>
       </Card>
 
-      <DemoDataCard />
 
       <Card>
-        <CardHeader>
-          <CardTitle>Recent Transactions</CardTitle>
+        <CardHeader className="pb-3 border-b flex-row items-center justify-between space-y-0">
+          <CardTitle>Recent transactions</CardTitle>
+          <Link href="/transactions" className="text-sm text-primary hover:underline">
+            All transactions
+          </Link>
         </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {summary.recentTransactions?.map((txn) => (
-              <div key={txn.id} className="flex items-center justify-between">
-                <div>
-                  <div className="font-medium text-slate-900">{formatDate(txn.date)} - {txn.type}</div>
-                  <div className="text-sm text-slate-500">{txn.description || txn.partyName || "No description"}</div>
-                </div>
-                <div className="font-bold text-slate-900">
-                  {formatCents(txn.amountCents)}
-                </div>
-              </div>
-            ))}
-            {(!summary.recentTransactions || summary.recentTransactions.length === 0) && (
-              <div className="text-slate-500 text-center py-4">No transactions available</div>
-            )}
-          </div>
+        <CardContent className="p-0">
+          {!summary.recentTransactions || summary.recentTransactions.length === 0 ? (
+            <div className="text-muted-foreground text-center py-8 text-sm">No transactions yet</div>
+          ) : (
+            <table className="w-full text-sm">
+              <tbody className="divide-y divide-border/70">
+                {summary.recentTransactions.map((txn) => (
+                  <tr key={txn.id} className="hover:bg-muted/40">
+                    <td className="px-5 py-2.5 w-[110px] text-muted-foreground tabular-nums whitespace-nowrap">
+                      {formatDate(txn.date)}
+                    </td>
+                    <td className="px-3 py-2.5 w-[90px] text-xs uppercase tracking-wide text-muted-foreground">
+                      {txn.type}
+                    </td>
+                    <td className="px-3 py-2.5 text-foreground">
+                      <span className="line-clamp-1">{txn.description || txn.partyName || "No description"}</span>
+                    </td>
+                    <td className="money px-5 py-2.5 text-right font-medium text-foreground whitespace-nowrap">
+                      {formatCents(txn.amountCents)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </CardContent>
       </Card>
+
+      <DemoDataCard />
       </>
       )}
     </div>

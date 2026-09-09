@@ -156,7 +156,7 @@ export default function EmployeeDetail() {
             <ArrowLeft className="h-4 w-4" /> Back to Employees
           </Link>
           <div className="flex items-center gap-3">
-            <h1 className="text-3xl font-bold tracking-tight text-slate-900">
+            <h1 className="text-[22px] font-semibold tracking-tight text-foreground">
               {employee.name}
             </h1>
             <Badge variant={employee.active !== false ? "default" : "secondary"}>

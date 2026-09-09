@@ -51,7 +51,7 @@ export default function ReportApAging() {
             <ChevronLeft className="h-4 w-4" /> All Reports
           </Link>
           <div className="flex items-center gap-3">
-            <h1 className="text-3xl font-bold tracking-tight text-slate-900">
+            <h1 className="text-[22px] font-semibold tracking-tight text-foreground">
               Accounts Payable Aging
             </h1>
             <FeedbackButton
@@ -62,7 +62,7 @@ export default function ReportApAging() {
             />
           </div>
           {apAging?.asOf && (
-            <p className="text-slate-500 mt-1">As of {formatDate(apAging.asOf)}</p>
+            <p className="text-muted-foreground mt-1">As of {formatDate(apAging.asOf)}</p>
           )}
         </div>
         <div className="flex items-end gap-3">

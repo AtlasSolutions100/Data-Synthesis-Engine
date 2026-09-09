@@ -248,10 +248,10 @@ export default function FeedbackLog() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="flex items-center gap-2 text-3xl font-bold tracking-tight text-slate-900">
+        <h1 className="flex items-center gap-2 text-[22px] font-semibold tracking-tight text-foreground">
           <MessageSquare className="h-7 w-7 text-blue-600" /> Feedback Log
         </h1>
-        <p className="mt-1 text-slate-500">
+        <p className="mt-1 text-muted-foreground">
           Everything users have flagged, newest first.
         </p>
       </div>

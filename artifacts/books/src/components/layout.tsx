@@ -7,6 +7,8 @@ import {
   getCountIncompleteFeedbackQueryKey,
   useCountMyFeedbackUpdates,
   getCountMyFeedbackUpdatesQueryKey,
+  useListInboundEmails,
+  getListInboundEmailsQueryKey,
 } from "@workspace/api-client-react";
 import {
   LayoutDashboard,
@@ -25,9 +27,20 @@ import {
   MessageSquare,
   MessagesSquare,
   Inbox,
+  type LucideIcon,
 } from "lucide-react";
 import { FeedbackButton } from "./feedback-button";
 
+type NavItem = { href: string; label: string; icon: LucideIcon };
+type NavGroup = { label: string | null; items: NavItem[] };
+
+/**
+ * App shell. A light sidebar that reads as part of the page rather than a
+ * dark admin rail: the workspace is a ledger, and everything on it — nav,
+ * tables, cards — sits on the same paper. Navigation is grouped the way the
+ * bookkeeping actually flows (money in, money out, the books, admin) so the
+ * fifteen destinations scan as four short lists instead of one long one.
+ */
 export function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
   const { signOut } = useClerk();
@@ -58,115 +71,190 @@ export function Layout({ children }: { children: React.ReactNode }) {
     },
   });
   const myUpdatesCount = myUpdates?.count ?? 0;
+  // Forwarded mail waiting for review — the one count that should pull
+  // attention, since it is work arriving from outside the app.
+  const inboxParams = { status: "new" as const };
+  const { data: inboxNew } = useListInboundEmails(inboxParams, {
+    query: {
+      queryKey: getListInboundEmailsQueryKey(inboxParams),
+      enabled: me != null,
+      refetchInterval: 60_000,
+      refetchOnWindowFocus: true,
+    },
+  });
+  const inboxCount = inboxNew?.length ?? 0;
 
-  const navItems = [
-    { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-    { href: "/inbox", label: "Inbox", icon: Inbox },
-    { href: "/customers", label: "Customers", icon: Building2 },
-    { href: "/jobs", label: "Jobs", icon: Briefcase },
-    { href: "/invoices", label: "Invoices", icon: FileText },
-    { href: "/bills", label: "Bills", icon: FileInput },
-    { href: "/transactions", label: "Transactions", icon: ReceiptText },
-    { href: "/accounts", label: "Chart of Accounts", icon: Wallet },
-    { href: "/vendors", label: "Vendors", icon: HardHat },
-    { href: "/employees", label: "Employees", icon: Users },
-    { href: "/payroll", label: "Time Cards", icon: CircleDollarSign },
-    { href: "/reports", label: "Reports", icon: FileBarChart },
-    { href: "/my-feedback", label: "My Feedback", icon: MessageSquare },
-    ...(isOwner
-      ? [
-          { href: "/feedback-log", label: "Feedback Log", icon: MessagesSquare },
-          { href: "/users", label: "Users", icon: ShieldCheck },
-        ]
-      : []),
+  const groups: NavGroup[] = [
+    {
+      label: null,
+      items: [
+        { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+        { href: "/inbox", label: "Inbox", icon: Inbox },
+      ],
+    },
+    {
+      label: "Money in",
+      items: [
+        { href: "/customers", label: "Customers", icon: Building2 },
+        { href: "/jobs", label: "Jobs", icon: Briefcase },
+        { href: "/invoices", label: "Invoices", icon: FileText },
+      ],
+    },
+    {
+      label: "Money out",
+      items: [
+        { href: "/vendors", label: "Vendors", icon: HardHat },
+        { href: "/bills", label: "Bills", icon: FileInput },
+        { href: "/employees", label: "Employees", icon: Users },
+        { href: "/payroll", label: "Time Cards", icon: CircleDollarSign },
+      ],
+    },
+    {
+      label: "Books",
+      items: [
+        { href: "/accounts", label: "Chart of Accounts", icon: Wallet },
+        { href: "/transactions", label: "Transactions", icon: ReceiptText },
+        { href: "/reports", label: "Reports", icon: FileBarChart },
+      ],
+    },
+    {
+      label: "Support",
+      items: [
+        { href: "/my-feedback", label: "My Feedback", icon: MessageSquare },
+        ...(isOwner
+          ? [
+              { href: "/feedback-log", label: "Feedback Log", icon: MessagesSquare },
+              { href: "/users", label: "Users", icon: ShieldCheck },
+            ]
+          : []),
+      ],
+    },
   ];
+  const navItems = groups.flatMap((g) => g.items);
 
   // Human-readable trail for the global Feedback button, e.g. "Reports".
   const currentNav = navItems.find((i) => location.startsWith(i.href));
 
+  const badgeFor = (href: string): { count: number; testId: string } | null => {
+    if (href === "/inbox" && inboxCount > 0) return { count: inboxCount, testId: "badge-inbox-count" };
+    if (href === "/my-feedback" && myUpdatesCount > 0) return { count: myUpdatesCount, testId: "badge-my-feedback-updates" };
+    if (href === "/feedback-log" && incompleteCount > 0) return { count: incompleteCount, testId: "badge-feedback-count" };
+    return null;
+  };
+
+  const initial =
+    user?.firstName?.[0] ||
+    user?.emailAddresses[0]?.emailAddress[0]?.toUpperCase() ||
+    "?";
+
   return (
-    <div className="min-h-screen bg-slate-50 flex">
+    <div className="min-h-screen bg-background flex">
       {/* Sidebar */}
-      <div className="w-64 bg-slate-900 text-slate-300 flex flex-col fixed inset-y-0 z-10 border-r border-slate-800 shadow-xl">
-        <div className="h-16 flex items-center px-6 border-b border-slate-800 bg-slate-950">
-          <img src={`${import.meta.env.BASE_URL.replace(/\/$/, "")}/logo.png`} alt="Logo" className="h-8 w-8 mr-3 brightness-0 invert" />
-          <span className="font-bold text-white tracking-tight">Allied Power</span>
+      <aside className="w-60 fixed inset-y-0 z-10 flex flex-col border-r border-border bg-background">
+        <div className="h-14 flex items-center gap-2.5 px-4">
+          <img
+            src={`${import.meta.env.BASE_URL.replace(/\/$/, "")}/logo.png`}
+            alt=""
+            className="h-7 w-7 rounded-md"
+          />
+          <div className="leading-tight">
+            <div className="text-[13px] font-semibold text-foreground tracking-tight">Allied Power</div>
+            <div className="text-[11px] text-muted-foreground">Books</div>
+          </div>
         </div>
 
-        <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            const active = location.startsWith(item.href);
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors ${
-                  active
-                    ? "bg-slate-800 text-white shadow-sm ring-1 ring-slate-700/50"
-                    : "hover:bg-slate-800/50 hover:text-white"
-                }`}
-              >
-                <Icon className={`mr-3 h-5 w-5 flex-shrink-0 ${active ? "text-blue-400" : "text-slate-400"}`} />
-                <span className="flex-1">{item.label}</span>
-                {item.href === "/my-feedback" && myUpdatesCount > 0 && (
-                  <span
-                    className="ml-2 inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-blue-500 px-1.5 py-0.5 text-xs font-semibold leading-none text-white"
-                    data-testid="badge-my-feedback-updates"
-                  >
-                    {myUpdatesCount > 99 ? "99+" : myUpdatesCount}
-                  </span>
-                )}
-                {item.href === "/feedback-log" && incompleteCount > 0 && (
-                  <span
-                    className="ml-2 inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-blue-500 px-1.5 py-0.5 text-xs font-semibold leading-none text-white"
-                    data-testid="badge-feedback-count"
-                  >
-                    {incompleteCount > 99 ? "99+" : incompleteCount}
-                  </span>
-                )}
-              </Link>
-            );
-          })}
+        <nav className="flex-1 overflow-y-auto px-2 pb-4" aria-label="Main">
+          {groups.map((group, gi) => (
+            <div key={group.label ?? "top"} className={gi === 0 ? "" : "mt-4"}>
+              {group.label && (
+                <div className="eyebrow px-3 pb-1.5">{group.label}</div>
+              )}
+              <div className="space-y-0.5">
+                {group.items.map((item) => {
+                  const Icon = item.icon;
+                  const active = location.startsWith(item.href);
+                  const badge = badgeFor(item.href);
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      aria-current={active ? "page" : undefined}
+                      className={`group relative flex items-center gap-2.5 rounded-md px-3 py-1.5 text-[13px] transition-colors ${
+                        active
+                          ? "bg-accent text-accent-foreground font-medium"
+                          : "text-foreground/80 hover:bg-muted hover:text-foreground"
+                      }`}
+                    >
+                      {active && (
+                        <span
+                          aria-hidden
+                          className="absolute left-0 top-1.5 bottom-1.5 w-0.5 rounded-full bg-primary"
+                        />
+                      )}
+                      <Icon
+                        className={`h-4 w-4 flex-shrink-0 ${
+                          active ? "text-primary" : "text-muted-foreground group-hover:text-foreground"
+                        }`}
+                        strokeWidth={1.75}
+                      />
+                      <span className="flex-1 truncate">{item.label}</span>
+                      {badge && (
+                        <span
+                          className={`inline-flex min-w-[1.25rem] items-center justify-center rounded-full px-1.5 py-0.5 text-[11px] font-semibold leading-none ${
+                            item.href === "/inbox"
+                              ? "bg-primary text-primary-foreground"
+                              : "bg-secondary text-secondary-foreground"
+                          }`}
+                          data-testid={badge.testId}
+                        >
+                          {badge.count > 99 ? "99+" : badge.count}
+                        </span>
+                      )}
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
         </nav>
 
-        <div className="p-4 border-t border-slate-800 bg-slate-950">
-          <div className="flex items-center mb-4">
-            <div className="h-8 w-8 rounded-full bg-slate-700 flex items-center justify-center text-xs font-medium text-white">
-              {user?.firstName?.[0] || user?.emailAddresses[0]?.emailAddress[0]?.toUpperCase() || "?"}
+        <div className="border-t border-border p-3">
+          <div className="flex items-center gap-2.5 px-1">
+            <div className="h-8 w-8 rounded-full bg-secondary text-secondary-foreground flex items-center justify-center text-xs font-semibold">
+              {initial}
             </div>
-            <div className="ml-3">
-              <p className="text-sm font-medium text-white truncate w-40">{user?.fullName || "User"}</p>
-              <p className="text-xs text-slate-400 truncate w-40">{user?.emailAddresses[0]?.emailAddress}</p>
+            <div className="min-w-0 flex-1 leading-tight">
+              <p className="text-[13px] font-medium text-foreground truncate">{user?.fullName || "User"}</p>
+              <p className="text-[11px] text-muted-foreground truncate">
+                {user?.emailAddresses[0]?.emailAddress}
+              </p>
             </div>
+            <button
+              onClick={() => signOut({ redirectUrl: import.meta.env.BASE_URL })}
+              title="Sign out"
+              aria-label="Sign out"
+              className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+            >
+              <LogOut className="h-4 w-4" strokeWidth={1.75} />
+            </button>
           </div>
-          <button
-            onClick={() => signOut({ redirectUrl: import.meta.env.BASE_URL })}
-            className="w-full flex items-center px-3 py-2 text-sm font-medium rounded-md text-slate-400 hover:bg-slate-800 hover:text-white transition-colors"
-          >
-            <LogOut className="mr-3 h-5 w-5 text-slate-500" />
-            Sign Out
-          </button>
         </div>
-      </div>
+      </aside>
 
       {/* Main Content */}
-      <div className="pl-64 flex-1 flex flex-col">
-        <main className="flex-1 p-8">
-          <div className="mx-auto max-w-6xl">
-            {children}
-          </div>
+      <div className="pl-60 flex-1 flex flex-col min-w-0">
+        <main className="flex-1 px-8 py-7">
+          <div className="mx-auto max-w-7xl">{children}</div>
         </main>
         {/* z-[60] sits above dialog/sheet overlays (z-50) so the button stays
-            visible while any pop-up is open. text-slate-700 overrides the
-            secondary variant's white foreground (invisible against bg-white). */}
+            visible while any pop-up is open. */}
         <div className="fixed bottom-6 right-6 z-[60]">
           <FeedbackButton
             targetType="page"
             targetId={location}
             location={currentNav?.label}
-            variant="secondary"
-            className="shadow-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700"
+            variant="outline"
+            className="bg-card text-foreground shadow-card"
           />
         </div>
       </div>

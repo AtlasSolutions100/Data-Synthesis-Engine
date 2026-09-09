@@ -156,8 +156,8 @@ export default function Transactions() {
       )}
       <div className="flex justify-between items-end">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-slate-900">Transactions</h1>
-          <p className="text-slate-500 mt-1">General ledger and transaction history</p>
+          <h1 className="text-[22px] font-semibold tracking-tight text-foreground">Transactions</h1>
+          <p className="text-muted-foreground mt-1">General ledger and transaction history</p>
         </div>
         <div className="flex items-center gap-3">
         <DateRangePicker

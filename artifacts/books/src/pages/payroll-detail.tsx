@@ -209,7 +209,7 @@ export default function PayrollDetail() {
           <div>
             <div className="flex items-center gap-3">
               <h1
-                className="text-3xl font-bold tracking-tight text-slate-900"
+                className="text-[22px] font-semibold tracking-tight text-foreground"
                 data-testid="text-pay-period"
               >
                 {(() => {
@@ -223,7 +223,7 @@ export default function PayrollDetail() {
                 {run.posted ? "Posted" : "Draft"}
               </Badge>
             </div>
-            <p className="mt-1 text-slate-500">
+            <p className="mt-1 text-muted-foreground">
               Pay date {formatDate(run.payDate)}
               {run.laborAccountName ? ` · ${run.laborAccountName}` : ""}
               {run.memo ? ` · ${run.memo}` : ""}

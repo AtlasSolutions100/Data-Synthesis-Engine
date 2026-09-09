@@ -91,10 +91,10 @@ export default function Payroll() {
     <div className="space-y-8">
       <div className="flex items-end justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-slate-900">
+          <h1 className="text-[22px] font-semibold tracking-tight text-foreground">
             Time Cards
           </h1>
-          <p className="mt-1 text-slate-500">
+          <p className="mt-1 text-muted-foreground">
             Track employee time, payroll status, and resulting ledger entries
           </p>
         </div>

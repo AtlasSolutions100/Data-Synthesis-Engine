@@ -66,13 +66,13 @@ export function DemoDataCard() {
     : 0;
 
   return (
-    <Card className="border-amber-200 bg-amber-50/40">
+    <Card className="border-dashed shadow-none bg-transparent">
       <CardHeader className="pb-3">
         <div className="flex items-center gap-2">
-          <FlaskConical className="h-5 w-5 text-amber-600" />
-          <CardTitle className="text-amber-900">Practice Data</CardTitle>
+          <FlaskConical className="h-4 w-4 text-muted-foreground" />
+          <CardTitle className="text-foreground">Practice Data</CardTitle>
         </div>
-        <p className="text-sm text-amber-700 mt-1">
+        <p className="text-sm text-muted-foreground">
           Load realistic sample customers, jobs, invoices, and more to explore the app safely.
           Remove it anytime — your real data is never affected.
         </p>
@@ -86,10 +86,10 @@ export function DemoDataCard() {
           </div>
         ) : loaded ? (
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
-            <p className="text-sm text-amber-800 font-medium">
+            <p className="text-sm text-foreground font-medium">
               {totalCount} demo record{totalCount !== 1 ? "s" : ""} loaded
               {counts && (
-                <span className="font-normal text-amber-700">
+                <span className="font-normal text-muted-foreground">
                   {" "}({counts.customers} customers · {counts.jobs} jobs · {counts.invoices} invoices · {counts.bills} bills)
                 </span>
               )}
@@ -142,7 +142,7 @@ export function DemoDataCard() {
           <Button
             onClick={() => load.mutate()}
             disabled={busy}
-            className="bg-amber-600 hover:bg-amber-700 text-white"
+            variant="outline"
             data-testid="button-load-demo"
           >
             {load.isPending ? (

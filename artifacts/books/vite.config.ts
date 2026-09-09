@@ -63,6 +63,11 @@ export default defineConfig({
     alias: {
       "@": path.resolve(import.meta.dirname, "src"),
       "@assets": path.resolve(import.meta.dirname, "..", "..", "attached_assets"),
+      // Design preview (preview.html): swap Clerk for a stub so pages render
+      // with canned data and no session. Dev-only; never set in production.
+      ...(process.env.VITE_PREVIEW === "1"
+        ? { "@clerk/react": path.resolve(import.meta.dirname, "src", "preview", "clerk-stub.tsx") }
+        : {}),
     },
     dedupe: ["react", "react-dom"],
   },

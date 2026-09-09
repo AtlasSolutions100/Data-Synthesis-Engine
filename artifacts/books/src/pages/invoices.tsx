@@ -132,10 +132,10 @@ export default function Invoices() {
     <div className="space-y-8">
       <div className="flex justify-between items-end">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-slate-900">
+          <h1 className="text-[22px] font-semibold tracking-tight text-foreground">
             Invoices
           </h1>
-          <p className="text-slate-500 mt-1">
+          <p className="text-muted-foreground mt-1">
             Progress billing against job contracts (Accounts Receivable)
           </p>
         </div>

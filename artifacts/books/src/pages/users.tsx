@@ -51,10 +51,10 @@ export default function Users() {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight text-slate-900">
+        <h1 className="text-[22px] font-semibold tracking-tight text-foreground">
           Users
         </h1>
-        <p className="text-slate-500 mt-1">
+        <p className="text-muted-foreground mt-1">
           Owners can manage access and roles. Bookkeepers and owners both have
           full financial access; only owners can manage users.
         </p>
