@@ -6,7 +6,11 @@ modules = ["nodejs-24", "python-3.11", "postgresql-16"]
 [deployment]
 router = "application"
 deploymentTarget = "autoscale"
-build = ["sh", "-c", "pnpm install --frozen-lockfile && NODE_ENV=production CI=true PORT=8080 BASE_PATH=/ pnpm --filter @workspace/api-server --filter @workspace/books run build"]
+# The schema push is what the old agent-managed deploy did for us: without it
+# the production database never gets new tables/columns and every API call
+# that touches them fails (a blank dashboard). Additive-only changes; --force
+# skips drizzle's interactive prompt. Needs DATABASE_URL at build time.
+build = ["sh", "-c", "pnpm install --frozen-lockfile && pnpm --filter @workspace/db run push-force && NODE_ENV=production CI=true PORT=8080 BASE_PATH=/ pnpm --filter @workspace/api-server --filter @workspace/books run build"]
 run = ["sh", "-c", "NODE_ENV=production PORT=8080 node --enable-source-maps artifacts/api-server/dist/index.mjs"]
 
 [deployment.postBuild]
