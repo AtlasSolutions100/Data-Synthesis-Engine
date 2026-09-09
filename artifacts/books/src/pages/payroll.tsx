@@ -230,7 +230,7 @@ export default function Payroll() {
                       {formatCents(run.totalCostCents)}
                     </TableCell>
                     <TableCell>
-                      <Badge variant={run.posted ? "secondary" : "default"}>
+                      <Badge variant={run.posted ? "success" : "warning"}>
                         {run.posted ? "Posted" : "Unposted"}
                       </Badge>
                     </TableCell>

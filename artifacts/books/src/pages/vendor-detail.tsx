@@ -41,10 +41,10 @@ import { findReconcilableAccountIds } from "@/lib/vendor-reconcile-match";
 
 const todayStr = new Date().toISOString().slice(0, 10);
 
-const statusVariant: Record<string, "default" | "secondary" | "outline"> = {
-  paid: "secondary",
-  partial: "outline",
-  open: "default",
+const statusVariant: Record<string, "success" | "warning" | "info" | "secondary" | "outline" | "default"> = {
+  paid: "success",
+  partial: "info",
+  open: "warning",
 };
 
 /* ── Write-Check Dialog ──────────────────────────────────────────────────── */

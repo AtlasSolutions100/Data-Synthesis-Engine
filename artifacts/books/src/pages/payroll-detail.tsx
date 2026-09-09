@@ -219,7 +219,7 @@ export default function PayrollDetail() {
                     : `${formatDate(run.payPeriodStart)} – ${formatDate(run.payPeriodEnd)}`;
                 })()}
               </h1>
-              <Badge variant={run.posted ? "secondary" : "default"}>
+              <Badge variant={run.posted ? "success" : "warning"}>
                 {run.posted ? "Posted" : "Draft"}
               </Badge>
             </div>

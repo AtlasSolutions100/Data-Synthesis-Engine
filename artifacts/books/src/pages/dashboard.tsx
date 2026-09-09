@@ -109,19 +109,19 @@ export default function Dashboard() {
           sign carries meaning. */}
       <Card className="overflow-hidden">
         <dl className="grid grid-cols-2 lg:grid-cols-4 divide-y lg:divide-y-0 lg:divide-x divide-border">
-          <div className="px-5 py-4">
+          <div className="px-5 py-4 border-t-[3px] border-t-emerald-500">
             <dt className="eyebrow">Income</dt>
             <dd className="money mt-1.5 text-2xl font-semibold text-foreground">
               {formatCents(summary.totalIncomeCents)}
             </dd>
           </div>
-          <div className="px-5 py-4">
+          <div className="px-5 py-4 border-t-[3px] border-t-slate-400">
             <dt className="eyebrow">Cost of goods</dt>
             <dd className="money mt-1.5 text-2xl font-semibold text-foreground">
               {formatCents(summary.totalCogsCents)}
             </dd>
           </div>
-          <div className="px-5 py-4">
+          <div className="px-5 py-4 border-t-[3px] border-t-primary">
             <dt className="eyebrow">Gross profit</dt>
             <dd className={`money mt-1.5 flex items-baseline gap-2 text-2xl font-semibold ${summary.grossProfitCents >= 0 ? "text-emerald-700" : "text-red-700"}`}>
               <span>{formatCents(summary.grossProfitCents)}</span>
@@ -132,7 +132,7 @@ export default function Dashboard() {
               )}
             </dd>
           </div>
-          <div className="px-5 py-4">
+          <div className="px-5 py-4 border-t-[3px] border-t-brand">
             <dt className="eyebrow">Net income</dt>
             <dd className={`money mt-1.5 text-2xl font-semibold ${summary.netIncomeCents >= 0 ? "text-emerald-700" : "text-red-700"}`}>
               {formatCents(summary.netIncomeCents)}
@@ -261,7 +261,7 @@ function CustomerJobs({ customerId }: { customerId: number }) {
               <span className="text-xs text-slate-500 whitespace-nowrap">PO {job.poNumber}</span>
             )}
             <Badge
-              variant={job.status === "active" ? "default" : job.status === "completed" ? "secondary" : "outline"}
+              variant={job.status === "active" ? "success" : job.status === "completed" ? "secondary" : "outline"}
               className="text-xs"
             >
               {job.status}

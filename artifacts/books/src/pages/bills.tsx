@@ -403,10 +403,10 @@ function UploadInvoiceDialog({
 // Status badge config
 // ---------------------------------------------------------------------------
 
-const statusVariant: Record<string, "default" | "secondary" | "outline"> = {
-  paid: "secondary",
-  partial: "outline",
-  open: "default",
+const statusVariant: Record<string, "success" | "warning" | "info" | "secondary" | "outline" | "default"> = {
+  paid: "success",
+  partial: "info",
+  open: "warning",
 };
 
 // ---------------------------------------------------------------------------

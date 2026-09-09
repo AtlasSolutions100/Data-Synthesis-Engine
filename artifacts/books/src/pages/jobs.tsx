@@ -222,7 +222,7 @@ export default function Jobs() {
                       )}
                     </TableCell>
                     <TableCell>
-                      <Badge variant={job.status === "inactive" ? "destructive" : job.status === "active" ? "default" : job.status === "completed" ? "secondary" : "outline"}>
+                      <Badge variant={job.status === "inactive" ? "outline" : job.status === "active" ? "success" : job.status === "completed" ? "secondary" : "outline"}>
                         {job.status}
                       </Badge>
                     </TableCell>

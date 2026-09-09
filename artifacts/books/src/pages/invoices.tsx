@@ -60,10 +60,10 @@ const INVOICE_SORT_OPTIONS: SortOption<InvoiceRow>[] = [
 ];
 import { ImportDataDialog } from "@/components/import-data-dialog";
 
-const statusVariant: Record<string, "default" | "secondary" | "outline"> = {
-  paid: "secondary",
-  partial: "outline",
-  open: "default",
+const statusVariant: Record<string, "success" | "warning" | "info" | "secondary" | "outline" | "default"> = {
+  paid: "success",
+  partial: "info",
+  open: "warning",
 };
 
 export default function Invoices() {

@@ -53,6 +53,26 @@
   --color-chart-4: hsl(var(--chart-4));
   --color-chart-5: hsl(var(--chart-5));
 
+  /* Brand: ink navy + live-wire amber (electrical contractor). */
+  --color-brand: hsl(var(--brand));
+  --color-brand-foreground: hsl(var(--brand-foreground));
+  --color-sidebar: hsl(var(--sidebar));
+  --color-sidebar-foreground: hsl(var(--sidebar-foreground));
+  --color-sidebar-muted: hsl(var(--sidebar-muted));
+  --color-sidebar-border: hsl(var(--sidebar-border));
+  --color-sidebar-active: hsl(var(--sidebar-active));
+
+  /* Semantic chip colours (paid / open / overdue / info). */
+  --color-success: hsl(var(--success));
+  --color-success-foreground: hsl(var(--success-foreground));
+  --color-success-border: hsl(var(--success-border));
+  --color-warning: hsl(var(--warning));
+  --color-warning-foreground: hsl(var(--warning-foreground));
+  --color-warning-border: hsl(var(--warning-border));
+  --color-info: hsl(var(--info));
+  --color-info-foreground: hsl(var(--info-foreground));
+  --color-info-border: hsl(var(--info-border));
+
   --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-mono: ui-monospace, "SFMono-Regular", "JetBrains Mono", Menlo, Consolas, monospace;
 
@@ -123,6 +143,26 @@
 
   --radius: 0.625rem;
 
+  /* Brand */
+  --brand: 38 95% 52%;
+  --brand-foreground: 30 40% 10%;
+  --sidebar: 222 44% 13%;
+  --sidebar-foreground: 40 30% 94%;
+  --sidebar-muted: 222 18% 62%;
+  --sidebar-border: 222 30% 22%;
+  --sidebar-active: 222 40% 20%;
+
+  /* Semantic chips: tinted wash + darker text, readable on paper. */
+  --success: 150 45% 93%;
+  --success-foreground: 152 55% 24%;
+  --success-border: 150 35% 80%;
+  --warning: 40 95% 91%;
+  --warning-foreground: 28 75% 30%;
+  --warning-border: 40 80% 74%;
+  --info: 222 70% 95%;
+  --info-foreground: 222 60% 34%;
+  --info-border: 222 50% 84%;
+
   /* Outline treatments referenced by Button/Badge variants. */
   --button-outline: hsl(var(--input));
   --badge-outline: hsl(var(--border));
@@ -137,6 +177,10 @@
   }
   body {
     @apply bg-background text-foreground font-sans antialiased;
+    /* Faint dot grid: the paper has a weave, so large empty regions read as
+       material rather than a void. Kept near-invisible on purpose. */
+    background-image: radial-gradient(hsl(var(--foreground) / 0.055) 0.8px, transparent 0.8px);
+    background-size: 22px 22px;
     /* Ledger typography: lining, tabular figures everywhere so columns of
        money line up without per-cell classes; contextual alternates give
        Inter its cleaner single-storey a and open digits. */

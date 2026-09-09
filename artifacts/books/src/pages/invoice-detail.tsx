@@ -54,10 +54,10 @@ import { FeedbackButton } from "@/components/feedback-button";
 import { useQueryClient } from "@tanstack/react-query";
 import { Plus, Trash2, ArrowLeft, Pencil, Eye, Download, Copy, Mail } from "lucide-react";
 
-const statusVariant: Record<string, "default" | "secondary" | "outline"> = {
-  paid: "secondary",
-  partial: "outline",
-  open: "default",
+const statusVariant: Record<string, "success" | "warning" | "info" | "secondary" | "outline" | "default"> = {
+  paid: "success",
+  partial: "info",
+  open: "warning",
 };
 
 export default function InvoiceDetail() {

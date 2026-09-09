@@ -35,11 +35,11 @@ type NavItem = { href: string; label: string; icon: LucideIcon };
 type NavGroup = { label: string | null; items: NavItem[] };
 
 /**
- * App shell. A light sidebar that reads as part of the page rather than a
- * dark admin rail: the workspace is a ledger, and everything on it — nav,
- * tables, cards — sits on the same paper. Navigation is grouped the way the
- * bookkeeping actually flows (money in, money out, the books, admin) so the
- * fifteen destinations scan as four short lists instead of one long one.
+ * App shell. An ink-navy sidebar with one amber "live wire" accent (Allied
+ * Power is an electrical contractor) frames the warm paper workspace where
+ * the ledger lives. Navigation is grouped the way the bookkeeping actually
+ * flows (money in, money out, the books, support) so the fifteen
+ * destinations scan as four short lists instead of one long one.
  */
 export function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
@@ -150,16 +150,21 @@ export function Layout({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-background flex">
       {/* Sidebar */}
-      <aside className="w-60 fixed inset-y-0 z-10 flex flex-col border-r border-border bg-background">
-        <div className="h-14 flex items-center gap-2.5 px-4">
-          <img
-            src={`${import.meta.env.BASE_URL.replace(/\/$/, "")}/logo.png`}
-            alt=""
-            className="h-7 w-7 rounded-md"
-          />
+      <aside className="w-60 fixed inset-y-0 z-10 flex flex-col bg-sidebar text-sidebar-foreground">
+        {/* Brand block: ink navy with a live-wire amber rule — the one place
+            the brand colour is used decoratively. */}
+        <div className="h-14 flex items-center gap-3 px-4 border-b border-sidebar-border">
+          <div className="relative h-8 w-8 rounded-md bg-brand/15 flex items-center justify-center">
+            <img
+              src={`${import.meta.env.BASE_URL.replace(/\/$/, "")}/logo.png`}
+              alt=""
+              className="h-5 w-5 brightness-0 invert opacity-90"
+            />
+            <span aria-hidden className="absolute -bottom-0.5 left-1.5 right-1.5 h-0.5 rounded-full bg-brand" />
+          </div>
           <div className="leading-tight">
-            <div className="text-[13px] font-semibold text-foreground tracking-tight">Allied Power</div>
-            <div className="text-[11px] text-muted-foreground">Books</div>
+            <div className="text-[13px] font-semibold tracking-tight">Allied Power</div>
+            <div className="text-[11px] text-sidebar-muted">Books</div>
           </div>
         </div>
 
@@ -167,7 +172,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
           {groups.map((group, gi) => (
             <div key={group.label ?? "top"} className={gi === 0 ? "" : "mt-4"}>
               {group.label && (
-                <div className="eyebrow px-3 pb-1.5">{group.label}</div>
+                <div className="eyebrow px-3 pb-1.5 !text-sidebar-muted/80">{group.label}</div>
               )}
               <div className="space-y-0.5">
                 {group.items.map((item) => {
@@ -181,19 +186,19 @@ export function Layout({ children }: { children: React.ReactNode }) {
                       aria-current={active ? "page" : undefined}
                       className={`group relative flex items-center gap-2.5 rounded-md px-3 py-1.5 text-[13px] transition-colors ${
                         active
-                          ? "bg-accent text-accent-foreground font-medium"
-                          : "text-foreground/80 hover:bg-muted hover:text-foreground"
+                          ? "bg-sidebar-active text-white font-medium"
+                          : "text-sidebar-foreground/75 hover:bg-sidebar-active/60 hover:text-white"
                       }`}
                     >
                       {active && (
                         <span
                           aria-hidden
-                          className="absolute left-0 top-1.5 bottom-1.5 w-0.5 rounded-full bg-primary"
+                          className="absolute left-0 top-1.5 bottom-1.5 w-0.5 rounded-full bg-brand"
                         />
                       )}
                       <Icon
                         className={`h-4 w-4 flex-shrink-0 ${
-                          active ? "text-primary" : "text-muted-foreground group-hover:text-foreground"
+                          active ? "text-brand" : "text-sidebar-muted group-hover:text-white"
                         }`}
                         strokeWidth={1.75}
                       />
@@ -202,8 +207,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
                         <span
                           className={`inline-flex min-w-[1.25rem] items-center justify-center rounded-full px-1.5 py-0.5 text-[11px] font-semibold leading-none ${
                             item.href === "/inbox"
-                              ? "bg-primary text-primary-foreground"
-                              : "bg-secondary text-secondary-foreground"
+                              ? "bg-brand text-brand-foreground"
+                              : "bg-sidebar-active text-sidebar-foreground ring-1 ring-sidebar-border"
                           }`}
                           data-testid={badge.testId}
                         >
@@ -218,14 +223,14 @@ export function Layout({ children }: { children: React.ReactNode }) {
           ))}
         </nav>
 
-        <div className="border-t border-border p-3">
+        <div className="border-t border-sidebar-border p-3">
           <div className="flex items-center gap-2.5 px-1">
-            <div className="h-8 w-8 rounded-full bg-secondary text-secondary-foreground flex items-center justify-center text-xs font-semibold">
+            <div className="h-8 w-8 rounded-full bg-brand text-brand-foreground flex items-center justify-center text-xs font-bold">
               {initial}
             </div>
             <div className="min-w-0 flex-1 leading-tight">
-              <p className="text-[13px] font-medium text-foreground truncate">{user?.fullName || "User"}</p>
-              <p className="text-[11px] text-muted-foreground truncate">
+              <p className="text-[13px] font-medium truncate">{user?.fullName || "User"}</p>
+              <p className="text-[11px] text-sidebar-muted truncate">
                 {user?.emailAddresses[0]?.emailAddress}
               </p>
             </div>
@@ -233,7 +238,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
               onClick={() => signOut({ redirectUrl: import.meta.env.BASE_URL })}
               title="Sign out"
               aria-label="Sign out"
-              className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+              className="rounded-md p-1.5 text-sidebar-muted hover:bg-sidebar-active hover:text-white transition-colors"
             >
               <LogOut className="h-4 w-4" strokeWidth={1.75} />
             </button>

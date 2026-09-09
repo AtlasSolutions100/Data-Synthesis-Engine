@@ -49,10 +49,10 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Plus, ArrowLeft, Pencil, Undo2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
-const statusVariant: Record<string, "default" | "secondary" | "outline"> = {
-  paid: "secondary",
-  partial: "outline",
-  open: "default",
+const statusVariant: Record<string, "success" | "warning" | "info" | "secondary" | "outline" | "default"> = {
+  paid: "success",
+  partial: "info",
+  open: "warning",
 };
 
 export default function BillDetail() {

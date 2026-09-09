@@ -125,7 +125,7 @@ function TimecardHistoryDialog({
                         {formatCents(r.grossWagesCents)}
                       </TableCell>
                       <TableCell>
-                        <Badge variant={r.posted ? "secondary" : "default"}>
+                        <Badge variant={r.posted ? "success" : "warning"}>
                           {r.posted ? "Posted" : "Draft"}
                         </Badge>
                       </TableCell>
@@ -378,7 +378,7 @@ export default function Employees() {
                       ) : null}
                     </TableCell>
                     <TableCell>
-                      <Badge variant={employee.active !== false ? "default" : "secondary"}>
+                      <Badge variant={employee.active !== false ? "success" : "outline"}>
                         {employee.active !== false ? "Active" : "Inactive"}
                       </Badge>
                     </TableCell>

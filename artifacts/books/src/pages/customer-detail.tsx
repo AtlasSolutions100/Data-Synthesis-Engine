@@ -182,7 +182,7 @@ export default function CustomerDetail() {
           className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 flex items-center gap-2"
           data-testid="banner-customer-credit"
         >
-          <Badge className="bg-emerald-600 hover:bg-emerald-600">Credit</Badge>
+          <Badge variant="success">Credit</Badge>
           <span className="text-sm text-emerald-900">
             This customer has{" "}
             <span className="font-semibold" data-testid="text-customer-credit-total">
@@ -279,7 +279,7 @@ export default function CustomerDetail() {
                     </TableCell>
                     <TableCell>{job.poNumber || "-"}</TableCell>
                     <TableCell>
-                      <Badge variant={job.status === "active" ? "default" : job.status === "completed" ? "secondary" : "outline"}>
+                      <Badge variant={job.status === "active" ? "success" : job.status === "completed" ? "secondary" : "outline"}>
                         {job.status}
                       </Badge>
                     </TableCell>
