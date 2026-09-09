@@ -1,15 +1,43 @@
 modules = ["nodejs-24", "python-3.11", "postgresql-16"]
 
+# Single-process deployment: build both apps, then the API server serves the
+# built Books frontend itself (see artifacts/api-server/src/app.ts). PORT and
+# BASE_PATH are needed at BUILD time by the Vite config; PORT at run time.
 [deployment]
 router = "application"
 deploymentTarget = "autoscale"
+build = ["sh", "-c", "pnpm install --frozen-lockfile && NODE_ENV=production CI=true PORT=8080 BASE_PATH=/ pnpm --filter @workspace/api-server --filter @workspace/books run build"]
+run = ["sh", "-c", "NODE_ENV=production PORT=8080 node --enable-source-maps artifacts/api-server/dist/index.mjs"]
 
 [deployment.postBuild]
 args = ["pnpm", "store", "prune"]
 env = { "CI" = "true" }
 
+[[ports]]
+localPort = 8080
+externalPort = 80
+
+[[ports]]
+localPort = 18855
+externalPort = 3000
+
 [workflows]
-runButton = "Project"
+runButton = "Start application"
+
+# Dev: API on 8080, Vite on 18855 proxying /api to the API. Open the 18855
+# preview; the API alone shows JSON.
+[[workflows.workflow]]
+name = "Start application"
+mode = "parallel"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "PORT=8080 pnpm --filter @workspace/api-server run dev"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "PORT=18855 BASE_PATH=/ pnpm --filter @workspace/books run dev"
 
 [[workflows.workflow]]
 name = "Project"

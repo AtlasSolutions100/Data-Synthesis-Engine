@@ -79,6 +79,15 @@ export default defineConfig({
     fs: {
       strict: true,
     },
+    // Dev only: the browser calls the API same-origin at /api. In the Replit
+    // agent workspace a router already split the paths; in a plain Repl or
+    // on a laptop, Vite forwards them to the API dev server instead.
+    proxy: {
+      "/api": {
+        target: process.env.API_PROXY_TARGET ?? "http://localhost:8080",
+        changeOrigin: false,
+      },
+    },
   },
   preview: {
     port,

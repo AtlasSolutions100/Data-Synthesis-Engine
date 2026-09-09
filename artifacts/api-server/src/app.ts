@@ -1,4 +1,7 @@
 import express, { type Express } from "express";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import cors from "cors";
 import pinoHttp from "pino-http";
 import { clerkMiddleware } from "@clerk/express";
@@ -88,5 +91,60 @@ app.use("/api", inboundWebhookRouter);
 // producing non-JSON bodies that crash the client (e.g. "users.map is not a
 // function"). A 401 lets react-query surface the error cleanly instead.
 app.use("/api", withCurrentUser, router);
+
+// ── Built frontend ──────────────────────────────────────────────────────
+// Outside the Replit agent workspace (plain Repl deployments, other hosts)
+// there is no separate static service for the Books app, so the API serves
+// the Vite build itself: assets from artifacts/books/dist/public and the SPA
+// index for every non-API path. Resolved from this file's location so it
+// works from the bundled dist/index.mjs; WEB_DIST_DIR overrides it.
+const webDistDir = resolveWebDistDir();
+if (webDistDir) {
+  app.use(
+    express.static(webDistDir, {
+      index: false,
+      // Hashed asset filenames are immutable; index.html must revalidate.
+      setHeaders(res, filePath) {
+        if (/\/assets\//.test(filePath.replace(/\\/g, "/"))) {
+          res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+        } else {
+          res.setHeader("Cache-Control", "no-cache");
+        }
+      },
+    }),
+  );
+  app.get(/^(?!\/api(\/|$)).*/, (req, res, next) => {
+    if (req.method !== "GET" && req.method !== "HEAD") {
+      next();
+      return;
+    }
+    res.setHeader("Cache-Control", "no-cache");
+    res.sendFile(
+      path.join(webDistDir, "index.html"),
+      { cacheControl: false },
+      (err) => {
+        if (err) next(err);
+      },
+    );
+  });
+  logger.info({ webDistDir }, "Serving Books frontend from API server");
+}
+
+export function resolveWebDistDir(): string | null {
+  const candidates: string[] = [];
+  if (process.env.WEB_DIST_DIR) candidates.push(process.env.WEB_DIST_DIR);
+  try {
+    const here = path.dirname(fileURLToPath(import.meta.url));
+    // dist/index.mjs → ../../books/dist/public ; src/app.ts → ../../books/…
+    candidates.push(path.resolve(here, "..", "..", "books", "dist", "public"));
+  } catch {
+    // CJS test bundles have no import.meta.url; fall through to cwd.
+  }
+  candidates.push(path.resolve(process.cwd(), "artifacts", "books", "dist", "public"));
+  for (const dir of candidates) {
+    if (fs.existsSync(path.join(dir, "index.html"))) return dir;
+  }
+  return null;
+}
 
 export default app;
