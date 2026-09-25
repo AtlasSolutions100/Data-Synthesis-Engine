@@ -33,6 +33,8 @@ import {
   SavePayrollImportDraftBody,
   SavePayrollImportDraftResponse,
   GetPayrollImportDraftResponse,
+  MergePayrollRunsBody,
+  MergePayrollRunsResponse,
   MAX_EXTRACT_TEXT_LENGTH,
   extractTextTooLargeMessage,
 } from "@workspace/api-zod";
@@ -40,6 +42,7 @@ import {
 // are missing. Import it lazily inside the extract-hours handler so an
 // unconfigured integration never crashes unrelated payroll routes at startup.
 import { computeLine, type BurdenRates } from "../lib/payroll";
+import { mergeLineSets, type MergeSummary } from "../lib/payrollMerge";
 import { formatDollars } from "../lib/money";
 import { listKnownJobsForPrompt } from "./bills";
 import { COST_TYPES, dateRangeConds } from "../lib/finance";
@@ -74,6 +77,66 @@ const DEFAULT_RATES: BurdenRates = {
   coSuiRateBps: 170,
   coSurchargeRateBps: 22,
 };
+
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+function ratesOf(run: typeof payrollRunsTable.$inferSelect): BurdenRates {
+  return {
+    ssRateBps: run.ssRateBps,
+    medicareRateBps: run.medicareRateBps,
+    futaRateBps: run.futaRateBps,
+    coSuiRateBps: run.coSuiRateBps,
+    coSurchargeRateBps: run.coSurchargeRateBps,
+  };
+}
+
+/** A saved run's lines, in the same shape the create/update routes accept. */
+async function loadRunLinesAsInput(tx: Tx, runId: number): Promise<LineInput[]> {
+  const lines = await tx
+    .select()
+    .from(payrollLinesTable)
+    .where(eq(payrollLinesTable.runId, runId))
+    .orderBy(payrollLinesTable.id);
+  if (lines.length === 0) return [];
+  const allocs = await tx
+    .select()
+    .from(payrollAllocationsTable)
+    .where(inArray(payrollAllocationsTable.lineId, lines.map((l) => l.id)))
+    .orderBy(payrollAllocationsTable.id);
+  return lines.map((l) => ({
+    lineType: l.lineType as "employee" | "subcontractor",
+    employeeId: l.employeeId,
+    vendorId: l.vendorId,
+    workerName: l.workerName,
+    entryDetails: l.entryDetails ?? [],
+    regularHours: Number(l.regularHours),
+    overtimeHours: Number(l.overtimeHours),
+    holidayHours: Number(l.holidayHours),
+    straightRateCents: l.straightRateCents,
+    overtimeRateCents: l.overtimeRateCents,
+    taxExempt: l.taxExempt,
+    subcontractorAmountCents:
+      l.lineType === "subcontractor" ? Number(l.totalCostCents) : null,
+    allocations: allocs
+      .filter((a) => a.lineId === l.id)
+      .map((a) => ({
+        jobId: a.jobId,
+        amountCents: Number(a.amountCents),
+        hours: Number(a.hours ?? 0),
+      })),
+  }));
+}
+
+/** Replace a run's lines wholesale (allocations cascade with their lines). */
+async function replaceRunLines(
+  tx: Tx,
+  runId: number,
+  lines: LineInput[],
+  rates: BurdenRates,
+): Promise<void> {
+  await tx.delete(payrollLinesTable).where(eq(payrollLinesTable.runId, runId));
+  await insertLines(tx, runId, lines, rates);
+}
 
 /** Build the full PayrollRun payload (lines, allocations, computed totals). */
 async function getFullRun(id: number) {
@@ -887,6 +950,66 @@ router.post("/payroll-runs", async (req, res): Promise<void> => {
     return;
   }
 
+  // One time card per pay period (Mike, 2026-09-21): a second upload for the
+  // same period is added to the run that's already there, one line per
+  // worker, instead of creating a parallel run the checkbook can't match.
+  if (data.mergeIntoExistingPeriod) {
+    const samePeriod = await db
+      .select()
+      .from(payrollRunsTable)
+      .where(
+        and(
+          eq(payrollRunsTable.payPeriodStart, data.payPeriodStart),
+          eq(payrollRunsTable.isDemo, false),
+        ),
+      )
+      .orderBy(payrollRunsTable.id);
+    const open = samePeriod.find((r) => !r.posted);
+    if (!open && samePeriod.length > 0) {
+      res.status(409).json({
+        error:
+          "The time card for this pay period is already posted to the ledger. Unpost it first, then add these hours so the period stays one time card.",
+      });
+      return;
+    }
+    if (open) {
+      const targetRates = ratesOf(open);
+      let summary: MergeSummary = { mergedLines: 0, addedLines: 0, duplicateLines: 0 };
+      await db.transaction(async (tx) => {
+        const existing = await loadRunLinesAsInput(tx, open.id);
+        const merged = mergeLineSets(existing, lines, targetRates);
+        summary = merged.summary;
+        await replaceRunLines(tx, open.id, merged.lines as LineInput[], targetRates);
+        if (!open.processingFeeCents && data.processingFeeCents) {
+          await tx
+            .update(payrollRunsTable)
+            .set({ processingFeeCents: data.processingFeeCents })
+            .where(eq(payrollRunsTable.id, open.id));
+        }
+      });
+      const full = await getFullRun(open.id);
+      res
+        .status(200)
+        .json(
+          CreatePayrollRunResponse.parse({
+            ...full,
+            mergeSummary: { mergedIntoExisting: true, ...summary },
+          }),
+        );
+      return;
+    }
+  }
+
+  // Same worker listed twice in one save (two emails pasted together):
+  // fold them into one line before creating the run.
+  let createSummary: MergeSummary | null = null;
+  let linesToInsert = lines;
+  if (data.mergeIntoExistingPeriod) {
+    const folded = mergeLineSets([], lines, rates);
+    createSummary = folded.summary;
+    linesToInsert = folded.lines as LineInput[];
+  }
+
   const newId = await db.transaction(async (tx) => {
     const [run] = await tx
       .insert(payrollRunsTable)
@@ -905,12 +1028,77 @@ router.post("/payroll-runs", async (req, res): Promise<void> => {
         coSurchargeRateBps: rates.coSurchargeRateBps,
       })
       .returning();
-    await insertLines(tx, run.id, lines, rates);
+    await insertLines(tx, run.id, linesToInsert, rates);
     return run.id;
   });
 
   const full = await getFullRun(newId);
-  res.status(201).json(CreatePayrollRunResponse.parse(full));
+  res.status(201).json(
+    CreatePayrollRunResponse.parse(
+      createSummary
+        ? { ...full, mergeSummary: { mergedIntoExisting: false, ...createSummary } }
+        : full,
+    ),
+  );
+});
+
+/**
+ * Fold several unposted runs for one pay period into the oldest of them.
+ * Used to clean up periods that were entered as separate runs before
+ * merge-on-save existed.
+ */
+router.post("/payroll-runs/merge", async (req, res): Promise<void> => {
+  const parsed = MergePayrollRunsBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+  const ids = [...new Set(parsed.data.runIds)].sort((a, b) => a - b);
+  if (ids.length < 2) {
+    res.status(400).json({ error: "Pick at least two time cards to combine." });
+    return;
+  }
+  const runs = await db
+    .select()
+    .from(payrollRunsTable)
+    .where(inArray(payrollRunsTable.id, ids))
+    .orderBy(payrollRunsTable.id);
+  if (runs.length !== ids.length) {
+    res.status(404).json({ error: "One of those time cards no longer exists." });
+    return;
+  }
+  if (new Set(runs.map((r) => r.payPeriodStart)).size !== 1) {
+    res.status(400).json({ error: "Only time cards for the same pay period can be combined." });
+    return;
+  }
+  const posted = runs.filter((r) => r.posted);
+  if (posted.length > 0) {
+    res.status(409).json({
+      error: `Unpost ${posted.length === 1 ? "the posted time card" : "the posted time cards"} for this period first, then combine. Posting afterwards writes one set of checkbook entries for the whole period.`,
+    });
+    return;
+  }
+  const [target, ...others] = runs;
+  const targetRates = ratesOf(target);
+  await db.transaction(async (tx) => {
+    let lines = await loadRunLinesAsInput(tx, target.id);
+    let fee = Number(target.processingFeeCents ?? 0);
+    for (const other of others) {
+      const incoming = await loadRunLinesAsInput(tx, other.id);
+      lines = mergeLineSets(lines, incoming, targetRates).lines as LineInput[];
+      if (!fee && other.processingFeeCents) fee = Number(other.processingFeeCents);
+    }
+    await replaceRunLines(tx, target.id, lines, targetRates);
+    await tx
+      .update(payrollRunsTable)
+      .set({ processingFeeCents: fee })
+      .where(eq(payrollRunsTable.id, target.id));
+    await tx
+      .delete(payrollRunsTable)
+      .where(inArray(payrollRunsTable.id, others.map((o) => o.id)));
+  });
+  const full = await getFullRun(target.id);
+  res.json(MergePayrollRunsResponse.parse(full));
 });
 
 router.get("/payroll-runs/:id", async (req, res): Promise<void> => {

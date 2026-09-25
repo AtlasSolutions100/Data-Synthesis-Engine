@@ -88,6 +88,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { splitCentsByWeights } from "@/lib/hours-split";
 import { JobCombobox } from "@/components/job-combobox";
 import { rememberJobAlias } from "@/lib/job-aliases";
+import { useToast } from "@/hooks/use-toast";
 import {
   MAX_EXTRACT_TEXT_LENGTH,
   extractTextTooLargeMessage,
@@ -181,11 +182,24 @@ const runSchema = z.object({
 type RunFormValues = z.infer<typeof runSchema>;
 export type PayrollRunFormValues = RunFormValues;
 
+/**
+ * A time card that arrived by email: the hours reader opens with it and
+ * reads it immediately, so Mike never copies and pastes (meeting 2026-09-21).
+ * `key` makes each hand-off run exactly once.
+ */
+export interface ImportSource {
+  key: string;
+  text?: string;
+  fileData?: string;
+  fileName?: string;
+}
+
 interface PayrollRunFormProps {
   defaultValues?: Partial<RunFormValues>;
   onSubmit: (data: PayrollRunInput) => void;
   isLoading?: boolean;
   autoOpenImport?: boolean;
+  importSource?: ImportSource | null;
 }
 
 /** Percentage string (e.g. "6.2") -> basis points (620). */
@@ -346,6 +360,7 @@ function LineAllocations({
                         field.onChange(value);
                         clearWageWeights();
                       }}
+                      allowCreate
                     />
                   </FormControl>
                   <FormMessage />
@@ -1130,6 +1145,12 @@ const OVERHEAD_SOURCE_NAMES = new Set([
   "shop time",
   "overhead / office",
   "overhead/office",
+  // Paid time off isn't job cost: Mike books it under his own company job.
+  "holiday",
+  "holiday pay",
+  "vacation",
+  "pto",
+  "sick",
 ]);
 
 /** Existing jobs that can hold internal overhead time. */
@@ -1410,6 +1431,7 @@ function ImportHoursDialog({
   updateLine,
   applyPeriod,
   autoOpen = false,
+  initialSource = null,
 }: {
   form: UseFormReturn<RunFormValues>;
   employees: Employee[];
@@ -1421,8 +1443,11 @@ function ImportHoursDialog({
   ) => void;
   applyPeriod: (p: PayPeriod) => void;
   autoOpen?: boolean;
+  initialSource?: ImportSource | null;
 }) {
   const [open, setOpen] = useState(autoOpen);
+  const { toast } = useToast();
+  const consumedSource = useRef<string | null>(null);
   const [stage, setStage] = useState<"input" | "review">("input");
   const [text, setText] = useState("");
   const [fileName, setFileName] = useState("");
@@ -2079,16 +2104,20 @@ function ImportHoursDialog({
       let _entrySeq = 0;
       const entries: EntryDetail[] = (r.entries ?? []).map((e) => {
         const jobRaw = (e.jobName ?? "").trim();
+        const costType: LaborCostType =
+          e.costType === "overtime" || e.costType === "holiday"
+            ? e.costType
+            : "regular";
+        // Holiday hours with no job named go to the company's overhead job
+        // automatically instead of asking "what job is this?" every time.
+        const keyRaw = !jobRaw && costType === "holiday" ? "holiday" : jobRaw;
         return {
           id: `r${rowIndex}-e${_entrySeq++}`,
           date: e.date ?? null,
           hours: e.hours,
-          jobKey: ensureAssociation(jobRaw, rowIndex),
+          jobKey: ensureAssociation(keyRaw, rowIndex),
           jobRaw,
-          costType:
-            e.costType === "overtime" || e.costType === "holiday"
-              ? e.costType
-              : ("regular" as LaborCostType),
+          costType,
           resolvedJobId: "",
         };
       });
@@ -2154,13 +2183,14 @@ function ImportHoursDialog({
   };
 
   const doExtract = async (override?: {
-    fileData: string;
-    fileName: string;
+    text?: string;
+    fileData?: string;
+    fileName?: string;
   }) => {
     setError("");
-    const useText = override ? "" : text;
-    const useFileData = override ? override.fileData : fileData;
-    const useFileName = override ? override.fileName : fileName;
+    const useText = override ? (override.text ?? "") : text;
+    const useFileData = override ? (override.fileData ?? "") : fileData;
+    const useFileName = override ? (override.fileName ?? "") : fileName;
     if (!useText.trim() && !useFileData) {
       setError("Drop a time card file or paste some text first.");
       return;
@@ -2226,6 +2256,21 @@ function ImportHoursDialog({
       setError(readApiError(err));
     }
   };
+
+  // Inbox hand-off: read the forwarded time card as soon as the dialog opens.
+  useEffect(() => {
+    if (!open || !initialSource || consumedSource.current === initialSource.key) return;
+    consumedSource.current = initialSource.key;
+    if (initialSource.text) setText(initialSource.text);
+    if (initialSource.fileName) setFileName(initialSource.fileName);
+    void doExtract({
+      text: initialSource.text,
+      fileData: initialSource.fileData,
+      fileName: initialSource.fileName,
+    });
+    // doExtract is recreated each render; the key guard makes this run once.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, initialSource]);
 
   const updateRow = (i: number, patch: Partial<ReviewRow>) => {
     setRows((prev) =>
@@ -2560,13 +2605,59 @@ function ImportHoursDialog({
       queryClient.invalidateQueries({ queryKey: getListEmployeesQueryKey() });
     }
 
-    rows.forEach((r, rowIdx) => {
-      if (r.target === "skip") return;
+    // One line per worker per time card (meeting 2026-09-21): hours for a
+    // worker already on the card are ADDED to that line, and a card that was
+    // already entered is skipped instead of doubling the hours.
+    const dailyKey = (d: { date: string | null; hours: number; jobId?: string; costType: string }) =>
+      `${d.date ?? ""}|${d.jobId || ""}|${d.costType}|${Math.round(d.hours * 100) / 100}`;
+    const workerLineIndex = new Map<string, number>();
+    form.getValues("lines").forEach((line, i) => {
+      if (line.lineType === "employee" && line.employeeId) {
+        if (!workerLineIndex.has(`emp:${line.employeeId}`)) workerLineIndex.set(`emp:${line.employeeId}`, i);
+      }
+    });
+    const duplicateWorkers: string[] = [];
+    const mergedWorkers: string[] = [];
+
+    rows.forEach((origRow, rowIdx) => {
+      if (origRow.target === "skip") return;
 
       // Resolve the job id for an entry, preferring the per-row override set
       // via the day-grid picker over the shared assoc-level resolution.
       const jobIdForEntry = (e: EntryDetail): string =>
         e.resolvedJobId || jobIdForKey(e.jobKey);
+
+      const workerId = origRow.employeeId || createdIds.get(rowIdx) || "";
+      const workerKey = workerId
+        ? `emp:${workerId}`
+        : `name:${normalizeName(origRow.workerName)}`;
+      let mergeIdx: number | null = null;
+      if (origRow.target !== "new" && origRow.target !== "create") {
+        const t = parseInt(origRow.target, 10);
+        if (Number.isNaN(t)) return;
+        mergeIdx = t;
+      } else if (workerLineIndex.has(workerKey)) {
+        mergeIdx = workerLineIndex.get(workerKey)!;
+      }
+
+      let r = origRow;
+      const existingLine = mergeIdx !== null ? form.getValues(`lines.${mergeIdx}`) : null;
+      if (existingLine) {
+        const seen = new Set((existingLine.dailyEntries ?? []).map(dailyKey));
+        const fresh = origRow.entries.filter(
+          (e) =>
+            !seen.has(
+              dailyKey({ date: e.date, hours: e.hours, jobId: jobIdForEntry(e), costType: e.costType }),
+            ),
+        );
+        if (origRow.entries.length > 0 && fresh.length === 0) {
+          duplicateWorkers.push(origRow.workerName);
+          return;
+        }
+        if (fresh.length < origRow.entries.length) {
+          r = { ...origRow, entries: fresh, ...syncAggregates(fresh) };
+        }
+      }
 
       // Aggregate Reg/OT/Hol totals remain the source of truth for hourEntries
       // computation.  When the user edits the day grid, the entry mutators
@@ -2717,28 +2808,44 @@ function ImportHoursDialog({
           allocations: buildAllocations(taxExempt),
         };
         const reusableIndex = reusableBlankLineIndexes.shift();
+        const newIndex = reusableIndex ?? form.getValues("lines").length;
         if (reusableIndex === undefined) appendLine(importedLine);
         else updateLine(reusableIndex, importedLine);
+        workerLineIndex.set(workerKey, newIndex);
         return;
       }
 
-      const idx = parseInt(r.target, 10);
-      if (Number.isNaN(idx)) return;
-      form.setValue(`lines.${idx}.hourEntries`, hourEntries, {
-        shouldDirty: true,
-        shouldValidate: true,
-      });
+      const idx = mergeIdx as number;
+      mergedWorkers.push(r.workerName);
+      // ADD this card's hours to the line (a second week in the same pay
+      // period), rather than replacing what's already there.
+      const sumByType = new Map<LaborCostType, number>();
+      for (const h of [...(existingLine?.hourEntries ?? []), ...hourEntries]) {
+        const n = parseFloat(h.hours || "0") || 0;
+        sumByType.set(h.costType, (sumByType.get(h.costType) ?? 0) + n);
+      }
+      const mergedHours = (["regular", "overtime", "holiday"] as LaborCostType[])
+        .filter((t) => (sumByType.get(t) ?? 0) > 0)
+        .map((t) => ({ costType: t, hours: String(Math.round((sumByType.get(t) ?? 0) * 100) / 100) }));
+      form.setValue(
+        `lines.${idx}.hourEntries`,
+        mergedHours.length > 0 ? mergedHours : [{ costType: "regular" as LaborCostType, hours: "" }],
+        { shouldDirty: true, shouldValidate: true },
+      );
       // Keep the day-by-job detail on the merged line too — it is what the
       // saved run uses to show hours per job (and to rebuild the grid on
       // edit). Without it, a re-opened multi-job line showed 0 hrs per job.
       form.setValue(
         `lines.${idx}.dailyEntries`,
-        r.entries.map((entry) => ({
-          date: entry.date,
-          hours: entry.hours,
-          jobId: jobIdForEntry(entry),
-          costType: entry.costType,
-        })),
+        [
+          ...(existingLine?.dailyEntries ?? []),
+          ...r.entries.map((entry) => ({
+            date: entry.date,
+            hours: entry.hours,
+            jobId: jobIdForEntry(entry),
+            costType: entry.costType,
+          })),
+        ],
         { shouldDirty: true },
       );
       // Link the Employee Center record so rates apply automatically.
@@ -2752,11 +2859,42 @@ function ImportHoursDialog({
           form.getValues(`lines.${idx}.taxExempt`) ??
           employee?.taxExempt ??
           false;
-        form.setValue(`lines.${idx}.allocations`, buildAllocations(taxExempt), {
+        const byJob = new Map<string, { jobId: string; hours?: string; amount: string; wageWeightCents?: number }>();
+        const allocs: { jobId: string; hours?: string; amount: string; wageWeightCents?: number }[] = [
+          ...(existingLine?.allocations ?? []),
+          ...buildAllocations(taxExempt),
+        ];
+        for (const a of allocs) {
+          if (!a.jobId) continue;
+          const cur = byJob.get(a.jobId);
+          if (!cur) {
+            byJob.set(a.jobId, { ...a });
+            continue;
+          }
+          cur.amount = ((parseFloat(cur.amount || "0") || 0) + (parseFloat(a.amount || "0") || 0)).toFixed(2);
+          cur.hours = String(
+            Math.round(((parseFloat(cur.hours || "0") || 0) + (parseFloat(a.hours || "0") || 0)) * 100) / 100,
+          );
+          if (cur.wageWeightCents != null || a.wageWeightCents != null) {
+            cur.wageWeightCents = (cur.wageWeightCents ?? 0) + (a.wageWeightCents ?? 0);
+          }
+        }
+        form.setValue(`lines.${idx}.allocations`, [...byJob.values()], {
           shouldDirty: true,
         });
       }
     });
+    if (duplicateWorkers.length > 0) {
+      toast({
+        title: "Skipped hours already on this time card",
+        description: `${duplicateWorkers.join(", ")} — every day on that card was already entered, so nothing was doubled.`,
+      });
+    } else if (mergedWorkers.length > 0) {
+      toast({
+        title: "Added to the existing lines",
+        description: `${[...new Set(mergedWorkers)].join(", ")} — this card's hours were added to the hours already on the time card.`,
+      });
+    }
     // The import made it into the run — the safety-net draft is done.
     clearDraft();
     handleOpenChange(false);
@@ -3309,6 +3447,8 @@ function ImportHoursDialog({
                                       })
                                     }
                                     placeholder="Pick job…"
+                                    allowCreate
+                                    defaultCreateName={e.jobRaw}
                                   />
                                   <Button
                                     type="button"
@@ -3476,6 +3616,8 @@ function ImportHoursDialog({
                                         r.target !== "skip" &&
                                         !assocConfirmed(a)
                                       }
+                                      allowCreate
+                                      defaultCreateName={a.overhead ? "" : a.raw}
                                     />
                                     {a.jobId && a.auto && !a.needsConfirm ? (
                                       <p
@@ -3595,6 +3737,7 @@ export function PayrollRunForm({
   onSubmit,
   isLoading,
   autoOpenImport,
+  importSource,
 }: PayrollRunFormProps) {
   const { data: employees } = useListEmployees({
     query: { queryKey: getListEmployeesQueryKey() },
@@ -3975,7 +4118,8 @@ export function PayrollRunForm({
                 appendLine={append}
                 updateLine={update}
                 applyPeriod={applyPeriod}
-                autoOpen={autoOpenImport}
+                autoOpen={autoOpenImport || !!importSource}
+                initialSource={importSource ?? null}
               />
               <Button
                 type="button"

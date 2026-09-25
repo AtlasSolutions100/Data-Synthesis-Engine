@@ -11,6 +11,8 @@ export interface PayrollRunInput {
   payPeriodStart: string;
   payPeriodEnd: string;
   payDate: string;
+  /** When true and an unposted run already exists for this pay period, the hours are added to that run (one line per worker) instead of creating a second run. A posted run for the period is a 409. */
+  mergeIntoExistingPeriod?: boolean;
   /** @nullable */
   memo?: string | null;
   /**

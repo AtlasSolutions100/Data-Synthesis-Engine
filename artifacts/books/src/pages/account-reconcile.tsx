@@ -35,6 +35,7 @@ import {
 } from "lucide-react";
 import { useState, useCallback } from "react";
 import { formatDate } from "@/lib/format";
+import { UnmatchedLineActions } from "@/components/unmatched-line-actions";
 
 const fmt = (cents: number) => {
   const abs = Math.abs(cents) / 100;
@@ -467,7 +468,8 @@ export default function AccountReconcile() {
           </div>
           <p className="text-xs text-slate-500">
             These rows from your uploaded statement couldn't be matched to a ledger entry by date
-            and amount. Check for missing transactions or posting date differences.
+            and amount. If one is missing from the books, add it right here — it's checked off as
+            soon as it's saved.
           </p>
           <Card className="overflow-hidden border-amber-200">
             <CardContent className="p-0">
@@ -484,6 +486,7 @@ export default function AccountReconcile() {
                       <th className="text-left px-3 py-2 text-xs font-medium text-amber-700 uppercase tracking-wide">
                         Description
                       </th>
+                      {!isCompleted && <th className="w-[170px]" />}
                     </tr>
                   </thead>
                   <tbody>
@@ -505,6 +508,17 @@ export default function AccountReconcile() {
                         <td className="px-3 py-2 text-slate-700 max-w-[300px] truncate">
                           {line.description || <span className="text-slate-300">—</span>}
                         </td>
+                        {!isCompleted && (
+                          <td className="px-3 py-1.5">
+                            <UnmatchedLineActions
+                              periodId={pid}
+                              accountId={accountId}
+                              accountName={data.accountName}
+                              index={i}
+                              line={line}
+                            />
+                          </td>
+                        )}
                       </tr>
                     ))}
                   </tbody>

@@ -109,6 +109,7 @@ import type {
   ListReconciliationPeriodsParams,
   ListTransactionsParams,
   ManualBillLinkBody,
+  MergePayrollRunsInput,
   PayrollByJob,
   PayrollImportDraft,
   PayrollImportDraftInput,
@@ -118,6 +119,7 @@ import type {
   PnlReport,
   ReconciliationPeriod,
   ReconciliationPeriodDetail,
+  ResolveUnmatchedStatementLine,
   ToggleReconciliationClear,
   Transaction,
   TransactionInput,
@@ -6876,6 +6878,77 @@ export const useCreatePayrollRun = <TError = ErrorType<ErrorResponse>,
       return useMutation(getCreatePayrollRunMutationOptions(options));
     }
 
+export const getMergePayrollRunsUrl = () => {
+
+
+
+
+  return `/api/payroll-runs/merge`
+}
+
+/**
+ * Folds every listed run into the oldest one: one line per worker, day entries de-duplicated, hours and job allocations added. The other runs are deleted. All runs must share a pay period and be unposted.
+ * @summary Combine unposted time card runs for the same pay period into one
+ */
+export const mergePayrollRuns = async (mergePayrollRunsInput: MergePayrollRunsInput, options?: RequestInit): Promise<PayrollRun> => {
+
+  return customFetch<PayrollRun>(getMergePayrollRunsUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(mergePayrollRunsInput)
+  }
+);}
+
+
+
+
+export const getMergePayrollRunsMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof mergePayrollRuns>>, TError,{data: BodyType<MergePayrollRunsInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof mergePayrollRuns>>, TError,{data: BodyType<MergePayrollRunsInput>}, TContext> => {
+
+const mutationKey = ['mergePayrollRuns'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof mergePayrollRuns>>, {data: BodyType<MergePayrollRunsInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  mergePayrollRuns(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type MergePayrollRunsMutationResult = NonNullable<Awaited<ReturnType<typeof mergePayrollRuns>>>
+    export type MergePayrollRunsMutationBody = BodyType<MergePayrollRunsInput>
+    export type MergePayrollRunsMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Combine unposted time card runs for the same pay period into one
+ */
+export const useMergePayrollRuns = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof mergePayrollRuns>>, TError,{data: BodyType<MergePayrollRunsInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof mergePayrollRuns>>,
+        TError,
+        {data: BodyType<MergePayrollRunsInput>},
+        TContext
+      > => {
+      return useMutation(getMergePayrollRunsMutationOptions(options));
+    }
+
 export const getGetPayrollRunUrl = (id: number,) => {
 
 
@@ -9029,6 +9102,78 @@ export const useUpdateReconciliationPeriod = <TError = ErrorType<ErrorResponse>,
         TContext
       > => {
       return useMutation(getUpdateReconciliationPeriodMutationOptions(options));
+    }
+
+export const getResolveUnmatchedStatementLineUrl = (id: number,) => {
+
+
+
+
+  return `/api/reconciliation/periods/${id}/resolve-unmatched`
+}
+
+/**
+ * Removes the statement line at `index` from the period's unmatched list and checks off, in this period, the ledger rows of the given bill (its postings in this account) or the given transaction.
+ * @summary Settle an unmatched statement line with a bill or transaction just entered
+ */
+export const resolveUnmatchedStatementLine = async (id: number,
+    resolveUnmatchedStatementLine: ResolveUnmatchedStatementLine, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getResolveUnmatchedStatementLineUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(resolveUnmatchedStatementLine)
+  }
+);}
+
+
+
+
+export const getResolveUnmatchedStatementLineMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof resolveUnmatchedStatementLine>>, TError,{id: number;data: BodyType<ResolveUnmatchedStatementLine>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof resolveUnmatchedStatementLine>>, TError,{id: number;data: BodyType<ResolveUnmatchedStatementLine>}, TContext> => {
+
+const mutationKey = ['resolveUnmatchedStatementLine'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof resolveUnmatchedStatementLine>>, {id: number;data: BodyType<ResolveUnmatchedStatementLine>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  resolveUnmatchedStatementLine(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ResolveUnmatchedStatementLineMutationResult = NonNullable<Awaited<ReturnType<typeof resolveUnmatchedStatementLine>>>
+    export type ResolveUnmatchedStatementLineMutationBody = BodyType<ResolveUnmatchedStatementLine>
+    export type ResolveUnmatchedStatementLineMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Settle an unmatched statement line with a bill or transaction just entered
+ */
+export const useResolveUnmatchedStatementLine = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof resolveUnmatchedStatementLine>>, TError,{id: number;data: BodyType<ResolveUnmatchedStatementLine>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof resolveUnmatchedStatementLine>>,
+        TError,
+        {id: number;data: BodyType<ResolveUnmatchedStatementLine>},
+        TContext
+      > => {
+      return useMutation(getResolveUnmatchedStatementLineMutationOptions(options));
     }
 
 export const getToggleReconciliationClearUrl = (id: number,) => {

@@ -10,8 +10,22 @@
  * file finishing its upload and the client saving its metadata. We only delete
  * objects that are older than that window so an in-flight upload is never
  * removed out from under a legitimate request.
+ *
+ * "Referenced" means ANY place the app stores an object path, not just job
+ * documents. Before 2026-09 this only looked at job_documents, so inbox email
+ * attachments, bill scans on bills without a job, statement files and
+ * in-progress invoice drafts were deleted a few hours after upload — which is
+ * why forwarded attachments showed "could not fetch".
  */
-import { db, jobDocumentsTable } from "@workspace/db";
+import { isNotNull } from "drizzle-orm";
+import {
+  db,
+  jobDocumentsTable,
+  billsTable,
+  reconciliationPeriodsTable,
+  inboundEmailsTable,
+  billImportDraftsTable,
+} from "@workspace/db";
 import { ObjectStorageService } from "./objectStorage";
 import { logger } from "./logger";
 
@@ -43,10 +57,7 @@ export async function cleanupOrphanedUploads(
     return { scanned: 0, deleted: 0 };
   }
 
-  const rows = await db
-    .select({ objectPath: jobDocumentsTable.objectPath })
-    .from(jobDocumentsTable);
-  const referenced = new Set(rows.map((r) => r.objectPath));
+  const referenced = await listReferencedObjectPaths();
 
   const cutoff = now - ORPHAN_GRACE_MS;
   let deleted = 0;
@@ -74,6 +85,38 @@ export async function cleanupOrphanedUploads(
   }
 
   return { scanned: objects.length, deleted };
+}
+
+const OBJECT_PATH_RE = /\/objects\/[A-Za-z0-9._/-]+/g;
+
+/** Every object path the database currently points at. */
+export async function listReferencedObjectPaths(): Promise<Set<string>> {
+  const referenced = new Set<string>();
+  const add = (p: string | null | undefined) => {
+    if (p) referenced.add(p);
+  };
+  const [docs, bills, statements, emails, drafts] = await Promise.all([
+    db.select({ p: jobDocumentsTable.objectPath }).from(jobDocumentsTable),
+    db
+      .select({ p: billsTable.documentPath })
+      .from(billsTable)
+      .where(isNotNull(billsTable.documentPath)),
+    db
+      .select({ p: reconciliationPeriodsTable.statementDocumentPath })
+      .from(reconciliationPeriodsTable)
+      .where(isNotNull(reconciliationPeriodsTable.statementDocumentPath)),
+    db.select({ attachments: inboundEmailsTable.attachments }).from(inboundEmailsTable),
+    db.select({ state: billImportDraftsTable.state }).from(billImportDraftsTable),
+  ]);
+  for (const r of docs) add(r.p);
+  for (const r of bills) add(r.p);
+  for (const r of statements) add(r.p);
+  for (const r of emails) for (const a of r.attachments ?? []) add(a.objectPath);
+  // Drafts are opaque client state; any object path inside them is in use.
+  for (const r of drafts) {
+    for (const m of JSON.stringify(r.state ?? null).match(OBJECT_PATH_RE) ?? []) add(m);
+  }
+  return referenced;
 }
 
 /**

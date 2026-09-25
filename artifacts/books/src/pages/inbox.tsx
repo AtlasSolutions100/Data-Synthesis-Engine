@@ -27,10 +27,10 @@ import {
   Paperclip,
   Check,
   X,
-  Copy,
   Loader2,
   Mail,
 } from "lucide-react";
+import { inboxErrorMessage } from "@/lib/inbox-attachments";
 
 /**
  * The books' own mailbox. Mike forwards vendor invoices, employee time cards
@@ -81,10 +81,33 @@ export default function InboxPage() {
   const invalidate = () =>
     queryClient.invalidateQueries({ queryKey: ["listInboundEmails"] });
 
+  const listKey = getListInboundEmailsQueryKey(params);
   const update = useUpdateInboundEmail({
     mutation: {
-      onSuccess: () => invalidate(),
-      onError: () => toast({ title: "Could not update this email", variant: "destructive" }),
+      // Optimistic: Done / Dismiss take the card off the list right away
+      // instead of waiting on the round trip (Mike thought "nothing happened").
+      onMutate: async ({ id, data }) => {
+        await queryClient.cancelQueries({ queryKey: listKey });
+        const previous = queryClient.getQueryData<InboundEmail[]>(listKey);
+        if (previous) {
+          const next =
+            data.status && status !== "all" && data.status !== status
+              ? previous.filter((e) => e.id !== id)
+              : previous.map((e) => (e.id === id ? { ...e, ...data } as InboundEmail : e));
+          queryClient.setQueryData(listKey, next);
+        }
+        return { previous };
+      },
+      onError: (err, _vars, ctx) => {
+        const c = ctx as { previous?: InboundEmail[] } | undefined;
+        if (c?.previous) queryClient.setQueryData(listKey, c.previous);
+        toast({
+          title: "Could not update this email",
+          description: inboxErrorMessage(err, "Please try again."),
+          variant: "destructive",
+        });
+      },
+      onSettled: () => invalidate(),
     },
   });
 
@@ -106,22 +129,14 @@ export default function InboxPage() {
       a.href = att.dataUrl;
       a.download = att.fileName;
       a.click();
-    } catch {
-      toast({ title: "Could not fetch that attachment", variant: "destructive" });
+    } catch (err) {
+      toast({
+        title: "Could not fetch that attachment",
+        description: inboxErrorMessage(err, "Please try again."),
+        variant: "destructive",
+      });
     } finally {
       setDownloading(null);
-    }
-  };
-
-  const copyText = async (email: InboundEmail) => {
-    try {
-      await navigator.clipboard.writeText(email.textBody ?? "");
-      toast({
-        title: "Time card text copied",
-        description: "Open Time Cards → Upload Hours and paste it in.",
-      });
-    } catch {
-      toast({ title: "Could not copy to the clipboard", variant: "destructive" });
     }
   };
 
@@ -133,8 +148,8 @@ export default function InboxPage() {
             <InboxIcon className="h-6 w-6 text-muted-foreground" strokeWidth={1.75} /> Inbox
           </h1>
           <p className="text-muted-foreground mt-1">
-            Everything forwarded to the books address. Send each item to Bills, Time Cards, or a
-            reconciliation — nothing posts until you review it.
+            Everything forwarded to the books address. Pick the button for what it is — the app
+            reads it and opens the review. Nothing posts until you save.
           </p>
         </div>
         <Select value={status} onValueChange={(v) => setStatus(v as typeof status)}>
@@ -250,11 +265,18 @@ export default function InboxPage() {
                   )}
 
                   <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-slate-100">
-                    {email.attachments.length > 0 && (email.kind === "bill" || email.kind === "unknown") && (
+                    {(email.attachments.length > 0 || !!email.textBody) &&
+                      (email.kind === "bill" || email.kind === "unknown") && (
                       <Button
                         size="sm"
+                        variant={email.kind === "bill" ? "default" : "outline"}
                         onClick={() => navigate(`/bills?inboxEmail=${email.id}`)}
                         data-testid={`inbox-open-bills-${email.id}`}
+                        title={
+                          email.attachments.length === 0
+                            ? "No attachment — the invoice is read from the email text"
+                            : undefined
+                        }
                       >
                         <FileInput className="mr-1.5 h-3.5 w-3.5" /> Read as vendor invoice
                       </Button>
@@ -269,17 +291,16 @@ export default function InboxPage() {
                         <Landmark className="mr-1.5 h-3.5 w-3.5" /> Reconcile statement
                       </Button>
                     )}
-                    {email.textBody && (email.kind === "timecard" || email.kind === "unknown") && (
+                    {(!!email.textBody || email.attachments.length > 0) &&
+                      (email.kind === "timecard" || email.kind === "unknown") && (
                       <Button
                         size="sm"
                         variant={email.kind === "timecard" ? "default" : "outline"}
-                        onClick={async () => {
-                          await copyText(email);
-                          navigate("/payroll");
-                        }}
+                        onClick={() => navigate(`/payroll?inboxEmail=${email.id}`)}
                         data-testid={`inbox-timecard-${email.id}`}
+                        title="Reads the hours and opens the review — no copy and paste"
                       >
-                        <Copy className="mr-1.5 h-3.5 w-3.5" /> Copy for Time Cards
+                        <Clock className="mr-1.5 h-3.5 w-3.5" /> Add to Time Cards
                       </Button>
                     )}
                     <div className="flex-1" />

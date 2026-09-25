@@ -14,7 +14,7 @@ import {
   useUpdateInboundEmail,
 } from "@workspace/api-client-react";
 import { useSearch } from "wouter";
-import { fetchInboxAttachmentsAsFiles } from "@/lib/inbox-attachments";
+import { fetchInboxAttachmentsAsFiles, inboxErrorMessage } from "@/lib/inbox-attachments";
 import { rememberJobAlias } from "@/lib/job-aliases";
 import type { ExtractBillResult } from "@workspace/api-client-react";
 import { formatCents, formatDate } from "@/lib/format";
@@ -448,7 +448,9 @@ export default function Bills() {
     let cancelled = false;
     (async () => {
       try {
-        const files = await fetchInboxAttachmentsAsFiles(inboxEmailId);
+        const files = await fetchInboxAttachmentsAsFiles(inboxEmailId, {
+          bodyWhenNoAttachments: true,
+        });
         if (cancelled) return;
         if (files.length === 0) {
           inboxToast({
@@ -458,9 +460,13 @@ export default function Bills() {
           return;
         }
         setInboxFiles(files);
-      } catch {
+      } catch (err) {
         if (!cancelled) {
-          inboxToast({ title: "Could not load the forwarded invoice", variant: "destructive" });
+          inboxToast({
+            title: "Could not load the forwarded invoice",
+            description: inboxErrorMessage(err, "Please try again, or forward the email again."),
+            variant: "destructive",
+          });
         }
       }
     })();

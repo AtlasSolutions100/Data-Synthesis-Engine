@@ -119,7 +119,9 @@ router.get(
         ).toString("base64");
       } catch (err) {
         req.log?.error({ err }, "inbound attachment read failed");
-        res.status(404).json({ error: "Attachment file is no longer available" });
+        res.status(404).json({
+          error: `"${attachment.fileName}" is no longer in storage (older builds cleaned up inbox files after a few hours). Forward the email again to read it.`,
+        });
         return;
       }
     } else {

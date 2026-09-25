@@ -40,6 +40,16 @@ A desktop-first, browser-based job-costing and construction-accounting app that 
 - **Job nicknames (`job_aliases`).** `PUT /jobs/:id/aliases` replaces a job's aliases; a normalized alias belongs to one job (latest mapping wins). `Job.aliases` rides on list/detail. The bill and time-card extraction prompts include a KNOWN JOBS section with aliases so the model returns real job names; the frontend matchers treat an exact alias as a confident match; and whenever Mike resolves an unrecognized job name by hand in the bill review or hours import, the alias is remembered automatically (`lib/job-aliases.ts`). Managed on the job detail page ("Also known as").
 - **AI extraction runs with `reasoning_effort: "low"`** (bills, hours, employees) and the bill uploader reads up to three files concurrently.
 
+### Client meeting 2026-09-21 changes
+
+- **One time card per pay period.** New runs are saved with `mergeIntoExistingPeriod: true`: if an unposted run already exists for that `payPeriodStart` (periods are a fixed biweekly grid, `lib/pay-periods.ts`), the hours are folded into it — one line per worker (`lib/payrollMerge.ts`), identical day entries skipped as duplicates, hours/allocations added, allocations capped at gross. A posted run for the period is a 409 (unpost first). `POST /payroll-runs/merge` combines periods already split into several runs; the Time Cards page shows a "Combine into one" banner for them. The import review's "add to existing line" path is additive with the same duplicate rule (it used to replace the line's hours).
+- **Inbox → Time Cards is one click.** "Add to Time Cards" opens `/payroll?inboxEmail=ID`, which starts a new run with the hours reader already reading the email text (or its first attachment); saving marks the email processed.
+- **Create a job from the time card review.** `JobCombobox` has `allowCreate` (name + customer, customer can be created too). The bill form already had inline job creation.
+- **Holiday hours with no job** go to the Allied overhead job automatically (`OVERHEAD_SOURCE_NAMES` includes holiday / vacation / PTO / sick).
+- **Inbox attachments were being deleted.** The orphan-upload cleanup only treated job documents as referenced, so inbox attachments, bill scans without a job, statement files, and invoice drafts were removed a few hours after upload. `listReferencedObjectPaths()` now covers all of them. Files already deleted can't be recovered — forward those emails again.
+- **Invoices without an attachment** (QuickBooks "view invoice" emails) are read from the email text.
+- **Reconcile: add what's missing.** Each unmatched statement line has "Add bill" (vendor statement accounts) or "Add entry" (bank) prefilled from the line, plus Ignore; saving calls `POST /reconciliation/periods/:id/resolve-unmatched`, which checks off the new rows with the statement line and drops it from the unmatched list.
+
 ### Load a Replit table export (JSON per table)
 
 ```

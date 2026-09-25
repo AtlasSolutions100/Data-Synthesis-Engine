@@ -19,6 +19,8 @@ import {
   UpdateReconciliationPeriodResponse,
   ToggleReconciliationClearParams,
   ToggleReconciliationClearBody,
+  ResolveUnmatchedStatementLineParams,
+  ResolveUnmatchedStatementLineBody,
   ToggleReconciliationClearResponse,
   CompleteReconciliationPeriodParams,
   CompleteReconciliationPeriodResponse,
@@ -913,6 +915,76 @@ router.patch("/reconciliation/periods/:id", async (req, res) => {
 });
 
 // ── POST /reconciliation/periods/:id/clears ──────────────────────────────────
+
+/**
+ * Settle one "unmatched statement line": Mike found an invoice on the vendor
+ * statement that wasn't in the books, entered it right there (bill or
+ * register transaction), and now it should count as matched. Removes the
+ * line from the unmatched list and checks off the new entry's rows in this
+ * account, carrying the statement line as the match.
+ */
+router.post("/reconciliation/periods/:id/resolve-unmatched", async (req, res) => {
+  const params = ResolveUnmatchedStatementLineParams.safeParse(req.params);
+  if (!params.success) return res.status(400).json({ error: params.error.message });
+  const body = ResolveUnmatchedStatementLineBody.safeParse(req.body);
+  if (!body.success) return res.status(400).json({ error: body.error.message });
+
+  const [period] = await db
+    .select()
+    .from(reconciliationPeriodsTable)
+    .where(eq(reconciliationPeriodsTable.id, params.data.id));
+  if (!period) return res.status(404).json({ error: "Reconciliation period not found" });
+  if (period.status === "completed") {
+    return res
+      .status(400)
+      .json({ error: "Cannot modify a completed reconciliation period. Reopen it first." });
+  }
+  const unmatched =
+    (period.unmatchedStatementLines as
+      | { date: string; amountCents: number; description: string }[]
+      | null) ?? [];
+  const line = unmatched[body.data.index];
+  if (!line) return res.status(400).json({ error: "That statement line is no longer listed." });
+
+  const touchesAccount = sql`(${transactionsTable.accountId} = ${period.accountId} or ${transactionsTable.splitAccountId} = ${period.accountId})`;
+  let txIds: number[] = [];
+  if (body.data.transactionId != null) {
+    const rows = await db
+      .select({ id: transactionsTable.id })
+      .from(transactionsTable)
+      .where(and(eq(transactionsTable.id, body.data.transactionId), touchesAccount));
+    if (rows.length === 0) {
+      return res.status(400).json({ error: "That transaction isn't in this account." });
+    }
+    txIds = rows.map((r) => r.id);
+  } else if (body.data.billId != null) {
+    const rows = await db
+      .select({ id: transactionsTable.id })
+      .from(transactionsTable)
+      .where(and(eq(transactionsTable.billId, body.data.billId), touchesAccount));
+    txIds = rows.map((r) => r.id);
+  }
+
+  await db.transaction(async (tx) => {
+    if (txIds.length > 0) {
+      await tx
+        .insert(reconciliationClearsTable)
+        .values(
+          txIds.map((transactionId) => ({
+            periodId: period.id,
+            transactionId,
+            matchedStatementLine: line,
+          })),
+        )
+        .onConflictDoNothing();
+    }
+    await tx
+      .update(reconciliationPeriodsTable)
+      .set({ unmatchedStatementLines: unmatched.filter((_, i) => i !== body.data.index) })
+      .where(eq(reconciliationPeriodsTable.id, period.id));
+  });
+  return res.sendStatus(204);
+});
 
 router.post("/reconciliation/periods/:id/clears", async (req, res) => {
   const params = ToggleReconciliationClearParams.safeParse(req.params);
