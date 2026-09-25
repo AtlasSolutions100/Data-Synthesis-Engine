@@ -18,8 +18,10 @@ export interface DuplicateCandidate {
 
 interface DuplicateWarningDialogProps {
   open: boolean;
-  entityLabel: "job" | "customer" | "vendor";
+  entityLabel: "job" | "customer" | "vendor" | "bill" | "check";
   candidates: DuplicateCandidate[];
+  /** Replaces the default "…have a similar name" lead-in (bills, checks). */
+  intro?: string;
   onConfirm: () => void;
   onCancel: () => void;
 }
@@ -33,6 +35,7 @@ export function DuplicateWarningDialog({
   open,
   entityLabel,
   candidates,
+  intro,
   onConfirm,
   onCancel,
 }: DuplicateWarningDialogProps) {
@@ -44,13 +47,17 @@ export function DuplicateWarningDialog({
           <AlertDialogDescription asChild>
             <div>
               <p className="mb-3">
-                This looks like it might already exist. The following{" "}
-                {entityLabel === "job"
-                  ? "jobs"
-                  : entityLabel === "customer"
-                    ? "customers"
-                    : "vendors"}{" "}
-                have a similar name:
+                {intro ?? (
+                  <>
+                    This looks like it might already exist. The following{" "}
+                    {entityLabel === "job"
+                      ? "jobs"
+                      : entityLabel === "customer"
+                        ? "customers"
+                        : "vendors"}{" "}
+                    have a similar name:
+                  </>
+                )}
               </p>
               <ul className="space-y-1">
                 {candidates.map((c) => (
@@ -74,7 +81,7 @@ export function DuplicateWarningDialog({
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel onClick={onCancel}>
+          <AlertDialogCancel onClick={onCancel} data-testid="button-duplicate-cancel">
             Cancel — go back
           </AlertDialogCancel>
           <AlertDialogAction
@@ -82,7 +89,7 @@ export function DuplicateWarningDialog({
             className="bg-amber-600 hover:bg-amber-700 text-white"
             data-testid="button-duplicate-confirm"
           >
-            Continue anyway
+            {entityLabel === "bill" || entityLabel === "check" ? "Save anyway" : "Continue anyway"}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

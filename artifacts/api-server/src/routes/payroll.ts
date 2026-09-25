@@ -12,6 +12,8 @@ import {
   employeesTable,
   vendorsTable,
   payrollImportDraftsTable,
+  reconciliationClearsTable,
+  reconciliationPeriodsTable,
 } from "@workspace/db";
 import {
   ListPayrollRunsQueryParams,
@@ -136,6 +138,183 @@ async function replaceRunLines(
 ): Promise<void> {
   await tx.delete(payrollLinesTable).where(eq(payrollLinesTable.runId, runId));
   await insertLines(tx, runId, lines, rates);
+}
+
+/** A reason a run can't be written to the ledger, shown to the user as-is. */
+class PayrollLedgerError extends Error {}
+
+type PayrollRunRow = typeof payrollRunsTable.$inferSelect;
+
+/**
+ * The checkbook rows a run posts: one per job allocation, an unallocated
+ * remainder per worker, and the payroll company's fee.
+ */
+async function buildRunLedgerRows(
+  tx: Tx,
+  run: PayrollRunRow,
+  paymentAccountId: number,
+): Promise<Array<typeof transactionsTable.$inferInsert>> {
+  const lines = await tx
+    .select()
+    .from(payrollLinesTable)
+    .where(eq(payrollLinesTable.runId, run.id))
+    .orderBy(payrollLinesTable.id);
+  if (lines.length === 0) {
+    throw new PayrollLedgerError("Cannot post a payroll run with no employee lines");
+  }
+  const allocations = await tx
+    .select()
+    .from(payrollAllocationsTable)
+    .where(inArray(payrollAllocationsTable.lineId, lines.map((l) => l.id)));
+  const allocByLine = new Map<number, typeof allocations>();
+  for (const a of allocations) {
+    const arr = allocByLine.get(a.lineId) ?? [];
+    arr.push(a);
+    allocByLine.set(a.lineId, arr);
+  }
+
+  const ledgerRows: Array<typeof transactionsTable.$inferInsert> = [];
+  for (const l of lines) {
+    const total = Number(l.totalCostCents);
+    const lineAllocs = allocByLine.get(l.id) ?? [];
+    let allocated = 0;
+    for (const a of lineAllocs) {
+      const amount = Number(a.amountCents);
+      allocated += amount;
+      ledgerRows.push({
+        date: run.payDate,
+        type: "payroll",
+        num: `PR-${run.id}`,
+        partyName: l.workerName,
+        description: `Payroll ${run.payPeriodStart} – ${run.payPeriodEnd}`,
+        accountId: run.laborAccountId,
+        // Split side: the payment account (Checking). Both the labor/COGS
+        // account (primary) and the bank account (split) are debit-natured, so
+        // getAccountLedger returns effectCents = +amount for the labor account
+        // and effectCents = -amount for the bank account — exactly right for
+        // an expense posting and a cash outflow respectively.
+        splitAccountId: paymentAccountId,
+        jobId: a.jobId,
+        payrollRunId: run.id,
+        amountCents: amount,
+      });
+    }
+    if (allocated > total) {
+      throw new PayrollLedgerError(
+        `Allocations for ${l.workerName} (${formatDollars(allocated)}) exceed the line cost (${formatDollars(total)}) by ${formatDollars(allocated - total)}`,
+      );
+    }
+    const remainder = total - allocated;
+    if (remainder !== 0) {
+      ledgerRows.push({
+        date: run.payDate,
+        type: "payroll",
+        num: `PR-${run.id}`,
+        partyName: l.workerName,
+        description: `Payroll ${run.payPeriodStart} – ${run.payPeriodEnd} (unallocated)`,
+        accountId: run.laborAccountId,
+        splitAccountId: paymentAccountId,
+        jobId: null,
+        payrollRunId: run.id,
+        amountCents: remainder,
+      });
+    }
+  }
+
+  // The payroll company's processing fee is part of the same bank debit as
+  // the wages, so it posts with the run — as its own register line, coded to
+  // a payroll-fees expense account rather than to job labor.
+  const feeCents = Number(run.processingFeeCents ?? 0);
+  if (feeCents > 0) {
+    const feeAccountId = await resolvePayrollFeeAccountId();
+    ledgerRows.push({
+      date: run.payDate,
+      type: "payroll",
+      num: `PR-${run.id}`,
+      partyName: "Payroll processing fee",
+      description: `Payroll service fee ${run.payPeriodStart} – ${run.payPeriodEnd}`,
+      accountId: feeAccountId,
+      splitAccountId: paymentAccountId,
+      jobId: null,
+      payrollRunId: run.id,
+      amountCents: feeCents,
+    });
+  }
+  return ledgerRows;
+}
+
+/**
+ * (Re)write a run's checkbook entries and mark it posted. Used by Post and,
+ * so Mike never has to unpost first (2026-09-25), whenever hours are added
+ * to or edited on a period that's already posted.
+ *
+ * `fromRunIds` are the runs whose current entries are being replaced (the
+ * run itself, plus any runs being combined into it). Their reconciliation
+ * check-offs carry over to the new entries; if one of them is part of a
+ * finished bank reconciliation the change is refused, because the bank
+ * statement already matched the old amount.
+ */
+async function writeRunLedger(
+  tx: Tx,
+  runId: number,
+  fromRunIds: number[] = [runId],
+): Promise<void> {
+  const [run] = await tx
+    .select()
+    .from(payrollRunsTable)
+    .where(eq(payrollRunsTable.id, runId));
+  const laborError = await validateLaborAccount(run.laborAccountId);
+  if (laborError) throw new PayrollLedgerError(laborError);
+  const paymentAccountId = await resolveDefaultPaymentAccountId();
+  if (!paymentAccountId) {
+    throw new PayrollLedgerError(
+      'Payroll requires bank account 10000 "Checking". Restore that account before posting.',
+    );
+  }
+  const paymentError = await validatePaymentAccount(paymentAccountId);
+  if (paymentError) throw new PayrollLedgerError(paymentError);
+
+  const oldRows = await tx
+    .select({ id: transactionsTable.id })
+    .from(transactionsTable)
+    .where(inArray(transactionsTable.payrollRunId, fromRunIds));
+  const clears = oldRows.length
+    ? await tx
+        .select({
+          periodId: reconciliationClearsTable.periodId,
+          status: reconciliationPeriodsTable.status,
+        })
+        .from(reconciliationClearsTable)
+        .innerJoin(
+          reconciliationPeriodsTable,
+          eq(reconciliationPeriodsTable.id, reconciliationClearsTable.periodId),
+        )
+        .where(inArray(reconciliationClearsTable.transactionId, oldRows.map((r) => r.id)))
+    : [];
+  if (clears.some((c) => c.status === "completed")) {
+    throw new PayrollLedgerError(
+      "This pay period's payroll is already checked off in a finished bank reconciliation, so its amount can't change. Put these hours in the next pay period instead.",
+    );
+  }
+
+  const rows = await buildRunLedgerRows(tx, run, paymentAccountId);
+  await tx
+    .delete(transactionsTable)
+    .where(inArray(transactionsTable.payrollRunId, fromRunIds));
+  const inserted = rows.length
+    ? await tx.insert(transactionsTable).values(rows).returning({ id: transactionsTable.id })
+    : [];
+  const periodIds = [...new Set(clears.map((c) => c.periodId))];
+  if (periodIds.length && inserted.length) {
+    await tx
+      .insert(reconciliationClearsTable)
+      .values(periodIds.flatMap((periodId) => inserted.map((r) => ({ periodId, transactionId: r.id }))))
+      .onConflictDoNothing();
+  }
+  await tx
+    .update(payrollRunsTable)
+    .set({ paymentAccountId, posted: true, postedAt: new Date() })
+    .where(eq(payrollRunsTable.id, run.id));
 }
 
 /** Build the full PayrollRun payload (lines, allocations, computed totals). */
@@ -964,36 +1143,44 @@ router.post("/payroll-runs", async (req, res): Promise<void> => {
         ),
       )
       .orderBy(payrollRunsTable.id);
-    const open = samePeriod.find((r) => !r.posted);
-    if (!open && samePeriod.length > 0) {
-      res.status(409).json({
-        error:
-          "The time card for this pay period is already posted to the ledger. Unpost it first, then add these hours so the period stays one time card.",
-      });
-      return;
-    }
-    if (open) {
-      const targetRates = ratesOf(open);
+    // Prefer a draft; otherwise add straight onto the posted card and
+    // re-post it, so Mike never has to unpost first (2026-09-25).
+    const target = samePeriod.find((r) => !r.posted) ?? samePeriod[0];
+    if (target) {
+      const targetRates = ratesOf(target);
       let summary: MergeSummary = { mergedLines: 0, addedLines: 0, duplicateLines: 0 };
-      await db.transaction(async (tx) => {
-        const existing = await loadRunLinesAsInput(tx, open.id);
-        const merged = mergeLineSets(existing, lines, targetRates);
-        summary = merged.summary;
-        await replaceRunLines(tx, open.id, merged.lines as LineInput[], targetRates);
-        if (!open.processingFeeCents && data.processingFeeCents) {
-          await tx
-            .update(payrollRunsTable)
-            .set({ processingFeeCents: data.processingFeeCents })
-            .where(eq(payrollRunsTable.id, open.id));
+      try {
+        await db.transaction(async (tx) => {
+          const existing = await loadRunLinesAsInput(tx, target.id);
+          const merged = mergeLineSets(existing, lines, targetRates);
+          summary = merged.summary;
+          await replaceRunLines(tx, target.id, merged.lines as LineInput[], targetRates);
+          if (!target.processingFeeCents && data.processingFeeCents) {
+            await tx
+              .update(payrollRunsTable)
+              .set({ processingFeeCents: data.processingFeeCents })
+              .where(eq(payrollRunsTable.id, target.id));
+          }
+          if (target.posted) await writeRunLedger(tx, target.id);
+        });
+      } catch (err) {
+        if (err instanceof PayrollLedgerError) {
+          res.status(409).json({ error: err.message });
+          return;
         }
-      });
-      const full = await getFullRun(open.id);
+        throw err;
+      }
+      const full = await getFullRun(target.id);
       res
         .status(200)
         .json(
           CreatePayrollRunResponse.parse({
             ...full,
-            mergeSummary: { mergedIntoExisting: true, ...summary },
+            mergeSummary: {
+              mergedIntoExisting: true,
+              repostedToLedger: target.posted,
+              ...summary,
+            },
           }),
         );
       return;
@@ -1043,9 +1230,9 @@ router.post("/payroll-runs", async (req, res): Promise<void> => {
 });
 
 /**
- * Fold several unposted runs for one pay period into the oldest of them.
- * Used to clean up periods that were entered as separate runs before
- * merge-on-save existed.
+ * Fold several runs for one pay period into the oldest of them. Used to
+ * clean up periods that were entered as separate runs before merge-on-save
+ * existed; posted runs are fine, the result is re-posted as one card.
  */
 router.post("/payroll-runs/merge", async (req, res): Promise<void> => {
   const parsed = MergePayrollRunsBody.safeParse(req.body);
@@ -1071,32 +1258,37 @@ router.post("/payroll-runs/merge", async (req, res): Promise<void> => {
     res.status(400).json({ error: "Only time cards for the same pay period can be combined." });
     return;
   }
-  const posted = runs.filter((r) => r.posted);
-  if (posted.length > 0) {
-    res.status(409).json({
-      error: `Unpost ${posted.length === 1 ? "the posted time card" : "the posted time cards"} for this period first, then combine. Posting afterwards writes one set of checkbook entries for the whole period.`,
-    });
-    return;
-  }
   const [target, ...others] = runs;
   const targetRates = ratesOf(target);
-  await db.transaction(async (tx) => {
-    let lines = await loadRunLinesAsInput(tx, target.id);
-    let fee = Number(target.processingFeeCents ?? 0);
-    for (const other of others) {
-      const incoming = await loadRunLinesAsInput(tx, other.id);
-      lines = mergeLineSets(lines, incoming, targetRates).lines as LineInput[];
-      if (!fee && other.processingFeeCents) fee = Number(other.processingFeeCents);
+  // If any of them was already posted, the combined card is posted too: its
+  // checkbook entries are rewritten once for the whole period.
+  const anyPosted = runs.some((r) => r.posted);
+  try {
+    await db.transaction(async (tx) => {
+      let lines = await loadRunLinesAsInput(tx, target.id);
+      let fee = Number(target.processingFeeCents ?? 0);
+      for (const other of others) {
+        const incoming = await loadRunLinesAsInput(tx, other.id);
+        lines = mergeLineSets(lines, incoming, targetRates).lines as LineInput[];
+        if (!fee && other.processingFeeCents) fee = Number(other.processingFeeCents);
+      }
+      await replaceRunLines(tx, target.id, lines, targetRates);
+      await tx
+        .update(payrollRunsTable)
+        .set({ processingFeeCents: fee })
+        .where(eq(payrollRunsTable.id, target.id));
+      if (anyPosted) await writeRunLedger(tx, target.id, ids);
+      await tx
+        .delete(payrollRunsTable)
+        .where(inArray(payrollRunsTable.id, others.map((o) => o.id)));
+    });
+  } catch (err) {
+    if (err instanceof PayrollLedgerError) {
+      res.status(409).json({ error: err.message });
+      return;
     }
-    await replaceRunLines(tx, target.id, lines, targetRates);
-    await tx
-      .update(payrollRunsTable)
-      .set({ processingFeeCents: fee })
-      .where(eq(payrollRunsTable.id, target.id));
-    await tx
-      .delete(payrollRunsTable)
-      .where(inArray(payrollRunsTable.id, others.map((o) => o.id)));
-  });
+    throw err;
+  }
   const full = await getFullRun(target.id);
   res.json(MergePayrollRunsResponse.parse(full));
 });
@@ -1136,12 +1328,8 @@ router.patch("/payroll-runs/:id", async (req, res): Promise<void> => {
     res.status(404).json({ error: "Payroll run not found" });
     return;
   }
-  if (existing.posted) {
-    res
-      .status(400)
-      .json({ error: "Cannot edit a posted payroll run; unpost it first" });
-    return;
-  }
+  // Editing a posted card is allowed: its checkbook entries are rewritten in
+  // the same transaction, so the ledger never drifts from the run totals.
 
   const rates: BurdenRates = {
     ssRateBps: data.ssRateBps ?? existing.ssRateBps,
@@ -1179,38 +1367,47 @@ router.patch("/payroll-runs/:id", async (req, res): Promise<void> => {
     }
   }
 
-  await db.transaction(async (tx) => {
-    const set: Record<string, unknown> = {};
-    if (data.payPeriodStart !== undefined)
-      set.payPeriodStart = data.payPeriodStart;
-    if (data.payPeriodEnd !== undefined) set.payPeriodEnd = data.payPeriodEnd;
-    if (data.payDate !== undefined) set.payDate = data.payDate;
-    if (data.memo !== undefined) set.memo = data.memo;
-    if (data.processingFeeCents !== undefined)
-      set.processingFeeCents = data.processingFeeCents;
-    if (data.laborAccountId !== undefined)
-      set.laborAccountId = data.laborAccountId;
-    set.paymentAccountId = paymentAccountId;
-    if (data.ssRateBps !== undefined) set.ssRateBps = data.ssRateBps;
-    if (data.medicareRateBps !== undefined)
-      set.medicareRateBps = data.medicareRateBps;
-    if (data.futaRateBps !== undefined) set.futaRateBps = data.futaRateBps;
-    if (data.coSuiRateBps !== undefined) set.coSuiRateBps = data.coSuiRateBps;
-    if (data.coSurchargeRateBps !== undefined)
-      set.coSurchargeRateBps = data.coSurchargeRateBps;
-    if (Object.keys(set).length > 0) {
-      await tx
-        .update(payrollRunsTable)
-        .set(set)
-        .where(eq(payrollRunsTable.id, params.data.id));
+  try {
+    await db.transaction(async (tx) => {
+      const set: Record<string, unknown> = {};
+      if (data.payPeriodStart !== undefined)
+        set.payPeriodStart = data.payPeriodStart;
+      if (data.payPeriodEnd !== undefined) set.payPeriodEnd = data.payPeriodEnd;
+      if (data.payDate !== undefined) set.payDate = data.payDate;
+      if (data.memo !== undefined) set.memo = data.memo;
+      if (data.processingFeeCents !== undefined)
+        set.processingFeeCents = data.processingFeeCents;
+      if (data.laborAccountId !== undefined)
+        set.laborAccountId = data.laborAccountId;
+      set.paymentAccountId = paymentAccountId;
+      if (data.ssRateBps !== undefined) set.ssRateBps = data.ssRateBps;
+      if (data.medicareRateBps !== undefined)
+        set.medicareRateBps = data.medicareRateBps;
+      if (data.futaRateBps !== undefined) set.futaRateBps = data.futaRateBps;
+      if (data.coSuiRateBps !== undefined) set.coSuiRateBps = data.coSuiRateBps;
+      if (data.coSurchargeRateBps !== undefined)
+        set.coSurchargeRateBps = data.coSurchargeRateBps;
+      if (Object.keys(set).length > 0) {
+        await tx
+          .update(payrollRunsTable)
+          .set(set)
+          .where(eq(payrollRunsTable.id, params.data.id));
+      }
+      if (lines != null) {
+        await tx
+          .delete(payrollLinesTable)
+          .where(eq(payrollLinesTable.runId, params.data.id));
+        await insertLines(tx, params.data.id, lines, rates);
+      }
+      if (existing.posted) await writeRunLedger(tx, params.data.id);
+    });
+  } catch (err) {
+    if (err instanceof PayrollLedgerError) {
+      res.status(400).json({ error: err.message });
+      return;
     }
-    if (lines != null) {
-      await tx
-        .delete(payrollLinesTable)
-        .where(eq(payrollLinesTable.runId, params.data.id));
-      await insertLines(tx, params.data.id, lines, rates);
-    }
-  });
+    throw err;
+  }
 
   const full = await getFullRun(params.data.id);
   res.json(UpdatePayrollRunResponse.parse(full));
@@ -1253,135 +1450,15 @@ router.post("/payroll-runs/:id/post", async (req, res): Promise<void> => {
     return;
   }
 
-  const accountError = await validateLaborAccount(run.laborAccountId);
-  if (accountError) {
-    res.status(400).json({ error: accountError });
-    return;
-  }
-
-  const paymentAccountId = await resolveDefaultPaymentAccountId();
-  if (!paymentAccountId) {
-    res.status(400).json({
-      error:
-        'Payroll requires bank account 10000 "Checking". Restore that account before posting.',
-    });
-    return;
-  }
-  const paymentError = await validatePaymentAccount(paymentAccountId);
-  if (paymentError) {
-    res.status(400).json({ error: paymentError });
-    return;
-  }
-
-  const lines = await db
-    .select()
-    .from(payrollLinesTable)
-    .where(eq(payrollLinesTable.runId, run.id))
-    .orderBy(payrollLinesTable.id);
-  if (lines.length === 0) {
-    res
-      .status(400)
-      .json({ error: "Cannot post a payroll run with no employee lines" });
-    return;
-  }
-
-  const allocations = await db
-    .select()
-    .from(payrollAllocationsTable)
-    .where(
-      inArray(
-        payrollAllocationsTable.lineId,
-        lines.map((l) => l.id),
-      ),
-    );
-  const allocByLine = new Map<number, typeof allocations>();
-  for (const a of allocations) {
-    const arr = allocByLine.get(a.lineId) ?? [];
-    arr.push(a);
-    allocByLine.set(a.lineId, arr);
-  }
-
-  const ledgerRows: Array<typeof transactionsTable.$inferInsert> = [];
-  for (const l of lines) {
-    const total = Number(l.totalCostCents);
-    const lineAllocs = allocByLine.get(l.id) ?? [];
-    let allocated = 0;
-    for (const a of lineAllocs) {
-      const amount = Number(a.amountCents);
-      allocated += amount;
-      ledgerRows.push({
-        date: run.payDate,
-        type: "payroll",
-        num: `PR-${run.id}`,
-        partyName: l.workerName,
-        description: `Payroll ${run.payPeriodStart} – ${run.payPeriodEnd}`,
-        accountId: run.laborAccountId,
-        // Split side: the payment account (Checking). Both the labor/COGS
-        // account (primary) and the bank account (split) are debit-natured, so
-        // getAccountLedger returns effectCents = +amount for the labor account
-        // and effectCents = -amount for the bank account — exactly right for
-        // an expense posting and a cash outflow respectively.
-        splitAccountId: paymentAccountId,
-        jobId: a.jobId,
-        payrollRunId: run.id,
-        amountCents: amount,
-      });
-    }
-    if (allocated > total) {
-      res.status(400).json({
-        error: `Allocations for ${l.workerName} (${formatDollars(allocated)}) exceed the line cost (${formatDollars(total)}) by ${formatDollars(allocated - total)}`,
-      });
+  try {
+    await db.transaction((tx) => writeRunLedger(tx, run.id));
+  } catch (err) {
+    if (err instanceof PayrollLedgerError) {
+      res.status(400).json({ error: err.message });
       return;
     }
-    const remainder = total - allocated;
-    if (remainder !== 0) {
-      ledgerRows.push({
-        date: run.payDate,
-        type: "payroll",
-        num: `PR-${run.id}`,
-        partyName: l.workerName,
-        description: `Payroll ${run.payPeriodStart} – ${run.payPeriodEnd} (unallocated)`,
-        accountId: run.laborAccountId,
-        splitAccountId: paymentAccountId,
-        jobId: null,
-        payrollRunId: run.id,
-        amountCents: remainder,
-      });
-    }
+    throw err;
   }
-
-  // The payroll company's processing fee is part of the same bank debit as
-  // the wages, so it posts with the run — as its own register line, coded to
-  // a payroll-fees expense account rather than to job labor.
-  const feeCents = Number(run.processingFeeCents ?? 0);
-  if (feeCents > 0) {
-    const feeAccountId = await resolvePayrollFeeAccountId();
-    ledgerRows.push({
-      date: run.payDate,
-      type: "payroll",
-      num: `PR-${run.id}`,
-      partyName: "Payroll processing fee",
-      description: `Payroll service fee ${run.payPeriodStart} – ${run.payPeriodEnd}`,
-      accountId: feeAccountId,
-      splitAccountId: paymentAccountId,
-      jobId: null,
-      payrollRunId: run.id,
-      amountCents: feeCents,
-    });
-  }
-
-  await db.transaction(async (tx) => {
-    await tx
-      .delete(transactionsTable)
-      .where(eq(transactionsTable.payrollRunId, run.id));
-    if (ledgerRows.length) {
-      await tx.insert(transactionsTable).values(ledgerRows);
-    }
-    await tx
-      .update(payrollRunsTable)
-      .set({ paymentAccountId, posted: true, postedAt: new Date() })
-      .where(eq(payrollRunsTable.id, run.id));
-  });
 
   const full = await getFullRun(run.id);
   res.json(PostPayrollRunResponse.parse(full));

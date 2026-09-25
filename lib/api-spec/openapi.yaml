@@ -959,6 +959,33 @@ paths:
         "404":
           $ref: "#/components/responses/Error"
 
+  /transactions/check-duplicate:
+    post:
+      operationId: checkTransactionDuplicates
+      tags: [transactions]
+      summary: Find register entries that look like the one about to be saved
+      description: >-
+        Same account and either the same check/reference number, or the same
+        amount within a few days to the same payee. Covers checks written from
+        a vendor (Write Check) and checks typed into the register alike.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TransactionDuplicateCheckInput"
+      responses:
+        "200":
+          description: Entries that look the same (may be empty)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TransactionDuplicateCandidate"
+        "400":
+          $ref: "#/components/responses/Error"
+
   /transactions:
     get:
       operationId: listTransactions
@@ -1564,6 +1591,32 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Bill"
+        "400":
+          $ref: "#/components/responses/Error"
+  /bills/check-duplicate:
+    post:
+      operationId: checkBillDuplicates
+      tags: [bills]
+      summary: Find bills that look like the one about to be saved
+      description: >-
+        Same vendor and either the same invoice number (ignoring case, spaces
+        and punctuation) or the same total on the same date. Used to warn
+        before entering an invoice twice.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BillDuplicateCheckInput"
+      responses:
+        "200":
+          description: Bills that look the same (may be empty)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/BillDuplicateCandidate"
         "400":
           $ref: "#/components/responses/Error"
   /bills/extract:
@@ -2530,6 +2583,80 @@ components:
           schema:
             $ref: "#/components/schemas/Error"
   schemas:
+    BillDuplicateCheckInput:
+      type: object
+      required: [vendorId]
+      properties:
+        vendorId:
+          type: integer
+        billNumber:
+          type: ["string", "null"]
+        date:
+          type: ["string", "null"]
+        amountCents:
+          type: ["integer", "null"]
+        excludeBillId:
+          type: ["integer", "null"]
+          description: The bill being edited, so it doesn't match itself
+    BillDuplicateCandidate:
+      type: object
+      required: [id, billNumber, date, totalCents, vendorName, reason]
+      properties:
+        id:
+          type: integer
+        billNumber:
+          type: ["string", "null"]
+        date:
+          type: string
+        totalCents:
+          type: integer
+        vendorName:
+          type: string
+        reason:
+          type: string
+          enum: [same_number, same_amount_and_date]
+    TransactionDuplicateCheckInput:
+      type: object
+      required: [accountId, date, amountCents]
+      properties:
+        accountId:
+          type: integer
+        date:
+          type: string
+        amountCents:
+          type: integer
+        num:
+          type: ["string", "null"]
+        vendorId:
+          type: ["integer", "null"]
+        partyName:
+          type: ["string", "null"]
+        excludeTransactionId:
+          type: ["integer", "null"]
+    TransactionDuplicateCandidate:
+      type: object
+      required: [id, date, type, num, partyName, description, amountCents, reason, paysBills]
+      properties:
+        paysBills:
+          type: boolean
+          description: True when the entry was written from a vendor (Write Check / bill payment) and already marks bills paid
+        id:
+          type: integer
+        date:
+          type: string
+        type:
+          type: string
+        num:
+          type: ["string", "null"]
+        partyName:
+          type: ["string", "null"]
+        description:
+          type: ["string", "null"]
+        amountCents:
+          type: integer
+        reason:
+          type: string
+          enum: [same_number, same_amount]
     HealthStatus:
       type: object
       properties:
@@ -4554,6 +4681,9 @@ components:
         mergedIntoExisting:
           type: boolean
           description: True when the saved hours were added to a run that already existed for the pay period
+        repostedToLedger:
+          type: boolean
+          description: True when that run was already posted and its checkbook entries were rewritten with the new hours
         mergedLines:
           type: integer
           description: Worker lines folded into a line that already existed

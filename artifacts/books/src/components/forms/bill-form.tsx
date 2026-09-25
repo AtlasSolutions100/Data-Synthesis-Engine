@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import type { FieldPath } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -13,7 +13,11 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { parseDollars, formatCents } from "@/lib/format";
+import { parseDollars, formatCents, formatDate } from "@/lib/format";
+import {
+  DuplicateWarningDialog,
+  type DuplicateCandidate,
+} from "@/components/forms/duplicate-warning-dialog";
 import { Plus, Trash2 } from "lucide-react";
 import {
   useListVendors,
@@ -29,6 +33,7 @@ import {
   useCreateVendor,
   useCreateCustomer,
   useCreateJob,
+  checkBillDuplicates,
 } from "@workspace/api-client-react";
 import type {
   BillInput,
@@ -81,6 +86,8 @@ interface BillFormProps {
    * existing vendor — offers a one-click "create & select" shortcut.
    */
   suggestedVendorName?: string | null;
+  /** The bill being edited, so the duplicate check doesn't match itself. */
+  billId?: number;
 }
 
 export function BillForm({
@@ -89,7 +96,15 @@ export function BillForm({
   isLoading,
   serverError,
   suggestedVendorName,
+  billId,
 }: BillFormProps) {
+  // "Did I already enter this invoice?" (2026-09-25): a same-number or
+  // same-amount-and-date bill from this vendor pauses the save for a check.
+  const [pendingDuplicate, setPendingDuplicate] = useState<{
+    payload: BillInput;
+    candidates: DuplicateCandidate[];
+  } | null>(null);
+  const [checkingDuplicates, setCheckingDuplicates] = useState(false);
   const queryClient = useQueryClient();
   const { data: vendors } = useListVendors({
     query: { queryKey: getListVendorsQueryKey() },
@@ -437,7 +452,7 @@ export function BillForm({
     });
     if (hasError) return;
 
-    onSubmit({
+    const payload: BillInput = {
       billNumber: values.billNumber || null,
       vendorId: parseInt(values.vendorId, 10),
       jobId: values.jobId ? parseInt(values.jobId, 10) : null,
@@ -450,7 +465,37 @@ export function BillForm({
         description: l.description || null,
         amountCents: parseDollars(l.amount),
       })),
-    });
+    };
+    void submitUnlessDuplicate(payload);
+  };
+
+  const submitUnlessDuplicate = async (payload: BillInput) => {
+    setCheckingDuplicates(true);
+    try {
+      const matches = await checkBillDuplicates({
+        vendorId: payload.vendorId,
+        billNumber: payload.billNumber ?? null,
+        date: payload.date,
+        amountCents: payload.lines.reduce((s, l) => s + l.amountCents, 0),
+        excludeBillId: billId ?? null,
+      });
+      if (matches.length > 0) {
+        setPendingDuplicate({
+          payload,
+          candidates: matches.map((m) => ({
+            id: m.id,
+            name: `${m.billNumber ? `Invoice ${m.billNumber}` : `Bill #${m.id}`} · ${formatCents(m.totalCents)}`,
+            customerName: `${m.vendorName}, ${formatDate(m.date)}${m.reason === "same_number" ? " — same invoice number" : " — same amount and date"}`,
+          })),
+        });
+        return;
+      }
+    } catch {
+      // The check is only a courtesy; never block a save because it failed.
+    } finally {
+      setCheckingDuplicates(false);
+    }
+    onSubmit(payload);
   };
 
   return (
@@ -775,9 +820,21 @@ export function BillForm({
             {formLevelError.message}
           </p>
         ) : null}
-        <Button type="submit" disabled={isLoading} className="w-full">
-          {isLoading ? "Saving..." : "Save Bill"}
+        <Button type="submit" disabled={isLoading || checkingDuplicates} className="w-full">
+          {isLoading ? "Saving..." : checkingDuplicates ? "Checking..." : "Save Bill"}
         </Button>
+        <DuplicateWarningDialog
+          open={pendingDuplicate != null}
+          entityLabel="bill"
+          intro="This looks like an invoice you already entered:"
+          candidates={pendingDuplicate?.candidates ?? []}
+          onCancel={() => setPendingDuplicate(null)}
+          onConfirm={() => {
+            const payload = pendingDuplicate?.payload;
+            setPendingDuplicate(null);
+            if (payload) onSubmit(payload);
+          }}
+        />
       </form>
     </Form>
   );

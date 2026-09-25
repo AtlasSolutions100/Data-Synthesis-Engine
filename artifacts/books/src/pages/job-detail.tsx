@@ -30,7 +30,8 @@ import {
   getListCustomersQueryKey,
   useUpdateJob,
   useGetCurrentUser,
-  getGetCurrentUserQueryKey
+  getGetCurrentUserQueryKey,
+  getListBillsQueryKey,
 } from "@workspace/api-client-react";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -621,6 +622,14 @@ export default function JobDetail() {
                 onSubmit={(data) => {
                   setCreateError(null);
                   createTransaction.mutate({ data: data as any });
+                }}
+                onBillsPaid={() => {
+                  queryClient.invalidateQueries({ queryKey: getListTransactionsQueryKey() });
+                  queryClient.invalidateQueries({ queryKey: getListBillsQueryKey() });
+                  queryClient.invalidateQueries({ queryKey: getGetJobCostSummaryQueryKey(jobId) });
+                  queryClient.invalidateQueries({ queryKey: getGetJobQueryKey(jobId) });
+                  setCreateError(null);
+                  setIsCreateOpen(false);
                 }}
                 isLoading={createTransaction.isPending}
                 serverError={createError}

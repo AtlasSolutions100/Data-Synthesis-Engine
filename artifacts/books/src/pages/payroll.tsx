@@ -146,6 +146,7 @@ export default function Payroll() {
             m.addedLines ? `${m.addedLines} new worker${m.addedLines === 1 ? "" : "s"}` : "",
             m.duplicateLines ? `${m.duplicateLines} card${m.duplicateLines === 1 ? "" : "s"} already entered, skipped` : "",
           ].filter(Boolean);
+          if (m.repostedToLedger) parts.push("checkbook updated");
           toast({
             title: `Added to the ${label} time card`,
             description: parts.join(" · ") || "Nothing new on that card.",
@@ -182,7 +183,12 @@ export default function Payroll() {
     mutation: {
       onSuccess: (run) => {
         invalidate();
-        toast({ title: "Time cards combined", description: "One time card for the pay period now. Review it, then post." });
+        toast({
+          title: "Time cards combined",
+          description: run.posted
+            ? "One time card for the pay period now, and the checkbook is updated."
+            : "One time card for the pay period now. Review it, then post.",
+        });
         navigate(`/payroll/${run.id}`);
       },
       onError: (err) => {
@@ -274,7 +280,6 @@ export default function Payroll() {
       {splitPeriods.map((group) => {
         const period = payPeriodForStart(group[0].payPeriodStart);
         const label = period ? payPeriodLabel(period) : `${formatDate(group[0].payPeriodStart)} – ${formatDate(group[0].payPeriodEnd)}`;
-        const anyPosted = group.some((r) => r.posted);
         return (
           <div
             key={group[0].payPeriodStart}
@@ -283,14 +288,12 @@ export default function Payroll() {
           >
             <div>
               <span className="font-medium">{label}</span> has {group.length} separate time cards.{" "}
-              {anyPosted
-                ? "Unpost the posted one first, then combine them so the period matches the payroll company's one bank debit."
-                : "Combine them into one so the period matches the payroll company's one bank debit."}
+              Combine them into one so the period matches the payroll company's one bank debit.
             </div>
             <Button
               size="sm"
               variant="outline"
-              disabled={anyPosted || mergeRuns.isPending}
+              disabled={mergeRuns.isPending}
               onClick={() => mergeRuns.mutate({ data: { runIds: group.map((r) => r.id) } })}
               data-testid={`button-merge-period-${group[0].payPeriodStart}`}
             >

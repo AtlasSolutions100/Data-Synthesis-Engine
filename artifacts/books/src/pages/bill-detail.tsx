@@ -213,6 +213,7 @@ export default function BillDetail() {
               </DialogHeader>
               {isEditOpen && (
                 <BillForm
+                  billId={bill.id}
                   defaultValues={{
                     billNumber: bill.billNumber ?? "",
                     vendorId: String(bill.vendorId),

@@ -27,7 +27,16 @@ import {
   ListUnlinkedBillTransactionsResponse,
   LinkTransactionBillParams,
   LinkTransactionBillBody,
+  CheckTransactionDuplicatesBody,
+  CheckTransactionDuplicatesResponse,
 } from "@workspace/api-zod";
+import {
+  CHECK_MATCH_WINDOW_DAYS,
+  daysApart,
+  isIdentifyingNum,
+  normalizeRef,
+  samePayee,
+} from "../lib/duplicates";
 import { dateRangeConds, BALANCE_SHEET_TYPES, DEBIT_NATURED_TYPES } from "../lib/finance";
 import * as z from "zod";
 import {
@@ -235,6 +244,86 @@ router.get("/transactions", async (req, res): Promise<void> => {
       ),
     ),
   );
+});
+
+/**
+ * "Did I already enter this check?" Looks at the account's register, whether
+ * the entry was typed by hand or written from a vendor (Write Check): the
+ * same check number, or the same amount to the same payee within a week.
+ * Only warns — the client lets the user save anyway.
+ */
+router.post("/transactions/check-duplicate", async (req, res): Promise<void> => {
+  const parsed = CheckTransactionDuplicatesBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+  const { accountId, date, amountCents, num, vendorId, partyName, excludeTransactionId } =
+    parsed.data;
+  let payee = partyName ?? null;
+  if (vendorId != null && !payee) {
+    const [v] = await db
+      .select({ name: vendorsTable.name })
+      .from(vendorsTable)
+      .where(eq(vendorsTable.id, vendorId));
+    payee = v?.name ?? null;
+  }
+  const numKey = isIdentifyingNum(num) ? normalizeRef(num) : "";
+  const nearDate = sql`abs(${transactionsTable.date}::date - ${date}::date) <= ${CHECK_MATCH_WINDOW_DAYS}`;
+  const rows = await db
+    .select({
+      id: transactionsTable.id,
+      date: transactionsTable.date,
+      type: transactionsTable.type,
+      num: transactionsTable.num,
+      partyName: transactionsTable.partyName,
+      description: transactionsTable.description,
+      amountCents: transactionsTable.amountCents,
+      vendorId: transactionsTable.vendorId,
+      billPaymentId: transactionsTable.billPaymentId,
+      vendorPaymentId: transactionsTable.vendorPaymentId,
+    })
+    .from(transactionsTable)
+    .where(
+      and(
+        or(
+          eq(transactionsTable.accountId, accountId),
+          eq(transactionsTable.splitAccountId, accountId),
+        ),
+        sql`${transactionsTable.type} <> 'payroll'`,
+        sql`${transactionsTable.amountCents} <> 0`,
+        numKey
+          ? or(
+              nearDate,
+              sql`regexp_replace(lower(coalesce(${transactionsTable.num}, '')), '[^a-z0-9]', '', 'g') like ${"%" + numKey}`,
+            )
+          : nearDate,
+      ),
+    );
+  const amount = Math.abs(amountCents);
+  const candidates = rows
+    .filter((r) => r.id !== excludeTransactionId)
+    .flatMap((r): Array<typeof r & { reason: "same_number" | "same_amount" }> => {
+      if (numKey && normalizeRef(r.num) === numKey) {
+        return [{ ...r, reason: "same_number" as const }];
+      }
+      const samePay =
+        (vendorId != null && r.vendorId === vendorId) || samePayee(r.partyName, payee);
+      if (
+        amount > 0 &&
+        Math.abs(r.amountCents) === amount &&
+        daysApart(r.date, date) <= CHECK_MATCH_WINDOW_DAYS &&
+        (samePay || (!payee && vendorId == null && r.date === date))
+      ) {
+        return [{ ...r, reason: "same_amount" as const }];
+      }
+      return [];
+    })
+    .map(({ vendorId: _v, billPaymentId, vendorPaymentId, ...r }) => ({
+      ...r,
+      paysBills: billPaymentId != null || vendorPaymentId != null,
+    }));
+  res.json(CheckTransactionDuplicatesResponse.parse(candidates));
 });
 
 router.post("/transactions", async (req, res): Promise<void> => {

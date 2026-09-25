@@ -11,7 +11,7 @@ type KnownTxType = typeof KNOWN_TX_TYPES extends Set<infer T> ? T : never;
 function knownTxType(t: string): KnownTxType | undefined {
   return KNOWN_TX_TYPES.has(t as KnownTxType) ? (t as KnownTxType) : undefined;
 }
-import { useListTransactions, useCreateTransaction, useUpdateTransaction, useDeleteTransaction, getListTransactionsQueryKey } from "@workspace/api-client-react";
+import { useListTransactions, useCreateTransaction, useUpdateTransaction, useDeleteTransaction, getListTransactionsQueryKey, getListBillsQueryKey } from "@workspace/api-client-react";
 import { formatCents, formatDate } from "@/lib/format";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -189,8 +189,14 @@ export default function Transactions() {
               onSubmit={(data) => {
                 setCreateError(null);
                 createTransaction.mutate({ data: data as any });
-              }} 
-              isLoading={createTransaction.isPending} 
+              }}
+              onBillsPaid={() => {
+                queryClient.invalidateQueries({ queryKey: getListTransactionsQueryKey() });
+                queryClient.invalidateQueries({ queryKey: getListBillsQueryKey() });
+                setCreateError(null);
+                setIsCreateOpen(false);
+              }}
+              isLoading={createTransaction.isPending}
               serverError={createError}
             />
           </DialogContent>

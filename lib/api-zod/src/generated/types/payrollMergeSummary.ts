@@ -9,6 +9,8 @@
 export interface PayrollMergeSummary {
   /** True when the saved hours were added to a run that already existed for the pay period */
   mergedIntoExisting: boolean;
+  /** True when that run was already posted and its checkbook entries were rewritten with the new hours */
+  repostedToLedger?: boolean;
   /** Worker lines folded into a line that already existed */
   mergedLines: number;
   /** Worker lines added as new lines */

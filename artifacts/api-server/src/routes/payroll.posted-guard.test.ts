@@ -20,11 +20,11 @@ import {
  * away from its stored totals.
  *
  * Posting copies each line's stored totalCostCents into the ledger, and the
- * PATCH handler blocks edits to posted runs ("Cannot edit a posted payroll
- * run; unpost it first"). If that guard ever regressed, the ledger would keep
- * stale amounts while the run summary showed new ones. This test locks:
- *   1. PATCH against a posted run returns 400 and leaves the ledger rows
- *      byte-for-byte untouched.
+ * PATCH handler re-posts a posted run whenever it's edited. If that ever
+ * regressed, the ledger would keep stale amounts while the run summary
+ * showed new ones. This test locks:
+ *   1. PATCH against a posted run rewrites its ledger rows in the same
+ *      transaction, so the ledger total always equals the run total.
  *   2. unpost → edit a line's hours → re-post produces a ledger grand total
  *      equal to the updated run's totalCostCents (and different from the
  *      original), proving the intended edit path reconciles.
@@ -201,32 +201,23 @@ describe("posted payroll run edit guard and re-post reconciliation", () => {
     expect(originalLedgerTotal).toBe(originalRun.totalCostCents);
   });
 
-  it("rejects edits to the posted run with 400 and leaves the ledger untouched", async () => {
-    const rowsBefore = await ledgerRowsForRun();
-
+  it("editing a posted run re-posts it so the ledger matches the new total", async () => {
+    // Mike keeps posting and then adding hours (2026-09-25): an edit to a
+    // posted card rewrites its checkbook entries instead of being refused.
     const editRes = await request(payrollApp)
       .patch(`/api/payroll-runs/${runId}`)
       .send({
         lines: LINE_INPUTS.map((l) => lineBody(l, l.regularHours + 10)),
       });
-    expect(editRes.status).toBe(400);
-    expect((editRes.body as { error: string }).error).toBe(
-      "Cannot edit a posted payroll run; unpost it first",
-    );
+    expect(editRes.status).toBe(200);
+    const edited = editRes.body as RunBody;
+    expect(edited.posted).toBe(true);
+    expect(edited.totalCostCents).toBeGreaterThan(originalRun.totalCostCents);
 
-    // Ledger rows are byte-for-byte identical (ids, amounts, everything).
-    const rowsAfter = await ledgerRowsForRun();
-    expect(rowsAfter).toEqual(rowsBefore);
-    const totalAfter = rowsAfter.reduce((s, r) => s + r.amountCents, 0);
-    expect(totalAfter).toBe(originalLedgerTotal);
-
-    // And the run summary still reports the same total — no summary/ledger split.
-    const getRes = await request(payrollApp).get(`/api/payroll-runs/${runId}`);
-    expect(getRes.status).toBe(200);
-    expect((getRes.body as RunBody).totalCostCents).toBe(
-      originalRun.totalCostCents,
-    );
-    expect((getRes.body as RunBody).posted).toBe(true);
+    const rows = await ledgerRowsForRun();
+    const total = rows.reduce((s, r) => s + r.amountCents, 0);
+    expect(total).toBe(edited.totalCostCents);
+    expect(total).not.toBe(originalLedgerTotal);
   });
 
   it("unpost + edit hours + re-post writes a ledger total matching the new run total", async () => {

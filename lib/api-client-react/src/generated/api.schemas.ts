@@ -5,6 +5,77 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+export interface BillDuplicateCheckInput {
+  vendorId: number;
+  /** @nullable */
+  billNumber?: string | null;
+  /** @nullable */
+  date?: string | null;
+  /** @nullable */
+  amountCents?: number | null;
+  /**
+     * The bill being edited, so it doesn't match itself
+     * @nullable
+     */
+  excludeBillId?: number | null;
+}
+
+export type BillDuplicateCandidateReason = typeof BillDuplicateCandidateReason[keyof typeof BillDuplicateCandidateReason];
+
+
+export const BillDuplicateCandidateReason = {
+  same_number: 'same_number',
+  same_amount_and_date: 'same_amount_and_date',
+} as const;
+
+export interface BillDuplicateCandidate {
+  id: number;
+  /** @nullable */
+  billNumber: string | null;
+  date: string;
+  totalCents: number;
+  vendorName: string;
+  reason: BillDuplicateCandidateReason;
+}
+
+export interface TransactionDuplicateCheckInput {
+  accountId: number;
+  date: string;
+  amountCents: number;
+  /** @nullable */
+  num?: string | null;
+  /** @nullable */
+  vendorId?: number | null;
+  /** @nullable */
+  partyName?: string | null;
+  /** @nullable */
+  excludeTransactionId?: number | null;
+}
+
+export type TransactionDuplicateCandidateReason = typeof TransactionDuplicateCandidateReason[keyof typeof TransactionDuplicateCandidateReason];
+
+
+export const TransactionDuplicateCandidateReason = {
+  same_number: 'same_number',
+  same_amount: 'same_amount',
+} as const;
+
+export interface TransactionDuplicateCandidate {
+  /** True when the entry was written from a vendor (Write Check / bill payment) and already marks bills paid */
+  paysBills: boolean;
+  id: number;
+  date: string;
+  type: string;
+  /** @nullable */
+  num: string | null;
+  /** @nullable */
+  partyName: string | null;
+  /** @nullable */
+  description: string | null;
+  amountCents: number;
+  reason: TransactionDuplicateCandidateReason;
+}
+
 export interface HealthStatus {
   status: string;
 }
@@ -1806,6 +1877,8 @@ export interface PayrollLedgerEntrySummary {
 export interface PayrollMergeSummary {
   /** True when the saved hours were added to a run that already existed for the pay period */
   mergedIntoExisting: boolean;
+  /** True when that run was already posted and its checkbook entries were rewritten with the new hours */
+  repostedToLedger?: boolean;
   /** Worker lines folded into a line that already existed */
   mergedLines: number;
   /** Worker lines added as new lines */

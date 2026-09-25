@@ -10,7 +10,10 @@ import {
   useListAccounts,
   getListAccountsQueryKey,
   getListTransactionsQueryKey,
+  checkTransactionDuplicates,
+  deleteTransaction,
 } from "@workspace/api-client-react";
+import type { TransactionDuplicateCandidate } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { formatCents, formatDate } from "@/lib/format";
@@ -78,6 +81,10 @@ function WriteCheckDialog({ vendorId, vendorName, openBills, onDone }: WriteChec
   const [creditInputs, setCreditInputs] = useState<Record<number, string>>({});
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // A check already typed into the checkbook for this payment (2026-09-25):
+  // offer to replace it so the books end up the same as if Mike had used
+  // Write Check in the first place, never with two withdrawals.
+  const [typedMatches, setTypedMatches] = useState<TransactionDuplicateCandidate[] | null>(null);
 
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -104,6 +111,7 @@ function WriteCheckDialog({ vendorId, vendorName, openBills, onDone }: WriteChec
       setCreditInputs({});
       setBankAccountId(bankAccounts.length > 0 ? String(bankAccounts[0].id) : "");
       setError(null);
+      setTypedMatches(null);
     }
     setOpen(v);
   };
@@ -143,6 +151,16 @@ function WriteCheckDialog({ vendorId, vendorName, openBills, onDone }: WriteChec
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    await pay({ replaceIds: [], skipDuplicateCheck: typedMatches != null });
+  };
+
+  const pay = async ({
+    replaceIds,
+    skipDuplicateCheck,
+  }: {
+    replaceIds: number[];
+    skipDuplicateCheck: boolean;
+  }) => {
     if (selectedBills.length === 0) {
       setError("Select at least one bill to pay.");
       return;
@@ -168,8 +186,28 @@ function WriteCheckDialog({ vendorId, vendorName, openBills, onDone }: WriteChec
     }
     setError(null);
     setSubmitting(true);
+    const referenceNum = printLater ? null : (checkNum.trim() || null);
+    if (!skipDuplicateCheck && method !== "credit_card" && bankAccountId) {
+      try {
+        const matches = await checkTransactionDuplicates({
+          accountId: Number(bankAccountId),
+          date,
+          amountCents: -totalPaymentCents,
+          num: referenceNum,
+          vendorId,
+          partyName: vendorName,
+          excludeTransactionId: null,
+        });
+        if (matches.length > 0) {
+          setTypedMatches(matches);
+          setSubmitting(false);
+          return;
+        }
+      } catch {
+        // Only a courtesy check; never block the payment because it failed.
+      }
+    }
     try {
-      const referenceNum = printLater ? null : (checkNum.trim() || null);
       // One request = one check. The server records a payment on every bill
       // but posts a single withdrawal to the register.
       await createVendorPayment.mutateAsync({
@@ -195,6 +233,23 @@ function WriteCheckDialog({ vendorId, vendorName, openBills, onDone }: WriteChec
       });
       // Invalidate bills list for this vendor, plus the register data the
       // payments just changed (bank transactions + account balances).
+      // The typed check this replaces goes away only after the real one is
+      // saved, so a failed payment never loses the entry.
+      let replaceFailed = false;
+      for (const id of replaceIds) {
+        try {
+          await deleteTransaction(id);
+        } catch {
+          replaceFailed = true;
+        }
+      }
+      if (replaceFailed) {
+        toast({
+          title: "Check written, but the typed entry is still in the checkbook",
+          description: "Delete the old entry from the register so it isn't counted twice.",
+          variant: "destructive",
+        });
+      }
       await queryClient.invalidateQueries({ queryKey: getListBillsQueryKey({ vendorId }) });
       await queryClient.invalidateQueries({ queryKey: getListTransactionsQueryKey() });
       await queryClient.invalidateQueries({ queryKey: ["getAccountBalanceTransactions"] });
@@ -204,6 +259,9 @@ function WriteCheckDialog({ vendorId, vendorName, openBills, onDone }: WriteChec
       if (totalPaymentCents > 0)
         parts.push(`${formatCents(totalPaymentCents)} paid${printLater ? " (to print)" : checkNum ? ` (check #${checkNum})` : ""}`);
 
+      if (replaceIds.length > 0 && !replaceFailed) {
+        parts.push("replaced the check typed in the checkbook");
+      }
       toast({
         title: `${selectedBills.length} bill${selectedBills.length > 1 ? "s" : ""} settled — ${vendorName}`,
         description: parts.join(", "),
@@ -438,6 +496,57 @@ function WriteCheckDialog({ vendorId, vendorName, openBills, onDone }: WriteChec
           {error && (
             <p className="text-sm text-red-600">{error}</p>
           )}
+
+          {typedMatches && typedMatches.length > 0 && (() => {
+            const replaceable = typedMatches.filter((m) => !m.paysBills);
+            return (
+              <div
+                role="alert"
+                className="rounded-md border border-amber-200 bg-amber-50 px-3 py-3 text-sm"
+                data-testid="write-check-typed-match"
+              >
+                <p className="font-medium text-amber-900">
+                  This check looks like it's already in the checkbook:
+                </p>
+                <ul className="mt-1.5 space-y-1">
+                  {typedMatches.map((m) => (
+                    <li key={m.id} className="text-slate-800">
+                      {formatDate(m.date)} · {m.num ? `#${m.num} · ` : ""}
+                      {m.partyName || m.description || "Entry"} ·{" "}
+                      <span className="tabular-nums">{formatCents(Math.abs(m.amountCents))}</span>
+                      {m.paysBills && <span className="text-slate-500"> (already pays bills)</span>}
+                    </li>
+                  ))}
+                </ul>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {replaceable.length > 0 && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="bg-amber-600 text-white hover:bg-amber-700"
+                      disabled={submitting}
+                      onClick={() =>
+                        pay({ replaceIds: replaceable.map((m) => m.id), skipDuplicateCheck: true })
+                      }
+                      data-testid="button-replace-typed-check"
+                    >
+                      Use this instead of the typed {replaceable.length === 1 ? "entry" : "entries"}
+                    </Button>
+                  )}
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={submitting}
+                    onClick={() => pay({ replaceIds: [], skipDuplicateCheck: true })}
+                    data-testid="button-write-second-check"
+                  >
+                    It's a different check
+                  </Button>
+                </div>
+              </div>
+            );
+          })()}
 
           <div
             className="sticky bottom-0 -mx-6 px-6 py-4 bg-white border-t flex items-center justify-between"

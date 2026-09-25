@@ -178,6 +178,11 @@ export function UnmatchedLineActions({
                   setServerError(toServerFieldError(err, "Couldn't save the entry. Please try again."));
                 }
               }}
+              onBillsPaid={async (payment) => {
+                setOpen(false);
+                await settle({ transactionId: payment.transactionId ?? undefined });
+                toast({ title: "Check added, bills marked paid, and checked off" });
+              }}
               isLoading={createTransaction.isPending}
               serverError={serverError}
             />

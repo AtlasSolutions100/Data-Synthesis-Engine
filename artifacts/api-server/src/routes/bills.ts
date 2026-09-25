@@ -47,8 +47,11 @@ import {
   GetBillImportDraftResponse,
   SaveBillImportDraftBody,
   SaveBillImportDraftResponse,
+  CheckBillDuplicatesBody,
+  CheckBillDuplicatesResponse,
 } from "@workspace/api-zod";
 import { BALANCE_SHEET_TYPES } from "../lib/finance";
+import { normalizeRef } from "../lib/duplicates";
 
 const objectStorageService = new ObjectStorageService();
 
@@ -935,6 +938,44 @@ router.get("/bills", async (req, res): Promise<void> => {
     .filter((b) => query.data.status == null || b.status === query.data.status);
 
   res.json(ListBillsResponse.parse(items));
+});
+
+/**
+ * "Did I already enter this invoice?" Same vendor and the same invoice number,
+ * or the same total on the same date. Only warns — the client lets the user
+ * save anyway (credit memos and re-bills legitimately repeat).
+ */
+router.post("/bills/check-duplicate", async (req, res): Promise<void> => {
+  const parsed = CheckBillDuplicatesBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+  const { vendorId, billNumber, date, amountCents, excludeBillId } = parsed.data;
+  const numberKey = normalizeRef(billNumber);
+  const rows = await db
+    .select({
+      id: billsTable.id,
+      billNumber: billsTable.billNumber,
+      date: billsTable.date,
+      vendorName: vendorsTable.name,
+      totalCents: sql<number>`coalesce((select sum(${billLinesTable.amountCents}) from ${billLinesTable} where ${billLinesTable.billId} = ${billsTable.id}), 0)`.mapWith(Number),
+    })
+    .from(billsTable)
+    .innerJoin(vendorsTable, eq(vendorsTable.id, billsTable.vendorId))
+    .where(eq(billsTable.vendorId, vendorId));
+  const candidates = rows
+    .filter((r) => r.id !== excludeBillId)
+    .flatMap((r): Array<typeof r & { reason: "same_number" | "same_amount_and_date" }> => {
+      if (numberKey && normalizeRef(r.billNumber) === numberKey) {
+        return [{ ...r, reason: "same_number" as const }];
+      }
+      if (amountCents != null && date && r.totalCents === amountCents && r.date === date) {
+        return [{ ...r, reason: "same_amount_and_date" as const }];
+      }
+      return [];
+    });
+  res.json(CheckBillDuplicatesResponse.parse(candidates));
 });
 
 router.post("/bills", async (req, res): Promise<void> => {

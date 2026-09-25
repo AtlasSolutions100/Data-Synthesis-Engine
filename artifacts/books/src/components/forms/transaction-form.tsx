@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import type { FieldPath } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { parseDollars } from "@/lib/format";
+import { parseDollars, formatCents, formatDate } from "@/lib/format";
 import {
   TransactionInput,
   TransactionUpdate,
@@ -31,9 +31,18 @@ import {
   getGetVendorDefaultAccountQueryKey,
   useGetCurrentUser,
   getGetCurrentUserQueryKey,
+  useListBills,
+  getListBillsQueryKey,
+  useCreateVendorPayment,
+  checkTransactionDuplicates,
 } from "@workspace/api-client-react";
+import type { VendorPayment } from "@workspace/api-client-react";
+import {
+  DuplicateWarningDialog,
+  type DuplicateCandidate,
+} from "@/components/forms/duplicate-warning-dialog";
 import { EntityCombobox } from "@/components/forms/entity-combobox";
-import type { ServerFieldError } from "@/lib/server-field-error";
+import { toServerFieldError, type ServerFieldError } from "@/lib/server-field-error";
 
 const transactionSchema = z.object({
   date: z.string().min(1, "Date is required"),
@@ -76,7 +85,18 @@ interface TransactionFormProps {
    * num, partyName, and description are editable.
    */
   transferReadOnly?: boolean;
+  /**
+   * Set when entering a NEW register entry. Turns on the "already entered?"
+   * check, and — when the entry is a check from a bank account to a vendor
+   * with open bills — lets the user tick the bills it pays. Those checks are
+   * recorded exactly like Write Check (bills marked paid, one register
+   * withdrawal) and reported here instead of through onSubmit; the caller
+   * refreshes bills and registers.
+   */
+  onBillsPaid?: (payment: VendorPayment) => void;
 }
+
+const norm = (s: string | null | undefined) => (s ?? "").trim().toLowerCase();
 
 export function TransactionForm({
   defaultValues,
@@ -84,6 +104,7 @@ export function TransactionForm({
   isLoading,
   serverError,
   transferReadOnly = false,
+  onBillsPaid,
 }: TransactionFormProps) {
   const { data: customers } = useListCustomers({
     query: { queryKey: getListCustomersQueryKey() },
@@ -170,7 +191,181 @@ export function TransactionForm({
     form.setValue("accountId", String(vendorDefault.accountId));
   }, [vendorDefault, form]);
 
+  // --- A check typed into the checkbook pays bills just like Write Check ---
+  const isNew = onBillsPaid != null && !transferReadOnly;
+  const watchedType = form.watch("type");
+  const watchedAccountId = form.watch("accountId");
+  const watchedPartyName = form.watch("partyName");
+  const watchedAmount = form.watch("amount");
+  const bankAccount = (accounts ?? []).find(
+    (a) => String(a.id) === watchedAccountId && a.type === "bank",
+  );
+  const payVendor = watchedTxnVendorId
+    ? (vendors ?? []).find((v) => String(v.id) === watchedTxnVendorId)
+    : norm(watchedPartyName)
+      ? (vendors ?? []).find((v) => norm(v.name) === norm(watchedPartyName))
+      : undefined;
+  const canPayBills =
+    isNew &&
+    !!bankAccount &&
+    !!payVendor &&
+    (watchedType === "check" || watchedType === "expense");
+  const payVendorId = payVendor?.id ?? 0;
+  const { data: vendorBills } = useListBills(
+    { vendorId: payVendorId },
+    {
+      query: {
+        enabled: canPayBills,
+        queryKey: getListBillsQueryKey({ vendorId: payVendorId }),
+      },
+    },
+  );
+  const openBills = useMemo(
+    () =>
+      canPayBills
+        ? (vendorBills ?? [])
+            .filter((b) => b.status === "open" || b.status === "partial")
+            .sort((a, b) => a.date.localeCompare(b.date) || a.id - b.id)
+        : [],
+    [canPayBills, vendorBills],
+  );
+  const [selectedBillIds, setSelectedBillIds] = useState<Set<number>>(new Set());
+  const [billsTouched, setBillsTouched] = useState(false);
+  const [billPromptShown, setBillPromptShown] = useState(false);
+  const [billError, setBillError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [pendingDuplicate, setPendingDuplicate] = useState<{
+    candidates: DuplicateCandidate[];
+    proceed: () => void;
+  } | null>(null);
+  const createVendorPayment = useCreateVendorPayment();
+
+  // A different vendor starts the bill choice over.
+  useEffect(() => {
+    setSelectedBillIds(new Set());
+    setBillsTouched(false);
+    setBillPromptShown(false);
+    setBillError(null);
+  }, [payVendorId]);
+
+  // Until the user picks by hand, tick the bill (or all bills) the amount
+  // matches exactly — the common case of paying one invoice.
+  const amountCents = Math.abs(parseDollars(watchedAmount ?? ""));
+  const openBillKey = openBills.map((b) => `${b.id}:${b.balanceCents}`).join(",");
+  useEffect(() => {
+    if (billsTouched || openBills.length === 0) return;
+    const exact = openBills.find((b) => b.balanceCents === amountCents);
+    const all = openBills.reduce((sum, b) => sum + b.balanceCents, 0);
+    setSelectedBillIds(
+      new Set(
+        exact
+          ? [exact.id]
+          : amountCents > 0 && all === amountCents
+            ? openBills.map((b) => b.id)
+            : [],
+      ),
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [amountCents, openBillKey, billsTouched]);
+
+  const selectedBills = openBills.filter((b) => selectedBillIds.has(b.id));
+  const toggleBill = (id: number) => {
+    setBillsTouched(true);
+    setBillError(null);
+    setSelectedBillIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  /** Pause the save when this looks like an entry that's already in the register. */
+  const unlessDuplicate = async (values: TransactionFormValues, proceed: () => void) => {
+    if (!isNew) return proceed();
+    setSaving(true);
+    try {
+      const matches = await checkTransactionDuplicates({
+        accountId: parseInt(values.accountId, 10),
+        date: values.date,
+        amountCents: parseDollars(values.amount),
+        num: values.num || null,
+        vendorId: values.vendorId ? parseInt(values.vendorId, 10) : (payVendor?.id ?? null),
+        partyName: values.partyName || payVendor?.name || null,
+        excludeTransactionId: null,
+      });
+      if (matches.length > 0) {
+        setPendingDuplicate({
+          proceed,
+          candidates: matches.map((m) => ({
+            id: m.id,
+            name: `${m.num ? `#${m.num} · ` : ""}${m.partyName || m.description || "Entry"} · ${formatCents(Math.abs(m.amountCents))}`,
+            customerName: `${formatDate(m.date)}${m.reason === "same_number" ? " — same check number" : " — same amount and payee"}`,
+          })),
+        });
+        return;
+      }
+    } catch {
+      // The check is only a courtesy; never block a save because it failed.
+    } finally {
+      setSaving(false);
+    }
+    proceed();
+  };
+
+  const payBills = async (values: TransactionFormValues) => {
+    if (!payVendor || !bankAccount || !onBillsPaid) return;
+    let remaining = Math.abs(parseDollars(values.amount));
+    const bills = selectedBills
+      .map((b) => {
+        const pay = Math.min(b.balanceCents, remaining);
+        remaining -= pay;
+        return { billId: b.id, amountCents: pay };
+      })
+      .filter((b) => b.amountCents > 0);
+    if (remaining > 0) {
+      setBillError(
+        `This check is ${formatCents(remaining)} more than the bills you ticked. Tick more bills or fix the amount.`,
+      );
+      return;
+    }
+    if (bills.length === 0) {
+      setBillError("Enter the check amount.");
+      return;
+    }
+    setSaving(true);
+    try {
+      const payment = await createVendorPayment.mutateAsync({
+        id: payVendor.id,
+        data: {
+          date: values.date,
+          method: "check",
+          referenceNum: values.num || null,
+          memo: values.description || null,
+          bankAccountId: bankAccount.id,
+          bills,
+        },
+      });
+      onBillsPaid(payment);
+    } catch (err) {
+      setBillError(toServerFieldError(err, "Couldn't record the check. Please try again.").message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleSubmit = (values: TransactionFormValues) => {
+    setBillError(null);
+    if (canPayBills && selectedBills.length > 0) {
+      void unlessDuplicate(values, () => void payBills(values));
+      return;
+    }
+    // Open bills and none ticked: ask once, so a typed check doesn't quietly
+    // leave the bill open and count the cost twice.
+    if (canPayBills && openBills.length > 0 && !billPromptShown) {
+      setBillPromptShown(true);
+      return;
+    }
     let hasError = false;
     if (accounts && !accounts.some((a) => String(a.id) === values.accountId)) {
       form.setError("accountId", {
@@ -239,7 +434,7 @@ export function TransactionForm({
     }
     if (hasError) return;
 
-    onSubmit({
+    void unlessDuplicate(values, () => onSubmit({
       date: values.date,
       type: values.type as TransactionInputType,
       num: values.num || null,
@@ -253,7 +448,7 @@ export function TransactionForm({
       customerId: values.customerId ? parseInt(values.customerId, 10) : null,
       vendorId: values.vendorId ? parseInt(values.vendorId, 10) : null,
       amountCents: parseDollars(values.amount),
-    });
+    }));
   };
 
   return (
@@ -445,6 +640,49 @@ export function TransactionForm({
           />
         </div>
         )}
+        {canPayBills && openBills.length > 0 && payVendor && (
+          <div
+            className="rounded-md border border-amber-200 bg-amber-50 px-3 py-3 text-sm"
+            data-testid="open-bills-panel"
+          >
+            <p className="font-medium text-amber-900">
+              {payVendor.name} has {openBills.length} open bill{openBills.length === 1 ? "" : "s"}. Is this check paying {openBills.length === 1 ? "it" : "them"}?
+            </p>
+            <p className="mt-0.5 text-xs text-amber-800">
+              Tick what this check pays and those bills are marked paid, the same as Write Check. Leave everything unticked if it's for something else.
+            </p>
+            <ul className="mt-2 space-y-1">
+              {openBills.map((b) => (
+                <li key={b.id}>
+                  <label className="flex cursor-pointer items-center gap-2 rounded px-1 py-0.5 hover:bg-amber-100">
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 accent-amber-600"
+                      checked={selectedBillIds.has(b.id)}
+                      onChange={() => toggleBill(b.id)}
+                      data-testid={`checkbox-pay-bill-${b.id}`}
+                    />
+                    <span className="font-medium text-slate-800">
+                      {b.billNumber ? `Invoice ${b.billNumber}` : `Bill #${b.id}`}
+                    </span>
+                    <span className="text-slate-500">{formatDate(b.date)}</span>
+                    <span className="ml-auto tabular-nums text-slate-800">{formatCents(b.balanceCents)}</span>
+                  </label>
+                </li>
+              ))}
+            </ul>
+            {billPromptShown && selectedBills.length === 0 && (
+              <p role="alert" className="mt-2 font-medium text-amber-900" data-testid="text-open-bills-prompt">
+                No bills ticked. Click Save again to record this as a plain check — the bills stay open.
+              </p>
+            )}
+            {billError && (
+              <p role="alert" className="mt-2 font-medium text-destructive" data-testid="text-open-bills-error">
+                {billError}
+              </p>
+            )}
+          </div>
+        )}
         {!transferReadOnly && (
         <FormField
           control={form.control}
@@ -489,9 +727,25 @@ export function TransactionForm({
             {formLevelError.message}
           </p>
         ) : null}
-        <Button type="submit" disabled={isLoading} className="w-full">
-          {isLoading ? "Saving..." : "Save Transaction"}
+        <Button type="submit" disabled={isLoading || saving} className="w-full">
+          {isLoading || saving
+            ? "Saving..."
+            : canPayBills && selectedBills.length > 0
+              ? `Save check & mark ${selectedBills.length} bill${selectedBills.length === 1 ? "" : "s"} paid`
+              : "Save Transaction"}
         </Button>
+        <DuplicateWarningDialog
+          open={pendingDuplicate != null}
+          entityLabel="check"
+          intro="This looks like something already in the checkbook:"
+          candidates={pendingDuplicate?.candidates ?? []}
+          onCancel={() => setPendingDuplicate(null)}
+          onConfirm={() => {
+            const proceed = pendingDuplicate?.proceed;
+            setPendingDuplicate(null);
+            proceed?.();
+          }}
+        />
       </form>
     </Form>
   );

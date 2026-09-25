@@ -183,6 +183,12 @@ export default function PayrollDetail() {
         invalidate();
         setIsEditOpen(false);
       },
+      onError: (error) => {
+        setIsEditOpen(false);
+        setPostError(
+          toServerFieldError(error, "Could not save the time card. Please try again.").message,
+        );
+      },
     },
   });
 
@@ -233,6 +239,16 @@ export default function PayrollDetail() {
             </p>
           </div>
           {run.posted ? (
+            <div className="flex items-center gap-3">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setPostError(null);
+                setIsEditOpen(true);
+              }}
+            >
+              <Pencil className="mr-2 h-4 w-4" /> Edit
+            </Button>
             <Button
               variant="outline"
               disabled={unpostRun.isPending}
@@ -249,6 +265,7 @@ export default function PayrollDetail() {
               <Undo2 className="mr-2 h-4 w-4" />
               {unpostRun.isPending ? "Unposting..." : "Unpost"}
             </Button>
+            </div>
           ) : (
             <div className="flex items-center gap-3">
               <Button
@@ -484,6 +501,11 @@ export default function PayrollDetail() {
         <DialogContent className="sm:max-w-[760px]">
           <DialogHeader>
             <DialogTitle>Edit Time Card Run</DialogTitle>
+            {run.posted && (
+              <p className="text-sm text-muted-foreground">
+                This card is posted. Saving updates its checkbook entries automatically.
+              </p>
+            )}
           </DialogHeader>
           {isEditOpen ? (
             <PayrollRunForm

@@ -10,6 +10,7 @@ import {
   useGetTransaction,
   getGetTransactionQueryKey,
   getListTransactionsQueryKey,
+  getListBillsQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
@@ -1095,6 +1096,16 @@ export default function AccountRegister() {
             onSubmit={(data) => {
               setCreateError(null);
               createTransaction.mutate({ data: data as any });
+            }}
+            onBillsPaid={(payment) => {
+              invalidate();
+              queryClient.invalidateQueries({ queryKey: getListBillsQueryKey() });
+              setCreateError(null);
+              setIsCreateOpen(false);
+              toast({
+                title: "Check saved and bills marked paid",
+                description: `${payment.vendorName} · ${payment.bills.length} bill${payment.bills.length === 1 ? "" : "s"}`,
+              });
             }}
             isLoading={createTransaction.isPending}
             serverError={createError}

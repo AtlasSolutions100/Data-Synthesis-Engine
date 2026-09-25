@@ -29,6 +29,8 @@ import type {
   ApAging,
   ArAging,
   Bill,
+  BillDuplicateCandidate,
+  BillDuplicateCheckInput,
   BillImportDraft,
   BillImportDraftInput,
   BillInput,
@@ -122,6 +124,8 @@ import type {
   ResolveUnmatchedStatementLine,
   ToggleReconciliationClear,
   Transaction,
+  TransactionDuplicateCandidate,
+  TransactionDuplicateCheckInput,
   TransactionInput,
   TransactionUpdate,
   UnlinkedBillTransaction,
@@ -3762,6 +3766,77 @@ export const useDeleteJobDocument = <TError = ErrorType<ErrorResponse>,
       return useMutation(getDeleteJobDocumentMutationOptions(options));
     }
 
+export const getCheckTransactionDuplicatesUrl = () => {
+
+
+
+
+  return `/api/transactions/check-duplicate`
+}
+
+/**
+ * Same account and either the same check/reference number, or the same amount within a few days to the same payee. Covers checks written from a vendor (Write Check) and checks typed into the register alike.
+ * @summary Find register entries that look like the one about to be saved
+ */
+export const checkTransactionDuplicates = async (transactionDuplicateCheckInput: TransactionDuplicateCheckInput, options?: RequestInit): Promise<TransactionDuplicateCandidate[]> => {
+
+  return customFetch<TransactionDuplicateCandidate[]>(getCheckTransactionDuplicatesUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(transactionDuplicateCheckInput)
+  }
+);}
+
+
+
+
+export const getCheckTransactionDuplicatesMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof checkTransactionDuplicates>>, TError,{data: BodyType<TransactionDuplicateCheckInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof checkTransactionDuplicates>>, TError,{data: BodyType<TransactionDuplicateCheckInput>}, TContext> => {
+
+const mutationKey = ['checkTransactionDuplicates'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof checkTransactionDuplicates>>, {data: BodyType<TransactionDuplicateCheckInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  checkTransactionDuplicates(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CheckTransactionDuplicatesMutationResult = NonNullable<Awaited<ReturnType<typeof checkTransactionDuplicates>>>
+    export type CheckTransactionDuplicatesMutationBody = BodyType<TransactionDuplicateCheckInput>
+    export type CheckTransactionDuplicatesMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Find register entries that look like the one about to be saved
+ */
+export const useCheckTransactionDuplicates = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof checkTransactionDuplicates>>, TError,{data: BodyType<TransactionDuplicateCheckInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof checkTransactionDuplicates>>,
+        TError,
+        {data: BodyType<TransactionDuplicateCheckInput>},
+        TContext
+      > => {
+      return useMutation(getCheckTransactionDuplicatesMutationOptions(options));
+    }
+
 export const getListTransactionsUrl = (params?: ListTransactionsParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -5914,6 +5989,77 @@ export const useCreateBill = <TError = ErrorType<ErrorResponse>,
         TContext
       > => {
       return useMutation(getCreateBillMutationOptions(options));
+    }
+
+export const getCheckBillDuplicatesUrl = () => {
+
+
+
+
+  return `/api/bills/check-duplicate`
+}
+
+/**
+ * Same vendor and either the same invoice number (ignoring case, spaces and punctuation) or the same total on the same date. Used to warn before entering an invoice twice.
+ * @summary Find bills that look like the one about to be saved
+ */
+export const checkBillDuplicates = async (billDuplicateCheckInput: BillDuplicateCheckInput, options?: RequestInit): Promise<BillDuplicateCandidate[]> => {
+
+  return customFetch<BillDuplicateCandidate[]>(getCheckBillDuplicatesUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(billDuplicateCheckInput)
+  }
+);}
+
+
+
+
+export const getCheckBillDuplicatesMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof checkBillDuplicates>>, TError,{data: BodyType<BillDuplicateCheckInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof checkBillDuplicates>>, TError,{data: BodyType<BillDuplicateCheckInput>}, TContext> => {
+
+const mutationKey = ['checkBillDuplicates'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof checkBillDuplicates>>, {data: BodyType<BillDuplicateCheckInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  checkBillDuplicates(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CheckBillDuplicatesMutationResult = NonNullable<Awaited<ReturnType<typeof checkBillDuplicates>>>
+    export type CheckBillDuplicatesMutationBody = BodyType<BillDuplicateCheckInput>
+    export type CheckBillDuplicatesMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Find bills that look like the one about to be saved
+ */
+export const useCheckBillDuplicates = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof checkBillDuplicates>>, TError,{data: BodyType<BillDuplicateCheckInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof checkBillDuplicates>>,
+        TError,
+        {data: BodyType<BillDuplicateCheckInput>},
+        TContext
+      > => {
+      return useMutation(getCheckBillDuplicatesMutationOptions(options));
     }
 
 export const getExtractBillUrl = () => {
