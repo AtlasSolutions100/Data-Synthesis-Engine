@@ -17,6 +17,7 @@ import feedbackRouter from "./feedback";
 import demoRouter from "./demo";
 import reconciliationRouter from "./reconciliation";
 import inboundEmailsRouter from "./inboundEmails";
+import checksRouter from "./checks";
 
 const router: IRouter = Router();
 
@@ -38,5 +39,6 @@ router.use(feedbackRouter);
 router.use(demoRouter);
 router.use(reconciliationRouter);
 router.use(inboundEmailsRouter);
+router.use(checksRouter);
 
 export default router;

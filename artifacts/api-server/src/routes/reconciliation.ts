@@ -28,6 +28,7 @@ import {
   ReopenReconciliationPeriodResponse,
 } from "@workspace/api-zod";
 import { getAccountLedger } from "../lib/finance";
+import { writeStatementCheck, removeUnprintedStatementCheck } from "../lib/statementCheck";
 import { alias } from "drizzle-orm/pg-core";
 
 const router: IRouter = Router();
@@ -1084,13 +1085,17 @@ router.post("/reconciliation/periods/:id/complete", async (req, res) => {
     });
   }
 
-  await db
-    .update(reconciliationPeriodsTable)
-    .set({ status: "completed" })
-    .where(eq(reconciliationPeriodsTable.id, params.data.id));
+  // Closing a vendor statement at $0 writes the one check that pays it.
+  const printCheck = await db.transaction(async (tx) => {
+    await tx
+      .update(reconciliationPeriodsTable)
+      .set({ status: "completed" })
+      .where(eq(reconciliationPeriodsTable.id, params.data.id));
+    return writeStatementCheck(tx, params.data.id);
+  });
 
   const updated = await buildPeriodDetail(params.data.id);
-  return res.json(CompleteReconciliationPeriodResponse.parse(updated));
+  return res.json(CompleteReconciliationPeriodResponse.parse({ ...updated, printCheck }));
 });
 
 // ── POST /reconciliation/periods/:id/reopen ──────────────────────────────────
@@ -1109,16 +1114,22 @@ router.post("/reconciliation/periods/:id/reopen", async (req, res) => {
     return res.status(400).json({ error: "Only completed periods can be reopened." });
   }
 
-  // Delete all cleared marks for this period (full redo)
-  await db
-    .delete(reconciliationClearsTable)
-    .where(eq(reconciliationClearsTable.periodId, params.data.id));
+  await db.transaction(async (tx) => {
+    // Take back the check closing wrote, if it hasn't been printed yet, so
+    // closing again writes a fresh one for whatever gets checked off.
+    await removeUnprintedStatementCheck(tx, params.data.id);
 
-  // Revert to in_progress
-  await db
-    .update(reconciliationPeriodsTable)
-    .set({ status: "in_progress" })
-    .where(eq(reconciliationPeriodsTable.id, params.data.id));
+    // Delete all cleared marks for this period (full redo)
+    await tx
+      .delete(reconciliationClearsTable)
+      .where(eq(reconciliationClearsTable.periodId, params.data.id));
+
+    // Revert to in_progress
+    await tx
+      .update(reconciliationPeriodsTable)
+      .set({ status: "in_progress" })
+      .where(eq(reconciliationPeriodsTable.id, params.data.id));
+  });
 
   const detail = await buildPeriodDetail(params.data.id);
   return res.json(ReopenReconciliationPeriodResponse.parse(detail));

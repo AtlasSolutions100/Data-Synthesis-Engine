@@ -159,6 +159,26 @@ export function TransactionForm({
     });
   }, [fieldError, form]);
 
+  // Customer comes first (2026-09-25, recording a customer's check): once one
+  // is picked, the job list shows only that customer's jobs.
+  const watchedCustomerId = form.watch("customerId");
+  const jobOptions = useMemo(() => {
+    const all = jobs ?? [];
+    const scoped = watchedCustomerId
+      ? all.filter((j) => String(j.customerId ?? "") === watchedCustomerId)
+      : all;
+    return scoped.map((j) => ({ id: j.id, label: j.name }));
+  }, [jobs, watchedCustomerId]);
+  // A job from a different customer doesn't stay selected.
+  useEffect(() => {
+    const jobId = form.getValues("jobId");
+    if (!watchedCustomerId || !jobId || !jobs) return;
+    const job = jobs.find((j) => String(j.id) === jobId);
+    if (job?.customerId != null && String(job.customerId) !== watchedCustomerId) {
+      form.setValue("jobId", "", { shouldDirty: true });
+    }
+  }, [watchedCustomerId, jobs, form]);
+
   // 10C: when a job is selected, auto-fill its linked customer if the customer
   // field is currently empty. Customer remains optional — saves never block on it.
   const watchedJobId = form.watch("jobId");
@@ -577,29 +597,6 @@ export function TransactionForm({
         <div className="grid grid-cols-3 gap-4">
           <FormField
             control={form.control}
-            name="jobId"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Job Name</FormLabel>
-                <FormControl>
-                  <EntityCombobox
-                    options={(jobs ?? []).map((j) => ({
-                      id: j.id,
-                      label: j.name,
-                    }))}
-                    value={field.value ?? ""}
-                    onChange={field.onChange}
-                    placeholder="Select job name"
-                    searchPlaceholder="Search jobs..."
-                    emptyText="No jobs found."
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
             name="customerId"
             render={({ field }) => (
               <FormItem>
@@ -612,6 +609,26 @@ export function TransactionForm({
                     placeholder="Select customer"
                     searchPlaceholder="Search customers..."
                     emptyText="No customers found."
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="jobId"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Job Name</FormLabel>
+                <FormControl>
+                  <EntityCombobox
+                    options={jobOptions}
+                    value={field.value ?? ""}
+                    onChange={field.onChange}
+                    placeholder={watchedCustomerId ? "Select this customer's job" : "Select job name"}
+                    searchPlaceholder="Search jobs..."
+                    emptyText="No jobs found."
                   />
                 </FormControl>
                 <FormMessage />

@@ -423,29 +423,30 @@ describe("TransactionForm job-to-customer auto-fill", () => {
     expect(onSubmit.mock.calls[0][0].customerId).toBeNull();
   });
 
-  it("selecting a job does not override a customer the user already picked", async () => {
+  it("picking the customer first narrows the job list to that customer's jobs", async () => {
+    // Mike records who paid first, then picks among that customer's jobs
+    // (client meeting 2026-09-25).
     const onSubmit = vi.fn();
     render(<TransactionForm onSubmit={onSubmit} defaultValues={baseDefaults} />);
 
-    // User manually picks "Northside Mall" (id: 20) first.
-    await pickOption("Select customer", /Northside Mall/);
-    await triggerShowing(/Northside Mall/);
-
-    // Now pick "Warehouse" job which links to "Lakewood Homes" (id: 21).
-    await pickOption("Select job name", /Warehouse/);
-
-    // Customer must still show "Northside Mall" — the manual pick is preserved.
-    await waitFor(() => {
-      const triggers = screen.getAllByRole("combobox");
-      const customerTrigger = triggers.find((el) =>
-        within(el).queryByText(/Northside Mall/),
-      );
-      expect(customerTrigger).toBeTruthy();
-    });
+    await pickOption("Select customer", /Lakewood Homes/);
+    fireEvent.click(await triggerShowing("Select this customer's job"));
+    expect(await screen.findByText("Warehouse")).toBeTruthy();
+    expect(screen.queryByText("Office Reno")).toBeNull();
+    const option = screen.getByText("Warehouse");
+    fireEvent.click(option.closest("[cmdk-item]") ?? option);
 
     await submit();
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
-    expect(onSubmit.mock.calls[0][0].customerId).toBe(20);
+    expect(onSubmit.mock.calls[0][0]).toMatchObject({ customerId: 21, jobId: 10 });
+  });
+
+  it("switching to a different customer clears a job that isn't theirs", async () => {
+    const onSubmit = vi.fn();
+    render(<TransactionForm onSubmit={onSubmit} defaultValues={{ ...baseDefaults, jobId: "10", customerId: "21" }} />);
+    await triggerShowing(/Warehouse/);
+    await pickOption(/Lakewood Homes/, /Northside Mall/);
+    await triggerShowing("Select this customer's job");
   });
 
   it("form saves successfully when the customer field is left blank", async () => {

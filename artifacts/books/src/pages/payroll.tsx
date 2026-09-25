@@ -57,6 +57,8 @@ export default function Payroll() {
   const [autoOpenImport, setAutoOpenImport] = useState(false);
   const [range, setRange] = useState<DateRangeValue>({});
 
+  // Mike looks runs up by pay period number ("Period 18"), not dates (2026-09-25).
+  const [periodFilter, setPeriodFilter] = useState<string>("all");
   const params = { startDate: range.startDate, endDate: range.endDate };
   const { data: runs, isLoading } = useListPayrollRuns(params, {
     query: { queryKey: getListPayrollRunsQueryKey(params) },
@@ -169,6 +171,18 @@ export default function Payroll() {
     },
   });
 
+  const periodOptions = useMemo(() => {
+    const starts = [...new Set((runs ?? []).map((r) => r.payPeriodStart))].sort().reverse();
+    return starts.map((start) => {
+      const p = payPeriodForStart(start);
+      return { value: start, label: p ? payPeriodLabel(p) : start };
+    });
+  }, [runs]);
+  const visibleRuns = useMemo(
+    () => (periodFilter === "all" ? runs : runs?.filter((r) => r.payPeriodStart === periodFilter)),
+    [runs, periodFilter],
+  );
+
   // Periods that were entered as more than one run before merge-on-save.
   const splitPeriods = useMemo(() => {
     const byStart = new Map<string, PayrollRun[]>();
@@ -226,6 +240,19 @@ export default function Payroll() {
             {YEAR_OPTIONS.map((year) => (
               <SelectItem key={year} value={String(year)}>
                 {year}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={periodFilter} onValueChange={setPeriodFilter}>
+          <SelectTrigger className="w-[230px]" data-testid="select-pay-period">
+            <SelectValue placeholder="Pay period" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All pay periods</SelectItem>
+            {periodOptions.map((o) => (
+              <SelectItem key={o.value} value={o.value}>
+                {o.label}
               </SelectItem>
             ))}
           </SelectContent>
@@ -330,7 +357,7 @@ export default function Payroll() {
                     Loading time card runs...
                   </TableCell>
                 </TableRow>
-              ) : runs?.length === 0 ? (
+              ) : visibleRuns?.length === 0 ? (
                 <TableRow>
                   <TableCell
                     colSpan={9}
@@ -340,7 +367,7 @@ export default function Payroll() {
                   </TableCell>
                 </TableRow>
               ) : (
-                runs?.map((run) => (
+                visibleRuns?.map((run) => (
                   <TableRow key={run.id} className="group hover:bg-slate-50">
                     <TableCell className="font-medium">
                       <div className="flex items-center gap-2">
@@ -348,7 +375,17 @@ export default function Payroll() {
                           href={`/payroll/${run.id}`}
                           className="text-blue-600 hover:underline"
                         >
-                          {formatDate(run.payPeriodStart)} – {formatDate(run.payPeriodEnd)}
+                          {(() => {
+                            const p = payPeriodForStart(run.payPeriodStart);
+                            return p ? (
+                              <span className="block font-semibold" data-testid={`text-period-number-${run.id}`}>
+                                Period {p.number}
+                              </span>
+                            ) : null;
+                          })()}
+                          <span className="block text-sm font-normal">
+                            {formatDate(run.payPeriodStart)} – {formatDate(run.payPeriodEnd)}
+                          </span>
                         </Link>
                         <DemoBadge isDemo={run.isDemo} />
                       </div>

@@ -56,6 +56,14 @@ A desktop-first, browser-based job-costing and construction-accounting app that 
 - **Duplicate warnings.** `POST /bills/check-duplicate` (same vendor + same invoice number ignoring punctuation, or same total on the same date) and `POST /transactions/check-duplicate` (same account + same check number, or same amount to the same payee within 7 days; payroll rows and "To Print"/ACH placeholders ignored). Both only warn: the bill form and new register entries show "Save anyway / Cancel". Matching rules live in `lib/duplicates.ts`.
 - **Typed check = Write Check.** A new register entry (check/expense from a bank account) to a vendor with open bills shows those bills; ticked bills are paid through `POST /vendors/:id/payments`, so the result is identical to Write Check (bill payments + one withdrawal). The amount auto-ticks an exactly matching bill; with open bills and none ticked the form asks once before saving a plain check. Going the other way, Write Check spots a check already typed into the register and offers to replace it (the typed entry is deleted only after the real check saves).
 
+### Client meeting 2026-09-25 changes
+
+- **Closing a vendor statement writes the check.** `POST /reconciliation/periods/:id/complete` on an account named after a vendor pays every bill whose postings were checked off (and still owe) with ONE "To Print" check from Checking, through the same `writeVendorCheck` Write Check uses (`lib/statementCheck.ts`). The response carries `printCheck`; the reconcile screen shows it with a link to Checks to Print. The check's memo carries `(reconciliation #ID)`; reopening the statement deletes that check while it's still unnumbered (numbered checks stay).
+- **Checks to Print** (`/checks-to-print`, sidebar with a count badge): every bank-register entry numbered "To Print", grouped by payee and bank account. One check number covers a vendor's whole group: `POST /checks/assign-number` merges bill-payment checks into a single vendor check (one register line, bill payments moved, statement check-offs carried over) and gives older unlinked entries the same number. The register also has a **To Print** filter (`?filter=to-print`).
+- **Pay period numbers.** The Time Cards list shows "Period N" above the dates and has a pay period filter; checkbook payroll lines read "Payroll Period 19 (08/31/2026 – 09/13/2026)" (display-only, `payrollPeriodDescription`).
+- **Customer first on new entries.** The transaction form puts Customer before Job; once a customer is picked the job list shows only that customer's jobs, and a job from another customer is cleared.
+- **Spell check** is on for invoice line descriptions and the memo.
+
 ### Load a Replit table export (JSON per table)
 
 ```

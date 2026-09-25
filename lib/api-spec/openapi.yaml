@@ -959,6 +959,45 @@ paths:
         "404":
           $ref: "#/components/responses/Error"
 
+  /checks/to-print:
+    get:
+      operationId: listChecksToPrint
+      tags: [transactions]
+      summary: Checks written but not yet numbered ("To Print")
+      responses:
+        "200":
+          description: Checks waiting for a check number, oldest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CheckToPrint"
+  /checks/assign-number:
+    post:
+      operationId: assignCheckNumber
+      tags: [transactions]
+      summary: Give one check number to one or more "To Print" checks to the same payee
+      description: >-
+        Several checks to one vendor from the same bank account become ONE
+        check: when they were written from bills they're merged into a single
+        vendor check (one register line); older unlinked entries all get the
+        same number.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AssignCheckNumberInput"
+      responses:
+        "200":
+          description: The resulting register entries
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AssignCheckNumberResult"
+        "400":
+          $ref: "#/components/responses/Error"
   /transactions/check-duplicate:
     post:
       operationId: checkTransactionDuplicates
@@ -5544,6 +5583,83 @@ components:
             period creation. Empty array means all CSV rows were matched.
           items:
             $ref: "#/components/schemas/StatementUnmatchedLine"
+        printCheck:
+          description: >
+            Set only on the response to closing a vendor statement: the one
+            "To Print" check written for the open bills checked off on it.
+          oneOf:
+            - $ref: "#/components/schemas/ReconciliationPrintCheck"
+            - type: "null"
+
+    ReconciliationPrintCheck:
+      type: object
+      required: [vendorPaymentId, transactionId, vendorName, amountCents, billCount]
+      properties:
+        vendorPaymentId:
+          type: integer
+        transactionId:
+          type: ["integer", "null"]
+        vendorName:
+          type: string
+        amountCents:
+          type: integer
+        billCount:
+          type: integer
+
+    CheckToPrint:
+      type: object
+      required: [transactionId, date, bankAccountId, bankAccountName, payee, vendorId, description, amountCents, billLabels]
+      properties:
+        transactionId:
+          type: integer
+        date:
+          type: string
+        bankAccountId:
+          type: integer
+        bankAccountName:
+          type: string
+        payee:
+          type: string
+        vendorId:
+          type: ["integer", "null"]
+        description:
+          type: ["string", "null"]
+        amountCents:
+          type: integer
+          description: Check amount (positive)
+        billLabels:
+          type: array
+          description: Invoice numbers this check pays, when it was written from bills
+          items:
+            type: string
+
+    AssignCheckNumberInput:
+      type: object
+      required: [transactionIds, checkNumber]
+      properties:
+        transactionIds:
+          type: array
+          minItems: 1
+          items:
+            type: integer
+        checkNumber:
+          type: string
+          minLength: 1
+        date:
+          type: ["string", "null"]
+          description: Date written on the check; defaults to each entry's current date
+
+    AssignCheckNumberResult:
+      type: object
+      required: [transactionIds, combined]
+      properties:
+        transactionIds:
+          type: array
+          items:
+            type: integer
+        combined:
+          type: boolean
+          description: True when several bill-payment checks were merged into one check
 
     StatementUnmatchedLine:
       type: object

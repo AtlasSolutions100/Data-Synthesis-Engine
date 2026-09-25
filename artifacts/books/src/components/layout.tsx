@@ -9,6 +9,8 @@ import {
   getCountMyFeedbackUpdatesQueryKey,
   useListInboundEmails,
   getListInboundEmailsQueryKey,
+  useListChecksToPrint,
+  getListChecksToPrintQueryKey,
 } from "@workspace/api-client-react";
 import {
   LayoutDashboard,
@@ -27,6 +29,7 @@ import {
   MessageSquare,
   MessagesSquare,
   Inbox,
+  Printer,
   type LucideIcon,
 } from "lucide-react";
 import { FeedbackButton } from "./feedback-button";
@@ -83,6 +86,16 @@ export function Layout({ children }: { children: React.ReactNode }) {
     },
   });
   const inboxCount = inboxNew?.length ?? 0;
+  // Checks written but not numbered yet, so none gets forgotten (2026-09-25).
+  const { data: toPrint } = useListChecksToPrint({
+    query: {
+      queryKey: getListChecksToPrintQueryKey(),
+      enabled: me != null,
+      refetchInterval: 120_000,
+      refetchOnWindowFocus: true,
+    },
+  });
+  const toPrintCount = toPrint?.length ?? 0;
 
   const groups: NavGroup[] = [
     {
@@ -113,6 +126,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
       label: "Books",
       items: [
         { href: "/accounts", label: "Chart of Accounts", icon: Wallet },
+        { href: "/checks-to-print", label: "Checks to Print", icon: Printer },
         { href: "/transactions", label: "Transactions", icon: ReceiptText },
         { href: "/reports", label: "Reports", icon: FileBarChart },
       ],
@@ -137,6 +151,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
   const badgeFor = (href: string): { count: number; testId: string } | null => {
     if (href === "/inbox" && inboxCount > 0) return { count: inboxCount, testId: "badge-inbox-count" };
+    if (href === "/checks-to-print" && toPrintCount > 0) return { count: toPrintCount, testId: "badge-checks-to-print" };
     if (href === "/my-feedback" && myUpdatesCount > 0) return { count: myUpdatesCount, testId: "badge-my-feedback-updates" };
     if (href === "/feedback-log" && incompleteCount > 0) return { count: incompleteCount, testId: "badge-feedback-count" };
     return null;

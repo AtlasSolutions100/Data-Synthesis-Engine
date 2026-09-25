@@ -1178,6 +1178,43 @@ export const DeleteJobDocumentResponse = zod.void()
 
 
 /**
+ * @summary Checks written but not yet numbered ("To Print")
+ */
+export const ListChecksToPrintResponseItem = zod.object({
+  "transactionId": zod.number(),
+  "date": zod.string(),
+  "bankAccountId": zod.number(),
+  "bankAccountName": zod.string(),
+  "payee": zod.string(),
+  "vendorId": zod.number().nullable(),
+  "description": zod.string().nullable(),
+  "amountCents": zod.number().describe('Check amount (positive)'),
+  "billLabels": zod.array(zod.string()).describe('Invoice numbers this check pays, when it was written from bills')
+})
+export const ListChecksToPrintResponse = zod.array(ListChecksToPrintResponseItem)
+
+
+/**
+ * Several checks to one vendor from the same bank account become ONE check: when they were written from bills they're merged into a single vendor check (one register line); older unlinked entries all get the same number.
+ * @summary Give one check number to one or more "To Print" checks to the same payee
+ */
+
+
+
+
+export const AssignCheckNumberBody = zod.object({
+  "transactionIds": zod.array(zod.number()).min(1),
+  "checkNumber": zod.string().min(1),
+  "date": zod.string().nullish().describe('Date written on the check; defaults to each entry\'s current date')
+})
+
+export const AssignCheckNumberResponse = zod.object({
+  "transactionIds": zod.array(zod.number()),
+  "combined": zod.boolean().describe('True when several bill-payment checks were merged into one check')
+})
+
+
+/**
  * Same account and either the same check/reference number, or the same amount within a few days to the same payee. Covers checks written from a vendor (Write Check) and checks typed into the register alike.
  * @summary Find register entries that look like the one about to be saved
  */
@@ -3955,7 +3992,14 @@ export const GetReconciliationPeriodResponse = zod.object({
   "date": zod.string().describe('Date from the CSV (YYYY-MM-DD)'),
   "amountCents": zod.number().describe('Amount in cents (positive = deposit, negative = withdrawal)'),
   "description": zod.string().describe('Raw description text from the CSV row')
-})).optional().describe('CSV statement rows that could not be matched to any ledger transaction by date (±1 day) and amount. Present only when a CSV was uploaded at period creation. Empty array means all CSV rows were matched.\n')
+})).optional().describe('CSV statement rows that could not be matched to any ledger transaction by date (±1 day) and amount. Present only when a CSV was uploaded at period creation. Empty array means all CSV rows were matched.\n'),
+  "printCheck": zod.union([zod.object({
+  "vendorPaymentId": zod.number(),
+  "transactionId": zod.number().nullable(),
+  "vendorName": zod.string(),
+  "amountCents": zod.number(),
+  "billCount": zod.number()
+}),zod.null()]).optional().describe('Set only on the response to closing a vendor statement: the one \"To Print\" check written for the open bills checked off on it.\n')
 })
 
 
@@ -4062,7 +4106,14 @@ export const ToggleReconciliationClearResponse = zod.object({
   "date": zod.string().describe('Date from the CSV (YYYY-MM-DD)'),
   "amountCents": zod.number().describe('Amount in cents (positive = deposit, negative = withdrawal)'),
   "description": zod.string().describe('Raw description text from the CSV row')
-})).optional().describe('CSV statement rows that could not be matched to any ledger transaction by date (±1 day) and amount. Present only when a CSV was uploaded at period creation. Empty array means all CSV rows were matched.\n')
+})).optional().describe('CSV statement rows that could not be matched to any ledger transaction by date (±1 day) and amount. Present only when a CSV was uploaded at period creation. Empty array means all CSV rows were matched.\n'),
+  "printCheck": zod.union([zod.object({
+  "vendorPaymentId": zod.number(),
+  "transactionId": zod.number().nullable(),
+  "vendorName": zod.string(),
+  "amountCents": zod.number(),
+  "billCount": zod.number()
+}),zod.null()]).optional().describe('Set only on the response to closing a vendor statement: the one \"To Print\" check written for the open bills checked off on it.\n')
 })
 
 
@@ -4112,7 +4163,14 @@ export const CompleteReconciliationPeriodResponse = zod.object({
   "date": zod.string().describe('Date from the CSV (YYYY-MM-DD)'),
   "amountCents": zod.number().describe('Amount in cents (positive = deposit, negative = withdrawal)'),
   "description": zod.string().describe('Raw description text from the CSV row')
-})).optional().describe('CSV statement rows that could not be matched to any ledger transaction by date (±1 day) and amount. Present only when a CSV was uploaded at period creation. Empty array means all CSV rows were matched.\n')
+})).optional().describe('CSV statement rows that could not be matched to any ledger transaction by date (±1 day) and amount. Present only when a CSV was uploaded at period creation. Empty array means all CSV rows were matched.\n'),
+  "printCheck": zod.union([zod.object({
+  "vendorPaymentId": zod.number(),
+  "transactionId": zod.number().nullable(),
+  "vendorName": zod.string(),
+  "amountCents": zod.number(),
+  "billCount": zod.number()
+}),zod.null()]).optional().describe('Set only on the response to closing a vendor statement: the one \"To Print\" check written for the open bills checked off on it.\n')
 })
 
 
@@ -4162,7 +4220,14 @@ export const ReopenReconciliationPeriodResponse = zod.object({
   "date": zod.string().describe('Date from the CSV (YYYY-MM-DD)'),
   "amountCents": zod.number().describe('Amount in cents (positive = deposit, negative = withdrawal)'),
   "description": zod.string().describe('Raw description text from the CSV row')
-})).optional().describe('CSV statement rows that could not be matched to any ledger transaction by date (±1 day) and amount. Present only when a CSV was uploaded at period creation. Empty array means all CSV rows were matched.\n')
+})).optional().describe('CSV statement rows that could not be matched to any ledger transaction by date (±1 day) and amount. Present only when a CSV was uploaded at period creation. Empty array means all CSV rows were matched.\n'),
+  "printCheck": zod.union([zod.object({
+  "vendorPaymentId": zod.number(),
+  "transactionId": zod.number().nullable(),
+  "vendorName": zod.string(),
+  "amountCents": zod.number(),
+  "billCount": zod.number()
+}),zod.null()]).optional().describe('Set only on the response to closing a vendor statement: the one \"To Print\" check written for the open bills checked off on it.\n')
 })
 
 

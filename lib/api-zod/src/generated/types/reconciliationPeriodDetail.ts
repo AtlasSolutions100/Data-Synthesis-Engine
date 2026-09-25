@@ -7,6 +7,7 @@
  */
 import type { ReconciliationPeriodDetailStatus } from './reconciliationPeriodDetailStatus';
 import type { ReconciliationPeriodLine } from './reconciliationPeriodLine';
+import type { ReconciliationPrintCheck } from './reconciliationPrintCheck';
 import type { StatementUnmatchedLine } from './statementUnmatchedLine';
 
 export interface ReconciliationPeriodDetail {
@@ -29,4 +30,6 @@ export interface ReconciliationPeriodDetail {
   lines: ReconciliationPeriodLine[];
   /** CSV statement rows that could not be matched to any ledger transaction by date (±1 day) and amount. Present only when a CSV was uploaded at period creation. Empty array means all CSV rows were matched. */
   unmatchedStatementLines?: StatementUnmatchedLine[];
+  /** Set only on the response to closing a vendor statement: the one "To Print" check written for the open bills checked off on it. */
+  printCheck?: ReconciliationPrintCheck | null;
 }

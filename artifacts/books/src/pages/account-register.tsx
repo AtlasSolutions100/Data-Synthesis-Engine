@@ -13,6 +13,7 @@ import {
   getListBillsQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
+import { payPeriodForStart, payPeriodLabel } from "@/lib/pay-periods";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -53,6 +54,7 @@ import {
   ChevronRight,
   ChevronDown,
   X,
+  Printer,
 } from "lucide-react";
 
 /* ── helpers ──────────────────────────────────────────────────────────── */
@@ -360,6 +362,23 @@ function EditTransactionDialog({
 
 /* ── main component ──────────────────────────────────────────────────── */
 
+
+/** "To Print" (and blank) check numbers mean the check hasn't been written yet. */
+export function isToPrintNum(num: string | null | undefined): boolean {
+  return (num ?? "").toLowerCase().replace(/[^a-z0-9]/g, "") === "toprint";
+}
+
+/**
+ * Payroll lines are posted as "Payroll 2026-08-17 – 2026-08-30"; Mike thinks
+ * in pay period numbers (2026-09-25), so show "Period 18 (08/17 – 08/30)".
+ */
+export function payrollPeriodDescription(description: string | null): string | null {
+  if (!description) return description;
+  const m = /(\d{4}-\d{2}-\d{2}) – (\d{4}-\d{2}-\d{2})/.exec(description);
+  const period = m ? payPeriodForStart(m[1]) : null;
+  return period && m ? description.replace(m[0], payPeriodLabel(period)) : description;
+}
+
 export default function AccountRegister() {
   const { id } = useParams<{ id: string }>();
   const accountId = Number(id);
@@ -379,6 +398,10 @@ export default function AccountRegister() {
       return next;
     });
   const [editingId, setEditingId] = useState<number | null>(null);
+  // "What checks do I still have to write?" (2026-09-25)
+  const [toPrintOnly, setToPrintOnly] = useState(
+    () => typeof window !== "undefined" && new URLSearchParams(window.location.search).get("filter") === "to-print",
+  );
   const [confirmAction, setConfirmAction] = useState<
     | { kind: "delete"; transactionId: number; label: string; description: string | null }
     | { kind: "void"; transactionId: number; label: string; description: string | null; amountCents: number }
@@ -566,7 +589,7 @@ export default function AccountRegister() {
           type: line.type,
           num: line.num,
           partyName: line.partyName,
-          description: line.description,
+          description: payrollPeriodDescription(line.description),
           otherAccountName: line.otherAccountName,
           withdrawalCents: line.effectCents < 0 ? -line.effectCents : 0,
           depositCents: line.effectCents > 0 ? line.effectCents : 0,
@@ -621,6 +644,11 @@ export default function AccountRegister() {
     }
   }
 
+  const toPrintRows = rows.filter(
+    (r): r is Extract<DisplayRow, { kind: "tx" }> => r.kind === "tx" && isToPrintNum(r.num),
+  );
+  const visibleRows: DisplayRow[] = toPrintOnly ? toPrintRows : rows;
+
   const accountName = data?.accountName ?? "Account";
   const accountNumber = data?.accountNumber ?? "";
 
@@ -654,6 +682,16 @@ export default function AccountRegister() {
         </div>
 
         <div className="flex items-start gap-4">
+          <Button
+            variant={toPrintOnly ? "default" : "outline"}
+            className={toPrintOnly ? "bg-amber-600 text-white hover:bg-amber-700" : ""}
+            onClick={() => setToPrintOnly((v) => !v)}
+            aria-pressed={toPrintOnly}
+            data-testid="button-register-to-print-filter"
+          >
+            <Printer className="mr-2 h-4 w-4" />
+            To Print{toPrintRows.length > 0 ? ` (${toPrintRows.length})` : ""}
+          </Button>
           <Button
             className="bg-blue-600 hover:bg-blue-700"
             onClick={() => setIsCreateOpen(true)}
@@ -755,15 +793,17 @@ export default function AccountRegister() {
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.length === 0 && (
+                  {visibleRows.length === 0 && (
                     <tr>
                       <td colSpan={9} className="text-center py-16 text-slate-400 text-sm">
-                        No transactions found for this account.
+                        {toPrintOnly
+                          ? "No checks waiting to be printed."
+                          : "No transactions found for this account."}
                       </td>
                     </tr>
                   )}
 
-                  {rows.map((row, i) => {
+                  {visibleRows.map((row, i) => {
                     if (row.kind === "divider") {
                       return (
                         <tr key={`divider-${i}`} className="bg-amber-50/60">

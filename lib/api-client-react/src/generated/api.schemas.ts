@@ -2597,6 +2597,15 @@ export interface StatementUnmatchedLine {
   description: string;
 }
 
+export interface ReconciliationPrintCheck {
+  vendorPaymentId: number;
+  /** @nullable */
+  transactionId: number | null;
+  vendorName: string;
+  amountCents: number;
+  billCount: number;
+}
+
 export interface ReconciliationPeriodDetail {
   id: number;
   accountId: number;
@@ -2617,6 +2626,42 @@ export interface ReconciliationPeriodDetail {
   lines: ReconciliationPeriodLine[];
   /** CSV statement rows that could not be matched to any ledger transaction by date (±1 day) and amount. Present only when a CSV was uploaded at period creation. Empty array means all CSV rows were matched. */
   unmatchedStatementLines?: StatementUnmatchedLine[];
+  /** Set only on the response to closing a vendor statement: the one "To Print" check written for the open bills checked off on it. */
+  printCheck?: ReconciliationPrintCheck | null;
+}
+
+export interface CheckToPrint {
+  transactionId: number;
+  date: string;
+  bankAccountId: number;
+  bankAccountName: string;
+  payee: string;
+  /** @nullable */
+  vendorId: number | null;
+  /** @nullable */
+  description: string | null;
+  /** Check amount (positive) */
+  amountCents: number;
+  /** Invoice numbers this check pays, when it was written from bills */
+  billLabels: string[];
+}
+
+export interface AssignCheckNumberInput {
+  /** @minItems 1 */
+  transactionIds: number[];
+  /** @minLength 1 */
+  checkNumber: string;
+  /**
+     * Date written on the check; defaults to each entry's current date
+     * @nullable
+     */
+  date?: string | null;
+}
+
+export interface AssignCheckNumberResult {
+  transactionIds: number[];
+  /** True when several bill-payment checks were merged into one check */
+  combined: boolean;
 }
 
 export interface CreateReconciliationPeriod {

@@ -7,7 +7,11 @@ import {
   useCompleteReconciliationPeriod,
   useReopenReconciliationPeriod,
   useUpdateReconciliationPeriod,
+  getListTransactionsQueryKey,
+  getListBillsQueryKey,
+  getListChecksToPrintQueryKey,
 } from "@workspace/api-client-react";
+import type { ReconciliationPrintCheck } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -70,6 +74,8 @@ export default function AccountReconcile() {
 
   const [completing, setCompleting] = useState(false);
   const [completeError, setCompleteError] = useState<string | null>(null);
+  // Closing a vendor statement writes the check that pays it (2026-09-25).
+  const [printCheck, setPrintCheck] = useState<ReconciliationPrintCheck | null>(null);
   const [reopening, setReopening] = useState(false);
   const [pendingToggles, setPendingToggles] = useState<Set<number>>(new Set());
 
@@ -96,8 +102,12 @@ export default function AccountReconcile() {
     setCompleteError(null);
     setCompleting(true);
     try {
-      await completePeriod.mutateAsync({ id: pid });
+      const closed = await completePeriod.mutateAsync({ id: pid });
+      setPrintCheck(closed.printCheck ?? null);
       invalidate();
+      queryClient.invalidateQueries({ queryKey: getListTransactionsQueryKey() });
+      queryClient.invalidateQueries({ queryKey: getListBillsQueryKey() });
+      queryClient.invalidateQueries({ queryKey: getListChecksToPrintQueryKey() });
     } catch (err: any) {
       setCompleteError(
         err?.response?.data?.error ?? err?.message ?? "Could not close reconciliation."
@@ -111,7 +121,11 @@ export default function AccountReconcile() {
     setReopening(true);
     try {
       await reopenPeriod.mutateAsync({ id: pid });
+      setPrintCheck(null);
       invalidate();
+      queryClient.invalidateQueries({ queryKey: getListTransactionsQueryKey() });
+      queryClient.invalidateQueries({ queryKey: getListBillsQueryKey() });
+      queryClient.invalidateQueries({ queryKey: getListChecksToPrintQueryKey() });
     } finally {
       setReopening(false);
     }
@@ -199,6 +213,8 @@ export default function AccountReconcile() {
                     <p className="text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2 text-sm">
                       Use this when you need to fix a bad entry that was already reconciled.
                       All transactions stay in the books — only the "cleared" status resets.
+                      If closing wrote a check that hasn't been given a number yet, it's taken
+                      back too, and closing again writes a new one.
                     </p>
                   </AlertDialogDescription>
                 </AlertDialogHeader>
@@ -309,6 +325,29 @@ export default function AccountReconcile() {
           </div>
         </CardContent>
       </Card>
+
+      {printCheck && (
+        <div
+          className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900"
+          data-testid="reconcile-print-check"
+        >
+          <div className="flex items-start gap-2">
+            <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
+            <span>
+              One check to <strong>{printCheck.vendorName}</strong> for{" "}
+              <strong>{fmt(printCheck.amountCents)}</strong> pays the{" "}
+              {printCheck.billCount} bill{printCheck.billCount === 1 ? "" : "s"} on this statement.
+              It's in the checkbook marked To Print.
+            </span>
+          </div>
+          <Link
+            href="/checks-to-print"
+            className="font-medium text-emerald-800 underline underline-offset-2 hover:text-emerald-950"
+          >
+            Give it a check number
+          </Link>
+        </div>
+      )}
 
       {completeError && (
         <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700 flex items-start gap-2">

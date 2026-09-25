@@ -28,6 +28,8 @@ import type {
   AccountUpdate,
   ApAging,
   ArAging,
+  AssignCheckNumberInput,
+  AssignCheckNumberResult,
   Bill,
   BillDuplicateCandidate,
   BillDuplicateCheckInput,
@@ -38,6 +40,7 @@ import type {
   BillUpdate,
   CheckCustomerDuplicatesParams,
   CheckJobDuplicatesParams,
+  CheckToPrint,
   CheckVendorDuplicatesParams,
   CreateReconciliationPeriod,
   Customer,
@@ -3764,6 +3767,154 @@ export const useDeleteJobDocument = <TError = ErrorType<ErrorResponse>,
         TContext
       > => {
       return useMutation(getDeleteJobDocumentMutationOptions(options));
+    }
+
+export const getListChecksToPrintUrl = () => {
+
+
+
+
+  return `/api/checks/to-print`
+}
+
+/**
+ * @summary Checks written but not yet numbered ("To Print")
+ */
+export const listChecksToPrint = async ( options?: RequestInit): Promise<CheckToPrint[]> => {
+
+  return customFetch<CheckToPrint[]>(getListChecksToPrintUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListChecksToPrintQueryKey = () => {
+    return [
+    `/api/checks/to-print`
+    ] as const;
+    }
+
+
+export const getListChecksToPrintQueryOptions = <TData = Awaited<ReturnType<typeof listChecksToPrint>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listChecksToPrint>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListChecksToPrintQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listChecksToPrint>>> = ({ signal }) => listChecksToPrint({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listChecksToPrint>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListChecksToPrintQueryResult = NonNullable<Awaited<ReturnType<typeof listChecksToPrint>>>
+export type ListChecksToPrintQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Checks written but not yet numbered ("To Print")
+ */
+
+export function useListChecksToPrint<TData = Awaited<ReturnType<typeof listChecksToPrint>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listChecksToPrint>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListChecksToPrintQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getAssignCheckNumberUrl = () => {
+
+
+
+
+  return `/api/checks/assign-number`
+}
+
+/**
+ * Several checks to one vendor from the same bank account become ONE check: when they were written from bills they're merged into a single vendor check (one register line); older unlinked entries all get the same number.
+ * @summary Give one check number to one or more "To Print" checks to the same payee
+ */
+export const assignCheckNumber = async (assignCheckNumberInput: AssignCheckNumberInput, options?: RequestInit): Promise<AssignCheckNumberResult> => {
+
+  return customFetch<AssignCheckNumberResult>(getAssignCheckNumberUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(assignCheckNumberInput)
+  }
+);}
+
+
+
+
+export const getAssignCheckNumberMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof assignCheckNumber>>, TError,{data: BodyType<AssignCheckNumberInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof assignCheckNumber>>, TError,{data: BodyType<AssignCheckNumberInput>}, TContext> => {
+
+const mutationKey = ['assignCheckNumber'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof assignCheckNumber>>, {data: BodyType<AssignCheckNumberInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  assignCheckNumber(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AssignCheckNumberMutationResult = NonNullable<Awaited<ReturnType<typeof assignCheckNumber>>>
+    export type AssignCheckNumberMutationBody = BodyType<AssignCheckNumberInput>
+    export type AssignCheckNumberMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Give one check number to one or more "To Print" checks to the same payee
+ */
+export const useAssignCheckNumber = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof assignCheckNumber>>, TError,{data: BodyType<AssignCheckNumberInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof assignCheckNumber>>,
+        TError,
+        {data: BodyType<AssignCheckNumberInput>},
+        TContext
+      > => {
+      return useMutation(getAssignCheckNumberMutationOptions(options));
     }
 
 export const getCheckTransactionDuplicatesUrl = () => {

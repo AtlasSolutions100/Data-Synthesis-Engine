@@ -567,7 +567,9 @@ export function InvoiceForm({
                 render={({ field }) => (
                   <FormItem className="flex-1">
                     <FormControl>
-                      <Input placeholder="Description" {...field} />
+                      {/* Browser spell check underlines typos before the
+                          customer sees them (2026-09-25). */}
+                      <Input placeholder="Description" spellCheck autoCorrect="on" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -614,7 +616,7 @@ export function InvoiceForm({
             <FormItem>
               <FormLabel>Memo (Optional)</FormLabel>
               <FormControl>
-                <Input {...field} />
+                <Input spellCheck autoCorrect="on" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>

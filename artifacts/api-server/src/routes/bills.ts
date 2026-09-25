@@ -524,7 +524,7 @@ async function findInvalidLineJob(
 
 type BillStatus = "open" | "partial" | "paid";
 
-class BillValidationError extends Error {
+export class BillValidationError extends Error {
   constructor(
     message: string,
     public field: string,
@@ -533,7 +533,7 @@ class BillValidationError extends Error {
   }
 }
 
-type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+export type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 /**
  * Lock the bill row (SELECT ... FOR UPDATE) so concurrent writers that touch
@@ -564,6 +564,11 @@ async function sumPaidCents(tx: Tx, billId: number): Promise<number> {
     .from(vendorCreditsTable)
     .where(eq(vendorCreditsTable.billId, billId));
   return Number(paySum?.total ?? 0) + Number(creditSum?.total ?? 0);
+}
+
+/** What's still owed on a bill (lines − payments − credits). */
+export async function billBalanceCents(tx: Tx, billId: number): Promise<number> {
+  return (await sumLineCents(tx, billId)) - (await sumPaidCents(tx, billId));
 }
 
 /** Sum of line amounts for a bill, read through the given tx. */
@@ -1555,6 +1560,145 @@ async function getVendorPaymentView(
 }
 
 /**
+ * Write ONE check to a vendor covering several bills: a vendor_payments row,
+ * a bill_payments row per bill, and a single register withdrawal ("To Print"
+ * when a check has no number yet). Shared by Write Check and by closing a
+ * vendor statement reconciliation, so both produce exactly the same books.
+ */
+export async function writeVendorCheck(
+  tx: Tx,
+  args: {
+    vendor: { id: number; name: string; isDemo: boolean };
+    date: string;
+    method: string;
+    referenceNum: string | null;
+    memo: string | null;
+    bankAccountId: number | null;
+    bills: Array<{ billId: number; amountCents: number; creditCents?: number | null }>;
+  },
+): Promise<number> {
+  const { vendor, method, bankAccountId } = args;
+  const vendorId = vendor.id;
+  const billInputs = args.bills;
+  const bills = await tx
+    .select({
+      id: billsTable.id,
+      vendorId: billsTable.vendorId,
+      billNumber: billsTable.billNumber,
+      isDemo: billsTable.isDemo,
+    })
+    .from(billsTable)
+    .where(
+      inArray(
+        billsTable.id,
+        billInputs.map((b) => b.billId),
+      ),
+    );
+  const byId = new Map(bills.map((b) => [b.id, b]));
+  for (const input of billInputs) {
+    const bill = byId.get(input.billId);
+    if (!bill) {
+      throw new BillValidationError(`Bill #${input.billId} not found`, "bills");
+    }
+    if (bill.vendorId !== vendorId) {
+      throw new BillValidationError(
+        `${bill.billNumber || `Bill #${bill.id}`} belongs to a different vendor`,
+        "bills",
+      );
+    }
+  }
+
+  const totalCents = billInputs.reduce((s, b) => s + b.amountCents, 0);
+  const [check] = await tx
+    .insert(vendorPaymentsTable)
+    .values({
+      vendorId,
+      date: args.date,
+      method,
+      referenceNum: args.referenceNum ?? null,
+      amountCents: totalCents,
+      memo: args.memo ?? null,
+      bankAccountId,
+      isDemo: vendor.isDemo,
+    })
+    .returning({ id: vendorPaymentsTable.id });
+
+  for (const input of billInputs) {
+    const bill = byId.get(input.billId)!;
+    const label = bill.billNumber || `Bill #${bill.id}`;
+    await lockBillRow(tx, bill.id);
+    const creditCents = input.creditCents ?? 0;
+    if (creditCents > 0) {
+      const balanceBefore =
+        (await sumLineCents(tx, bill.id)) - (await sumPaidCents(tx, bill.id));
+      if (creditCents > balanceBefore) {
+        throw new BillValidationError(
+          `Credit for ${label} exceeds its outstanding balance of ${formatDollars(balanceBefore)}`,
+          "bills",
+        );
+      }
+      await tx.insert(vendorCreditsTable).values({
+        billId: bill.id,
+        date: args.date,
+        referenceNum: args.referenceNum ?? null,
+        amountCents: creditCents,
+        memo: args.memo?.trim() || `Credit applied — ${label}`,
+      });
+    }
+    const balanceCents =
+      (await sumLineCents(tx, bill.id)) - (await sumPaidCents(tx, bill.id));
+    if (input.amountCents > balanceCents) {
+      throw new BillValidationError(
+        `Payment for ${label} exceeds its outstanding balance of ${formatDollars(balanceCents)}`,
+        "bills",
+      );
+    }
+    await tx.insert(billPaymentsTable).values({
+      billId: bill.id,
+      vendorPaymentId: check.id,
+      date: args.date,
+      method,
+      referenceNum: args.referenceNum ?? null,
+      amountCents: input.amountCents,
+      memo: args.memo ?? null,
+      bankAccountId,
+    });
+  }
+
+  if (bankAccountId != null) {
+    const num =
+      args.referenceNum ?? (method === "check" ? "To Print" : null);
+    const vendorAccountId = await resolveUniqueVendorAccountId(
+      tx,
+      vendor.name,
+      bankAccountId,
+    );
+    const labels = billInputs.map((input) => {
+      const bill = byId.get(input.billId)!;
+      return bill.billNumber || `Bill #${bill.id}`;
+    });
+    await tx.insert(transactionsTable).values({
+      date: args.date,
+      type: method,
+      num,
+      partyName: vendor.name,
+      description:
+        args.memo?.trim() ||
+        (labels.length === 1
+          ? `Payment — ${labels[0]}`
+          : `Payment — ${labels.length} bills (${labels.join(", ")})`),
+      accountId: bankAccountId,
+      splitAccountId: vendorAccountId,
+      vendorId,
+      vendorPaymentId: check.id,
+      amountCents: -totalCents,
+      isDemo: vendor.isDemo,
+    });
+  }
+  return check.id;
+}
+
+/**
  * Write ONE check to a vendor covering several bills. Every bill gets its own
  * bill_payments row (so bill balances and statuses stay per-bill), but the
  * bank register receives exactly one withdrawal for the check. Optional
@@ -1629,124 +1773,17 @@ router.post("/vendors/:id/payments", async (req, res): Promise<void> => {
 
   let vendorPaymentId: number;
   try {
-    vendorPaymentId = await db.transaction(async (tx) => {
-      const bills = await tx
-        .select({
-          id: billsTable.id,
-          vendorId: billsTable.vendorId,
-          billNumber: billsTable.billNumber,
-          isDemo: billsTable.isDemo,
-        })
-        .from(billsTable)
-        .where(
-          inArray(
-            billsTable.id,
-            billInputs.map((b) => b.billId),
-          ),
-        );
-      const byId = new Map(bills.map((b) => [b.id, b]));
-      for (const input of billInputs) {
-        const bill = byId.get(input.billId);
-        if (!bill) {
-          throw new BillValidationError(`Bill #${input.billId} not found`, "bills");
-        }
-        if (bill.vendorId !== vendorId) {
-          throw new BillValidationError(
-            `${bill.billNumber || `Bill #${bill.id}`} belongs to a different vendor`,
-            "bills",
-          );
-        }
-      }
-
-      const totalCents = billInputs.reduce((s, b) => s + b.amountCents, 0);
-      const [check] = await tx
-        .insert(vendorPaymentsTable)
-        .values({
-          vendorId,
-          date: parsed.data.date,
-          method,
-          referenceNum: parsed.data.referenceNum ?? null,
-          amountCents: totalCents,
-          memo: parsed.data.memo ?? null,
-          bankAccountId,
-          isDemo: vendor.isDemo,
-        })
-        .returning({ id: vendorPaymentsTable.id });
-
-      for (const input of billInputs) {
-        const bill = byId.get(input.billId)!;
-        const label = bill.billNumber || `Bill #${bill.id}`;
-        await lockBillRow(tx, bill.id);
-        const creditCents = input.creditCents ?? 0;
-        if (creditCents > 0) {
-          const balanceBefore =
-            (await sumLineCents(tx, bill.id)) - (await sumPaidCents(tx, bill.id));
-          if (creditCents > balanceBefore) {
-            throw new BillValidationError(
-              `Credit for ${label} exceeds its outstanding balance of ${formatDollars(balanceBefore)}`,
-              "bills",
-            );
-          }
-          await tx.insert(vendorCreditsTable).values({
-            billId: bill.id,
-            date: parsed.data.date,
-            referenceNum: parsed.data.referenceNum ?? null,
-            amountCents: creditCents,
-            memo: parsed.data.memo?.trim() || `Credit applied — ${label}`,
-          });
-        }
-        const balanceCents =
-          (await sumLineCents(tx, bill.id)) - (await sumPaidCents(tx, bill.id));
-        if (input.amountCents > balanceCents) {
-          throw new BillValidationError(
-            `Payment for ${label} exceeds its outstanding balance of ${formatDollars(balanceCents)}`,
-            "bills",
-          );
-        }
-        await tx.insert(billPaymentsTable).values({
-          billId: bill.id,
-          vendorPaymentId: check.id,
-          date: parsed.data.date,
-          method,
-          referenceNum: parsed.data.referenceNum ?? null,
-          amountCents: input.amountCents,
-          memo: parsed.data.memo ?? null,
-          bankAccountId,
-        });
-      }
-
-      if (bankAccountId != null) {
-        const num =
-          parsed.data.referenceNum ?? (method === "check" ? "To Print" : null);
-        const vendorAccountId = await resolveUniqueVendorAccountId(
-          tx,
-          vendor.name,
-          bankAccountId,
-        );
-        const labels = billInputs.map((input) => {
-          const bill = byId.get(input.billId)!;
-          return bill.billNumber || `Bill #${bill.id}`;
-        });
-        await tx.insert(transactionsTable).values({
-          date: parsed.data.date,
-          type: method,
-          num,
-          partyName: vendor.name,
-          description:
-            parsed.data.memo?.trim() ||
-            (labels.length === 1
-              ? `Payment — ${labels[0]}`
-              : `Payment — ${labels.length} bills (${labels.join(", ")})`),
-          accountId: bankAccountId,
-          splitAccountId: vendorAccountId,
-          vendorId,
-          vendorPaymentId: check.id,
-          amountCents: -totalCents,
-          isDemo: vendor.isDemo,
-        });
-      }
-      return check.id;
-    });
+    vendorPaymentId = await db.transaction((tx) =>
+      writeVendorCheck(tx, {
+        vendor,
+        date: parsed.data.date,
+        method,
+        referenceNum: parsed.data.referenceNum ?? null,
+        memo: parsed.data.memo ?? null,
+        bankAccountId,
+        bills: billInputs,
+      }),
+    );
   } catch (err) {
     if (err instanceof BillValidationError) {
       res.status(400).json({ error: err.message, field: err.field });
