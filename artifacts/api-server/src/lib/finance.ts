@@ -283,7 +283,24 @@ export type AccountLedgerLine = {
   payrollRunId: number | null;
   /** Job the line is coded to, when any. */
   jobName: string | null;
+  /**
+   * Shared by the lines of one customer check split across jobs (Receive
+   * Payment): same customer, check number and date is the same check.
+   */
+  depositGroupKey: string | null;
 };
+
+/** The key that ties one customer check's per-job lines together. */
+export function depositGroupKeyOf(t: {
+  type: string;
+  customerId: number | null;
+  num: string | null;
+  date: string;
+}): string | null {
+  const num = t.num?.trim();
+  if (t.type !== "payment" || t.customerId == null || !num) return null;
+  return `${t.date}|${t.customerId}|${num.toLowerCase()}`;
+}
 
 export type AccountLedger = AccountBalanceRow & { lines: AccountLedgerLine[] };
 
@@ -366,6 +383,7 @@ export async function getAccountLedger(
         vendorPaymentId: r.t.vendorPaymentId ?? null,
         payrollRunId: r.t.payrollRunId ?? null,
         jobName: r.jobName ?? null,
+        depositGroupKey: depositGroupKeyOf(r.t),
       });
     }
     if (r.t.splitAccountId === accountId) {
@@ -387,6 +405,7 @@ export async function getAccountLedger(
         vendorPaymentId: r.t.vendorPaymentId ?? null,
         payrollRunId: r.t.payrollRunId ?? null,
         jobName: r.jobName ?? null,
+        depositGroupKey: depositGroupKeyOf(r.t),
       });
     }
   }

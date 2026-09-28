@@ -959,6 +959,30 @@ paths:
         "404":
           $ref: "#/components/responses/Error"
 
+  /customer-payments:
+    post:
+      operationId: receiveCustomerPayment
+      tags: [customers]
+      summary: Receive one customer check and split it across that customer's jobs
+      description: >-
+        Posts one income line per job (deposited to a bank account, so the
+        checkbook shows one deposit for the check) and applies each job's
+        amount to that job's open invoices, oldest first.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CustomerPaymentInput"
+      responses:
+        "201":
+          description: The recorded payment
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CustomerPaymentResult"
+        "400":
+          $ref: "#/components/responses/Error"
   /checks/to-print:
     get:
       operationId: listChecksToPrint
@@ -3825,6 +3849,12 @@ components:
         jobName:
           type: ["string", "null"]
           description: Job the line is coded to, when any (used to itemize payroll lines per job).
+        depositGroupKey:
+          type: ["string", "null"]
+          description: >-
+            Shared by the lines of one customer check split across jobs (same
+            customer, check number and date), so the register shows it as the
+            single deposit the bank sees.
         checkItems:
           type: array
           description: >-
@@ -5605,6 +5635,73 @@ components:
           type: integer
         billCount:
           type: integer
+
+    CustomerPaymentInput:
+      type: object
+      required: [customerId, date, referenceNum, lines]
+      properties:
+        customerId:
+          type: integer
+        date:
+          type: string
+          minLength: 1
+        referenceNum:
+          type: string
+          minLength: 1
+          description: The customer's check number (or "Cash", "ACH")
+        depositAccountId:
+          type: ["integer", "null"]
+          description: Bank account deposited to; defaults to Checking
+        incomeAccountId:
+          type: ["integer", "null"]
+          description: Income account credited; defaults to the one job income is usually posted to
+        memo:
+          type: ["string", "null"]
+        lines:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/CustomerPaymentLineInput"
+    CustomerPaymentLineInput:
+      type: object
+      required: [jobId, amountCents]
+      properties:
+        jobId:
+          type: integer
+        amountCents:
+          type: integer
+          minimum: 1
+        invoiceId:
+          type: ["integer", "null"]
+          description: Apply to this invoice; otherwise the job's open invoices, oldest first
+    CustomerPaymentResult:
+      type: object
+      required: [transactionIds, totalCents, appliedInvoices, depositAccountId, incomeAccountId]
+      properties:
+        transactionIds:
+          type: array
+          items:
+            type: integer
+        totalCents:
+          type: integer
+        depositAccountId:
+          type: integer
+        incomeAccountId:
+          type: integer
+        appliedInvoices:
+          type: array
+          items:
+            type: object
+            required: [invoiceId, invoiceNumber, jobId, amountCents]
+            properties:
+              invoiceId:
+                type: integer
+              invoiceNumber:
+                type: string
+              jobId:
+                type: integer
+              amountCents:
+                type: integer
 
     CheckToPrint:
       type: object

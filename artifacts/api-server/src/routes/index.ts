@@ -18,6 +18,7 @@ import demoRouter from "./demo";
 import reconciliationRouter from "./reconciliation";
 import inboundEmailsRouter from "./inboundEmails";
 import checksRouter from "./checks";
+import customerPaymentsRouter from "./customerPayments";
 
 const router: IRouter = Router();
 
@@ -40,5 +41,6 @@ router.use(demoRouter);
 router.use(reconciliationRouter);
 router.use(inboundEmailsRouter);
 router.use(checksRouter);
+router.use(customerPaymentsRouter);
 
 export default router;

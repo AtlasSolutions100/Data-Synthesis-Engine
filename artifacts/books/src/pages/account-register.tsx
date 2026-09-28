@@ -14,6 +14,7 @@ import {
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { payPeriodForStart, payPeriodLabel } from "@/lib/pay-periods";
+import { ReceivePaymentDialog } from "@/components/receive-payment-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -403,7 +404,7 @@ export default function AccountRegister() {
     () => typeof window !== "undefined" && new URLSearchParams(window.location.search).get("filter") === "to-print",
   );
   const [confirmAction, setConfirmAction] = useState<
-    | { kind: "delete"; transactionId: number; label: string; description: string | null }
+    | { kind: "delete"; transactionId: number; label: string; description: string | null; transactionIds?: number[] }
     | { kind: "void"; transactionId: number; label: string; description: string | null; amountCents: number }
     | { kind: "unvoid"; transactionId: number; label: string; description: string | null; voidedAmountCents: number }
     | null
@@ -484,7 +485,10 @@ export default function AccountRegister() {
   const handleConfirm = () => {
     if (!confirmAction) return;
     if (confirmAction.kind === "delete") {
-      deleteTransaction.mutate({ id: confirmAction.transactionId });
+      // A split customer deposit goes as a whole.
+      for (const id of confirmAction.transactionIds ?? [confirmAction.transactionId]) {
+        deleteTransaction.mutate({ id });
+      }
     } else if (confirmAction.kind === "void") {
       const desc = confirmAction.description;
       const voidedDesc = isVoided(desc)
@@ -564,13 +568,19 @@ export default function AccountRegister() {
         dividerInserted = true;
       }
 
-      if (line.payrollRunId != null) {
-        const key = `payroll-${line.payrollRunId}-${line.partyName ?? ""}-${line.date}`;
+      if (line.payrollRunId != null || line.depositGroupKey != null) {
+        // Payroll: one row per employee per run. A customer check split
+        // across jobs (Receive Payment): one row for the whole deposit.
+        const key =
+          line.payrollRunId != null
+            ? `payroll-${line.payrollRunId}-${line.partyName ?? ""}-${line.date}`
+            : `deposit-${line.depositGroupKey}`;
         const item = {
           key: `${line.transactionId}`,
           label: line.jobName ?? "Unallocated",
           href: null,
-          amountCents: -line.effectCents,
+          // Payroll lines list as money out, deposit lines as money in.
+          amountCents: line.payrollRunId != null ? -line.effectCents : line.effectCents,
         };
         const existing = payrollRowByKey.get(key);
         if (existing) {
@@ -580,6 +590,9 @@ export default function AccountRegister() {
           existing.runningBalanceCents = running;
           existing.items.push(item);
           existing.lineCount += 1;
+          if (line.depositGroupKey != null) {
+            existing.description = `Payment — ${existing.lineCount} jobs`;
+          }
           continue;
         }
         const row: Extract<DisplayRow, { kind: "tx" }> = {
@@ -600,7 +613,7 @@ export default function AccountRegister() {
           voidedAmountCents: line.voidedAmountCents ?? null,
           items: [item],
           rowKey: key,
-          payrollRunId: line.payrollRunId,
+          payrollRunId: line.payrollRunId ?? null,
           lineCount: 1,
         };
         payrollRowByKey.set(key, row);
@@ -692,6 +705,7 @@ export default function AccountRegister() {
             <Printer className="mr-2 h-4 w-4" />
             To Print{toPrintRows.length > 0 ? ` (${toPrintRows.length})` : ""}
           </Button>
+          {data?.type === "bank" && <ReceivePaymentDialog defaultDepositAccountId={accountId} />}
           <Button
             className="bg-blue-600 hover:bg-blue-700"
             onClick={() => setIsCreateOpen(true)}
@@ -828,6 +842,7 @@ export default function AccountRegister() {
                     const expandable = row.items.length > 1 || (row.items.length === 1 && row.items[0].href != null);
                     const expanded = expandable && expandedKeys.has(row.rowKey);
                     const isPayrollGroup = row.payrollRunId != null;
+                    const isSplitDeposit = row.rowKey.startsWith("deposit-") && row.lineCount > 1;
 
                     return (
                       <Fragment key={`${row.rowKey}-${i}`}>
@@ -909,7 +924,7 @@ export default function AccountRegister() {
                             )}
                             {expandable && (
                               <span className="flex-shrink-0 text-[10px] text-slate-400 whitespace-nowrap">
-                                {isPayrollGroup
+                                {isPayrollGroup || row.rowKey.startsWith("deposit-")
                                   ? `${row.items.length} job${row.items.length !== 1 ? "s" : ""}`
                                   : `${row.items.length} bill${row.items.length !== 1 ? "s" : ""}`}
                               </span>
@@ -957,7 +972,28 @@ export default function AccountRegister() {
 
                         {/* Actions */}
                         <td className="px-3 py-2">
-                          {isPayrollGroup ? (
+                          {isSplitDeposit ? (
+                            <div className="flex items-center justify-end">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                                title="Delete this deposit (every job on it)"
+                                onClick={() =>
+                                  setConfirmAction({
+                                    kind: "delete",
+                                    transactionId: row.transactionId,
+                                    transactionIds: row.items.map((it) => Number(it.key)),
+                                    label: payee || `#${row.transactionId}`,
+                                    description: row.description,
+                                  })
+                                }
+                                data-testid={`button-delete-deposit-${row.transactionId}`}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                          ) : isPayrollGroup ? (
                             <div className="flex items-center justify-end">
                               <Link
                                 href={`/payroll/${row.payrollRunId}`}

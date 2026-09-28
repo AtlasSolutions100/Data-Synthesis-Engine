@@ -64,6 +64,11 @@ A desktop-first, browser-based job-costing and construction-accounting app that 
 - **Customer first on new entries.** The transaction form puts Customer before Job; once a customer is picked the job list shows only that customer's jobs, and a job from another customer is cleared.
 - **Spell check** is on for invoice line descriptions and the memo.
 
+### Client emails 2026-09-28
+
+- **Receive Payment** (customer page and bank registers): one customer check split across that customer's jobs. `POST /customer-payments` writes one `payment` line per job (income account primary, bank split, customer + job + check number), so job income is right, and applies each job's share to its open invoices, oldest first. Lines with the same customer, check number and date share a `depositGroupKey`, so the register shows them as one deposit (expandable by job, deleted as a whole) and statement matching treats them as one bank deposit, like payroll. Invoices themselves still don't post to the ledger; deleting a deposit doesn't undo the invoice payments.
+- **Dashboard upload** asks "What are you uploading?" with Vendor invoice (goes to Bills, `/bills?upload=1` opens the upload), Job file, and Statement.
+
 ### Load a Replit table export (JSON per table)
 
 ```

@@ -703,20 +703,28 @@ router.post("/reconciliation/periods", async (req, res) => {
     // The payroll company debits one lump sum per pay run, while the books
     // carry one line per employee per job. Group each run's lines so a single
     // statement debit can clear the whole run when the totals agree.
+    // A customer check split across jobs (Receive Payment) is likewise one
+    // bank deposit, so it groups the same way (2026-09-28).
     const payrollGroups = new Map<
-      number,
+      string,
       { date: string; totalCents: number; transactionIds: number[] }
     >();
     for (const line of ledgerLines) {
-      if (line.payrollRunId == null) continue;
-      const group = payrollGroups.get(line.payrollRunId) ?? {
+      const key =
+        line.payrollRunId != null
+          ? `payroll:${line.payrollRunId}`
+          : line.depositGroupKey != null
+            ? `deposit:${line.depositGroupKey}`
+            : null;
+      if (key == null) continue;
+      const group = payrollGroups.get(key) ?? {
         date: line.date,
         totalCents: 0,
         transactionIds: [],
       };
       group.totalCents += line.effectCents;
       group.transactionIds.push(line.transactionId);
-      payrollGroups.set(line.payrollRunId, group);
+      payrollGroups.set(key, group);
     }
     const consumedTx = new Set<number>();
     const tryConsumePayrollRun = (

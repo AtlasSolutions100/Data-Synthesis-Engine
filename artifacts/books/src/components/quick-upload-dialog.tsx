@@ -32,7 +32,7 @@ import {
 } from "@/components/ui/select";
 import { EntityCombobox } from "@/components/forms/entity-combobox";
 import { useToast } from "@/hooks/use-toast";
-import { Upload, Loader2, Landmark, FolderOpen } from "lucide-react";
+import { Upload, Loader2, Landmark, FolderOpen, FileInput } from "lucide-react";
 
 type DashboardUploadMode = "document" | "statement";
 
@@ -334,6 +334,7 @@ export function QuickDashboardUploadDialog({
   initialStatementFile?: File | null;
   autoOpen?: boolean;
 } = {}) {
+  const [, navigate] = useLocation();
   const [open, setOpen] = useState(autoOpen);
   const [mode, setMode] = useState<DashboardUploadMode>(initialMode);
   useEffect(() => {
@@ -449,35 +450,49 @@ export function QuickDashboardUploadDialog({
       </DialogTrigger>
       <DialogContent className="sm:max-w-[460px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>
-            {mode === "statement" ? "Reconcile a Statement" : "Upload a Job Document"}
-          </DialogTitle>
+          <DialogTitle>What are you uploading?</DialogTitle>
         </DialogHeader>
-        {/* What is this file? Statements go to reconciliation, not to a job. */}
-        <div className="grid grid-cols-2 gap-2" role="tablist" aria-label="Upload type">
+        {/* What is this file? Invoices go to Bills, statements to
+            reconciliation, everything else to a job (2026-09-28: Mike looked
+            for invoices and statements here). */}
+        <div className="grid grid-cols-3 gap-2" role="tablist" aria-label="Upload type">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={false}
+            onClick={() => {
+              setOpen(false);
+              reset();
+              navigate("/bills?upload=1");
+            }}
+            className="flex flex-col items-center justify-center gap-1 rounded-md border border-slate-200 px-2 py-2 text-sm text-slate-600 hover:bg-slate-50"
+            data-testid="upload-mode-invoice"
+          >
+            <FileInput className="h-4 w-4" /> Vendor invoice
+          </button>
           <button
             type="button"
             role="tab"
             aria-selected={mode === "document"}
             onClick={() => setMode("document")}
-            className={`flex items-center justify-center gap-2 rounded-md border px-3 py-2 text-sm ${
+            className={`flex flex-col items-center justify-center gap-1 rounded-md border px-2 py-2 text-sm ${
               mode === "document" ? "border-blue-500 bg-blue-50 text-blue-700" : "border-slate-200 text-slate-600 hover:bg-slate-50"
             }`}
             data-testid="upload-mode-document"
           >
-            <FolderOpen className="h-4 w-4" /> Job document
+            <FolderOpen className="h-4 w-4" /> Job file
           </button>
           <button
             type="button"
             role="tab"
             aria-selected={mode === "statement"}
             onClick={() => setMode("statement")}
-            className={`flex items-center justify-center gap-2 rounded-md border px-3 py-2 text-sm ${
+            className={`flex flex-col items-center justify-center gap-1 rounded-md border px-2 py-2 text-sm ${
               mode === "statement" ? "border-blue-500 bg-blue-50 text-blue-700" : "border-slate-200 text-slate-600 hover:bg-slate-50"
             }`}
             data-testid="upload-mode-statement"
           >
-            <Landmark className="h-4 w-4" /> Bank / vendor statement
+            <Landmark className="h-4 w-4" /> Statement
           </button>
         </div>
         {mode === "statement" ? (

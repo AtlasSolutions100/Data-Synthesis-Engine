@@ -1217,6 +1217,11 @@ export interface AccountBalanceTransactionLine {
      * @nullable
      */
   jobName?: string | null;
+  /**
+     * Shared by the lines of one customer check split across jobs (same customer, check number and date), so the register shows it as the single deposit the bank sees.
+     * @nullable
+     */
+  depositGroupKey?: string | null;
   /** For a vendor-check line, the bills that check settled. Lets the register show one row per check with an expandable itemized list. */
   checkItems?: RegisterCheckItem[];
 }
@@ -2628,6 +2633,57 @@ export interface ReconciliationPeriodDetail {
   unmatchedStatementLines?: StatementUnmatchedLine[];
   /** Set only on the response to closing a vendor statement: the one "To Print" check written for the open bills checked off on it. */
   printCheck?: ReconciliationPrintCheck | null;
+}
+
+export interface CustomerPaymentLineInput {
+  jobId: number;
+  /** @minimum 1 */
+  amountCents: number;
+  /**
+     * Apply to this invoice; otherwise the job's open invoices, oldest first
+     * @nullable
+     */
+  invoiceId?: number | null;
+}
+
+export interface CustomerPaymentInput {
+  customerId: number;
+  /** @minLength 1 */
+  date: string;
+  /**
+     * The customer's check number (or "Cash", "ACH")
+     * @minLength 1
+     */
+  referenceNum: string;
+  /**
+     * Bank account deposited to; defaults to Checking
+     * @nullable
+     */
+  depositAccountId?: number | null;
+  /**
+     * Income account credited; defaults to the one job income is usually posted to
+     * @nullable
+     */
+  incomeAccountId?: number | null;
+  /** @nullable */
+  memo?: string | null;
+  /** @minItems 1 */
+  lines: CustomerPaymentLineInput[];
+}
+
+export type CustomerPaymentResultAppliedInvoicesItem = {
+  invoiceId: number;
+  invoiceNumber: string;
+  jobId: number;
+  amountCents: number;
+};
+
+export interface CustomerPaymentResult {
+  transactionIds: number[];
+  totalCents: number;
+  depositAccountId: number;
+  incomeAccountId: number;
+  appliedInvoices: CustomerPaymentResultAppliedInvoicesItem[];
 }
 
 export interface CheckToPrint {

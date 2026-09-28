@@ -15,6 +15,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ReceivePaymentDialog } from "@/components/receive-payment-dialog";
 import {
   Dialog,
   DialogContent,
@@ -120,6 +121,7 @@ export default function CustomerDetail() {
           >
             <Pencil className="mr-2 h-4 w-4" /> Edit
           </Button>
+          <ReceivePaymentDialog customerId={customer.id} />
         </div>
         <div className="mt-2 space-y-1 text-sm text-slate-600">
           {customer.email && (

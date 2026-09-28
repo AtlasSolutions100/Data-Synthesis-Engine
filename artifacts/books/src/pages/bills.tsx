@@ -135,6 +135,7 @@ async function deleteBillDraft(): Promise<void> {
 function UploadInvoiceDialog({
   onExtracted,
   initialFiles = null,
+  autoOpen = false,
 }: {
   onExtracted: (queue: ReviewQueue) => void;
   /**
@@ -143,8 +144,10 @@ function UploadInvoiceDialog({
    * exactly as if they had been dropped on the drop zone.
    */
   initialFiles?: File[] | null;
+  /** Open on arrival (the dashboard's "Vendor invoice" choice links here). */
+  autoOpen?: boolean;
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(autoOpen);
   const [error, setError] = useState("");
   const [fileName, setFileName] = useState("");
   const [dragOver, setDragOver] = useState(false);
@@ -666,6 +669,7 @@ export default function Bills() {
               }
             }}
             initialFiles={inboxFiles}
+            autoOpen={new URLSearchParams(inboxSearch).get("upload") === "1"}
           />
 
           {/* Manual "New Bill" button */}

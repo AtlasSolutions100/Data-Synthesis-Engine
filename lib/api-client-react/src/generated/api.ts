@@ -47,6 +47,8 @@ import type {
   CustomerDuplicateCandidate,
   CustomerInput,
   CustomerListItem,
+  CustomerPaymentInput,
+  CustomerPaymentResult,
   CustomerUpdate,
   DashboardSummary,
   DemoStatus,
@@ -3767,6 +3769,77 @@ export const useDeleteJobDocument = <TError = ErrorType<ErrorResponse>,
         TContext
       > => {
       return useMutation(getDeleteJobDocumentMutationOptions(options));
+    }
+
+export const getReceiveCustomerPaymentUrl = () => {
+
+
+
+
+  return `/api/customer-payments`
+}
+
+/**
+ * Posts one income line per job (deposited to a bank account, so the checkbook shows one deposit for the check) and applies each job's amount to that job's open invoices, oldest first.
+ * @summary Receive one customer check and split it across that customer's jobs
+ */
+export const receiveCustomerPayment = async (customerPaymentInput: CustomerPaymentInput, options?: RequestInit): Promise<CustomerPaymentResult> => {
+
+  return customFetch<CustomerPaymentResult>(getReceiveCustomerPaymentUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(customerPaymentInput)
+  }
+);}
+
+
+
+
+export const getReceiveCustomerPaymentMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof receiveCustomerPayment>>, TError,{data: BodyType<CustomerPaymentInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof receiveCustomerPayment>>, TError,{data: BodyType<CustomerPaymentInput>}, TContext> => {
+
+const mutationKey = ['receiveCustomerPayment'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof receiveCustomerPayment>>, {data: BodyType<CustomerPaymentInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  receiveCustomerPayment(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReceiveCustomerPaymentMutationResult = NonNullable<Awaited<ReturnType<typeof receiveCustomerPayment>>>
+    export type ReceiveCustomerPaymentMutationBody = BodyType<CustomerPaymentInput>
+    export type ReceiveCustomerPaymentMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Receive one customer check and split it across that customer's jobs
+ */
+export const useReceiveCustomerPayment = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof receiveCustomerPayment>>, TError,{data: BodyType<CustomerPaymentInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof receiveCustomerPayment>>,
+        TError,
+        {data: BodyType<CustomerPaymentInput>},
+        TContext
+      > => {
+      return useMutation(getReceiveCustomerPaymentMutationOptions(options));
     }
 
 export const getListChecksToPrintUrl = () => {

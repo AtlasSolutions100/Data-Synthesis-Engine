@@ -52,6 +52,11 @@ export interface AccountBalanceTransactionLine {
      * @nullable
      */
   jobName?: string | null;
+  /**
+     * Shared by the lines of one customer check split across jobs (same customer, check number and date), so the register shows it as the single deposit the bank sees.
+     * @nullable
+     */
+  depositGroupKey?: string | null;
   /** For a vendor-check line, the bills that check settled. Lets the register show one row per check with an expandable itemized list. */
   checkItems?: RegisterCheckItem[];
 }
