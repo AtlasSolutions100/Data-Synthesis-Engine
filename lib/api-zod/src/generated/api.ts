@@ -1178,6 +1178,111 @@ export const DeleteJobDocumentResponse = zod.void()
 
 
 /**
+ * @summary Read a statement (file or pasted text) into lines and work out whose it is
+ */
+export const ReadStatementBody = zod.object({
+  "text": zod.string().nullish(),
+  "fileData": zod.string().nullish().describe('The file as a base64 data URL'),
+  "fileName": zod.string().nullish()
+})
+
+export const readStatementResponseLinesItemAmountCentsMin = 0;
+
+
+
+export const ReadStatementResponse = zod.object({
+  "lines": zod.array(zod.object({
+  "date": zod.string(),
+  "description": zod.string(),
+  "amountCents": zod.number().min(readStatementResponseLinesItemAmountCentsMin),
+  "direction": zod.enum(['out', 'in']).describe('\"out\" is money spent (a bank withdrawal, a card charge, a vendor\'s invoice); \"in\" is money back (a deposit, a card payment or refund).')
+})),
+  "detectedAccountId": zod.number().nullable(),
+  "detectedVendorId": zod.number().nullable(),
+  "detectedName": zod.string().nullable().describe('Who the statement says it is from, as printed'),
+  "detectedKind": zod.union([zod.literal('bank'),zod.literal('credit_card'),zod.literal('vendor'),zod.literal(null)]).nullable(),
+  "closingDate": zod.string().nullable(),
+  "endingBalanceCents": zod.number().nullable(),
+  "usedAi": zod.boolean()
+})
+
+
+/**
+ * @summary For a chosen account, flag lines already in the books and suggest a category and vendor for the rest
+ */
+export const prepareStatementImportBodyLinesItemAmountCentsMin = 0;
+
+
+
+export const PrepareStatementImportBody = zod.object({
+  "accountId": zod.number(),
+  "lines": zod.array(zod.object({
+  "date": zod.string(),
+  "description": zod.string(),
+  "amountCents": zod.number().min(prepareStatementImportBodyLinesItemAmountCentsMin),
+  "direction": zod.enum(['out', 'in']).describe('\"out\" is money spent (a bank withdrawal, a card charge, a vendor\'s invoice); \"in\" is money back (a deposit, a card payment or refund).')
+}))
+})
+
+export const PrepareStatementImportResponse = zod.object({
+  "vendorId": zod.number().nullable().describe('Set when the account is a vendor\'s statement account, so \"out\" lines are that vendor\'s invoices'),
+  "lines": zod.array(zod.object({
+  "existingTransactionId": zod.number().nullable(),
+  "suggestedAccountId": zod.number().nullable(),
+  "suggestedVendorId": zod.number().nullable()
+}))
+})
+
+
+/**
+ * @summary Enter the reviewed statement lines into the books (no reconciliation)
+ */
+
+
+
+
+export const ImportStatementBody = zod.object({
+  "accountId": zod.number(),
+  "lines": zod.array(zod.object({
+  "date": zod.string(),
+  "description": zod.string(),
+  "amountCents": zod.number().min(1),
+  "direction": zod.enum(['out', 'in']),
+  "categoryAccountId": zod.number().nullish(),
+  "vendorId": zod.number().nullish(),
+  "jobId": zod.number().nullish(),
+  "transferAccountId": zod.number().nullish().describe('The other balance-sheet account when the line is money moved between accounts (paying the card from Checking)'),
+  "asBill": zod.boolean().nullish().describe('Enter as a vendor bill (vendor statements) instead of a register entry'),
+  "billNumber": zod.string().nullish()
+})).min(1)
+})
+
+export const ImportStatementResponse = zod.object({
+  "transactionsCreated": zod.number(),
+  "billsCreated": zod.number(),
+  "transfersCreated": zod.number()
+})
+
+
+/**
+ * @summary Create the account a statement belongs to, numbered automatically
+ */
+
+
+
+export const CreateStatementAccountBody = zod.object({
+  "name": zod.string().min(1),
+  "type": zod.enum(['bank', 'credit_card', 'liability'])
+})
+
+export const CreateStatementAccountResponse = zod.object({
+  "accountId": zod.number(),
+  "accountNumber": zod.string(),
+  "accountName": zod.string()
+})
+
+
+/**
  * Posts one income line per job (deposited to a bank account, so the checkbook shows one deposit for the check) and applies each job's amount to that job's open invoices, oldest first.
  * @summary Receive one customer check and split it across that customer's jobs
  */

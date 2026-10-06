@@ -30,6 +30,7 @@ import Payroll from "./pages/payroll";
 import PayrollDetail from "./pages/payroll-detail";
 import InboxPage from "./pages/inbox";
 import ChecksToPrint from "./pages/checks-to-print";
+import StatementImport from "./pages/statement-import";
 import Reports from "./pages/reports";
 import ReportPnl from "./pages/report-pnl";
 import ReportBalanceSheet from "./pages/report-balance-sheet";
@@ -273,6 +274,7 @@ function ClerkProviderWithRoutes() {
           <Route path="/jobs/:id"><ProtectedRoute component={JobDetail} /></Route>
           <Route path="/transactions"><ProtectedRoute component={Transactions} /></Route>
           <Route path="/checks-to-print"><ProtectedRoute component={ChecksToPrint} /></Route>
+          <Route path="/statements/import"><ProtectedRoute component={StatementImport} /></Route>
           <Route path="/invoices"><ProtectedRoute component={Invoices} /></Route>
           <Route path="/invoices/:id"><ProtectedRoute component={InvoiceDetail} /></Route>
           <Route path="/bills"><ProtectedRoute component={Bills} /></Route>

@@ -2635,6 +2635,160 @@ export interface ReconciliationPeriodDetail {
   printCheck?: ReconciliationPrintCheck | null;
 }
 
+/**
+ * "out" is money spent (a bank withdrawal, a card charge, a vendor's invoice); "in" is money back (a deposit, a card payment or refund).
+ */
+export type StatementImportLineDirection = typeof StatementImportLineDirection[keyof typeof StatementImportLineDirection];
+
+
+export const StatementImportLineDirection = {
+  out: 'out',
+  in: 'in',
+} as const;
+
+export interface StatementImportLine {
+  date: string;
+  description: string;
+  /** @minimum 0 */
+  amountCents: number;
+  /** "out" is money spent (a bank withdrawal, a card charge, a vendor's invoice); "in" is money back (a deposit, a card payment or refund). */
+  direction: StatementImportLineDirection;
+}
+
+export interface StatementReadInput {
+  /** @nullable */
+  text?: string | null;
+  /**
+     * The file as a base64 data URL
+     * @nullable
+     */
+  fileData?: string | null;
+  /** @nullable */
+  fileName?: string | null;
+}
+
+/**
+ * @nullable
+ */
+export type StatementReadResultDetectedKind = typeof StatementReadResultDetectedKind[keyof typeof StatementReadResultDetectedKind] | null;
+
+
+export const StatementReadResultDetectedKind = {
+  bank: 'bank',
+  credit_card: 'credit_card',
+  vendor: 'vendor',
+} as const;
+
+export interface StatementReadResult {
+  lines: StatementImportLine[];
+  /** @nullable */
+  detectedAccountId: number | null;
+  /** @nullable */
+  detectedVendorId: number | null;
+  /**
+     * Who the statement says it is from, as printed
+     * @nullable
+     */
+  detectedName: string | null;
+  /** @nullable */
+  detectedKind: StatementReadResultDetectedKind;
+  /** @nullable */
+  closingDate: string | null;
+  /** @nullable */
+  endingBalanceCents: number | null;
+  usedAi: boolean;
+}
+
+export interface StatementPrepareInput {
+  accountId: number;
+  lines: StatementImportLine[];
+}
+
+export type StatementPrepareResultLinesItem = {
+  /** @nullable */
+  existingTransactionId: number | null;
+  /** @nullable */
+  suggestedAccountId: number | null;
+  /** @nullable */
+  suggestedVendorId: number | null;
+};
+
+export interface StatementPrepareResult {
+  /**
+     * Set when the account is a vendor's statement account, so "out" lines are that vendor's invoices
+     * @nullable
+     */
+  vendorId: number | null;
+  lines: StatementPrepareResultLinesItem[];
+}
+
+export type StatementCommitLineDirection = typeof StatementCommitLineDirection[keyof typeof StatementCommitLineDirection];
+
+
+export const StatementCommitLineDirection = {
+  out: 'out',
+  in: 'in',
+} as const;
+
+export interface StatementCommitLine {
+  date: string;
+  description: string;
+  /** @minimum 1 */
+  amountCents: number;
+  direction: StatementCommitLineDirection;
+  /** @nullable */
+  categoryAccountId?: number | null;
+  /** @nullable */
+  vendorId?: number | null;
+  /** @nullable */
+  jobId?: number | null;
+  /**
+     * The other balance-sheet account when the line is money moved between accounts (paying the card from Checking)
+     * @nullable
+     */
+  transferAccountId?: number | null;
+  /**
+     * Enter as a vendor bill (vendor statements) instead of a register entry
+     * @nullable
+     */
+  asBill?: boolean | null;
+  /** @nullable */
+  billNumber?: string | null;
+}
+
+export interface StatementCommitInput {
+  accountId: number;
+  /** @minItems 1 */
+  lines: StatementCommitLine[];
+}
+
+export interface StatementCommitResult {
+  transactionsCreated: number;
+  billsCreated: number;
+  transfersCreated: number;
+}
+
+export type StatementAccountInputType = typeof StatementAccountInputType[keyof typeof StatementAccountInputType];
+
+
+export const StatementAccountInputType = {
+  bank: 'bank',
+  credit_card: 'credit_card',
+  liability: 'liability',
+} as const;
+
+export interface StatementAccountInput {
+  /** @minLength 1 */
+  name: string;
+  type: StatementAccountInputType;
+}
+
+export interface StatementAccountResult {
+  accountId: number;
+  accountNumber: string;
+  accountName: string;
+}
+
 export interface CustomerPaymentLineInput {
   jobId: number;
   /** @minimum 1 */

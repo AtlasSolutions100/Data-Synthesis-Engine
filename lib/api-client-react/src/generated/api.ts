@@ -127,6 +127,14 @@ import type {
   ReconciliationPeriod,
   ReconciliationPeriodDetail,
   ResolveUnmatchedStatementLine,
+  StatementAccountInput,
+  StatementAccountResult,
+  StatementCommitInput,
+  StatementCommitResult,
+  StatementPrepareInput,
+  StatementPrepareResult,
+  StatementReadInput,
+  StatementReadResult,
   ToggleReconciliationClear,
   Transaction,
   TransactionDuplicateCandidate,
@@ -3769,6 +3777,286 @@ export const useDeleteJobDocument = <TError = ErrorType<ErrorResponse>,
         TContext
       > => {
       return useMutation(getDeleteJobDocumentMutationOptions(options));
+    }
+
+export const getReadStatementUrl = () => {
+
+
+
+
+  return `/api/statements/read`
+}
+
+/**
+ * @summary Read a statement (file or pasted text) into lines and work out whose it is
+ */
+export const readStatement = async (statementReadInput: StatementReadInput, options?: RequestInit): Promise<StatementReadResult> => {
+
+  return customFetch<StatementReadResult>(getReadStatementUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(statementReadInput)
+  }
+);}
+
+
+
+
+export const getReadStatementMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof readStatement>>, TError,{data: BodyType<StatementReadInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof readStatement>>, TError,{data: BodyType<StatementReadInput>}, TContext> => {
+
+const mutationKey = ['readStatement'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof readStatement>>, {data: BodyType<StatementReadInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  readStatement(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReadStatementMutationResult = NonNullable<Awaited<ReturnType<typeof readStatement>>>
+    export type ReadStatementMutationBody = BodyType<StatementReadInput>
+    export type ReadStatementMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Read a statement (file or pasted text) into lines and work out whose it is
+ */
+export const useReadStatement = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof readStatement>>, TError,{data: BodyType<StatementReadInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof readStatement>>,
+        TError,
+        {data: BodyType<StatementReadInput>},
+        TContext
+      > => {
+      return useMutation(getReadStatementMutationOptions(options));
+    }
+
+export const getPrepareStatementImportUrl = () => {
+
+
+
+
+  return `/api/statements/prepare`
+}
+
+/**
+ * @summary For a chosen account, flag lines already in the books and suggest a category and vendor for the rest
+ */
+export const prepareStatementImport = async (statementPrepareInput: StatementPrepareInput, options?: RequestInit): Promise<StatementPrepareResult> => {
+
+  return customFetch<StatementPrepareResult>(getPrepareStatementImportUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(statementPrepareInput)
+  }
+);}
+
+
+
+
+export const getPrepareStatementImportMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof prepareStatementImport>>, TError,{data: BodyType<StatementPrepareInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof prepareStatementImport>>, TError,{data: BodyType<StatementPrepareInput>}, TContext> => {
+
+const mutationKey = ['prepareStatementImport'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof prepareStatementImport>>, {data: BodyType<StatementPrepareInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  prepareStatementImport(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PrepareStatementImportMutationResult = NonNullable<Awaited<ReturnType<typeof prepareStatementImport>>>
+    export type PrepareStatementImportMutationBody = BodyType<StatementPrepareInput>
+    export type PrepareStatementImportMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary For a chosen account, flag lines already in the books and suggest a category and vendor for the rest
+ */
+export const usePrepareStatementImport = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof prepareStatementImport>>, TError,{data: BodyType<StatementPrepareInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof prepareStatementImport>>,
+        TError,
+        {data: BodyType<StatementPrepareInput>},
+        TContext
+      > => {
+      return useMutation(getPrepareStatementImportMutationOptions(options));
+    }
+
+export const getImportStatementUrl = () => {
+
+
+
+
+  return `/api/statements/import`
+}
+
+/**
+ * @summary Enter the reviewed statement lines into the books (no reconciliation)
+ */
+export const importStatement = async (statementCommitInput: StatementCommitInput, options?: RequestInit): Promise<StatementCommitResult> => {
+
+  return customFetch<StatementCommitResult>(getImportStatementUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(statementCommitInput)
+  }
+);}
+
+
+
+
+export const getImportStatementMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof importStatement>>, TError,{data: BodyType<StatementCommitInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof importStatement>>, TError,{data: BodyType<StatementCommitInput>}, TContext> => {
+
+const mutationKey = ['importStatement'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof importStatement>>, {data: BodyType<StatementCommitInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  importStatement(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ImportStatementMutationResult = NonNullable<Awaited<ReturnType<typeof importStatement>>>
+    export type ImportStatementMutationBody = BodyType<StatementCommitInput>
+    export type ImportStatementMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Enter the reviewed statement lines into the books (no reconciliation)
+ */
+export const useImportStatement = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof importStatement>>, TError,{data: BodyType<StatementCommitInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof importStatement>>,
+        TError,
+        {data: BodyType<StatementCommitInput>},
+        TContext
+      > => {
+      return useMutation(getImportStatementMutationOptions(options));
+    }
+
+export const getCreateStatementAccountUrl = () => {
+
+
+
+
+  return `/api/statements/account`
+}
+
+/**
+ * @summary Create the account a statement belongs to, numbered automatically
+ */
+export const createStatementAccount = async (statementAccountInput: StatementAccountInput, options?: RequestInit): Promise<StatementAccountResult> => {
+
+  return customFetch<StatementAccountResult>(getCreateStatementAccountUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(statementAccountInput)
+  }
+);}
+
+
+
+
+export const getCreateStatementAccountMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createStatementAccount>>, TError,{data: BodyType<StatementAccountInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createStatementAccount>>, TError,{data: BodyType<StatementAccountInput>}, TContext> => {
+
+const mutationKey = ['createStatementAccount'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createStatementAccount>>, {data: BodyType<StatementAccountInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createStatementAccount(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateStatementAccountMutationResult = NonNullable<Awaited<ReturnType<typeof createStatementAccount>>>
+    export type CreateStatementAccountMutationBody = BodyType<StatementAccountInput>
+    export type CreateStatementAccountMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Create the account a statement belongs to, numbered automatically
+ */
+export const useCreateStatementAccount = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createStatementAccount>>, TError,{data: BodyType<StatementAccountInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createStatementAccount>>,
+        TError,
+        {data: BodyType<StatementAccountInput>},
+        TContext
+      > => {
+      return useMutation(getCreateStatementAccountMutationOptions(options));
     }
 
 export const getReceiveCustomerPaymentUrl = () => {

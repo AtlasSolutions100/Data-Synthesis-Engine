@@ -959,6 +959,86 @@ paths:
         "404":
           $ref: "#/components/responses/Error"
 
+  /statements/read:
+    post:
+      operationId: readStatement
+      tags: [statements]
+      summary: Read a statement (file or pasted text) into lines and work out whose it is
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StatementReadInput"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatementReadResult"
+        "400":
+          $ref: "#/components/responses/Error"
+  /statements/prepare:
+    post:
+      operationId: prepareStatementImport
+      tags: [statements]
+      summary: For a chosen account, flag lines already in the books and suggest a category and vendor for the rest
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StatementPrepareInput"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatementPrepareResult"
+        "400":
+          $ref: "#/components/responses/Error"
+  /statements/import:
+    post:
+      operationId: importStatement
+      tags: [statements]
+      summary: Enter the reviewed statement lines into the books (no reconciliation)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StatementCommitInput"
+      responses:
+        "201":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatementCommitResult"
+        "400":
+          $ref: "#/components/responses/Error"
+  /statements/account:
+    post:
+      operationId: createStatementAccount
+      tags: [statements]
+      summary: Create the account a statement belongs to, numbered automatically
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StatementAccountInput"
+      responses:
+        "201":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatementAccountResult"
+        "400":
+          $ref: "#/components/responses/Error"
   /customer-payments:
     post:
       operationId: receiveCustomerPayment
@@ -5635,6 +5715,156 @@ components:
           type: integer
         billCount:
           type: integer
+
+    StatementImportLine:
+      type: object
+      required: [date, description, amountCents, direction]
+      properties:
+        date:
+          type: string
+        description:
+          type: string
+        amountCents:
+          type: integer
+          minimum: 0
+        direction:
+          type: string
+          enum: [out, in]
+          description: >-
+            "out" is money spent (a bank withdrawal, a card charge, a vendor's
+            invoice); "in" is money back (a deposit, a card payment or refund).
+    StatementReadInput:
+      type: object
+      properties:
+        text:
+          type: ["string", "null"]
+        fileData:
+          type: ["string", "null"]
+          description: The file as a base64 data URL
+        fileName:
+          type: ["string", "null"]
+    StatementReadResult:
+      type: object
+      required: [lines, detectedAccountId, detectedVendorId, detectedName, detectedKind, closingDate, endingBalanceCents, usedAi]
+      properties:
+        lines:
+          type: array
+          items:
+            $ref: "#/components/schemas/StatementImportLine"
+        detectedAccountId:
+          type: ["integer", "null"]
+        detectedVendorId:
+          type: ["integer", "null"]
+        detectedName:
+          type: ["string", "null"]
+          description: Who the statement says it is from, as printed
+        detectedKind:
+          type: ["string", "null"]
+          enum: [bank, credit_card, vendor, null]
+        closingDate:
+          type: ["string", "null"]
+        endingBalanceCents:
+          type: ["integer", "null"]
+        usedAi:
+          type: boolean
+    StatementPrepareInput:
+      type: object
+      required: [accountId, lines]
+      properties:
+        accountId:
+          type: integer
+        lines:
+          type: array
+          items:
+            $ref: "#/components/schemas/StatementImportLine"
+    StatementPrepareResult:
+      type: object
+      required: [lines, vendorId]
+      properties:
+        vendorId:
+          type: ["integer", "null"]
+          description: Set when the account is a vendor's statement account, so "out" lines are that vendor's invoices
+        lines:
+          type: array
+          items:
+            type: object
+            required: [existingTransactionId, suggestedAccountId, suggestedVendorId]
+            properties:
+              existingTransactionId:
+                type: ["integer", "null"]
+              suggestedAccountId:
+                type: ["integer", "null"]
+              suggestedVendorId:
+                type: ["integer", "null"]
+    StatementCommitLine:
+      type: object
+      required: [date, description, amountCents, direction]
+      properties:
+        date:
+          type: string
+        description:
+          type: string
+        amountCents:
+          type: integer
+          minimum: 1
+        direction:
+          type: string
+          enum: [out, in]
+        categoryAccountId:
+          type: ["integer", "null"]
+        vendorId:
+          type: ["integer", "null"]
+        jobId:
+          type: ["integer", "null"]
+        transferAccountId:
+          type: ["integer", "null"]
+          description: The other balance-sheet account when the line is money moved between accounts (paying the card from Checking)
+        asBill:
+          type: ["boolean", "null"]
+          description: Enter as a vendor bill (vendor statements) instead of a register entry
+        billNumber:
+          type: ["string", "null"]
+    StatementCommitInput:
+      type: object
+      required: [accountId, lines]
+      properties:
+        accountId:
+          type: integer
+        lines:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/StatementCommitLine"
+    StatementCommitResult:
+      type: object
+      required: [transactionsCreated, billsCreated, transfersCreated]
+      properties:
+        transactionsCreated:
+          type: integer
+        billsCreated:
+          type: integer
+        transfersCreated:
+          type: integer
+    StatementAccountInput:
+      type: object
+      required: [name, type]
+      properties:
+        name:
+          type: string
+          minLength: 1
+        type:
+          type: string
+          enum: [bank, credit_card, liability]
+    StatementAccountResult:
+      type: object
+      required: [accountId, accountNumber, accountName]
+      properties:
+        accountId:
+          type: integer
+        accountNumber:
+          type: string
+        accountName:
+          type: string
 
     CustomerPaymentInput:
       type: object

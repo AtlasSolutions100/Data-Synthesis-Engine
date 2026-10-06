@@ -30,6 +30,7 @@ import {
   MessagesSquare,
   Inbox,
   Printer,
+  FileUp,
   type LucideIcon,
 } from "lucide-react";
 import { FeedbackButton } from "./feedback-button";
@@ -127,6 +128,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
       items: [
         { href: "/accounts", label: "Chart of Accounts", icon: Wallet },
         { href: "/checks-to-print", label: "Checks to Print", icon: Printer },
+        { href: "/statements/import", label: "Import Statement", icon: FileUp },
         { href: "/transactions", label: "Transactions", icon: ReceiptText },
         { href: "/reports", label: "Reports", icon: FileBarChart },
       ],

@@ -150,6 +150,28 @@ function StatementUploadPanel({
 
   return (
     <div className="space-y-4" data-testid="statement-upload-panel">
+      <div className="rounded-md border border-blue-200 bg-blue-50 px-3 py-3">
+        <p className="text-sm font-medium text-blue-900">Catching up the books?</p>
+        <p className="mt-0.5 text-xs text-blue-800">
+          Import the statement and its lines are entered for you. It figures out which bank, card or
+          vendor it's from, even one that isn't in your accounts yet. No reconciling.
+        </p>
+        <Button
+          type="button"
+          size="sm"
+          className="mt-2"
+          onClick={() => {
+            onDone();
+            navigate("/statements/import");
+          }}
+          data-testid="button-go-import-statement"
+        >
+          Import a statement
+        </Button>
+      </div>
+      <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+        Or reconcile a statement that's already entered
+      </p>
       <div>
         <p className="text-sm font-medium mb-1">Account on the statement</p>
         <Select value={accountId} onValueChange={setAccountId}>

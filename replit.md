@@ -69,6 +69,14 @@ A desktop-first, browser-based job-costing and construction-accounting app that 
 - **Receive Payment** (customer page and bank registers): one customer check split across that customer's jobs. `POST /customer-payments` writes one `payment` line per job (income account primary, bank split, customer + job + check number), so job income is right, and applies each job's share to its open invoices, oldest first. Lines with the same customer, check number and date share a `depositGroupKey`, so the register shows them as one deposit (expandable by job, deleted as a whole) and statement matching treats them as one bank deposit, like payroll. Invoices themselves still don't post to the ledger; deleting a deposit doesn't undo the invoice payments.
 - **Dashboard upload** asks "What are you uploading?" with Vendor invoice (goes to Bills, `/bills?upload=1` opens the upload), Job file, and Statement.
 
+### Client meeting 2026-10-06: Import a Statement (catch-up, no reconciling)
+
+- **Page** `/statements/import` (sidebar "Import Statement", Vendors page button, and the first choice under Dashboard → Upload → Statement). Drop a PDF/CSV/XLSX/photo or paste the statement text.
+- `POST /statements/read` turns it into lines (existing CSV/XLSX/PDF parsers, a line-by-line reader for pasted text, the AI for anything else) and works out whose it is by finding an account or vendor name from the books in the header; when nothing matches, the AI reads the issuer and the page offers to add the account (`POST /statements/account`, auto-numbered; vendors reuse the reconcile-account setup). The year for "01/14"-style rows comes from the statement's own dates.
+- `POST /statements/prepare` (per chosen account) flags lines already in the books (same effect on that account within 3 days) and suggests a category: what that payee was coded to before, then the vendor's usual account, then the AI.
+- `POST /statements/import` enters the approved lines: category account as the primary row with the statement account as the split (so P&L and job cost are right and the register shows it), `transfer` rows for money moved between his own accounts (paying the card from Checking), and **bills** for charges on a vendor statement. Lines with no category stay on the page. Sign rules live in `lib/statementImport.ts`.
+- AI steps are best-effort: with the OpenAI integration unavailable, files and pasted text still import; only issuer detection for unknown accounts and category guesses for never-seen payees are lost.
+
 ### Load a Replit table export (JSON per table)
 
 ```

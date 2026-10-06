@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { VendorForm } from "@/components/forms/vendor-form";
 import { useQueryClient } from "@tanstack/react-query";
-import { Plus, Edit2, Trash2, Search, Download, CheckCircle2 } from "lucide-react";
+import { Plus, Edit2, Trash2, Search, Download, CheckCircle2, FileUp } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { Input } from "@/components/ui/input";
 import { ImportDataDialog } from "@/components/import-data-dialog";
@@ -162,6 +162,11 @@ export default function Vendors() {
           data-testid="button-export-vendors"
         >
           <Download className="mr-2 h-4 w-4" /> Export CSV
+        </Button>
+        <Button variant="outline" asChild>
+          <Link href="/statements/import" data-testid="link-import-vendor-statement">
+            <FileUp className="mr-2 h-4 w-4" /> Import Statement
+          </Link>
         </Button>
         <ImportDataDialog
           entity="vendors"
